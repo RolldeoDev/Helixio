@@ -1,0 +1,369 @@
+/**
+ * SeriesCoverCard Component
+ *
+ * Cover card for displaying series with progress indicators and count badges.
+ * Supports theming via CSS custom properties.
+ */
+
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
+import './SeriesCoverCard.css';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export type SeriesCoverCardSize = 'small' | 'medium' | 'large';
+
+/** Menu item preset identifiers for series context menu */
+export type SeriesMenuItemPreset = 'view' | 'fetchMetadata' | 'markAllRead' | 'markAllUnread' | 'mergeWith';
+
+/** Custom menu item for series cards */
+export interface SeriesMenuItem {
+  id: string;
+  label: string;
+  disabled?: boolean;
+  danger?: boolean;
+  dividerBefore?: boolean;
+  dividerAfter?: boolean;
+}
+
+export interface SeriesCoverCardProps {
+  /** Series data */
+  series: Series;
+
+  /** Size variant */
+  size?: SeriesCoverCardSize;
+
+  /** Click handler */
+  onClick?: (seriesId: string) => void;
+
+  /** Context menu action handler */
+  onMenuAction?: (action: SeriesMenuItemPreset | string, seriesId: string) => void;
+
+  /** Enable context menu on right-click */
+  contextMenuEnabled?: boolean;
+
+  /** Show year in info section */
+  showYear?: boolean;
+
+  /** Show publisher in info section */
+  showPublisher?: boolean;
+
+  /** Custom class name */
+  className?: string;
+
+  /** Animation delay index */
+  animationIndex?: number;
+
+  /** Tab index for keyboard navigation */
+  tabIndex?: number;
+}
+
+// =============================================================================
+// Series Menu Configuration
+// =============================================================================
+
+const SERIES_MENU_ITEMS: SeriesMenuItem[] = [
+  { id: 'view', label: 'View Series' },
+  { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
+  { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
+  { id: 'markAllUnread', label: 'Mark All as Unread' },
+  { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
+];
+
+// =============================================================================
+// Component
+// =============================================================================
+
+export function SeriesCoverCard({
+  series,
+  size = 'medium',
+  onClick,
+  onMenuAction,
+  contextMenuEnabled = false,
+  showYear = true,
+  showPublisher = true,
+  className = '',
+  animationIndex,
+  tabIndex = 0,
+}: SeriesCoverCardProps) {
+  // Memoize the cover URL to prevent recalculation
+  const coverUrl = useMemo(() => {
+    // Respect the coverSource setting:
+    // - 'api': Use API cover (coverHash) if available
+    // - 'user': Use coverFileId if available
+    // - 'auto': Use automatic fallback (API > User > First Issue)
+    const firstIssueId = series.issues?.[0]?.id;
+
+    if (series.coverSource === 'api') {
+      // Explicit API cover mode - only use coverHash
+      if (series.coverHash) return getApiCoverUrl(series.coverHash);
+      // Fall through to first issue if no API cover available
+      if (firstIssueId) return getCoverUrl(firstIssueId);
+      return null;
+    }
+
+    if (series.coverSource === 'user') {
+      // Explicit user selection mode - use coverFileId
+      if (series.coverFileId) return getCoverUrl(series.coverFileId);
+      // Fall through to first issue if selection is invalid
+      if (firstIssueId) return getCoverUrl(firstIssueId);
+      return null;
+    }
+
+    // 'auto' mode or unset: Priority fallback chain
+    // API cover (local cache) > User-set file > First issue in series
+    if (series.coverHash) return getApiCoverUrl(series.coverHash);
+    if (series.coverFileId) return getCoverUrl(series.coverFileId);
+    if (firstIssueId) return getCoverUrl(firstIssueId);
+    return null;
+  }, [series.coverSource, series.coverFileId, series.coverHash, series.issues]);
+
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
+    coverUrl ? 'loading' : 'error'
+  );
+
+  // Context menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+
+  const imgRef = useRef<HTMLImageElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Handle cached images that load before React attaches handlers
+  useEffect(() => {
+    if (!coverUrl) {
+      setStatus('error');
+      return;
+    }
+
+    const img = imgRef.current;
+    if (img && img.complete) {
+      if (img.naturalWidth > 0) {
+        setStatus('loaded');
+      } else {
+        setStatus('error');
+      }
+    }
+  }, [coverUrl]);
+
+  const handleLoad = useCallback(() => {
+    setStatus('loaded');
+  }, []);
+
+  const handleError = useCallback(() => {
+    setStatus('error');
+  }, []);
+
+  // Calculate progress
+  const progress = series.progress;
+  const totalOwned = progress?.totalOwned ?? series._count?.issues ?? 0;
+  const totalRead = progress?.totalRead ?? 0;
+  const progressPercent = totalOwned > 0 ? Math.round((totalRead / totalOwned) * 100) : 0;
+  const isComplete = totalOwned > 0 && totalRead >= totalOwned;
+
+  // Handle click
+  const handleClick = useCallback(() => {
+    onClick?.(series.id);
+  }, [series.id, onClick]);
+
+  // Handle keyboard
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        onClick?.(series.id);
+      }
+    },
+    [series.id, onClick]
+  );
+
+  // Handle context menu
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!contextMenuEnabled || !onMenuAction) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Calculate position, keeping menu within viewport
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const menuWidth = 200;
+      const menuHeight = 200;
+
+      let x = e.clientX;
+      let y = e.clientY;
+
+      if (x + menuWidth > viewportWidth) {
+        x = viewportWidth - menuWidth - 8;
+      }
+      if (y + menuHeight > viewportHeight) {
+        y = viewportHeight - menuHeight - 8;
+      }
+
+      x = Math.max(8, x);
+      y = Math.max(8, y);
+
+      setMenuPosition({ x, y });
+      setMenuOpen(true);
+    },
+    [contextMenuEnabled, onMenuAction]
+  );
+
+  // Close menu on click outside
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handleClickOutside = () => {
+      setMenuOpen(false);
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuOpen]);
+
+  // Handle menu action
+  const handleMenuItemClick = useCallback(
+    (action: string) => {
+      setMenuOpen(false);
+      onMenuAction?.(action as SeriesMenuItemPreset, series.id);
+    },
+    [onMenuAction, series.id]
+  );
+
+  // Animation style
+  const animationStyle = animationIndex !== undefined
+    ? { '--animation-index': animationIndex } as React.CSSProperties
+    : undefined;
+
+  return (
+    <div
+      className={`series-cover-card series-cover-card--${size} ${className}`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
+      tabIndex={tabIndex}
+      role="button"
+      aria-label={`${series.name}${series.startYear ? ` (${series.startYear})` : ''}`}
+      style={animationStyle}
+    >
+      {/* Cover */}
+      <div className="series-cover-card__cover">
+        {/* Loading spinner */}
+        {status === 'loading' && coverUrl && (
+          <div className="series-cover-card__loading">
+            <div className="series-cover-card__spinner" />
+          </div>
+        )}
+
+        {/* Placeholder (no cover or error) */}
+        {(status === 'error' || !coverUrl) && (
+          <div className="series-cover-card__placeholder">
+            <span className="series-cover-card__initial">
+              {series.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
+
+        {/* Cover image */}
+        {coverUrl && (
+          <img
+            ref={imgRef}
+            src={coverUrl}
+            alt={series.name}
+            loading="lazy"
+            decoding="async"
+            onLoad={handleLoad}
+            onError={handleError}
+            className={`series-cover-card__image ${status === 'loaded' ? 'series-cover-card__image--loaded' : ''}`}
+          />
+        )}
+
+        {/* Progress bar */}
+        {totalOwned > 0 && !isComplete && (
+          <div className="series-cover-card__progress">
+            <div
+              className="series-cover-card__progress-fill"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
+
+        {/* Completed indicator */}
+        {isComplete && (
+          <div className="series-cover-card__completed" title="Series complete">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
+          </div>
+        )}
+
+        {/* Issue count badge */}
+        <div className="series-cover-card__count-badge">
+          {totalRead}/{totalOwned}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="series-cover-card__info">
+        <span className="series-cover-card__title" title={series.name}>
+          {series.name}
+        </span>
+        <span className="series-cover-card__meta">
+          {showYear && series.startYear && (
+            <span className="series-cover-card__year">{series.startYear}</span>
+          )}
+          {showPublisher && series.publisher && (
+            <span className="series-cover-card__publisher">{series.publisher}</span>
+          )}
+        </span>
+      </div>
+
+      {/* Context Menu - rendered via portal to avoid transform containment issues */}
+      {menuOpen && menuPosition && createPortal(
+        <div
+          ref={menuRef}
+          className="series-cover-card__context-menu"
+          style={{ top: menuPosition.y, left: menuPosition.x }}
+          role="menu"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {SERIES_MENU_ITEMS.map((item, index) => (
+            <div key={item.id}>
+              {item.dividerBefore && index > 0 && (
+                <div className="series-cover-card__menu-divider" role="separator" />
+              )}
+              <button
+                className={`series-cover-card__menu-item ${item.danger ? 'series-cover-card__menu-item--danger' : ''}`}
+                onClick={() => handleMenuItemClick(item.id)}
+                role="menuitem"
+              >
+                {item.label}
+              </button>
+              {item.dividerAfter && index < SERIES_MENU_ITEMS.length - 1 && (
+                <div className="series-cover-card__menu-divider" role="separator" />
+              )}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,517 @@
+/**
+ * IssueEditDrawer Styles
+ *
+ * Slide-out drawer for editing issue metadata with collapsible sections.
+ */
+
+/* ==========================================================================
+   Drawer Overlay
+   ========================================================================== */
+
+.issue-edit-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.issue-edit-drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ==========================================================================
+   Drawer Panel
+   ========================================================================== */
+
+.issue-edit-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 520px;
+  max-width: 90vw;
+  height: 100vh;
+  background: var(--color-bg);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 1101;
+}
+
+.issue-edit-drawer.open {
+  transform: translateX(0);
+}
+
+/* ==========================================================================
+   Drawer Header
+   ========================================================================== */
+
+.issue-edit-drawer .drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+}
+
+.issue-edit-drawer .drawer-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.issue-edit-drawer .drawer-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.issue-edit-drawer .drawer-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.issue-edit-drawer .status-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: capitalize;
+}
+
+.issue-edit-drawer .status-badge.status-matched {
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+}
+
+.issue-edit-drawer .status-badge.status-manual {
+  background: rgba(212, 165, 116, 0.15);
+  color: var(--color-primary);
+}
+
+.issue-edit-drawer .status-badge.status-rejected {
+  background: rgba(224, 122, 122, 0.15);
+  color: var(--color-error);
+}
+
+.issue-edit-drawer .status-badge.status-unmatched {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.issue-edit-drawer .confidence-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.issue-edit-drawer .confidence-badge.confidence-high {
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+}
+
+.issue-edit-drawer .confidence-badge.confidence-medium {
+  background: rgba(229, 181, 103, 0.15);
+  color: var(--color-warning);
+}
+
+.issue-edit-drawer .confidence-badge.confidence-low {
+  background: rgba(224, 122, 122, 0.15);
+  color: var(--color-error);
+}
+
+.issue-edit-drawer .drawer-close {
+  background: none;
+  border: none;
+  font-size: 1.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.issue-edit-drawer .drawer-close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-tertiary);
+}
+
+/* ==========================================================================
+   Drawer Content
+   ========================================================================== */
+
+.issue-edit-drawer .drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+/* Match Info Section */
+.match-info-section {
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.match-info-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.match-source-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+}
+
+.match-issue-info {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.match-cover-date {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+/* ==========================================================================
+   Field Sections (Accordion)
+   ========================================================================== */
+
+.field-section {
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.field-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.field-section-header:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.field-section-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.field-section-title {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.field-section-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+  border-radius: var(--radius-full);
+}
+
+.field-section-chevron {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.field-section-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+.field-section-content {
+  padding: var(--spacing-md);
+  background: var(--color-bg);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ==========================================================================
+   Fields Grid
+   ========================================================================== */
+
+.fields-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* ==========================================================================
+   Editable Field
+   ========================================================================== */
+
+.editable-field {
+  position: relative;
+}
+
+.editable-field.has-change {
+  padding-left: var(--spacing-sm);
+  border-left: 3px solid var(--color-success);
+}
+
+.field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--spacing-xs);
+}
+
+.field-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.9rem;
+  color: var(--color-text);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.2);
+}
+
+.field-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.field-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+.field-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.field-select {
+  cursor: pointer;
+}
+
+.field-current-value {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Tag Chips Input
+   ========================================================================== */
+
+.tag-chips-field {
+  position: relative;
+}
+
+.tag-chips-field.has-change {
+  padding-left: var(--spacing-sm);
+  border-left: 3px solid var(--color-success);
+}
+
+.tag-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  min-height: 40px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tag-chips-container:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.2);
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  color: var(--color-text);
+}
+
+.tag-chip.tag-chip-new {
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+}
+
+.tag-chip-text {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.tag-chip-remove:hover {
+  background: rgba(224, 122, 122, 0.2);
+  color: var(--color-error);
+}
+
+.tag-chips-input {
+  flex: 1;
+  min-width: 100px;
+  padding: 4px;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.tag-chips-input:focus {
+  outline: none;
+}
+
+.tag-chips-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+
+/* ==========================================================================
+   Drawer Footer
+   ========================================================================== */
+
+.issue-edit-drawer .drawer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+}
+
+.footer-left,
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.btn-danger-ghost {
+  background: none;
+  border: 1px solid transparent;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-error);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-danger-ghost:hover:not(:disabled) {
+  background: rgba(224, 122, 122, 0.1);
+  border-color: var(--color-error);
+}
+
+.btn-danger-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .issue-edit-drawer {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .issue-edit-drawer .drawer-footer {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .footer-left,
+  .footer-right {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .footer-left button,
+  .footer-right button {
+    flex: 1;
+  }
+}

@@ -1,0 +1,14 @@
+.git
+.gitignore
+.claude
+node_modules
+*.md
+*.log
+.DS_Store
+coverage
+.env*
+*.tsbuildinfo
+docs
+test-config
+test-comics
+*.tar.gz

@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.claude/*
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Prisma
+server/prisma/*.db
+server/prisma/*.db-journal
+
+# Application data (local development)
+# Note: In production, this is at ~/.helixio/
+.helixio/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker test directories
+test-config/
+test-comics/
+
+# Docker export
+*.tar.gz
+CLAUDE_API_KEY
+.goose-review/ARCHITECTURE_ANALYSIS.md
+.goose-review/CODE_QUALITY_REPORT.md
+.goose-review/CODEBASE_REFERENCE.md
+.goose-review/FINAL_REVIEW_SUMMARY.md
+.goose-review/IMPLEMENTATION_REVIEW.md
+docs/IMPLEMENTATION_PHASES.md
+docs/NAMING_CONVENTIONS.md
+docs/PLAN.md
+docs/READING_HOMEPAGE.md
+docs/SERIES_REWRITE.md
+server/docs/COMICVINE_API.md
+docs/orchestration/example-plan.json
+docs/orchestration/plan-schema.json
+docs/orchestration/README.md
+docs/DOCKER.md
+docs/GCD-API-INFO.md
+docs/JOB_ARCHITECTURE.md

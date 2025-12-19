@@ -1,0 +1,552 @@
+/**
+ * CoverCard Styles
+ *
+ * Unified cover card component with full theming support.
+ * Uses CSS custom properties for all themeable values.
+ */
+
+/* =============================================================================
+   CSS Custom Properties (Theme Contract)
+   ============================================================================= */
+
+.cover-card {
+  /* Dimensions - can be overridden by parent via --cover-size or by size variants */
+  --cover-card-width: var(--cover-size, 180px);
+  --cover-card-aspect-ratio: 2 / 3;
+  --cover-card-gap: 8px;
+
+  /* Surfaces */
+  --cover-card-bg: var(--color-surface-card, #1a1a2e);
+  --cover-card-bg-hover: var(--color-surface-card-hover, #252542);
+
+  /* Borders */
+  --cover-card-border-color: var(--color-border, rgba(255, 255, 255, 0.1));
+  --cover-card-border-selected: var(--color-primary, #6366f1);
+  --cover-card-border-focus: var(--color-focus-ring, #818cf8);
+  --cover-card-border-width: 2px;
+
+  /* Text */
+  --cover-card-text-primary: var(--color-text-primary, #e2e8f0);
+  --cover-card-text-secondary: var(--color-text-secondary, #94a3b8);
+  --cover-card-text-muted: var(--color-text-muted, #64748b);
+
+  /* Status indicators */
+  --cover-card-progress-bg: var(--color-progress-track, rgba(255, 255, 255, 0.1));
+  --cover-card-progress-fill: var(--color-progress-fill, #6366f1);
+  --cover-card-completed-color: var(--color-success, #22c55e);
+  --cover-card-error-color: var(--color-error, #ef4444);
+
+  /* Shadows & effects */
+  --cover-card-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+  --cover-card-shadow-hover: var(--shadow-card-elevated, 0 10px 15px -3px rgba(0, 0, 0, 0.4));
+  --cover-card-shadow-glow: var(--shadow-glow-primary, 0 0 20px rgba(99, 102, 241, 0.3));
+
+  /* Transitions */
+  --cover-card-transition: var(--transition-fast, 150ms ease);
+
+  /* Border radius */
+  --cover-card-radius: var(--radius-md, 8px);
+
+  /* Hover effects */
+  --cover-card-hover-scale: var(--scale-hover, 1.02);
+  --cover-card-hover-lift: var(--lift-hover, -2px);
+}
+
+/* =============================================================================
+   Base Component
+   ============================================================================= */
+
+.cover-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--cover-card-width);
+  background: var(--cover-card-bg);
+  border-radius: var(--cover-card-radius);
+  border: var(--cover-card-border-width) solid transparent;
+  cursor: pointer;
+  transition:
+    transform var(--cover-card-transition),
+    box-shadow var(--cover-card-transition),
+    border-color var(--cover-card-transition);
+  outline: none;
+  box-shadow: var(--cover-card-shadow);
+}
+
+.cover-card:hover {
+  transform: translateY(var(--cover-card-hover-lift)) scale(var(--cover-card-hover-scale));
+  box-shadow: var(--cover-card-shadow-hover);
+  background: var(--cover-card-bg-hover);
+}
+
+.cover-card:focus-visible {
+  border-color: var(--cover-card-border-focus);
+  box-shadow: var(--cover-card-shadow-hover), var(--cover-card-shadow-glow);
+}
+
+.cover-card--selected {
+  border-color: var(--cover-card-border-selected);
+  box-shadow: var(--cover-card-shadow-hover), var(--cover-card-shadow-glow);
+}
+
+/* =============================================================================
+   Size Variants (only apply when --cover-size is not set on container)
+   ============================================================================= */
+
+.cover-card--compact {
+  --cover-card-width: var(--cover-size, 48px);
+  --cover-card-radius: 4px;
+}
+
+.cover-card--small {
+  --cover-card-width: var(--cover-size, 120px);
+  --cover-card-radius: 6px;
+}
+
+.cover-card--medium {
+  --cover-card-width: var(--cover-size, 180px);
+}
+
+.cover-card--large {
+  --cover-card-width: var(--cover-size, 200px);
+  --cover-card-radius: 10px;
+}
+
+/* =============================================================================
+   Dynamic Sizing (when --cover-size is set on container)
+   Adjusts font sizes and padding based on cover width
+   ============================================================================= */
+
+/* Very small cards (< 80px) - hide info, minimal UI */
+@container style(--cover-size-level: 1) {
+  .cover-card__info {
+    display: none;
+  }
+}
+
+/* Dynamic scaling via clamp for info section */
+.cover-card__info {
+  /* Scale padding with card size */
+  --info-padding: clamp(4px, calc(var(--cover-card-width) * 0.04), 12px);
+  padding: var(--info-padding);
+}
+
+.cover-card__title {
+  /* Scale font size with card width: min 9px, preferred 7% of width, max 14px */
+  font-size: clamp(9px, calc(var(--cover-card-width) * 0.07), 14px);
+}
+
+.cover-card__series {
+  /* Scale series font: min 8px, preferred 6% of width, max 12px */
+  font-size: clamp(8px, calc(var(--cover-card-width) * 0.06), 12px);
+}
+
+/* =============================================================================
+   Variant Layouts
+   ============================================================================= */
+
+/* Grid variant (default) - vertical stack */
+.cover-card--grid {
+  flex-direction: column;
+}
+
+/* List variant - horizontal layout */
+.cover-card--list {
+  flex-direction: row;
+  width: 100%;
+  --cover-card-width: 48px;
+  padding: 8px;
+  gap: 12px;
+  align-items: center;
+}
+
+.cover-card--list .cover-card__cover {
+  flex-shrink: 0;
+}
+
+.cover-card--list .cover-card__info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Carousel variant */
+.cover-card--carousel {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+
+/* =============================================================================
+   Cover Image Container
+   ============================================================================= */
+
+.cover-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--cover-card-aspect-ratio);
+  border-radius: var(--cover-card-radius) var(--cover-card-radius) 0 0;
+  overflow: hidden;
+  background: var(--cover-card-bg);
+}
+
+.cover-card--list .cover-card__cover {
+  width: var(--cover-card-width);
+  border-radius: var(--cover-card-radius);
+}
+
+/* =============================================================================
+   Cover Image States
+   ============================================================================= */
+
+.cover-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity var(--cover-card-transition);
+}
+
+.cover-card__image--hidden {
+  opacity: 0;
+}
+
+.cover-card__image--loaded {
+  opacity: 1;
+}
+
+.cover-card__blur-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(10px);
+  transform: scale(1.1);
+}
+
+/* Loading spinner */
+.cover-card__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cover-card-bg);
+}
+
+.cover-card__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--cover-card-border-color);
+  border-top-color: var(--cover-card-border-selected);
+  border-radius: 50%;
+  animation: cover-card-spin 0.8s linear infinite;
+}
+
+@keyframes cover-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error state */
+.cover-card__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--cover-card-bg);
+  cursor: pointer;
+}
+
+.cover-card__error-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cover-card-error-color);
+  color: white;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.cover-card__error-text {
+  font-size: 12px;
+  color: var(--cover-card-text-muted);
+}
+
+/* =============================================================================
+   Progress Bar
+   ============================================================================= */
+
+.cover-card__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--cover-card-progress-bg);
+}
+
+.cover-card__progress-fill {
+  height: 100%;
+  background: var(--cover-card-progress-fill);
+  transition: width var(--cover-card-transition);
+}
+
+/* =============================================================================
+   Badges
+   ============================================================================= */
+
+/* Completed badge */
+.cover-card__completed {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cover-card-completed-color);
+  color: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Continue reading badge */
+.cover-card__continue-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 4px 8px;
+  background: var(--cover-card-progress-fill);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Custom badge */
+.cover-card__badge {
+  position: absolute;
+  z-index: 10;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  color: white;
+}
+
+.cover-card__badge--top-left {
+  top: 8px;
+  left: 8px;
+}
+
+.cover-card__badge--top-right {
+  top: 8px;
+  right: 8px;
+}
+
+.cover-card__badge--top-center {
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.cover-card__badge--primary {
+  background: var(--color-badge-primary, #6366f1);
+}
+
+.cover-card__badge--success {
+  background: var(--color-badge-success, #22c55e);
+}
+
+.cover-card__badge--warning {
+  background: var(--color-badge-warning, #f59e0b);
+}
+
+.cover-card__badge--info {
+  background: var(--color-badge-info, #3b82f6);
+}
+
+.cover-card__badge--error {
+  background: var(--color-badge-error, #ef4444);
+}
+
+/* =============================================================================
+   Selection Checkbox
+   ============================================================================= */
+
+.cover-card__checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity var(--cover-card-transition);
+}
+
+.cover-card__checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--cover-card-border-selected);
+}
+
+/* Checkbox visibility modes */
+.cover-card--checkbox-always .cover-card__checkbox {
+  opacity: 1;
+}
+
+.cover-card--checkbox-hover:hover .cover-card__checkbox {
+  opacity: 1;
+}
+
+.cover-card--checkbox-selected .cover-card__checkbox--checked {
+  opacity: 1;
+}
+
+.cover-card--selected .cover-card__checkbox {
+  opacity: 1;
+}
+
+/* =============================================================================
+   Info Section
+   ============================================================================= */
+
+.cover-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--cover-card-gap);
+  min-width: 0;
+}
+
+.cover-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cover-card-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cover-card__series {
+  font-size: 11px;
+  color: var(--cover-card-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =============================================================================
+   Context Menu
+   ============================================================================= */
+
+.cover-card-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--color-menu-bg, #1e1e32);
+  border: 1px solid var(--color-menu-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
+}
+
+.cover-card-context-menu__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--color-menu-border, rgba(255, 255, 255, 0.1));
+}
+
+.cover-card-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--cover-card-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--cover-card-transition);
+}
+
+.cover-card-context-menu__item:hover {
+  background: var(--color-menu-item-hover, rgba(255, 255, 255, 0.1));
+}
+
+.cover-card-context-menu__item:focus-visible {
+  outline: none;
+  background: var(--color-menu-item-hover, rgba(255, 255, 255, 0.1));
+}
+
+.cover-card-context-menu__item--danger {
+  color: var(--cover-card-error-color);
+}
+
+.cover-card-context-menu__item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cover-card-context-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.cover-card-context-menu__label {
+  flex: 1;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+/* Staggered entrance animation */
+@keyframes cover-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cover-card {
+  animation: cover-card-enter 0.3s ease both;
+  animation-delay: calc(var(--animation-index, 0) * 30ms);
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-card {
+    --cover-card-transition: 0ms;
+    --cover-card-hover-scale: 1;
+    --cover-card-hover-lift: 0;
+    animation: none;
+  }
+
+  .cover-card__spinner {
+    animation: none;
+  }
+}

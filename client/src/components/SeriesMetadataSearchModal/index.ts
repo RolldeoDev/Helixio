@@ -1,0 +1,1 @@
+export { SeriesMetadataSearchModal } from './SeriesMetadataSearchModal';

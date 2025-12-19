@@ -1,0 +1,76 @@
+/**
+ * JobBanner Styles
+ */
+
+.job-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: var(--bg);
+  padding: var(--space-sm) var(--space-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.job-banner:hover {
+  filter: brightness(1.1);
+}
+
+.job-banner.error {
+  background: linear-gradient(135deg, var(--error) 0%, #c45454 100%);
+}
+
+.job-banner.complete {
+  background: linear-gradient(135deg, var(--success) 0%, #5ab87a 100%);
+}
+
+.job-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.job-banner-icon {
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.job-banner-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.job-banner-text {
+  text-align: center;
+}
+
+.job-banner-text strong {
+  text-decoration: underline;
+}
+
+/* Adjust main content when banner is visible */
+.app.has-job-banner {
+  padding-top: 40px;
+}
+
+.app.has-job-banner .sidebar {
+  top: 40px;
+  height: calc(100vh - 40px);
+}

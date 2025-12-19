@@ -1,0 +1,546 @@
+/* =============================================================================
+   ListView Component - Editorial Catalog Style
+   A refined list view inspired by vinyl record catalogs and rare book indexes
+   ============================================================================= */
+
+.list-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  position: relative;
+}
+
+.list-view-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+/* =============================================================================
+   List Header - Column Labels
+   ============================================================================= */
+
+.list-header {
+  display: grid;
+  grid-template-columns: 40px 64px 1fr 180px 80px 120px;
+  gap: var(--spacing-md);
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  z-index: 10;
+}
+
+.list-header > div {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+}
+
+.list-header-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-header-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.list-header-cover {
+  /* Empty column for thumbnail alignment */
+}
+
+/* =============================================================================
+   List Container
+   ============================================================================= */
+
+.list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* =============================================================================
+   List Item - Comic Card Row
+   ============================================================================= */
+
+.list-item {
+  display: grid;
+  grid-template-columns: 40px 64px 1fr 180px 80px 120px;
+  gap: var(--spacing-md);
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+
+  /* Staggered entrance animation */
+  animation: listItemFadeIn 0.3s ease-out backwards;
+  animation-delay: calc(var(--item-index, 0) * 0.02s);
+}
+
+@keyframes listItemFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.list-item:hover {
+  background: var(--color-bg-elevated);
+  transform: translateX(4px);
+}
+
+.list-item.selected {
+  background: var(--color-selected);
+  border-left: 3px solid var(--color-primary);
+  padding-left: calc(var(--spacing-md) - 3px);
+}
+
+.list-item:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
+}
+
+.list-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+/* Selection glow effect */
+.list-item-selection-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(
+    180deg,
+    var(--color-primary) 0%,
+    var(--color-primary-hover) 50%,
+    var(--color-primary) 100%
+  );
+  box-shadow: 0 0 12px var(--color-primary);
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   List Item - Checkbox
+   ============================================================================= */
+
+.list-item-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-item-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.list-item-checkbox input[type="checkbox"]:hover {
+  transform: scale(1.1);
+}
+
+/* =============================================================================
+   List Item - Cover Thumbnail
+   ============================================================================= */
+
+.list-item-cover {
+  width: 48px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  position: relative;
+  flex-shrink: 0;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.list-item:hover .list-item-cover {
+  transform: scale(1.05);
+  box-shadow:
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(212, 165, 116, 0.2);
+}
+
+.list-item-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.list-item-cover img.loaded {
+  opacity: 1;
+}
+
+.list-item-cover img.hidden {
+  opacity: 0;
+  position: absolute;
+}
+
+/* Loading shimmer */
+.list-cover-loading {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-cover-shimmer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    110deg,
+    var(--color-bg-tertiary) 0%,
+    var(--color-bg-secondary) 20%,
+    var(--color-bg-elevated) 40%,
+    var(--color-bg-secondary) 60%,
+    var(--color-bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Error state */
+.list-cover-error {
+  position: absolute;
+  inset: 0;
+  background: var(--color-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-error);
+}
+
+.list-cover-error-icon {
+  font-size: 16px;
+  font-weight: bold;
+  opacity: 0.6;
+}
+
+/* =============================================================================
+   List Item - Title & Metadata
+   ============================================================================= */
+
+.list-item-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-right: var(--spacing-md);
+}
+
+.list-item-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+  transition: color var(--transition-fast);
+}
+
+.list-item:hover .list-item-name {
+  color: var(--color-primary-hover);
+}
+
+.list-item-creator {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+/* =============================================================================
+   List Item - Series Info
+   ============================================================================= */
+
+.list-item-series {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.series-name {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-number {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.series-unknown {
+  color: var(--color-text-subtle);
+  font-size: 13px;
+}
+
+/* =============================================================================
+   List Item - File Size
+   ============================================================================= */
+
+.list-item-size {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   List Item - Reading Progress
+   ============================================================================= */
+
+.list-item-progress {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+}
+
+/* Completed state */
+.progress-completed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-success);
+}
+
+.progress-completed svg {
+  opacity: 0.9;
+}
+
+/* In-progress bar */
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--color-bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary) 0%,
+    var(--color-primary-hover) 100%
+  );
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3)
+  );
+}
+
+.progress-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Unread state */
+.progress-unread {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-info);
+  background: rgba(126, 184, 216, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 900px) {
+  .list-header,
+  .list-item {
+    grid-template-columns: 40px 56px 1fr 100px 60px 90px;
+    gap: var(--spacing-sm);
+  }
+
+  .list-item-cover {
+    width: 40px;
+    height: 54px;
+  }
+
+  .list-item-name {
+    font-size: 14px;
+  }
+
+  .list-header-series,
+  .list-item-series {
+    display: none;
+  }
+
+  .list-header,
+  .list-item {
+    grid-template-columns: 40px 56px 1fr 60px 90px;
+  }
+}
+
+@media (max-width: 600px) {
+  .list-header,
+  .list-item {
+    grid-template-columns: 32px 48px 1fr 70px;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .list-item-cover {
+    width: 36px;
+    height: 48px;
+  }
+
+  .list-item-name {
+    font-size: 13px;
+  }
+
+  .list-item-size,
+  .list-header-size {
+    display: none;
+  }
+
+  .progress-bar-container {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .progress-bar {
+    width: 50px;
+  }
+}
+
+/* =============================================================================
+   Dark Theme Refinements
+   ============================================================================= */
+
+.list-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 165, 116, 0.02) 50%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity var(--transition-medium);
+  pointer-events: none;
+}
+
+.list-item:hover::before {
+  opacity: 1;
+}
+
+/* Alternating row subtle tint for better scanability */
+.list-item:nth-child(even) {
+  background: var(--color-bg-secondary);
+}
+
+.list-item:nth-child(even):hover {
+  background: var(--color-bg-elevated);
+}
+
+.list-item:nth-child(even).selected {
+  background: var(--color-selected);
+}

@@ -1,0 +1,340 @@
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import open from 'open';
+
+// Services
+import { ensureAppDirectories, getAllPaths } from './services/app-paths.service.js';
+import {
+  initializeConfig,
+  loadConfig,
+  updateConfig,
+  setApiKey,
+  updateMetadataSettings,
+  updateCacheSettings,
+} from './services/config.service.js';
+import {
+  initializeDatabase,
+  closeDatabase,
+  getDatabaseStats,
+} from './services/database.service.js';
+
+// Routes
+import libraryRoutes from './routes/library.routes.js';
+import filesRoutes from './routes/files.routes.js';
+import archiveRoutes from './routes/archive.routes.js';
+import coversRoutes from './routes/covers.routes.js';
+import metadataRoutes from './routes/metadata.routes.js';
+import searchRoutes from './routes/search.routes.js';
+import parsingRoutes from './routes/parsing.routes.js';
+import batchRoutes from './routes/batch.routes.js';
+import rollbackRoutes from './routes/rollback.routes.js';
+import filesystemRoutes from './routes/filesystem.routes.js';
+import metadataApprovalRoutes from './routes/metadata-approval.routes.js';
+import metadataJobRoutes from './routes/metadata-job.routes.js';
+import cacheRoutes from './routes/cache.routes.js';
+import readingProgressRoutes from './routes/reading-progress.routes.js';
+import readerSettingsRoutes from './routes/reader-settings.routes.js';
+import readingQueueRoutes from './routes/reading-queue.routes.js';
+import readingHistoryRoutes from './routes/reading-history.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import opdsRoutes from './routes/opds.routes.js';
+import trackerRoutes from './routes/tracker.routes.js';
+import syncRoutes from './routes/sync.routes.js';
+import sharedListsRoutes from './routes/shared-lists.routes.js';
+import recommendationsRoutes from './routes/recommendations.routes.js';
+import seriesRoutes from './routes/series.routes.js';
+
+// Services for startup tasks
+import { markInterruptedBatches } from './services/batch.service.js';
+import { cleanupOldOperationLogs } from './services/rollback.service.js';
+import { recoverInterruptedJobs } from './services/job-queue.service.js';
+import { cleanupExpiredJobs } from './services/metadata-job.service.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+
+// =============================================================================
+// Middleware
+// =============================================================================
+
+app.use(
+  cors({
+    origin: CLIENT_URL,
+    credentials: true,
+  })
+);
+app.use(express.json());
+app.use(cookieParser());
+
+// =============================================================================
+// API Routes
+// =============================================================================
+
+// Health check endpoint
+app.get('/api/health', async (_req, res) => {
+  try {
+    const stats = await getDatabaseStats();
+    res.json({
+      status: 'ok',
+      version: '0.1.0',
+      timestamp: new Date().toISOString(),
+      database: stats,
+    });
+  } catch {
+    res.json({
+      status: 'ok',
+      version: '0.1.0',
+      timestamp: new Date().toISOString(),
+      database: null,
+    });
+  }
+});
+
+// Get application paths (for debugging)
+app.get('/api/paths', (_req, res) => {
+  res.json(getAllPaths());
+});
+
+// Get configuration (excluding API keys)
+app.get('/api/config', (_req, res) => {
+  const config = loadConfig();
+  // Don't expose API keys in the response
+  const safeConfig = {
+    ...config,
+    apiKeys: {
+      comicVine: config.apiKeys.comicVine ? '***configured***' : undefined,
+      anthropic: config.apiKeys.anthropic ? '***configured***' : undefined,
+    },
+  };
+  res.json(safeConfig);
+});
+
+// Get API keys (actual values for settings UI - this is a local app)
+app.get('/api/config/api-keys', (_req, res) => {
+  const config = loadConfig();
+  res.json({
+    comicVine: config.apiKeys.comicVine || '',
+    anthropic: config.apiKeys.anthropic || '',
+  });
+});
+
+// Update API keys
+app.put('/api/config/api-keys', (req, res) => {
+  try {
+    const { comicVine, anthropic } = req.body as { comicVine?: string; anthropic?: string };
+
+    if (comicVine !== undefined) {
+      setApiKey('comicVine', comicVine);
+    }
+    if (anthropic !== undefined) {
+      setApiKey('anthropic', anthropic);
+    }
+
+    res.json({ success: true, message: 'API keys updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Update metadata settings
+app.put('/api/config/metadata', (req, res) => {
+  try {
+    const { primarySource, rateLimitLevel } = req.body as {
+      primarySource?: 'comicvine' | 'metron';
+      rateLimitLevel?: number;
+    };
+
+    updateMetadataSettings({
+      ...(primarySource && { primarySource }),
+      ...(rateLimitLevel && { rateLimitLevel }),
+    });
+
+    res.json({ success: true, message: 'Metadata settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Update cache settings
+app.put('/api/config/cache', (req, res) => {
+  try {
+    const { coverCacheSizeMb } = req.body as { coverCacheSizeMb?: number };
+
+    updateCacheSettings({
+      ...(coverCacheSizeMb && { coverCacheSizeMb }),
+    });
+
+    res.json({ success: true, message: 'Cache settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Update full config
+app.put('/api/config', (req, res) => {
+  try {
+    const updates = req.body;
+    const updated = updateConfig(updates);
+
+    // Return safe config (hide API keys)
+    const safeConfig = {
+      ...updated,
+      apiKeys: {
+        comicVine: updated.apiKeys.comicVine ? '***configured***' : undefined,
+        anthropic: updated.apiKeys.anthropic ? '***configured***' : undefined,
+      },
+    };
+
+    res.json(safeConfig);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Register routes
+app.use('/api/libraries', libraryRoutes);
+app.use('/api/files', filesRoutes);
+app.use('/api/archives', archiveRoutes);
+app.use('/api/covers', coversRoutes);
+app.use('/api/metadata', metadataRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/parsing', parsingRoutes);
+app.use('/api/batches', batchRoutes);
+app.use('/api/rollback', rollbackRoutes);
+app.use('/api/filesystem', filesystemRoutes);
+app.use('/api/metadata-approval', metadataApprovalRoutes);
+app.use('/api/metadata-jobs', metadataJobRoutes);
+app.use('/api/cache', cacheRoutes);
+app.use('/api/reading-progress', readingProgressRoutes);
+app.use('/api/reader-settings', readerSettingsRoutes);
+app.use('/api/reading-queue', readingQueueRoutes);
+app.use('/api/reading-history', readingHistoryRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/trackers', trackerRoutes);
+app.use('/api/sync', syncRoutes);
+app.use('/api/lists', sharedListsRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/series', seriesRoutes);
+
+// OPDS routes (at root level, not under /api)
+app.use('/opds', opdsRoutes);
+
+// =============================================================================
+// Static Files (Production)
+// =============================================================================
+
+if (process.env.NODE_ENV === 'production') {
+  const clientDistPath = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDistPath));
+
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
+
+// =============================================================================
+// Server Startup
+// =============================================================================
+
+async function startServer(): Promise<void> {
+  try {
+    // Initialize application directories
+    console.log('Initializing application directories...');
+    ensureAppDirectories();
+
+    // Initialize configuration
+    console.log('Loading configuration...');
+    const config = initializeConfig();
+    console.log(`Configuration loaded (version ${config.version})`);
+
+    // Initialize database
+    console.log('Connecting to database...');
+    await initializeDatabase();
+
+    // Startup tasks
+    console.log('Running startup tasks...');
+    const interruptedBatches = await markInterruptedBatches();
+    if (interruptedBatches > 0) {
+      console.log(`Found ${interruptedBatches} interrupted batch(es) - marked as paused`);
+    }
+
+    const cleanedLogs = await cleanupOldOperationLogs();
+    if (cleanedLogs > 0) {
+      console.log(`Cleaned up ${cleanedLogs} old operation log(s)`);
+    }
+
+    // Clean up expired metadata jobs before recovering interrupted ones
+    await cleanupExpiredJobs();
+
+    // Recover interrupted metadata jobs
+    await recoverInterruptedJobs();
+
+    // Get initial stats
+    const stats = await getDatabaseStats();
+
+    // Start HTTP server
+    const server = app.listen(PORT, () => {
+      console.log(`
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   🗃️  Helixio - Comic Book Management                     ║
+║                                                           ║
+║   Server running at: http://localhost:${PORT}               ║
+║   API endpoint:      http://localhost:${PORT}/api           ║
+║                                                           ║
+║   Database: ${stats.libraries} libraries, ${stats.files} files             ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+      `);
+
+      // Open browser in development mode
+      if (process.env.NODE_ENV !== 'production' && process.env.NO_OPEN !== 'true') {
+        setTimeout(() => {
+          open(CLIENT_URL).catch(() => {
+            console.log(`Open ${CLIENT_URL} in your browser to access the application.`);
+          });
+        }, 2000);
+      }
+    });
+
+    // Graceful shutdown
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} received. Shutting down gracefully...`);
+
+      server.close(async () => {
+        console.log('HTTP server closed');
+        await closeDatabase();
+        console.log('Goodbye!');
+        process.exit(0);
+      });
+
+      // Force exit after 10 seconds
+      setTimeout(() => {
+        console.error('Forced shutdown after timeout');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Start the server
+startServer();
+
+export default app;

@@ -1,0 +1,137 @@
+/**
+ * StepIndicator Component Styles
+ */
+
+.step-indicator {
+  padding: var(--spacing-lg) var(--spacing-2xl);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.step-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.step-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  cursor: default;
+  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  min-width: 72px;
+}
+
+.step-item.clickable {
+  cursor: pointer;
+}
+
+.step-item.clickable:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.step-item.clickable:hover .step-number {
+  transform: scale(1.1);
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  border: 2px solid var(--color-border);
+  transition: all 0.2s ease;
+}
+
+.step-item.completed .step-number {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+.step-item.current .step-number {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-muted);
+}
+
+.step-item.viewing .step-number {
+  box-shadow: 0 0 0 4px var(--color-focus-ring);
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.step-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.step-item.completed .step-label,
+.step-item.current .step-label {
+  color: var(--color-text);
+}
+
+.step-item.viewing .step-label {
+  color: var(--color-primary);
+}
+
+.step-connector {
+  width: 40px;
+  height: 2px;
+  background: var(--color-border);
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+
+.step-connector.completed {
+  background: var(--color-primary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .step-item {
+    min-width: 56px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .step-number {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .step-connector {
+    width: 24px;
+  }
+
+  .step-label {
+    font-size: 0.6rem;
+  }
+}

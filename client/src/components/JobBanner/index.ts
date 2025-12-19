@@ -1,0 +1,1 @@
+export { JobBanner } from './JobBanner';

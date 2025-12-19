@@ -1,0 +1,819 @@
+// Helixio Database Schema
+// SQLite database stored at ~/.helixio/helixio.db
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Library Management
+// =============================================================================
+
+model Library {
+  id        String   @id @default(cuid())
+  name      String
+  rootPath  String   @unique
+  type      String   @default("western") // "western" | "manga"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  files           ComicFile[]
+  batchOperations BatchOperation[]
+  readerSettings  LibraryReaderSettings?
+
+  @@index([name])
+}
+
+// =============================================================================
+// Series Management (Series-Centric Architecture)
+// =============================================================================
+
+model Series {
+  id            String   @id @default(cuid())
+
+  // Identity (unique constraint: name + publisher only - year not included to avoid splitting multi-year series)
+  name          String                    // Series name (e.g., "Batman")
+  startYear     Int?                      // Publication start year (for display, not identity)
+  publisher     String?                   // Publisher name (shows primary/latest for multi-publisher)
+
+  // Metadata
+  summary       String?                   // Series description/summary
+  deck          String?                   // Short description
+  endYear       Int?                      // Publication end year (null if ongoing)
+  volume        Int?                      // Volume number for multi-volume series
+  issueCount    Int?                      // Known total issue count from API
+
+  // Content classification
+  genres        String?                   // Comma-separated genres
+  tags          String?                   // Comma-separated tags
+  ageRating     String?                   // Age rating
+  type          String  @default("western") // "western" | "manga"
+  languageISO   String?                   // Language code
+
+  // Content entities (comma-separated)
+  characters    String?
+  teams         String?
+  locations     String?
+  storyArcs     String?
+
+  // Cover management (Smart Fallback: API > User > First Issue)
+  coverSource   String  @default("auto")  // "api" | "user" | "auto"
+  coverUrl      String?                   // API-provided cover URL (kept for reference/re-download)
+  coverHash     String?                   // Hash of downloaded API cover (for local cache lookup)
+  coverFileId   String?                   // User-selected cover from owned issue
+
+  // External IDs
+  comicVineId   String?
+  metronId      String?
+  anilistId     String?                   // Future: Anilist support
+
+  // File system reference
+  primaryFolder String?                   // Primary folder path for series.json sync
+
+  // User data (NOT synced to files)
+  userNotes     String?
+
+  // Aliases for fuzzy matching (comma-separated, e.g., "ASM,Amazing Spidey")
+  aliases       String?
+
+  // Custom reading order (JSON array of issue numbers/fileIds, null = default order)
+  customReadingOrder String?
+
+  // Field-level edit tracking (JSON: {"fieldName": {"source": "manual"|"api"|"file", "lockedAt": timestamp}})
+  fieldSources  String?
+
+  // Locked fields that won't be overwritten by API/file sync (comma-separated field names)
+  lockedFields  String?
+
+  // Tracking
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastSyncedAt  DateTime?
+
+  // Relations
+  issues        ComicFile[]
+  progress      SeriesProgress?
+  readerSettings SeriesReaderSettingsNew?
+
+  @@unique([name, publisher], name: "series_identity")
+  @@index([name])
+  @@index([publisher])
+  @@index([startYear])
+  @@index([comicVineId])
+  @@index([metronId])
+}
+
+// =============================================================================
+// Series Progress (Cached reading progress for series)
+// =============================================================================
+
+model SeriesProgress {
+  id               String   @id @default(cuid())
+  seriesId         String   @unique
+  series           Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  // Calculated fields (cached for performance)
+  totalOwned       Int      @default(0)
+  totalRead        Int      @default(0)
+  totalInProgress  Int      @default(0)
+
+  // Continue reading support (Last Read +1 logic)
+  lastReadFileId   String?              // Most recently read issue
+  lastReadIssueNum Float?               // Issue number of last read (for +1 logic)
+  lastReadAt       DateTime?
+  nextUnreadFileId String?              // Calculated: issue after lastReadIssueNum
+
+  @@index([seriesId])
+  @@index([lastReadAt])
+}
+
+// =============================================================================
+// Series Reader Settings (linked to Series entity)
+// =============================================================================
+
+model SeriesReaderSettingsNew {
+  id              String   @id @default(cuid())
+  seriesId        String   @unique
+  series          Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  // Reading mode (null = inherit from library)
+  readingMode     String?  // "single" | "continuous" | "webtoon"
+  readingDirection String? // "ltr" | "rtl" (null = auto-detect from type)
+
+  // Display settings (null = inherit)
+  mode            String?  // "single" | "double" | "doubleManga" | "continuous"
+  direction       String?  // "ltr" | "rtl" | "vertical"
+  scaling         String?  // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth     Int?
+  splitting       String?  // "none" | "ltr" | "rtl"
+  background      String?  // "white" | "gray" | "black"
+  brightness      Int?
+  colorCorrection String?  // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow  Boolean?
+  autoHideUI      Boolean?
+  preloadCount    Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([seriesId])
+}
+
+// =============================================================================
+// Comic File Tracking
+// =============================================================================
+
+model ComicFile {
+  id           String   @id @default(cuid())
+  libraryId    String
+  path         String   @unique // Full absolute path to the file
+  relativePath String // Path relative to library root
+  filename     String // Just the filename
+  extension    String // "cbz" | "cbr"
+  size         Int // File size in bytes
+  modifiedAt   DateTime // File system modified date
+  hash         String? // Partial hash for file matching (first/last N bytes)
+  status       String   @default("pending") // "pending" | "indexed" | "orphaned" | "quarantined"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Series relationship (Series-Centric Architecture)
+  seriesId     String?
+  series       Series?  @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+
+  // Relations
+  library         Library          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  metadata        FileMetadata?
+  readingProgress ReadingProgress?
+  readingQueue    ReadingQueue?
+  readingHistory  ReadingHistory[]
+
+  @@index([libraryId])
+  @@index([hash])
+  @@index([status])
+  @@index([filename])
+  @@index([seriesId])
+}
+
+// =============================================================================
+// Cached Metadata (from ComicInfo.xml)
+// =============================================================================
+
+model FileMetadata {
+  id        String @id @default(cuid())
+  comicId   String @unique
+
+  // Core identification
+  series      String?
+  number      String? // Issue/volume number (string to handle "1.5", "Annual 1", etc.)
+  title       String?
+  volume      Int? // Volume number for multi-volume series
+
+  // Publication info
+  publisher   String?
+  imprint     String?
+  year        Int?
+  month       Int?
+  day         Int?
+
+  // Creators (stored as comma-separated for simplicity, can be normalized later)
+  writer      String?
+  penciller   String?
+  inker       String?
+  colorist    String?
+  letterer    String?
+  coverArtist String?
+  editor      String?
+
+  // Content info
+  summary     String?
+  genre       String? // Comma-separated genres
+  tags        String? // Comma-separated tags
+  characters  String? // Comma-separated character names
+  teams       String? // Comma-separated team names
+  locations   String? // Comma-separated locations
+
+  // Series info
+  count       Int? // Total issues in series
+  storyArc    String?
+  seriesGroup String?
+
+  // Reading info
+  pageCount   Int?
+  languageISO String?
+  format      String? // "Issue" | "Volume" | "TPB" | "Omnibus" | etc.
+  ageRating   String?
+
+  // External IDs for API matching
+  comicVineId   String?
+  metronId      String?
+
+  // Series inheritance tracking (Series-Centric Architecture)
+  seriesInherited Boolean  @default(false)  // True if metadata was inherited from Series
+  lastInheritedAt DateTime?                  // When metadata was last inherited
+  seriesSource    String   @default("comicinfo") // "comicinfo" | "manual" | "fuzzy" | "api"
+
+  // Tracking
+  lastScanned DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  comic ComicFile @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@index([series])
+  @@index([writer])
+  @@index([publisher])
+  @@index([year])
+}
+
+// =============================================================================
+// Operation Logging (for Rollback)
+// =============================================================================
+
+model OperationLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  operation   String // "rename" | "move" | "convert" | "delete" | "metadata_update"
+  source      String // Original file path or state
+  destination String? // New file path or state (null for deletes)
+  status      String   @default("success") // "success" | "failed" | "rolled_back"
+  reversible  Boolean  @default(true)
+  metadata    String? // JSON string with additional operation details
+  error       String? // Error message if failed
+
+  // Batch relation (operations can be part of a batch)
+  batchId String?
+  batch   BatchOperation? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([operation])
+  @@index([batchId])
+}
+
+// =============================================================================
+// Batch Operations
+// =============================================================================
+
+model BatchOperation {
+  id          String   @id @default(cuid())
+  libraryId   String?
+  type        String // "convert" | "rename" | "metadata_update" | "move" | "delete"
+  status      String   @default("pending") // "pending" | "in_progress" | "completed" | "failed" | "paused" | "cancelled"
+
+  // Progress tracking
+  totalItems     Int      @default(0)
+  completedItems Int      @default(0)
+  failedItems    Int      @default(0)
+
+  // Timing
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Last processed item (for resume capability)
+  lastProcessedId   String?
+  lastProcessedPath String?
+
+  // Error summary
+  errorSummary String? // JSON array of error summaries
+
+  // Relations
+  library    Library?       @relation(fields: [libraryId], references: [id], onDelete: SetNull)
+  operations OperationLog[]
+
+  @@index([status])
+  @@index([libraryId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// Duplicate Detection
+// =============================================================================
+
+model DuplicateGroup {
+  id        String   @id @default(cuid())
+  series    String?
+  number    String?
+  reason    String // "same_hash" | "same_metadata" | "similar_filename"
+  status    String   @default("pending") // "pending" | "resolved" | "dismissed"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Store file IDs as comma-separated string (SQLite doesn't have arrays)
+  fileIds String // Comma-separated list of ComicFile IDs
+
+  @@index([status])
+  @@index([series])
+}
+
+// =============================================================================
+// API Response Cache
+// =============================================================================
+
+model APICache {
+  id           String   @id @default(cuid())
+  cacheKey     String   @unique // MD5 hash of normalized source+endpoint+params
+  source       String // "comicvine" | "metron"
+  endpoint     String // e.g., "/search/volumes", "/issue/123"
+  params       String // JSON of normalized query params
+  response     String // JSON response body
+  resultCount  Int? // Number of results (for search queries)
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime // TTL-based expiration
+  lastAccessed DateTime @default(now())
+  accessCount  Int      @default(0)
+
+  @@index([cacheKey])
+  @@index([expiresAt])
+  @@index([source, endpoint])
+}
+
+// =============================================================================
+// Cache Statistics (optional, for monitoring)
+// =============================================================================
+
+model CacheStats {
+  id            String   @id @default(cuid())
+  date          DateTime // One record per day per source
+  source        String // "comicvine" | "metron" | "all"
+  hits          Int      @default(0)
+  misses        Int      @default(0)
+  staleHits     Int      @default(0) // Stale cache fallback hits
+  bytesServed   Int      @default(0)
+  apiCallsSaved Int      @default(0)
+
+  @@unique([date, source]) // Composite unique: one record per day per source
+  @@index([date])
+  @@index([source])
+}
+
+// =============================================================================
+// Series Cache (Hybrid: DB tracking + JSON file storage)
+// =============================================================================
+
+model SeriesCache {
+  id            String   @id @default(cuid())
+  source        String   // "comicvine" | "metron"
+  sourceId      String   // External API series ID
+  name          String   // Series name for quick lookup
+  publisher     String?
+  startYear     Int?
+  issueCount    Int?
+
+  // File references (relative to ~/.helixio/cache/series/)
+  seriesFilePath  String   // Path to {source}/{seriesId}.json
+  issuesFilePath  String?  // Path to {source}/{seriesId}_issues.json (optional)
+
+  // Cache control
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime
+  lastAccessed  DateTime @default(now())
+  accessCount   Int      @default(0)
+
+  // Status
+  hasIssues     Boolean  @default(false)
+  fileSize      Int      @default(0)  // Combined size in bytes for quota management
+
+  @@unique([source, sourceId])
+  @@index([source, name])
+  @@index([expiresAt])
+  @@index([lastAccessed])
+}
+
+// =============================================================================
+// Metadata Jobs (Persistent Background Jobs)
+// =============================================================================
+
+model MetadataJob {
+  id          String   @id @default(cuid())
+
+  // Job state
+  status      String   @default("options") // "options" | "initializing" | "series_approval" | "fetching_issues" | "file_review" | "applying" | "complete" | "cancelled" | "error"
+  step        String   @default("options") // Current step in workflow
+
+  // Job configuration
+  fileIds     String   // JSON array of file IDs being processed
+  options     String   @default("{}") // JSON of CreateSessionOptions
+
+  // Session data (JSON blobs for complex structures)
+  sessionData String?  // JSON of ApprovalSession (seriesGroups, fileChanges, etc.)
+
+  // Progress tracking
+  currentSeriesIndex Int @default(0)
+  totalFiles      Int @default(0)
+  processedFiles  Int @default(0)
+
+  // Current progress snapshot (for real-time display on reconnect)
+  currentProgressMessage String?
+  currentProgressDetail  String?
+  lastProgressAt         DateTime?
+
+  // Queue tracking (for background worker)
+  queuedAt              DateTime?  // When job was enqueued for processing
+  processingStartedAt   DateTime?  // When worker started processing
+  processingPhase       String?    // Current processing phase
+
+  // Error tracking
+  error       String?
+
+  // Apply results (when complete)
+  applyResult String?  // JSON of apply results
+
+  // Timing
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime // Auto-cleanup after expiration
+
+  // Relations
+  logs        MetadataJobLog[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+model MetadataJobLog {
+  id        String   @id @default(cuid())
+  jobId     String
+
+  // Log entry
+  step      String   // Which step this log belongs to
+  message   String
+  detail    String?
+  type      String   @default("info") // "info" | "success" | "warning" | "error"
+
+  // Timing
+  timestamp DateTime @default(now())
+
+  // Relations
+  job       MetadataJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([jobId, step])
+  @@index([timestamp])
+}
+
+// =============================================================================
+// Reading Progress (Comic Reader)
+// =============================================================================
+
+model ReadingProgress {
+  id           String    @id @default(cuid())
+  fileId       String    @unique
+  file         ComicFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  currentPage  Int       @default(0)
+  totalPages   Int       @default(0)
+  completed    Boolean   @default(false)
+  lastReadAt   DateTime  @updatedAt
+  bookmarks    String    @default("[]") // JSON array of page indices
+  createdAt    DateTime  @default(now())
+
+  @@index([lastReadAt])
+  @@index([completed])
+}
+
+// =============================================================================
+// Reader Settings (User Preferences)
+// =============================================================================
+
+model ReaderSettings {
+  id              String  @id @default("default")
+  mode            String  @default("single") // "single" | "double" | "doubleManga" | "continuous"
+  direction       String  @default("ltr")    // "ltr" | "rtl" | "vertical"
+  scaling         String  @default("fitHeight") // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth     Int?    // Custom width in pixels (when scaling = "custom")
+  splitting       String  @default("none")   // "none" | "ltr" | "rtl"
+  background      String  @default("black")  // "white" | "gray" | "black"
+  brightness      Int     @default(100)      // 0-200, 100 is normal
+  colorCorrection String  @default("none")   // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow  Boolean @default(true)
+  autoHideUI      Boolean @default(true)
+  preloadCount    Int     @default(3)        // Number of pages to preload ahead
+  updatedAt       DateTime @updatedAt
+}
+
+// =============================================================================
+// Library-Level Reader Settings (Overrides global defaults)
+// =============================================================================
+
+model LibraryReaderSettings {
+  id              String   @id @default(cuid())
+  libraryId       String   @unique
+  library         Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  // All fields are optional - only set values override the global defaults
+  mode            String?  // "single" | "double" | "doubleManga" | "continuous"
+  direction       String?  // "ltr" | "rtl" | "vertical"
+  scaling         String?  // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth     Int?
+  splitting       String?  // "none" | "ltr" | "rtl"
+  background      String?  // "white" | "gray" | "black"
+  brightness      Int?
+  colorCorrection String?  // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow  Boolean?
+  autoHideUI      Boolean?
+  preloadCount    Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// =============================================================================
+// Series-Level Reader Settings (Overrides library and global defaults)
+// =============================================================================
+
+model SeriesReaderSettings {
+  id              String   @id @default(cuid())
+  series          String   @unique  // Series name from metadata
+
+  // All fields are optional - only set values override the inherited defaults
+  mode            String?  // "single" | "double" | "doubleManga" | "continuous"
+  direction       String?  // "ltr" | "rtl" | "vertical"
+  scaling         String?  // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth     Int?
+  splitting       String?  // "none" | "ltr" | "rtl"
+  background      String?  // "white" | "gray" | "black"
+  brightness      Int?
+  colorCorrection String?  // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow  Boolean?
+  autoHideUI      Boolean?
+  preloadCount    Int?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([series])
+}
+
+// =============================================================================
+// Reading Queue (Sequential reading list)
+// =============================================================================
+
+model ReadingQueue {
+  id        String    @id @default(cuid())
+  fileId    String    @unique
+  file      ComicFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  position  Int       // Order in queue (0 = next up)
+  addedAt   DateTime  @default(now())
+
+  @@index([position])
+}
+
+// =============================================================================
+// Reading History (Individual reading sessions)
+// =============================================================================
+
+model ReadingHistory {
+  id          String    @id @default(cuid())
+  fileId      String
+  file        ComicFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  startPage   Int       @default(0)
+  endPage     Int       @default(0)
+  pagesRead   Int       @default(0)   // Calculated pages read in session
+  duration    Int       @default(0)   // Duration in seconds
+  completed   Boolean   @default(false) // Did user complete the comic?
+
+  @@index([fileId])
+  @@index([startedAt])
+}
+
+// =============================================================================
+// Reading Statistics (Aggregated daily stats)
+// =============================================================================
+
+model ReadingStats {
+  id              String   @id @default(cuid())
+  date            DateTime // One record per day
+  comicsStarted   Int      @default(0)
+  comicsCompleted Int      @default(0)
+  pagesRead       Int      @default(0)
+  totalDuration   Int      @default(0)  // Total reading time in seconds
+  sessionsCount   Int      @default(0)
+
+  @@unique([date])
+  @@index([date])
+}
+
+// =============================================================================
+// User Accounts (Phase 9)
+// =============================================================================
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String?  @unique
+  passwordHash  String
+  displayName   String?
+  avatarUrl     String?
+  role          String   @default("user") // "admin" | "user" | "guest"
+  isActive      Boolean  @default(true)
+
+  // Privacy settings
+  profilePrivate    Boolean @default(false)
+  hideReadingStats  Boolean @default(false)
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  sessions        UserSession[]
+  libraryAccess   UserLibraryAccess[]
+  readingProgress UserReadingProgress[]
+  sharedLists     SharedReadingList[]
+  trackerTokens   TrackerToken[]
+  syncTokens      SyncToken[]
+
+  @@index([username])
+  @@index([email])
+  @@index([role])
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  lastActiveAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model UserLibraryAccess {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  libraryId   String
+  permission  String   @default("read") // "read" | "write" | "admin"
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, libraryId])
+  @@index([userId])
+  @@index([libraryId])
+}
+
+model UserReadingProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileId      String
+  currentPage Int      @default(0)
+  totalPages  Int      @default(0)
+  completed   Boolean  @default(false)
+  rating      Int?     // 1-5 stars
+  lastReadAt  DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, fileId])
+  @@index([userId])
+  @@index([fileId])
+  @@index([lastReadAt])
+}
+
+// =============================================================================
+// Shared Reading Lists (Phase 9)
+// =============================================================================
+
+model SharedReadingList {
+  id          String   @id @default(cuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  isPublic    Boolean  @default(false)
+  shareCode   String?  @unique // For private sharing via link
+  items       String   // JSON array of { fileId, order, notes }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([shareCode])
+  @@index([isPublic])
+}
+
+// =============================================================================
+// External Tracker Integration (Phase 10)
+// =============================================================================
+
+model TrackerToken {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  service      String   // "myanimelist" | "anilist" | "kitsu"
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, service])
+  @@index([userId])
+}
+
+model TrackerMapping {
+  id            String   @id @default(cuid())
+  series        String   // Local series name
+  service       String   // "myanimelist" | "anilist" | "kitsu"
+  externalId    String   // ID on external service
+  externalTitle String?
+  syncEnabled   Boolean  @default(true)
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([series, service])
+  @@index([series])
+  @@index([service])
+}
+
+// =============================================================================
+// Cloud Sync (Phase 10)
+// =============================================================================
+
+model SyncToken {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String
+  deviceName   String?
+  lastSyncAt   DateTime @default(now())
+  syncVersion  Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+model SyncChange {
+  id           String   @id @default(cuid())
+  entityType   String   // "progress" | "bookmark" | "annotation" | "settings"
+  entityId     String
+  changeType   String   // "create" | "update" | "delete"
+  changeData   String   // JSON of changed fields
+  version      Int
+  userId       String
+  timestamp    DateTime @default(now())
+
+  @@index([userId, version])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}

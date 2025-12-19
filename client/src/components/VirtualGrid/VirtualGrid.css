@@ -1,0 +1,254 @@
+/**
+ * Virtual Grid View Styles
+ */
+
+/* =============================================================================
+   Container
+   ============================================================================= */
+
+.vgrid-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.vgrid-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+   Toolbar
+   ============================================================================= */
+
+.vgrid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+
+.vgrid-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.vgrid-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* =============================================================================
+   Scroll Container
+   ============================================================================= */
+
+.vgrid-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1rem;
+}
+
+.vgrid-content {
+  position: relative;
+  margin: 0 auto;
+}
+
+/* =============================================================================
+   Grid Item
+   ============================================================================= */
+
+.vgrid-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vgrid-item:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.vgrid-item:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.vgrid-item.selected {
+  border-color: var(--accent-color);
+  background: var(--accent-light);
+}
+
+/* =============================================================================
+   Cover
+   ============================================================================= */
+
+.vgrid-item-cover {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.vgrid-item-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.vgrid-item-cover img.hidden {
+  opacity: 0;
+}
+
+.vgrid-item-cover img.loaded {
+  opacity: 1;
+}
+
+.vgrid-cover-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+}
+
+.vgrid-cover-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: vgrid-spin 0.8s linear infinite;
+}
+
+@keyframes vgrid-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vgrid-cover-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  color: var(--danger-color);
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+/* =============================================================================
+   Progress Indicator
+   ============================================================================= */
+
+.vgrid-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.vgrid-progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  transition: width 0.3s ease;
+}
+
+.vgrid-completed {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--success-color);
+  color: white;
+  border-radius: 50%;
+}
+
+/* =============================================================================
+   Selection Indicator
+   ============================================================================= */
+
+.vgrid-selection-indicator {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: bold;
+}
+
+/* =============================================================================
+   Info
+   ============================================================================= */
+
+.vgrid-item-info {
+  padding: 0.5rem 0.625rem;
+  background: var(--bg-secondary);
+}
+
+.vgrid-item-title {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.vgrid-item-series {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.125rem;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .vgrid-scroll-container {
+    padding: 0.5rem;
+  }
+
+  .vgrid-toolbar {
+    padding: 0.5rem 0.75rem;
+  }
+}

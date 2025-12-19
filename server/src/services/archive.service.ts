@@ -1,0 +1,1112 @@
+/**
+ * Archive Service
+ *
+ * Handles archive operations using 7zip-bin and node-7z for most formats,
+ * and node-unrar-js for RAR/CBR files (since 7za doesn't support RAR):
+ * - List archive contents
+ * - Extract specific files
+ * - Extract full archives
+ * - Create CBZ archives
+ * - Validate archive integrity
+ */
+
+import Seven from 'node-7z';
+import sevenBin from '7zip-bin';
+import { createExtractorFromFile } from 'node-unrar-js';
+import { mkdir, rm, readdir, stat, readFile, writeFile, open, unlink, rename } from 'fs/promises';
+import { join, basename, extname, dirname } from 'path';
+import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
+import { archiveLogger as logger } from './logger.service.js';
+
+// =============================================================================
+// Archive Format Detection (Magic Bytes)
+// =============================================================================
+
+/**
+ * Magic bytes for archive format detection.
+ * These are the first few bytes of each archive type.
+ */
+const ARCHIVE_MAGIC = {
+  // ZIP: PK (0x50, 0x4B)
+  ZIP: Buffer.from([0x50, 0x4B]),
+  // RAR: Rar! (0x52, 0x61, 0x72, 0x21)
+  RAR: Buffer.from([0x52, 0x61, 0x72, 0x21]),
+  // 7z: 7z (0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C)
+  SEVEN_ZIP: Buffer.from([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C]),
+};
+
+/**
+ * Detect actual archive format by reading magic bytes from file header.
+ * Returns 'zip', 'rar', '7z', or 'unknown'.
+ */
+async function detectArchiveFormatByMagic(filePath: string): Promise<string> {
+  try {
+    const handle = await open(filePath, 'r');
+    try {
+      // Read first 8 bytes (enough for all our magic signatures)
+      const buffer = Buffer.alloc(8);
+      await handle.read(buffer, 0, 8, 0);
+
+      // Check for RAR first (most specific)
+      if (buffer.subarray(0, 4).equals(ARCHIVE_MAGIC.RAR)) {
+        return 'rar';
+      }
+      // Check for 7z
+      if (buffer.subarray(0, 6).equals(ARCHIVE_MAGIC.SEVEN_ZIP)) {
+        return '7z';
+      }
+      // Check for ZIP (PK)
+      if (buffer.subarray(0, 2).equals(ARCHIVE_MAGIC.ZIP)) {
+        return 'zip';
+      }
+
+      return 'unknown';
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return 'unknown';
+  }
+}
+
+// Path to 7zip binary
+const pathTo7zip = sevenBin.path7za;
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface ArchiveEntry {
+  /** File path within archive */
+  path: string;
+  /** File size in bytes */
+  size: number;
+  /** Packed/compressed size */
+  packedSize: number;
+  /** File attributes */
+  attr?: string;
+  /** Modification date */
+  date?: Date;
+  /** Is this entry a directory */
+  isDirectory: boolean;
+}
+
+export interface ArchiveInfo {
+  /** Archive file path */
+  archivePath: string;
+  /** Archive format (zip, rar, 7z, etc.) */
+  format: string;
+  /** Total number of files */
+  fileCount: number;
+  /** Total uncompressed size */
+  totalSize: number;
+  /** List of files in archive */
+  entries: ArchiveEntry[];
+  /** Whether archive contains ComicInfo.xml */
+  hasComicInfo: boolean;
+  /** Cover image path (if detected) */
+  coverPath: string | null;
+}
+
+export interface ExtractionResult {
+  success: boolean;
+  extractedPath: string;
+  fileCount: number;
+  error?: string;
+}
+
+export interface ArchiveCreationResult {
+  success: boolean;
+  archivePath: string;
+  fileCount: number;
+  size: number;
+  error?: string;
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Create a temporary directory for archive operations.
+ */
+export async function createTempDir(prefix = 'helixio-'): Promise<string> {
+  const tempPath = join(tmpdir(), `${prefix}${randomUUID()}`);
+  await mkdir(tempPath, { recursive: true });
+  return tempPath;
+}
+
+/**
+ * Clean up a temporary directory.
+ */
+export async function cleanupTempDir(tempPath: string): Promise<void> {
+  try {
+    await rm(tempPath, { recursive: true, force: true });
+  } catch {
+    // Ignore cleanup errors
+  }
+}
+
+/**
+ * Determine archive format from file extension.
+ */
+export function getArchiveFormat(filePath: string): string {
+  const ext = extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.cbz':
+    case '.zip':
+      return 'zip';
+    case '.cbr':
+    case '.rar':
+      return 'rar';
+    case '.cb7':
+    case '.7z':
+      return '7z';
+    case '.cbt':
+    case '.tar':
+      return 'tar';
+    default:
+      return 'unknown';
+  }
+}
+
+/**
+ * Check if file is a comic archive.
+ */
+export function isComicArchive(filePath: string): boolean {
+  const ext = extname(filePath).toLowerCase();
+  return ['.cbz', '.cbr', '.cb7', '.cbt'].includes(ext);
+}
+
+/**
+ * Check if file is an image.
+ */
+function isImageFile(filename: string): boolean {
+  const ext = extname(filename).toLowerCase();
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(ext);
+}
+
+/**
+ * Check if archive is RAR format (requires node-unrar-js instead of 7zip).
+ * Uses magic byte detection to handle misnamed files (e.g., ZIP files with .cbr extension).
+ */
+async function isRarArchive(filePath: string): Promise<boolean> {
+  // First check by magic bytes (most reliable)
+  const actualFormat = await detectArchiveFormatByMagic(filePath);
+  if (actualFormat !== 'unknown') {
+    return actualFormat === 'rar';
+  }
+  // Fall back to extension-based detection if magic bytes don't match known formats
+  const ext = extname(filePath).toLowerCase();
+  return ['.cbr', '.rar'].includes(ext);
+}
+
+/**
+ * Determine cover image from archive entries.
+ * Priority: cover.jpg/png > first image alphabetically
+ */
+function findCoverImage(entries: ArchiveEntry[]): string | null {
+  const imageEntries = entries
+    .filter((e) => !e.isDirectory && isImageFile(e.path))
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  if (imageEntries.length === 0) return null;
+
+  // Look for explicit cover file
+  const coverFile = imageEntries.find((e) => {
+    const name = basename(e.path).toLowerCase();
+    return name.startsWith('cover') || name === 'folder.jpg' || name === 'folder.png';
+  });
+
+  if (coverFile) return coverFile.path;
+
+  // Return first image (alphabetically)
+  return imageEntries[0]?.path ?? null;
+}
+
+// =============================================================================
+// RAR Archive Operations (using node-unrar-js)
+// =============================================================================
+
+/**
+ * List contents of a RAR archive using node-unrar-js.
+ */
+async function listRarContents(archivePath: string): Promise<ArchiveInfo> {
+  const extractor = await createExtractorFromFile({ filepath: archivePath });
+  const list = extractor.getFileList();
+
+  const entries: ArchiveEntry[] = [];
+  let totalSize = 0;
+
+  // Convert generator to array for iteration
+  const fileHeaders = [...list.fileHeaders];
+  for (const fileHeader of fileHeaders) {
+    const isDir = fileHeader.flags.directory;
+    const size = fileHeader.unpSize;
+
+    entries.push({
+      path: fileHeader.name,
+      size,
+      packedSize: fileHeader.packSize,
+      attr: isDir ? 'D' : undefined,
+      date: fileHeader.time ? new Date(fileHeader.time) : undefined,
+      isDirectory: isDir,
+    });
+
+    if (!isDir) {
+      totalSize += size;
+    }
+  }
+
+  const hasComicInfo = entries.some(
+    (e) => basename(e.path).toLowerCase() === 'comicinfo.xml'
+  );
+  const coverPath = findCoverImage(entries);
+
+  return {
+    archivePath,
+    format: 'rar',
+    fileCount: entries.filter((e) => !e.isDirectory).length,
+    totalSize,
+    entries,
+    hasComicInfo,
+    coverPath,
+  };
+}
+
+/**
+ * Extract files from a RAR archive using node-unrar-js.
+ */
+async function extractRarFiles(
+  archivePath: string,
+  outputDir: string,
+  files: string[]
+): Promise<ExtractionResult> {
+  await mkdir(outputDir, { recursive: true });
+
+  try {
+    const extractor = await createExtractorFromFile({
+      filepath: archivePath,
+      targetPath: outputDir,
+    });
+
+    // If specific files requested, filter them; otherwise extract all
+    const extractOptions = files.length > 0
+      ? { files: files }
+      : {};
+
+    const extracted = extractor.extract(extractOptions);
+    let extractedCount = 0;
+
+    // Convert generator to array for iteration
+    // Note: For file-based extraction, files are written to disk directly
+    // and file.extraction is undefined (only populated for in-memory extraction)
+    const extractedFiles = [...extracted.files];
+    for (const file of extractedFiles) {
+      if (!file.fileHeader.flags.directory) {
+        extractedCount++;
+      }
+    }
+
+    return {
+      success: true,
+      extractedPath: outputDir,
+      fileCount: extractedCount,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      extractedPath: outputDir,
+      fileCount: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Extract a single file from a RAR archive to memory.
+ */
+async function extractRarFileToBuffer(
+  archivePath: string,
+  entryPath: string
+): Promise<Buffer | null> {
+  logger.debug({ entryPath }, 'Looking for RAR entry');
+  try {
+    // Read the archive file into memory for data-based extraction
+    const archiveData = await readFile(archivePath);
+    const { createExtractorFromData } = await import('node-unrar-js');
+
+    const extractor = await createExtractorFromData({
+      data: archiveData.buffer as ArrayBuffer,
+    });
+
+    // Normalize the entry path for comparison (handle both / and \ separators)
+    const normalizedEntryPath = entryPath.replace(/\\/g, '/');
+    const entryFilename = basename(entryPath);
+
+    // Extract all files and find the one we want (filter option may not work reliably)
+    const extracted = extractor.extract();
+
+    // Convert generator to array for iteration
+    const extractedFiles = [...extracted.files];
+    logger.debug({ fileCount: extractedFiles.length }, 'Total files in RAR archive');
+
+    for (const file of extractedFiles) {
+      const fileName = file.fileHeader.name;
+      const normalizedFileName = fileName.replace(/\\/g, '/');
+
+      // Match by exact path (normalized) or by filename if paths don't match
+      const isExactMatch = normalizedFileName === normalizedEntryPath;
+      const isFilenameMatch = basename(fileName) === entryFilename;
+
+      if ((isExactMatch || isFilenameMatch) && file.extraction) {
+        logger.debug({ fileName }, 'Found matching RAR entry');
+        return Buffer.from(file.extraction);
+      }
+    }
+
+    console.log(`[extractRarFileToBuffer] No match found for: ${entryPath}`);
+    // Log first few file names for debugging
+    const fileNames = extractedFiles.slice(0, 5).map(f => f.fileHeader.name);
+    console.log(`[extractRarFileToBuffer] Sample files in archive:`, fileNames);
+
+    return null;
+  } catch (err) {
+    console.error(`[extractRarFileToBuffer] Error:`, err);
+    return null;
+  }
+}
+
+// =============================================================================
+// Archive Operations
+// =============================================================================
+
+/**
+ * List contents of an archive.
+ */
+export async function listArchiveContents(archivePath: string): Promise<ArchiveInfo> {
+  // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
+  if (await isRarArchive(archivePath)) {
+    return listRarContents(archivePath);
+  }
+
+  // Use 7-zip for other formats
+  return new Promise((resolve, reject) => {
+    const entries: ArchiveEntry[] = [];
+    let totalSize = 0;
+    let format = getArchiveFormat(archivePath);
+
+    const listStream = Seven.list(archivePath, {
+      $bin: pathTo7zip,
+      $progress: false,
+    });
+
+    listStream.on('data', (data: {
+      file?: string;
+      size?: number;
+      sizeCompressed?: number;
+      attr?: string;
+      date?: string;
+    }) => {
+      if (data.file) {
+        const isDir = data.attr?.includes('D') ?? false;
+        const size = data.size ?? 0;
+
+        entries.push({
+          path: data.file,
+          size,
+          packedSize: data.sizeCompressed ?? 0,
+          attr: data.attr,
+          date: data.date ? new Date(data.date) : undefined,
+          isDirectory: isDir,
+        });
+
+        if (!isDir) {
+          totalSize += size;
+        }
+      }
+    });
+
+    listStream.on('end', () => {
+      const hasComicInfo = entries.some(
+        (e) => basename(e.path).toLowerCase() === 'comicinfo.xml'
+      );
+      const coverPath = findCoverImage(entries);
+
+      resolve({
+        archivePath,
+        format,
+        fileCount: entries.filter((e) => !e.isDirectory).length,
+        totalSize,
+        entries,
+        hasComicInfo,
+        coverPath,
+      });
+    });
+
+    listStream.on('error', (err: Error) => {
+      reject(new Error(`Failed to list archive: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * Extract specific files from an archive.
+ */
+export async function extractFiles(
+  archivePath: string,
+  outputDir: string,
+  files: string[]
+): Promise<ExtractionResult> {
+  console.log(`[extractFiles] Archive: ${archivePath}`);
+  console.log(`[extractFiles] Output: ${outputDir}`);
+  console.log(`[extractFiles] Files filter: ${files.length > 0 ? files.join(', ') : 'all'}`);
+
+  // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
+  if (await isRarArchive(archivePath)) {
+    console.log(`[extractFiles] Using RAR extractor`);
+    return extractRarFiles(archivePath, outputDir, files);
+  }
+
+  console.log(`[extractFiles] Using 7zip extractor`);
+  console.log(`[extractFiles] 7zip binary: ${pathTo7zip}`);
+
+  // Use 7-zip for other formats
+  return new Promise((resolve, reject) => {
+    // Ensure output directory exists
+    mkdir(outputDir, { recursive: true })
+      .then(() => {
+        let extractedCount = 0;
+
+        const extractStream = Seven.extract(archivePath, outputDir, {
+          $bin: pathTo7zip,
+          $progress: true,
+          recursive: true,
+          // Include only specified files
+          ...(files.length > 0 && { include: files }),
+        });
+
+        extractStream.on('data', (data: unknown) => {
+          extractedCount++;
+          if (extractedCount <= 3) {
+            console.log(`[extractFiles] Extracted file ${extractedCount}:`, data);
+          }
+        });
+
+        extractStream.on('end', () => {
+          console.log(`[extractFiles] Extraction complete. Count: ${extractedCount}`);
+          // If we requested specific files but extracted nothing, treat as failure
+          if (files.length > 0 && extractedCount === 0) {
+            console.log(`[extractFiles] Warning: Requested ${files.length} files but extracted none`);
+            console.log(`[extractFiles] Requested files:`, files);
+            resolve({
+              success: false,
+              extractedPath: outputDir,
+              fileCount: 0,
+              error: `No files extracted. Requested: ${files.join(', ')}`,
+            });
+          } else {
+            resolve({
+              success: true,
+              extractedPath: outputDir,
+              fileCount: extractedCount,
+            });
+          }
+        });
+
+        extractStream.on('error', (err: Error) => {
+          const errorMessage = err?.message || err?.toString() || 'unknown extraction error';
+          console.error(`[extractFiles] 7zip error:`, err);
+          console.error(`[extractFiles] Error message: ${errorMessage}`);
+          resolve({
+            success: false,
+            extractedPath: outputDir,
+            fileCount: extractedCount,
+            error: errorMessage,
+          });
+        });
+
+        extractStream.on('info', (info: unknown) => {
+          console.log(`[extractFiles] Info:`, info);
+        });
+      })
+      .catch((err) => {
+        console.error(`[extractFiles] mkdir error:`, err);
+        reject(err);
+      });
+  });
+}
+
+/**
+ * Extract entire archive to a directory.
+ */
+export async function extractArchive(
+  archivePath: string,
+  outputDir: string
+): Promise<ExtractionResult> {
+  return extractFiles(archivePath, outputDir, []);
+}
+
+/**
+ * Extract a single file from an archive to a specific path.
+ * Includes caching - if the output file already exists, returns immediately.
+ */
+export async function extractSingleFile(
+  archivePath: string,
+  entryPath: string,
+  outputPath: string
+): Promise<{ success: boolean; error?: string }> {
+  // Check cache first - if file already exists, skip extraction
+  try {
+    await stat(outputPath);
+    console.log(`[extractSingleFile] Cache hit: ${outputPath}`);
+    return { success: true };
+  } catch {
+    // File doesn't exist, proceed with extraction
+  }
+
+  console.log(`[extractSingleFile] Cache miss, extracting...`);
+  console.log(`[extractSingleFile] Archive: ${archivePath}`);
+  console.log(`[extractSingleFile] Entry path: ${entryPath}`);
+  console.log(`[extractSingleFile] Output path: ${outputPath}`);
+
+  // For RAR/CBR files, use direct buffer extraction (more reliable for filtered extraction)
+  if (await isRarArchive(archivePath)) {
+    console.log(`[extractSingleFile] Using RAR buffer extraction`);
+    try {
+      const buffer = await extractRarFileToBuffer(archivePath, entryPath);
+      if (buffer) {
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, buffer);
+        console.log(`[extractSingleFile] Successfully extracted RAR file`);
+        return { success: true };
+      }
+      return { success: false, error: `File not found in RAR archive: ${entryPath}` };
+    } catch (err) {
+      console.error(`[extractSingleFile] RAR extraction error:`, err);
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // For other formats, use 7zip
+  // Note: We extract the entire archive because 7zip's include filter doesn't work
+  // reliably with paths containing special characters (parentheses, spaces, etc.)
+  const tempDir = await createTempDir('extract-');
+  console.log(`[extractSingleFile] Temp dir: ${tempDir}`);
+
+  try {
+    // Extract entire archive (filter unreliable with special chars in paths)
+    const result = await extractFiles(archivePath, tempDir, []);
+    console.log(`[extractSingleFile] extractFiles result: success=${result.success}, fileCount=${result.fileCount}, error=${result.error}`);
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // Find the extracted file - scan recursively since path structure may vary
+    const targetFilename = basename(entryPath);
+    const foundFile = await findExtractedFile(tempDir, entryPath, targetFilename);
+
+    if (!foundFile) {
+      // List what was extracted for debugging
+      try {
+        const files = await readdir(tempDir, { recursive: true });
+        console.log(`[extractSingleFile] Files in temp dir:`, files);
+      } catch {
+        // Ignore
+      }
+      return {
+        success: false,
+        error: `Extracted file not found. Looking for: ${entryPath}`
+      };
+    }
+
+    console.log(`[extractSingleFile] Found extracted file at: ${foundFile}`);
+
+    // Ensure output directory exists and move file
+    await mkdir(dirname(outputPath), { recursive: true });
+
+    try {
+      const { rename, copyFile } = await import('fs/promises');
+      try {
+        await rename(foundFile, outputPath);
+      } catch {
+        await copyFile(foundFile, outputPath);
+      }
+    } catch (err) {
+      return { success: false, error: `Failed to move extracted file: ${err}` };
+    }
+
+    console.log(`[extractSingleFile] Successfully moved to output path`);
+    return { success: true };
+  } catch (err) {
+    console.error(`[extractSingleFile] Exception:`, err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
+  } finally {
+    await cleanupTempDir(tempDir);
+  }
+}
+
+/**
+ * Find an extracted file in a directory, handling various path structures.
+ */
+async function findExtractedFile(
+  tempDir: string,
+  entryPath: string,
+  targetFilename: string
+): Promise<string | null> {
+  // First, try the exact path
+  const exactPath = join(tempDir, entryPath);
+  try {
+    await stat(exactPath);
+    return exactPath;
+  } catch {
+    // Not at exact path
+  }
+
+  // Scan recursively for the file
+  try {
+    const files = await readdir(tempDir, { recursive: true });
+
+    // First priority: exact entry path match
+    for (const file of files) {
+      const filePath = typeof file === 'string' ? file : String(file);
+      if (filePath === entryPath || filePath.replace(/\\/g, '/') === entryPath.replace(/\\/g, '/')) {
+        return join(tempDir, filePath);
+      }
+    }
+
+    // Second priority: filename match at end of path
+    for (const file of files) {
+      const filePath = typeof file === 'string' ? file : String(file);
+      if (basename(filePath) === targetFilename) {
+        return join(tempDir, filePath);
+      }
+    }
+  } catch (err) {
+    console.error(`[findExtractedFile] Error scanning:`, err);
+  }
+
+  return null;
+}
+
+/**
+ * Create a CBZ (ZIP) archive from a directory.
+ * Uses the archiver library for reliable cross-platform ZIP creation.
+ */
+export async function createCbzArchive(
+  sourceDir: string,
+  outputPath: string
+): Promise<ArchiveCreationResult> {
+  // Dynamic import of archiver
+  const archiver = (await import('archiver')).default;
+  const { createWriteStream } = await import('fs');
+
+  console.log(`[createCbzArchive] Starting...`);
+  console.log(`[createCbzArchive] Source dir: ${sourceDir}`);
+  console.log(`[createCbzArchive] Output path: ${outputPath}`);
+
+  // Verify source directory exists and has files
+  let sourceFiles: string[];
+  try {
+    sourceFiles = await readdir(sourceDir);
+    console.log(`[createCbzArchive] Source dir contains ${sourceFiles.length} items:`, sourceFiles.slice(0, 5));
+  } catch (err) {
+    console.error(`[createCbzArchive] Failed to read source dir:`, err);
+    return {
+      success: false,
+      archivePath: outputPath,
+      fileCount: 0,
+      size: 0,
+      error: `Cannot read source directory: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (sourceFiles.length === 0) {
+    return {
+      success: false,
+      archivePath: outputPath,
+      fileCount: 0,
+      size: 0,
+      error: 'Source directory is empty',
+    };
+  }
+
+  return new Promise((resolve) => {
+    const output = createWriteStream(outputPath);
+    const archive = archiver('zip', {
+      zlib: { level: 0 }, // Store without compression (images are already compressed)
+    });
+
+    let fileCount = 0;
+
+    output.on('close', async () => {
+      console.log(`[createCbzArchive] Archive finalized. Total bytes: ${archive.pointer()}`);
+      try {
+        const stats = await stat(outputPath);
+        console.log(`[createCbzArchive] Success! File count: ${fileCount}, Size: ${stats.size} bytes`);
+        resolve({
+          success: true,
+          archivePath: outputPath,
+          fileCount,
+          size: stats.size,
+        });
+      } catch (statErr) {
+        resolve({
+          success: true,
+          archivePath: outputPath,
+          fileCount,
+          size: archive.pointer(),
+        });
+      }
+    });
+
+    archive.on('entry', (entry) => {
+      fileCount++;
+      if (fileCount <= 3) {
+        console.log(`[createCbzArchive] Added entry ${fileCount}: ${entry.name}`);
+      }
+    });
+
+    archive.on('warning', (err) => {
+      console.warn('[createCbzArchive] Archive warning:', err);
+    });
+
+    archive.on('error', (err) => {
+      console.error('[createCbzArchive] Archive error:', err);
+      resolve({
+        success: false,
+        archivePath: outputPath,
+        fileCount,
+        size: 0,
+        error: err.message || String(err),
+      });
+    });
+
+    // Pipe archive data to the file
+    archive.pipe(output);
+
+    // Add the entire directory contents to the archive
+    // Use glob pattern to add all files recursively
+    archive.directory(sourceDir, false);
+
+    // Finalize the archive
+    archive.finalize();
+  });
+}
+
+/**
+ * Add a file to an existing CBZ archive.
+ */
+export async function addToArchive(
+  archivePath: string,
+  filePath: string,
+  archiveEntryPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  // Check if this is a RAR archive - RAR format is read-only
+  if (await isRarArchive(archivePath)) {
+    return {
+      success: false,
+      error: 'Cannot modify CBR/RAR archives. RAR format is read-only. Convert to CBZ first to enable metadata editing.',
+    };
+  }
+
+  return new Promise((resolve) => {
+    const tempDir = dirname(filePath);
+
+    const addStream = Seven.add(archivePath, filePath, {
+      $bin: pathTo7zip,
+      $progress: false,
+      archiveType: 'zip',
+    });
+
+    addStream.on('end', () => {
+      resolve({ success: true });
+    });
+
+    addStream.on('error', (err: Error) => {
+      resolve({ success: false, error: err.message });
+    });
+  });
+}
+
+/**
+ * Update/replace a file in an archive.
+ * Note: RAR/CBR archives cannot be modified - convert to CBZ first.
+ */
+export async function updateFileInArchive(
+  archivePath: string,
+  entryPath: string,
+  newContent: Buffer
+): Promise<{ success: boolean; error?: string }> {
+  // Early check for RAR archives
+  if (await isRarArchive(archivePath)) {
+    return {
+      success: false,
+      error: 'Cannot modify CBR/RAR archives. RAR format is read-only. Convert to CBZ first to enable metadata editing.',
+    };
+  }
+
+  const tempDir = await createTempDir('update-');
+
+  try {
+    // Write content to temp file with same name
+    const tempFile = join(tempDir, basename(entryPath));
+    const { writeFile } = await import('fs/promises');
+    await writeFile(tempFile, newContent);
+
+    // Add to archive (replaces existing)
+    const result = await addToArchive(archivePath, tempFile);
+
+    return result;
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await cleanupTempDir(tempDir);
+  }
+}
+
+/**
+ * Validate archive integrity by attempting to list contents.
+ */
+export async function validateArchive(archivePath: string): Promise<{
+  valid: boolean;
+  error?: string;
+  info?: ArchiveInfo;
+}> {
+  console.log(`[validateArchive] Validating: ${archivePath}`);
+  try {
+    const info = await listArchiveContents(archivePath);
+    console.log(`[validateArchive] Listed ${info.fileCount} files, ${info.entries.length} entries`);
+
+    // Check for minimum requirements
+    if (info.fileCount === 0) {
+      console.log(`[validateArchive] Failed: Archive is empty`);
+      return { valid: false, error: 'Archive is empty' };
+    }
+
+    // Check for at least one image file
+    const hasImages = info.entries.some(
+      (e) => !e.isDirectory && isImageFile(e.path)
+    );
+
+    if (!hasImages) {
+      console.log(`[validateArchive] Failed: No image files found`);
+      return { valid: false, error: 'Archive contains no image files' };
+    }
+
+    console.log(`[validateArchive] Validation passed`);
+    return { valid: true, info };
+  } catch (err) {
+    console.error(`[validateArchive] Exception:`, err);
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Test archive by attempting to extract first file.
+ */
+export async function testArchiveExtraction(archivePath: string): Promise<{
+  valid: boolean;
+  error?: string;
+}> {
+  console.log(`[testArchiveExtraction] Testing: ${archivePath}`);
+  const tempDir = await createTempDir('test-');
+
+  try {
+    // Get archive contents
+    console.log(`[testArchiveExtraction] Listing archive contents...`);
+    const info = await listArchiveContents(archivePath);
+    console.log(`[testArchiveExtraction] Found ${info.entries.length} entries`);
+
+    if (info.entries.length === 0) {
+      return { valid: false, error: 'Archive is empty' };
+    }
+
+    // Try to extract first non-directory entry
+    const firstFile = info.entries.find((e) => !e.isDirectory);
+    if (!firstFile) {
+      return { valid: false, error: 'No extractable files found' };
+    }
+
+    console.log(`[testArchiveExtraction] Attempting to extract: ${firstFile.path}`);
+    const result = await extractFiles(archivePath, tempDir, [firstFile.path]);
+    console.log(`[testArchiveExtraction] Extract result:`, JSON.stringify(result));
+
+    if (!result.success) {
+      return { valid: false, error: result.error || 'Extraction failed with no error message' };
+    }
+
+    console.log(`[testArchiveExtraction] Test passed!`);
+    return { valid: true };
+  } catch (err) {
+    console.error(`[testArchiveExtraction] Exception:`, err);
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await cleanupTempDir(tempDir);
+  }
+}
+
+/**
+ * Get archive statistics.
+ */
+export async function getArchiveStats(archivePath: string): Promise<{
+  format: string;
+  fileCount: number;
+  imageCount: number;
+  totalSize: number;
+  hasComicInfo: boolean;
+  coverPath: string | null;
+} | null> {
+  try {
+    const info = await listArchiveContents(archivePath);
+
+    const imageCount = info.entries.filter(
+      (e) => !e.isDirectory && isImageFile(e.path)
+    ).length;
+
+    return {
+      format: info.format,
+      fileCount: info.fileCount,
+      imageCount,
+      totalSize: info.totalSize,
+      hasComicInfo: info.hasComicInfo,
+      coverPath: info.coverPath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Delete pages from a CBZ archive.
+ * Creates a new archive without the specified pages and replaces the original.
+ */
+export async function deletePagesFromArchive(
+  archivePath: string,
+  pagesToDelete: string[]
+): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  // Check if this is a RAR archive - RAR format is read-only
+  if (await isRarArchive(archivePath)) {
+    return {
+      success: false,
+      deletedCount: 0,
+      error: 'Cannot modify RAR archives. Convert to CBZ first.',
+    };
+  }
+
+  const format = getArchiveFormat(archivePath);
+  if (format !== 'zip') {
+    return {
+      success: false,
+      deletedCount: 0,
+      error: `Cannot modify ${format} archives. Only CBZ (ZIP) archives can be modified.`,
+    };
+  }
+
+  // Create temp directory for extraction
+  const tempDir = await createTempDir('helixio-delete-pages-');
+
+  try {
+    console.log(`[deletePagesFromArchive] Extracting to: ${tempDir}`);
+    console.log(`[deletePagesFromArchive] Pages to delete:`, pagesToDelete);
+
+    // Extract the entire archive
+    const extractResult = await extractArchive(archivePath, tempDir);
+    if (!extractResult.success) {
+      return {
+        success: false,
+        deletedCount: 0,
+        error: `Failed to extract archive: ${extractResult.error}`,
+      };
+    }
+
+    // Delete the specified pages
+    let deletedCount = 0;
+    for (const pagePath of pagesToDelete) {
+      // Try both the full path and just the filename (7zip sometimes flattens)
+      const fullPath = join(tempDir, pagePath);
+      const filename = pagePath.split('/').pop() || pagePath;
+      const flatPath = join(tempDir, filename);
+
+      let deleted = false;
+      try {
+        await unlink(fullPath);
+        deleted = true;
+        console.log(`[deletePagesFromArchive] Deleted: ${fullPath}`);
+      } catch {
+        // Try flat path
+        try {
+          await unlink(flatPath);
+          deleted = true;
+          console.log(`[deletePagesFromArchive] Deleted (flat): ${flatPath}`);
+        } catch {
+          console.warn(`[deletePagesFromArchive] Could not find file to delete: ${pagePath}`);
+        }
+      }
+
+      if (deleted) {
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount === 0) {
+      return {
+        success: false,
+        deletedCount: 0,
+        error: 'No pages were found to delete',
+      };
+    }
+
+    // Create a backup of the original
+    const backupPath = `${archivePath}.bak`;
+    await rename(archivePath, backupPath);
+
+    try {
+      // Create new archive without the deleted pages
+      const createResult = await createCbzArchive(tempDir, archivePath);
+      if (!createResult.success) {
+        // Restore backup
+        await rename(backupPath, archivePath);
+        return {
+          success: false,
+          deletedCount: 0,
+          error: `Failed to create new archive: ${createResult.error}`,
+        };
+      }
+
+      // Remove backup
+      await unlink(backupPath);
+
+      console.log(`[deletePagesFromArchive] Successfully deleted ${deletedCount} pages`);
+      return {
+        success: true,
+        deletedCount,
+      };
+    } catch (err) {
+      // Try to restore backup
+      try {
+        await rename(backupPath, archivePath);
+      } catch {
+        // Backup restore failed
+      }
+      throw err;
+    }
+  } finally {
+    // Clean up temp directory
+    await cleanupTempDir(tempDir);
+  }
+}

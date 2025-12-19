@@ -1,0 +1,18 @@
+services:
+  helixio:
+    build: .
+    image: helixio:latest
+    container_name: helixio
+    restart: unless-stopped
+    ports:
+      - "8483:8483"
+    environment:
+      - PUID=99       # UNRAID nobody user
+      - PGID=100      # UNRAID users group
+      - TZ=America/New_York
+    volumes:
+      # For UNRAID, change these paths:
+      # - /mnt/user/appdata/helixio:/config
+      # - /mnt/user/media/Comics:/comics:ro
+      - ./test-config:/config
+      - ./test-comics:/comics:ro

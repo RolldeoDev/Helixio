@@ -1,0 +1,208 @@
+/**
+ * JobsPanel Styles
+ */
+
+.jobs-panel {
+  padding: var(--spacing-2xl);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.jobs-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2xl);
+}
+
+.jobs-panel-header h1 {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin: 0;
+  color: var(--color-text);
+}
+
+/* Empty State */
+.jobs-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4xl) var(--spacing-2xl);
+  text-align: center;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.jobs-empty .empty-icon {
+  font-size: 3rem;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.5;
+}
+
+.jobs-empty h3 {
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+}
+
+.jobs-empty p {
+  margin: 0;
+  color: var(--color-text-muted);
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+/* Jobs List */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* Job Card */
+.job-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+}
+
+.job-card:hover {
+  border-color: var(--color-border-hover);
+}
+
+.job-card.status-active {
+  border-left: 3px solid var(--color-primary);
+}
+
+.job-card.status-complete {
+  border-left: 3px solid var(--color-success);
+}
+
+.job-card.status-error {
+  border-left: 3px solid var(--color-error);
+}
+
+.job-card.status-pending {
+  border-left: 3px solid var(--color-text-muted);
+}
+
+.job-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+}
+
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.status-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge.status-active {
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--color-primary);
+}
+
+.status-badge.status-complete {
+  background: rgba(125, 206, 160, 0.2);
+  color: var(--color-success);
+}
+
+.status-badge.status-error {
+  background: rgba(224, 122, 122, 0.2);
+  color: var(--color-error);
+}
+
+.status-badge.status-pending {
+  background: rgba(160, 160, 160, 0.2);
+  color: var(--color-text-muted);
+}
+
+.current-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.job-date {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.job-card-body {
+  padding: var(--spacing-lg);
+}
+
+.job-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.job-info > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+}
+
+.job-info .label {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.job-info .value {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.job-error .value {
+  color: var(--color-error);
+  font-weight: normal;
+  font-size: 0.85rem;
+}
+
+.job-options {
+  margin-top: var(--spacing-md);
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.option-tag {
+  padding: 2px var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.job-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+}

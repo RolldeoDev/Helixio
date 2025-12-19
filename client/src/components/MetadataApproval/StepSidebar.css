@@ -1,0 +1,248 @@
+/**
+ * StepSidebar Component Styles
+ * Vertical sidebar navigation for metadata approval workflow
+ */
+
+.step-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  background: var(--color-bg-tertiary);
+  border-right: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: var(--spacing-md) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sidebar-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+/* Step List */
+.step-list {
+  flex: 1;
+  padding: var(--spacing-sm) 0;
+  overflow-y: auto;
+}
+
+.step-group {
+  margin-bottom: var(--spacing-xs);
+}
+
+/* Step Item */
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: none;
+  border: none;
+  cursor: default;
+  text-align: left;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.step-item.clickable {
+  cursor: pointer;
+}
+
+.step-item.clickable:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.step-item.current {
+  background: rgba(212, 165, 116, 0.15);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.step-item.completed {
+  color: var(--color-text);
+}
+
+.step-item.viewing {
+  background: rgba(212, 165, 116, 0.25);
+  border-left: 3px solid var(--color-primary);
+  padding-left: calc(var(--spacing-md) - 3px);
+}
+
+.step-item.navigable {
+  border-left: 2px solid var(--color-primary);
+  padding-left: calc(var(--spacing-md) - 2px);
+}
+
+.step-item.navigable:hover {
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--color-primary);
+}
+
+/* Step Icon */
+.step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+}
+
+.step-item.current .step-icon {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+.step-item.completed .step-icon {
+  background: var(--color-success);
+  color: white;
+  border-color: var(--color-success);
+}
+
+.step-icon .check-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.step-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Log Count Badge */
+.step-log-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-muted);
+  border-radius: 9px;
+  flex-shrink: 0;
+}
+
+.step-item.clickable:hover .step-log-count {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* Active Indicator (pulsing dot) */
+.step-active-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  flex-shrink: 0;
+  animation: pulse-indicator 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-indicator {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+/* Substep List */
+.substep-list {
+  padding: var(--spacing-xs) 0 var(--spacing-xs) calc(var(--spacing-md) + 24px + var(--spacing-sm));
+}
+
+.substep-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.substep-item.active {
+  color: var(--color-primary);
+}
+
+.substep-item.complete {
+  color: var(--color-success);
+}
+
+.substep-icon {
+  width: 14px;
+  text-align: center;
+  font-size: 0.7rem;
+}
+
+.substep-label {
+  flex: 1;
+}
+
+/* Tiny Spinner for substeps */
+.spinner-tiny {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive - hide sidebar text on small screens */
+@media (max-width: 700px) {
+  .step-sidebar {
+    width: 60px;
+  }
+
+  .sidebar-header {
+    display: none;
+  }
+
+  .step-label,
+  .step-log-count,
+  .substep-list {
+    display: none;
+  }
+
+  .step-item {
+    justify-content: center;
+    padding: var(--spacing-sm);
+  }
+
+  .step-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
+  }
+}

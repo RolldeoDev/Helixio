@@ -1,0 +1,284 @@
+/* =============================================================================
+   SeriesGrid Component Styles
+   ============================================================================= */
+
+.series-grid-container {
+  position: relative;
+  min-height: 200px;
+}
+
+/* Loading State */
+.series-grid-container .loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-2xl);
+  color: var(--color-text-muted);
+}
+
+/* Error Message */
+.series-grid-container .error-message {
+  padding: var(--spacing-lg);
+  color: var(--color-error);
+  text-align: center;
+}
+
+/* Empty State */
+.series-grid-container .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-2xl);
+  text-align: center;
+}
+
+.series-grid-container .empty-state h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.series-grid-container .empty-state p {
+  color: var(--color-text-muted);
+  max-width: 400px;
+}
+
+/* Header */
+.series-grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.series-count {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Grid Layout */
+.series-grid {
+  display: grid;
+  /* Use --cover-size from parent for dynamic sizing, fallback to responsive defaults */
+  grid-template-columns: repeat(auto-fill, minmax(var(--cover-size, 160px), 1fr));
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md);
+}
+
+/* Grid Item */
+.series-grid-item {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  outline: none;
+}
+
+.series-grid-item:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.series-grid-item:focus {
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+/* Cover Container */
+.series-grid-item-cover {
+  position: relative;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+}
+
+.series-grid-item-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--transition-medium);
+}
+
+.series-grid-item-cover img.loaded {
+  opacity: 1;
+}
+
+.series-grid-item-cover img.hidden {
+  display: none;
+}
+
+/* Cover Loading Spinner */
+.cover-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cover-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Cover Placeholder */
+.cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary));
+}
+
+.series-initial {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  opacity: 0.6;
+}
+
+/* Progress Bar */
+.cover-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.cover-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width var(--transition-medium);
+}
+
+/* Completed Indicator */
+.cover-completed {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Count Badge */
+.series-count-badge {
+  position: absolute;
+  bottom: var(--spacing-sm);
+  right: var(--spacing-sm);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--color-text);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Item Info */
+.series-grid-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+}
+
+.series-grid-item-title {
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-grid-item-meta {
+  display: flex;
+  gap: var(--spacing-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.series-year,
+.series-publisher {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-publisher {
+  color: var(--color-text-subtle);
+}
+
+/* Pagination */
+.series-grid-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.pagination-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Operation Message */
+.series-operation-message {
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0 var(--spacing-md) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}

@@ -1,0 +1,420 @@
+/**
+ * HoverPreviewCard Styles
+ *
+ * Floating preview card that appears on hover/focus in the compact file list.
+ * Uses the existing design system colors and transitions.
+ */
+
+/* ==========================================================================
+   Card Container
+   ========================================================================== */
+
+.hover-preview-card {
+  position: fixed;
+  z-index: 1200;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 320px;
+  max-width: 400px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px) scale(0.98);
+  transition:
+    opacity 0.1s ease,
+    transform 0.1s ease,
+    visibility 0.1s ease;
+  pointer-events: none;
+}
+
+.hover-preview-card.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.preview-header {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.preview-status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.preview-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.preview-status-icon.status-matched {
+  background: rgba(125, 206, 160, 0.2);
+  color: var(--color-success);
+}
+
+.preview-status-icon.status-unmatched {
+  background: rgba(229, 181, 103, 0.2);
+  color: var(--color-warning);
+}
+
+.preview-status-icon.status-rejected {
+  background: rgba(224, 122, 122, 0.2);
+  color: var(--color-error);
+}
+
+.preview-status-icon.status-manual {
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--color-primary);
+}
+
+.preview-status-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  color: var(--color-text-muted);
+}
+
+.preview-confidence {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.preview-confidence.confidence-high {
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+}
+
+.preview-confidence.confidence-medium {
+  background: rgba(229, 181, 103, 0.15);
+  color: var(--color-warning);
+}
+
+.preview-confidence.confidence-low {
+  background: rgba(224, 122, 122, 0.15);
+  color: var(--color-error);
+}
+
+.preview-filename {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Match Section
+   ========================================================================== */
+
+.preview-match-section {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preview-match-section.unmatched {
+  background: rgba(229, 181, 103, 0.1);
+}
+
+.match-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.match-value {
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.match-value strong {
+  color: var(--color-primary);
+}
+
+.match-date {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.no-match-warning {
+  font-size: 0.85rem;
+  color: var(--color-warning);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Changes Section
+   ========================================================================== */
+
+.preview-changes-section {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.changes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.changes-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.changes-count {
+  font-size: 0.75rem;
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.change-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 20px;
+  gap: var(--spacing-sm);
+  align-items: start;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  background: var(--color-bg-secondary);
+}
+
+.change-row.approved {
+  border-left: 2px solid var(--color-success);
+}
+
+.change-row.not-approved {
+  border-left: 2px solid var(--color-border);
+  opacity: 0.7;
+}
+
+.change-field {
+  font-weight: 500;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.change-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.current-value {
+  color: var(--color-text-subtle);
+  text-decoration: line-through;
+  font-size: 0.75rem;
+}
+
+.current-value em,
+.proposed-value em {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.change-arrow {
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.proposed-value {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.change-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.change-status.on {
+  color: var(--color-success);
+}
+
+.change-status.off {
+  color: var(--color-text-subtle);
+}
+
+.more-changes {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--spacing-xs);
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Notice States
+   ========================================================================== */
+
+.preview-rejected-notice,
+.preview-no-changes {
+  padding: var(--spacing-md);
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.preview-rejected-notice {
+  background: rgba(224, 122, 122, 0.1);
+  color: var(--color-error);
+}
+
+.preview-no-changes {
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Actions Footer
+   ========================================================================== */
+
+.preview-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.preview-actions .btn-sm {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.preview-actions .btn-primary {
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-weight: 500;
+}
+
+.preview-actions .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.preview-actions .btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.preview-actions .btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
+}
+
+.preview-actions .btn-ghost {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.preview-actions .btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+}
+
+.preview-actions .btn-danger-text {
+  color: var(--color-error);
+}
+
+.preview-actions .btn-danger-text:hover:not(:disabled) {
+  background: rgba(224, 122, 122, 0.1);
+}
+
+.preview-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Responsive - Bottom Sheet on Mobile
+   ========================================================================== */
+
+@media (max-width: 600px) {
+  .hover-preview-card {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 100%;
+    max-height: 60vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transform: translateY(100%);
+    overflow-y: auto;
+  }
+
+  .hover-preview-card.visible {
+    transform: translateY(0);
+  }
+
+  .preview-header {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .preview-actions {
+    border-radius: 0;
+    position: sticky;
+    bottom: 0;
+  }
+}
+
+/* ==========================================================================
+   Reduced Motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-preview-card {
+    transition: none;
+  }
+}

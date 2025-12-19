@@ -1,0 +1,1069 @@
+/**
+ * Home Page Styles
+ *
+ * Comic book-inspired aesthetic with:
+ * - Bold panel-style borders
+ * - Warm amber highlights on dark backgrounds
+ * - Dramatic shadows and depth
+ * - Halftone patterns and comic textures
+ */
+
+/* =============================================================================
+   CSS Variables for Home Page Theming
+   ============================================================================= */
+
+:root {
+  /* Layout */
+  --home-section-gap: var(--spacing-2xl);
+  --home-content-max-width: 1400px;
+  --home-content-padding: var(--spacing-xl);
+
+  /* Card Dimensions */
+  --home-card-width: 160px;
+  --home-card-height: 240px;
+  --home-card-width-lg: 200px;
+  --home-card-height-lg: 300px;
+  --home-card-width-sm: 120px;
+  --home-card-height-sm: 180px;
+
+  /* Carousel */
+  --home-carousel-gap: var(--spacing-md);
+  --home-carousel-padding: var(--spacing-sm);
+
+  /* Hero */
+  --home-hero-gradient: linear-gradient(
+    135deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg) 50%,
+    rgba(212, 165, 116, 0.03) 100%
+  );
+  --home-hero-min-height: 280px;
+
+  /* Comic Panel Aesthetic */
+  --home-panel-border: 3px solid var(--color-border);
+  --home-panel-border-accent: 3px solid var(--color-primary);
+  --home-panel-shadow: 6px 6px 0 var(--color-bg-tertiary);
+  --home-panel-shadow-hover: 8px 8px 0 var(--color-bg-tertiary);
+  --home-panel-shadow-accent: 6px 6px 0 rgba(212, 165, 116, 0.2);
+
+  /* Category Pills */
+  --home-pill-bg: var(--color-bg-elevated);
+  --home-pill-bg-hover: var(--color-hover);
+  --home-pill-bg-active: var(--color-primary-muted);
+  --home-pill-border: 1px solid var(--color-border);
+
+  /* Speech Bubble Badges */
+  --home-badge-bg: var(--color-primary);
+  --home-badge-text: var(--color-bg);
+  --home-badge-shadow: 2px 2px 0 var(--color-bg-tertiary);
+
+  /* Animations */
+  --home-stagger-delay: 0.05s;
+  --home-entrance-duration: 0.4s;
+  --home-hover-duration: 0.2s;
+}
+
+/* =============================================================================
+   Page Layout
+   ============================================================================= */
+
+.home-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--home-section-gap);
+  max-width: var(--home-content-max-width);
+  margin: 0 auto;
+  padding: var(--home-content-padding);
+  min-height: 100vh;
+
+  /* Subtle halftone texture overlay */
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    rgba(212, 165, 116, 0.015) 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
+}
+
+.home-page.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+/* =============================================================================
+   Section Header
+   ============================================================================= */
+
+.home-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--color-border);
+  position: relative;
+}
+
+.home-section-header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 80px;
+  height: 2px;
+  background: var(--color-primary);
+}
+
+.home-section-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text);
+  margin: 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.home-section-subtitle {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-left: var(--spacing-sm);
+  font-weight: 400;
+}
+
+.home-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.home-see-all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  text-decoration: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  transition: all var(--home-hover-duration) ease;
+}
+
+.home-see-all-link:hover {
+  background: var(--color-primary-muted);
+  color: var(--color-primary-hover);
+}
+
+.home-see-all-link svg {
+  width: 14px;
+  height: 14px;
+  transition: transform var(--home-hover-duration) ease;
+}
+
+.home-see-all-link:hover svg {
+  transform: translateX(3px);
+}
+
+/* =============================================================================
+   Comic Card
+   ============================================================================= */
+
+.comic-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--home-card-width);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform var(--home-hover-duration) ease;
+}
+
+.comic-card:hover {
+  transform: translateY(-6px);
+}
+
+.comic-card-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  border: var(--home-panel-border);
+  box-shadow: var(--home-panel-shadow);
+  transition: all var(--home-hover-duration) ease;
+}
+
+.comic-card:hover .comic-card-cover {
+  border-color: var(--color-primary);
+  box-shadow: var(--home-panel-shadow-hover);
+}
+
+.comic-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.comic-card:hover .comic-card-cover img {
+  transform: scale(1.05);
+}
+
+/* Cover overlay gradient */
+.comic-card-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.7) 0%,
+    transparent 40%
+  );
+  pointer-events: none;
+}
+
+/* Progress bar on cover */
+.comic-card-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
+.comic-card-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+/* Completed checkmark */
+.comic-card-completed {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  width: 24px;
+  height: 24px;
+  background: var(--color-success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  box-shadow: var(--home-badge-shadow);
+}
+
+.comic-card-completed svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+}
+
+/* Speech bubble badge for recommendations */
+.comic-card-badge {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--home-badge-bg);
+  color: var(--home-badge-text);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  z-index: 4;
+  box-shadow: var(--home-badge-shadow);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Speech bubble tail */
+.comic-card-badge::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--home-badge-bg);
+}
+
+/* Card info below cover */
+.comic-card-info {
+  padding: var(--spacing-sm) 0 0 0;
+}
+
+.comic-card-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.comic-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.comic-card-issue {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* =============================================================================
+   Comic Carousel
+   ============================================================================= */
+
+.comic-carousel {
+  position: relative;
+  margin: 0 calc(-1 * var(--home-content-padding));
+  padding: 0 var(--home-content-padding);
+}
+
+.comic-carousel-track {
+  display: flex;
+  gap: var(--home-carousel-gap);
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: var(--spacing-md) 0;
+}
+
+.comic-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.comic-carousel-track > * {
+  scroll-snap-align: start;
+}
+
+/* Navigation arrows */
+.comic-carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  background: var(--color-bg-elevated);
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all var(--home-hover-duration) ease;
+  box-shadow: var(--shadow-md);
+}
+
+.comic-carousel-nav:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.comic-carousel-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.comic-carousel-nav.prev {
+  left: var(--spacing-sm);
+}
+
+.comic-carousel-nav.next {
+  right: var(--spacing-sm);
+}
+
+.comic-carousel-nav svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Fade edges */
+.comic-carousel::before,
+.comic-carousel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.comic-carousel::before {
+  left: 0;
+  background: linear-gradient(to right, var(--color-bg), transparent);
+}
+
+.comic-carousel::after {
+  right: 0;
+  background: linear-gradient(to left, var(--color-bg), transparent);
+}
+
+/* =============================================================================
+   Home Header
+   ============================================================================= */
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.home-welcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.home-welcome-greeting {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.home-welcome-date {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.home-library-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+}
+
+.home-library-toggle:hover {
+  border-color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.home-library-toggle svg {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Empty States
+   ============================================================================= */
+
+.home-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  text-align: center;
+  background: var(--color-bg-secondary);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.home-empty-state-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-md);
+  opacity: 0.5;
+}
+
+.home-empty-state-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.home-empty-state-text {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 300px;
+}
+
+/* =============================================================================
+   Loading Skeletons
+   ============================================================================= */
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+.skeleton-card {
+  width: var(--home-card-width);
+  height: var(--home-card-height);
+  flex-shrink: 0;
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-top: var(--spacing-sm);
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+/* =============================================================================
+   Comic Card Placeholder
+   ============================================================================= */
+
+.comic-card-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+}
+
+.comic-card-placeholder svg {
+  width: 40%;
+  height: 40%;
+  color: var(--color-text-muted);
+  opacity: 0.3;
+}
+
+/* Card size variants */
+.comic-card-sm {
+  --home-card-width: var(--home-card-width-sm);
+  --home-card-height: var(--home-card-height-sm);
+}
+
+.comic-card-lg {
+  --home-card-width: var(--home-card-width-lg);
+  --home-card-height: var(--home-card-height-lg);
+}
+
+.comic-card-sm .comic-card-title {
+  font-size: 0.7rem;
+}
+
+.comic-card-sm .comic-card-meta {
+  font-size: 0.6rem;
+}
+
+.comic-card-lg .comic-card-title {
+  font-size: 0.9rem;
+}
+
+/* Badge color variants */
+.comic-card-badge-success {
+  background: var(--color-success);
+}
+
+.comic-card-badge-warning {
+  background: var(--color-warning);
+  color: var(--color-bg);
+}
+
+.comic-card-badge-info {
+  background: var(--color-info);
+  color: var(--color-bg);
+}
+
+.comic-card-badge-success::after {
+  border-top-color: var(--color-success);
+}
+
+.comic-card-badge-warning::after {
+  border-top-color: var(--color-warning);
+}
+
+.comic-card-badge-info::after {
+  border-top-color: var(--color-info);
+}
+
+/* =============================================================================
+   Entrance Animations
+   ============================================================================= */
+
+@keyframes home-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.home-animate-in {
+  animation: home-fade-in-up var(--home-entrance-duration) ease forwards;
+}
+
+.home-section {
+  opacity: 0;
+  animation: home-fade-in-up var(--home-entrance-duration) ease forwards;
+}
+
+.home-section:nth-child(1) { animation-delay: 0s; }
+.home-section:nth-child(2) { animation-delay: 0.1s; }
+.home-section:nth-child(3) { animation-delay: 0.2s; }
+.home-section:nth-child(4) { animation-delay: 0.3s; }
+.home-section:nth-child(5) { animation-delay: 0.4s; }
+.home-section:nth-child(6) { animation-delay: 0.5s; }
+
+/* Staggered card animations */
+.comic-carousel-track .comic-card {
+  opacity: 0;
+  animation: home-scale-in 0.3s ease forwards;
+}
+
+.comic-carousel-track .comic-card:nth-child(1) { animation-delay: 0.1s; }
+.comic-carousel-track .comic-card:nth-child(2) { animation-delay: 0.15s; }
+.comic-carousel-track .comic-card:nth-child(3) { animation-delay: 0.2s; }
+.comic-carousel-track .comic-card:nth-child(4) { animation-delay: 0.25s; }
+.comic-carousel-track .comic-card:nth-child(5) { animation-delay: 0.3s; }
+.comic-carousel-track .comic-card:nth-child(6) { animation-delay: 0.35s; }
+.comic-carousel-track .comic-card:nth-child(7) { animation-delay: 0.4s; }
+.comic-carousel-track .comic-card:nth-child(8) { animation-delay: 0.45s; }
+
+/* =============================================================================
+   Responsive Breakpoints
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  :root {
+    --home-content-padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --home-content-padding: var(--spacing-md);
+    --home-section-gap: var(--spacing-xl);
+    --home-card-width: var(--home-card-width-sm);
+    --home-card-height: var(--home-card-height-sm);
+  }
+
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .home-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .home-section-title {
+    font-size: 1.25rem;
+  }
+
+  .comic-carousel-nav {
+    display: none;
+  }
+
+  .home-welcome-greeting {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --home-card-width: 100px;
+    --home-card-height: 150px;
+    --home-carousel-gap: var(--spacing-sm);
+  }
+
+  .comic-card-title {
+    font-size: 0.7rem;
+  }
+
+  .comic-card-meta {
+    font-size: 0.6rem;
+  }
+}
+
+/* =============================================================================
+   Discover Section
+   ============================================================================= */
+
+.discover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.discover-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.discover-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: var(--color-bg-elevated);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+}
+
+.discover-pill:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.discover-pill.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.discover-pill:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.discover-pill-link {
+  text-decoration: none;
+  background: transparent;
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+
+.discover-pill-link:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.discover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--home-card-width-sm), 1fr));
+  gap: var(--home-carousel-gap);
+}
+
+.discover-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-xl);
+}
+
+.discover-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+}
+
+.discover-refresh-btn:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.discover-refresh-btn:active {
+  transform: scale(0.98);
+}
+
+.discover-refresh-btn svg {
+  color: var(--color-primary);
+}
+
+/* Discover grid animation */
+.discover-grid .comic-card {
+  opacity: 0;
+  animation: home-scale-in 0.3s ease forwards;
+}
+
+.discover-grid .comic-card:nth-child(1) { animation-delay: 0.05s; }
+.discover-grid .comic-card:nth-child(2) { animation-delay: 0.1s; }
+.discover-grid .comic-card:nth-child(3) { animation-delay: 0.15s; }
+.discover-grid .comic-card:nth-child(4) { animation-delay: 0.2s; }
+.discover-grid .comic-card:nth-child(5) { animation-delay: 0.25s; }
+.discover-grid .comic-card:nth-child(6) { animation-delay: 0.3s; }
+.discover-grid .comic-card:nth-child(7) { animation-delay: 0.35s; }
+.discover-grid .comic-card:nth-child(8) { animation-delay: 0.4s; }
+
+/* Responsive discover grid */
+@media (max-width: 768px) {
+  .discover-pills {
+    gap: var(--spacing-xs);
+  }
+
+  .discover-pill {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: 0.8rem;
+  }
+
+  .discover-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+}
+
+/* =============================================================================
+   Reading Queue Preview
+   ============================================================================= */
+
+.queue-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.queue-preview-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+}
+
+.queue-preview-item:hover {
+  border-color: var(--color-primary);
+  background: var(--color-bg-elevated);
+  transform: translateX(4px);
+}
+
+.queue-preview-item:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.queue-preview-position {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--color-bg-tertiary);
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.queue-preview-item:hover .queue-preview-position {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.queue-preview-cover {
+  width: 40px;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--color-bg-tertiary);
+}
+
+.queue-preview-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.queue-preview-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.queue-preview-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-preview-progress {
+  height: 3px;
+  background: var(--color-bg-tertiary);
+  border-radius: 2px;
+  margin-top: var(--spacing-xs);
+  overflow: hidden;
+}
+
+.queue-preview-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.queue-preview-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--color-bg-tertiary);
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all var(--home-hover-duration) ease;
+}
+
+.queue-preview-item:hover .queue-preview-action {
+  opacity: 1;
+  transform: scale(1);
+  background: var(--color-primary);
+}
+
+.queue-preview-action svg {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  margin-left: 2px; /* Visual centering for play icon */
+}
+
+.queue-preview-item:hover .queue-preview-action svg {
+  color: var(--color-bg);
+}
+
+.queue-preview-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-md);
+}
+
+.queue-preview-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  border-radius: var(--radius-md);
+  transition: all var(--home-hover-duration) ease;
+}
+
+.queue-preview-view-all:hover {
+  color: var(--color-primary);
+  background: var(--color-bg-secondary);
+}
+
+/* Queue preview animation */
+.queue-preview-item {
+  opacity: 0;
+  animation: home-fade-in-up 0.3s ease forwards;
+}
+
+.queue-preview-item:nth-child(1) { animation-delay: 0.05s; }
+.queue-preview-item:nth-child(2) { animation-delay: 0.1s; }
+.queue-preview-item:nth-child(3) { animation-delay: 0.15s; }
+.queue-preview-item:nth-child(4) { animation-delay: 0.2s; }
+.queue-preview-item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Responsive queue preview */
+@media (max-width: 768px) {
+  .queue-preview-item {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
+  .queue-preview-position {
+    width: 24px;
+    height: 24px;
+    font-size: 0.75rem;
+  }
+
+  .queue-preview-cover {
+    width: 32px;
+    height: 44px;
+  }
+
+  .queue-preview-title {
+    font-size: 0.8rem;
+  }
+
+  .queue-preview-action {
+    width: 28px;
+    height: 28px;
+  }
+}

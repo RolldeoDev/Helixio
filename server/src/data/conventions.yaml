@@ -1,0 +1,261 @@
+# Helixio Naming Conventions
+# This file defines patterns for parsing and generating comic file/folder names.
+# It is used by the LLM to understand naming structures and extract metadata.
+
+# =============================================================================
+# Series Folder Patterns
+# =============================================================================
+# These patterns describe how series folders are named.
+# Fields: {SeriesName}, {StartYear}, {EndYear}, {Author}
+
+series_folder:
+  patterns:
+    - "{SeriesName} ({StartYear}-{EndYear})"
+    - "{SeriesName} ({StartYear})"
+    - "{SeriesName} by {Author} ({StartYear}-{EndYear})"
+    - "{SeriesName} by {Author} ({StartYear})"
+    - "{SeriesName}"
+
+  examples:
+    - "Batman (2011-2016)"
+    - "Daredevil by Frank Miller (1979-1983)"
+    - "The Walking Dead (2003-2019)"
+    - "Saga (2012)"
+
+# =============================================================================
+# Issue File Patterns
+# =============================================================================
+# These patterns describe how individual issue files are named.
+# Fields: {Number}, {Title}, {Date}, {Year}, {Month}, {Day}
+# Number format: 3-digit zero-padded (e.g., 001, 023, 100)
+
+issue_file:
+  patterns:
+    - "Issue #{Number:3} - {Title} ({Date}).cbz"
+    - "Issue #{Number:3} - {Title} ({Year}).cbz"
+    - "Issue #{Number:3} ({Date}).cbz"
+    - "Issue #{Number:3}.cbz"
+    - "#{Number:3} - {Title} ({Date}).cbz"
+    - "{SeriesName} #{Number} - {Title} ({Year}).cbz"
+    - "{SeriesName} #{Number}.cbz"
+
+  examples:
+    - "Issue #001 - Court of Owls (2011-09-21).cbz"
+    - "Issue #023 - Death of the Family (2013).cbz"
+    - "Batman #001 - I Am Gotham (2016).cbz"
+
+# =============================================================================
+# Volume/TPB File Patterns
+# =============================================================================
+# Fields: {Number}, {Title}, {Year}
+# Number format: 2-digit zero-padded
+
+volume_file:
+  patterns:
+    - "Volume {Number:2} - {Title} ({Year}).cbz"
+    - "Vol. {Number:2} - {Title} ({Year}).cbz"
+    - "TPB {Number:2} - {Title} ({Year}).cbz"
+    - "Volume {Number:2} ({Year}).cbz"
+    - "{SeriesName} Vol. {Number} - {Title} ({Year}).cbz"
+
+  examples:
+    - "Volume 01 - The Long Halloween (1998).cbz"
+    - "Vol. 03 - Death in the Family (1988).cbz"
+    - "TPB 01 - Year One (1987).cbz"
+
+# =============================================================================
+# Book/OGN File Patterns
+# =============================================================================
+# For original graphic novels and standalone books
+
+book_file:
+  patterns:
+    - "Book {Number:2} - {Title} ({Year}).cbz"
+    - "{Title} ({Year}).cbz"
+    - "OGN - {Title} ({Year}).cbz"
+
+  examples:
+    - "Book 01 - Arkham Asylum (1989).cbz"
+    - "Batman - The Killing Joke (1988).cbz"
+
+# =============================================================================
+# Special Issue Patterns
+# =============================================================================
+# For annuals, one-shots, and special issues
+# These go in the specials/ subfolder
+
+special_file:
+  patterns:
+    - "Special - Annual {Year} ({Year}).cbz"
+    - "Special - {Title} ({Year}).cbz"
+    - "Annual #{Number} ({Year}).cbz"
+
+  examples:
+    - "Special - Annual 2012 (2012).cbz"
+    - "Special - Holiday Edition (2010).cbz"
+    - "Annual #01 (2015).cbz"
+
+# =============================================================================
+# Noise Tokens
+# =============================================================================
+# These strings should be ignored when parsing filenames.
+# They typically represent scanner groups, quality indicators, or editing tags.
+
+noise_tokens:
+  # Scanner/release groups
+  - "[EmpireUpdates]"
+  - "[Empire]"
+  - "(Minutemen)"
+  - "(Minutemen-DTs)"
+  - "[DTs]"
+  - "(Nem)"
+  - "[Nem]"
+  - "(OkC.O.M.P.U.T.O.)"
+  - "[CÓMPUTO]"
+  - "(Digital)"
+  - "[Digital]"
+  - "(digital)"
+  - "(Webrip)"
+  - "[Webrip]"
+  - "(webrip)"
+
+  # Quality/scan type indicators
+  - "(PureScan)"
+  - "(Scan)"
+  - "(scan)"
+  - "(Hybrid)"
+  - "(hybrid)"
+  - "(HQ)"
+  - "(hq)"
+  - "(HD)"
+  - "(LQ)"
+
+  # Edit tags
+  - "(HYPERXML_EDIT)"
+  - "(Fixed)"
+  - "(fixed)"
+  - "(Repack)"
+  - "(repack)"
+  - "(v2)"
+  - "(v3)"
+
+  # File format indicators (when not extension)
+  - "(c2c)"
+  - "(C2C)"
+  - "(noads)"
+  - "(NoAds)"
+
+  # Language tags
+  - "(English)"
+  - "(english)"
+  - "[English]"
+  - "(EN)"
+
+# =============================================================================
+# Issue Type Indicators
+# =============================================================================
+# Keywords that help identify the type of comic file
+
+type_indicators:
+  issue:
+    - "Issue"
+    - "issue"
+    - "#"
+    - "No."
+    - "Number"
+
+  volume:
+    - "Volume"
+    - "Vol."
+    - "Vol"
+    - "TPB"
+    - "Trade"
+
+  book:
+    - "Book"
+    - "OGN"
+    - "Graphic Novel"
+
+  special:
+    - "Annual"
+    - "Special"
+    - "One-Shot"
+    - "One Shot"
+    - "Oneshot"
+
+# =============================================================================
+# Publisher Aliases
+# =============================================================================
+# Common variations of publisher names
+
+publisher_aliases:
+  "DC Comics":
+    - "DC"
+    - "DC Comics"
+    - "Detective Comics"
+
+  "Marvel Comics":
+    - "Marvel"
+    - "Marvel Comics"
+
+  "Image Comics":
+    - "Image"
+    - "Image Comics"
+
+  "Dark Horse Comics":
+    - "Dark Horse"
+    - "DH"
+
+  "IDW Publishing":
+    - "IDW"
+    - "IDW Publishing"
+
+  "Boom! Studios":
+    - "Boom"
+    - "BOOM!"
+    - "Boom Studios"
+
+  "Vertigo":
+    - "Vertigo"
+    - "DC Vertigo"
+
+  "Wildstorm":
+    - "Wildstorm"
+    - "WildStorm"
+    - "DC Wildstorm"
+
+# =============================================================================
+# Date Formats
+# =============================================================================
+# Common date format patterns found in filenames
+
+date_formats:
+  - "YYYY-MM-DD"  # 2011-09-21
+  - "YYYY-MM"     # 2011-09
+  - "YYYY"        # 2011
+  - "MM-YYYY"     # 09-2011
+  - "MMMM YYYY"   # September 2011
+
+# =============================================================================
+# Number Extraction Patterns
+# =============================================================================
+# Regex patterns for extracting issue/volume numbers
+
+number_patterns:
+  issue:
+    - '#(\d+)'
+    - 'Issue\s*#?\s*(\d+)'
+    - 'No\.?\s*(\d+)'
+    - '\s(\d{1,4})\s*[-–—]'
+    - '\s(\d{1,4})\.cb[rz7t]$'
+
+  volume:
+    - 'Vol\.?\s*(\d+)'
+    - 'Volume\s*(\d+)'
+    - 'TPB\s*(\d+)'
+    - 'v(\d+)'
+
+  year:
+    - '\((\d{4})\)'
+    - '\[(\d{4})\]'
+    - '(\d{4})\.cb[rz7t]$'

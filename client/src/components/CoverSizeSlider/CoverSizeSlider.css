@@ -1,0 +1,98 @@
+/**
+ * CoverSizeSlider Styles
+ */
+
+.cover-size-slider {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.cover-size-slider__label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.cover-size-slider__control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.cover-size-slider__icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.cover-size-slider__icon--small {
+  opacity: 0.7;
+}
+
+.cover-size-slider__icon--large {
+  opacity: 0.7;
+}
+
+.cover-size-slider__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.cover-size-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.cover-size-slider__input::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--color-primary-muted);
+}
+
+.cover-size-slider__input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.cover-size-slider__input::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 4px var(--color-primary-muted);
+}
+
+.cover-size-slider__input:focus-visible {
+  outline: none;
+}
+
+.cover-size-slider__input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.cover-size-slider__input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.cover-size-slider__value {
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+  min-width: 40px;
+  text-align: right;
+  font-family: var(--font-mono, monospace);
+}

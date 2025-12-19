@@ -1,0 +1,1179 @@
+/**
+ * Cover Extraction Service
+ *
+ * Handles cover image extraction and caching for comic archives.
+ * Covers are optimized and stored in ~/.helixio/cache/covers/{libraryId}/{fileHash}.webp
+ *
+ * Optimization features:
+ * - Resizes covers to 320px width (2x display size for retina)
+ * - Generates WebP format for modern browsers with JPEG fallback
+ * - Creates tiny blur placeholders for instant perceived load
+ * - Memory cache for hot covers
+ */
+
+import { existsSync, readFileSync } from 'fs';
+import { mkdir, readdir, rm, stat, copyFile, rename, unlink, readFile, writeFile } from 'fs/promises';
+import { join, extname, dirname } from 'path';
+import sharp from 'sharp';
+import { getCoverPath, getLibraryCoverDir, getCoversDir, getSeriesCoversDir, getSeriesCoverPath } from './app-paths.service.js';
+import { createHash } from 'crypto';
+import {
+  listArchiveContents,
+  extractSingleFile,
+  createTempDir,
+  cleanupTempDir,
+} from './archive.service.js';
+import { getDatabase } from './database.service.js';
+
+// =============================================================================
+// Cover Optimization Config
+// =============================================================================
+
+const COVER_WIDTH = 320; // 2x display size for retina (grid items are ~160px)
+const COVER_QUALITY_WEBP = 80;
+const COVER_QUALITY_JPEG = 85;
+const BLUR_PLACEHOLDER_WIDTH = 20; // Tiny placeholder for blur-up effect
+const BLUR_PLACEHOLDER_QUALITY = 30;
+
+// Memory cache for recently served covers (LRU-style)
+const MEMORY_CACHE_MAX_SIZE = 100; // Max number of covers to cache in memory
+const MEMORY_CACHE_MAX_BYTES = 50 * 1024 * 1024; // 50MB max memory usage
+const coverMemoryCache = new Map<string, { data: Buffer; contentType: string; timestamp: number }>();
+let memoryCacheBytes = 0;
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface CoverExtractionResult {
+  success: boolean;
+  coverPath?: string;
+  webpPath?: string;
+  jpegPath?: string;
+  blurPlaceholder?: string; // Base64 data URL for blur-up effect
+  fromCache: boolean;
+  error?: string;
+}
+
+export interface CoverInfo {
+  exists: boolean;
+  path?: string;
+  webpPath?: string;
+  jpegPath?: string;
+  blurPlaceholder?: string;
+  size?: number;
+  extractedAt?: Date;
+}
+
+export interface CoverData {
+  data: Buffer;
+  contentType: string;
+  blurPlaceholder?: string;
+}
+
+export interface CacheSummary {
+  totalFiles: number;
+  totalSize: number;
+  libraries: Array<{
+    libraryId: string;
+    fileCount: number;
+    size: number;
+  }>;
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Check if a file is an image by extension.
+ */
+function isImageFile(filename: string): boolean {
+  const ext = extname(filename).toLowerCase();
+  return ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'].includes(ext);
+}
+
+/**
+ * Find the cover image path within archive entries.
+ * Priority: cover.jpg/png > folder.jpg/png > first image alphabetically
+ */
+function findCoverInArchive(entries: Array<{ path: string; isDirectory: boolean }>): string | null {
+  const imageEntries = entries
+    .filter((e) => !e.isDirectory && isImageFile(e.path))
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  if (imageEntries.length === 0) return null;
+
+  // Look for explicit cover file (case-insensitive)
+  const coverFile = imageEntries.find((e) => {
+    const name = e.path.toLowerCase().split('/').pop() || '';
+    return (
+      name.startsWith('cover') ||
+      name === 'folder.jpg' ||
+      name === 'folder.png' ||
+      name === 'folder.jpeg'
+    );
+  });
+
+  if (coverFile) return coverFile.path;
+
+  // Return first image (alphabetically) - this is index 0
+  return imageEntries[0]?.path ?? null;
+}
+
+/**
+ * Ensure the library cover directory exists.
+ */
+async function ensureLibraryCoverDir(libraryId: string): Promise<string> {
+  const dir = getLibraryCoverDir(libraryId);
+  if (!existsSync(dir)) {
+    await mkdir(dir, { recursive: true });
+  }
+  return dir;
+}
+
+/**
+ * Get cover paths for both WebP and JPEG formats.
+ */
+function getCoverPaths(libraryId: string, fileHash: string): {
+  webp: string;
+  jpeg: string;
+  blur: string;
+} {
+  const basePath = getCoverPath(libraryId, fileHash);
+  const baseDir = dirname(basePath);
+  return {
+    webp: join(baseDir, `${fileHash}.webp`),
+    jpeg: join(baseDir, `${fileHash}.jpg`),
+    blur: join(baseDir, `${fileHash}.blur`), // Tiny file storing base64 blur placeholder
+  };
+}
+
+// =============================================================================
+// Memory Cache
+// =============================================================================
+
+/**
+ * Evict oldest entries from memory cache until under limits.
+ */
+function evictMemoryCacheIfNeeded(): void {
+  // Check if we need to evict
+  if (coverMemoryCache.size <= MEMORY_CACHE_MAX_SIZE && memoryCacheBytes <= MEMORY_CACHE_MAX_BYTES) {
+    return;
+  }
+
+  // Sort by timestamp (oldest first)
+  const entries = Array.from(coverMemoryCache.entries())
+    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+  // Remove oldest until under limits
+  while (
+    (coverMemoryCache.size > MEMORY_CACHE_MAX_SIZE || memoryCacheBytes > MEMORY_CACHE_MAX_BYTES) &&
+    entries.length > 0
+  ) {
+    const [key, entry] = entries.shift()!;
+    memoryCacheBytes -= entry.data.length;
+    coverMemoryCache.delete(key);
+  }
+}
+
+/**
+ * Add a cover to the memory cache.
+ */
+function addToMemoryCache(key: string, data: Buffer, contentType: string): void {
+  // Remove existing entry if present
+  const existing = coverMemoryCache.get(key);
+  if (existing) {
+    memoryCacheBytes -= existing.data.length;
+  }
+
+  // Add new entry
+  coverMemoryCache.set(key, { data, contentType, timestamp: Date.now() });
+  memoryCacheBytes += data.length;
+
+  // Evict if needed
+  evictMemoryCacheIfNeeded();
+}
+
+/**
+ * Get a cover from the memory cache.
+ */
+function getFromMemoryCache(key: string): { data: Buffer; contentType: string } | null {
+  const entry = coverMemoryCache.get(key);
+  if (entry) {
+    // Update timestamp for LRU behavior
+    entry.timestamp = Date.now();
+    return { data: entry.data, contentType: entry.contentType };
+  }
+  return null;
+}
+
+/**
+ * Clear the memory cache.
+ */
+export function clearMemoryCache(): void {
+  coverMemoryCache.clear();
+  memoryCacheBytes = 0;
+}
+
+/**
+ * Get memory cache statistics.
+ */
+export function getMemoryCacheStats(): { size: number; bytes: number; maxSize: number; maxBytes: number } {
+  return {
+    size: coverMemoryCache.size,
+    bytes: memoryCacheBytes,
+    maxSize: MEMORY_CACHE_MAX_SIZE,
+    maxBytes: MEMORY_CACHE_MAX_BYTES,
+  };
+}
+
+// =============================================================================
+// Cover Extraction
+// =============================================================================
+
+/**
+ * Extract, optimize, and cache a cover image from a comic archive.
+ * Generates both WebP (primary) and JPEG (fallback) formats.
+ * Also creates a tiny blur placeholder for instant perceived load.
+ * Returns cached version if available.
+ */
+export async function extractCover(
+  archivePath: string,
+  libraryId: string,
+  fileHash: string
+): Promise<CoverExtractionResult> {
+  const paths = getCoverPaths(libraryId, fileHash);
+
+  // Check if already cached (WebP is primary format)
+  if (existsSync(paths.webp)) {
+    // Load blur placeholder if exists
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore blur read errors
+      }
+    }
+
+    return {
+      success: true,
+      coverPath: paths.webp,
+      webpPath: paths.webp,
+      jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+      blurPlaceholder,
+      fromCache: true,
+    };
+  }
+
+  try {
+    // Get archive contents
+    const archiveInfo = await listArchiveContents(archivePath);
+    const coverEntryPath = findCoverInArchive(archiveInfo.entries);
+
+    if (!coverEntryPath) {
+      return {
+        success: false,
+        fromCache: false,
+        error: 'No cover image found in archive',
+      };
+    }
+
+    // Ensure cover directory exists
+    await ensureLibraryCoverDir(libraryId);
+
+    // Extract to temp location first
+    const tempDir = await createTempDir('cover-');
+    const tempFile = join(tempDir, 'cover' + extname(coverEntryPath));
+
+    try {
+      const result = await extractSingleFile(archivePath, coverEntryPath, tempFile);
+
+      if (!result.success) {
+        return {
+          success: false,
+          fromCache: false,
+          error: result.error || 'Failed to extract cover',
+        };
+      }
+
+      // Ensure output directory exists
+      await mkdir(dirname(paths.webp), { recursive: true });
+
+      // Load the extracted image with Sharp
+      const image = sharp(tempFile);
+      const metadata = await image.metadata();
+
+      // Only resize if image is larger than target width
+      const needsResize = metadata.width && metadata.width > COVER_WIDTH;
+      const resizedImage = needsResize
+        ? image.resize(COVER_WIDTH, null, { withoutEnlargement: true })
+        : image;
+
+      // Generate WebP (primary format - smaller, modern)
+      await resizedImage
+        .clone()
+        .webp({ quality: COVER_QUALITY_WEBP })
+        .toFile(paths.webp);
+
+      // Generate JPEG fallback
+      await resizedImage
+        .clone()
+        .jpeg({ quality: COVER_QUALITY_JPEG })
+        .toFile(paths.jpeg);
+
+      // Generate tiny blur placeholder (base64 data URL)
+      const blurBuffer = await sharp(tempFile)
+        .resize(BLUR_PLACEHOLDER_WIDTH, null, { withoutEnlargement: true })
+        .blur(2)
+        .jpeg({ quality: BLUR_PLACEHOLDER_QUALITY })
+        .toBuffer();
+
+      const blurPlaceholder = `data:image/jpeg;base64,${blurBuffer.toString('base64')}`;
+
+      // Save blur placeholder to disk
+      await writeFile(paths.blur, blurPlaceholder, 'utf-8');
+
+      return {
+        success: true,
+        coverPath: paths.webp,
+        webpPath: paths.webp,
+        jpegPath: paths.jpeg,
+        blurPlaceholder,
+        fromCache: false,
+      };
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  } catch (err) {
+    return {
+      success: false,
+      fromCache: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Get cover for a comic file by its database ID.
+ * Extracts on-demand if not cached.
+ */
+export async function getCoverForFile(fileId: string): Promise<CoverExtractionResult> {
+  // Get file info from database
+  const prisma = getDatabase();
+  const file = await prisma.comicFile.findUnique({
+    where: { id: fileId },
+    select: {
+      id: true,
+      path: true,
+      hash: true,
+      libraryId: true,
+    },
+  });
+
+  if (!file) {
+    return {
+      success: false,
+      fromCache: false,
+      error: 'File not found',
+    };
+  }
+
+  if (!file.hash) {
+    return {
+      success: false,
+      fromCache: false,
+      error: 'File hash not available',
+    };
+  }
+
+  return extractCover(file.path, file.libraryId, file.hash);
+}
+
+/**
+ * Check if a cover exists in cache.
+ */
+export async function getCoverInfo(
+  libraryId: string,
+  fileHash: string
+): Promise<CoverInfo> {
+  const paths = getCoverPaths(libraryId, fileHash);
+
+  // Check for WebP (primary format)
+  if (!existsSync(paths.webp)) {
+    // Check for legacy JPEG-only cover
+    const legacyCoverPath = getCoverPath(libraryId, fileHash);
+    if (existsSync(legacyCoverPath)) {
+      try {
+        const stats = await stat(legacyCoverPath);
+        return {
+          exists: true,
+          path: legacyCoverPath,
+          size: stats.size,
+          extractedAt: stats.mtime,
+        };
+      } catch {
+        return { exists: false };
+      }
+    }
+    return { exists: false };
+  }
+
+  try {
+    const stats = await stat(paths.webp);
+
+    // Load blur placeholder if exists
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore blur read errors
+      }
+    }
+
+    return {
+      exists: true,
+      path: paths.webp,
+      webpPath: paths.webp,
+      jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+      blurPlaceholder,
+      size: stats.size,
+      extractedAt: stats.mtime,
+    };
+  } catch {
+    return { exists: false };
+  }
+}
+
+/**
+ * Get cover data for serving, with format negotiation and memory caching.
+ * Prefers WebP if the client supports it, falls back to JPEG.
+ */
+export async function getCoverData(
+  libraryId: string,
+  fileHash: string,
+  acceptWebP: boolean = true
+): Promise<CoverData | null> {
+  const paths = getCoverPaths(libraryId, fileHash);
+  const cacheKey = `${libraryId}/${fileHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+
+  // Check memory cache first
+  const cached = getFromMemoryCache(cacheKey);
+  if (cached) {
+    // Get blur placeholder
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+    return { ...cached, blurPlaceholder };
+  }
+
+  // Determine which format to serve
+  let coverPath: string;
+  let contentType: string;
+
+  if (acceptWebP && existsSync(paths.webp)) {
+    coverPath = paths.webp;
+    contentType = 'image/webp';
+  } else if (existsSync(paths.jpeg)) {
+    coverPath = paths.jpeg;
+    contentType = 'image/jpeg';
+  } else {
+    // Check for legacy cover (old .jpg format before optimization)
+    const legacyPath = getCoverPath(libraryId, fileHash);
+    if (existsSync(legacyPath)) {
+      coverPath = legacyPath;
+      contentType = 'image/jpeg';
+    } else {
+      return null;
+    }
+  }
+
+  try {
+    const data = await readFile(coverPath);
+
+    // Add to memory cache
+    addToMemoryCache(cacheKey, data, contentType);
+
+    // Get blur placeholder
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+
+    return { data, contentType, blurPlaceholder };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// Cache Management
+// =============================================================================
+
+/**
+ * Delete a cached cover (all formats).
+ */
+export async function deleteCachedCover(
+  libraryId: string,
+  fileHash: string
+): Promise<boolean> {
+  const paths = getCoverPaths(libraryId, fileHash);
+  const legacyPath = getCoverPath(libraryId, fileHash);
+  const cacheKeyWebP = `${libraryId}/${fileHash}/webp`;
+  const cacheKeyJpeg = `${libraryId}/${fileHash}/jpeg`;
+
+  // Remove from memory cache
+  coverMemoryCache.delete(cacheKeyWebP);
+  coverMemoryCache.delete(cacheKeyJpeg);
+
+  let success = true;
+
+  // Delete all cover files
+  for (const path of [paths.webp, paths.jpeg, paths.blur, legacyPath]) {
+    if (existsSync(path)) {
+      try {
+        await unlink(path);
+      } catch {
+        success = false;
+      }
+    }
+  }
+
+  return success;
+}
+
+/**
+ * Delete all cached covers for a library.
+ */
+export async function deleteLibraryCovers(libraryId: string): Promise<{
+  deleted: number;
+  errors: number;
+}> {
+  const dir = getLibraryCoverDir(libraryId);
+
+  if (!existsSync(dir)) {
+    return { deleted: 0, errors: 0 };
+  }
+
+  let deleted = 0;
+  let errors = 0;
+
+  try {
+    const files = await readdir(dir);
+
+    for (const file of files) {
+      try {
+        await unlink(join(dir, file));
+        deleted++;
+      } catch {
+        errors++;
+      }
+    }
+
+    // Remove the directory itself
+    await rm(dir, { recursive: true, force: true });
+  } catch {
+    errors++;
+  }
+
+  return { deleted, errors };
+}
+
+/**
+ * Get cache summary for all libraries.
+ */
+export async function getCacheSummary(): Promise<CacheSummary> {
+  const coversDir = getCoversDir();
+  const libraries: CacheSummary['libraries'] = [];
+  let totalFiles = 0;
+  let totalSize = 0;
+
+  if (!existsSync(coversDir)) {
+    return { totalFiles: 0, totalSize: 0, libraries: [] };
+  }
+
+  try {
+    const libraryDirs = await readdir(coversDir);
+
+    for (const libraryId of libraryDirs) {
+      const libraryDir = join(coversDir, libraryId);
+      const libraryStat = await stat(libraryDir);
+
+      if (!libraryStat.isDirectory()) continue;
+
+      let fileCount = 0;
+      let size = 0;
+
+      try {
+        const files = await readdir(libraryDir);
+
+        for (const file of files) {
+          try {
+            const fileStat = await stat(join(libraryDir, file));
+            if (fileStat.isFile()) {
+              fileCount++;
+              size += fileStat.size;
+            }
+          } catch {
+            // Skip files we can't stat
+          }
+        }
+
+        libraries.push({ libraryId, fileCount, size });
+        totalFiles += fileCount;
+        totalSize += size;
+      } catch {
+        // Skip directories we can't read
+      }
+    }
+  } catch {
+    // Return empty summary on error
+  }
+
+  return { totalFiles, totalSize, libraries };
+}
+
+/**
+ * Clean up orphaned covers (covers for files no longer in database).
+ */
+export async function cleanupOrphanedCovers(): Promise<{
+  checked: number;
+  deleted: number;
+  errors: number;
+}> {
+  let checked = 0;
+  let deleted = 0;
+  let errors = 0;
+
+  const coversDir = getCoversDir();
+
+  if (!existsSync(coversDir)) {
+    return { checked: 0, deleted: 0, errors: 0 };
+  }
+
+  try {
+    const libraryDirs = await readdir(coversDir);
+
+    for (const libraryId of libraryDirs) {
+      const libraryDir = join(coversDir, libraryId);
+      const libraryStat = await stat(libraryDir);
+
+      if (!libraryStat.isDirectory()) continue;
+
+      // Check if library exists
+      const prisma = getDatabase();
+      const library = await prisma.library.findUnique({
+        where: { id: libraryId },
+      });
+
+      if (!library) {
+        // Delete entire library's covers
+        const result = await deleteLibraryCovers(libraryId);
+        deleted += result.deleted;
+        errors += result.errors;
+        continue;
+      }
+
+      // Check individual covers
+      const files = await readdir(libraryDir);
+
+      for (const file of files) {
+        checked++;
+        const hash = file.replace(/\.[^.]+$/, ''); // Remove extension
+
+        // Check if any file with this hash exists
+        const existingFile = await getDatabase().comicFile.findFirst({
+          where: {
+            libraryId,
+            hash,
+          },
+        });
+
+        if (!existingFile) {
+          try {
+            await unlink(join(libraryDir, file));
+            deleted++;
+          } catch {
+            errors++;
+          }
+        }
+      }
+    }
+  } catch {
+    errors++;
+  }
+
+  return { checked, deleted, errors };
+}
+
+/**
+ * Get total cache size in bytes.
+ */
+export async function getCacheSize(): Promise<number> {
+  const summary = await getCacheSummary();
+  return summary.totalSize;
+}
+
+/**
+ * Enforce cache size limit by deleting oldest covers.
+ */
+export async function enforceCacheSizeLimit(maxSizeBytes: number): Promise<{
+  deleted: number;
+  freedBytes: number;
+}> {
+  const currentSize = await getCacheSize();
+
+  if (currentSize <= maxSizeBytes) {
+    return { deleted: 0, freedBytes: 0 };
+  }
+
+  // Get all cached covers with their stats
+  const coversDir = getCoversDir();
+  const allCovers: Array<{ path: string; size: number; mtime: Date }> = [];
+
+  if (!existsSync(coversDir)) {
+    return { deleted: 0, freedBytes: 0 };
+  }
+
+  try {
+    const libraryDirs = await readdir(coversDir);
+
+    for (const libraryId of libraryDirs) {
+      const libraryDir = join(coversDir, libraryId);
+      const libraryStat = await stat(libraryDir);
+
+      if (!libraryStat.isDirectory()) continue;
+
+      const files = await readdir(libraryDir);
+
+      for (const file of files) {
+        const filePath = join(libraryDir, file);
+        try {
+          const fileStat = await stat(filePath);
+          if (fileStat.isFile()) {
+            allCovers.push({
+              path: filePath,
+              size: fileStat.size,
+              mtime: fileStat.mtime,
+            });
+          }
+        } catch {
+          // Skip files we can't stat
+        }
+      }
+    }
+  } catch {
+    return { deleted: 0, freedBytes: 0 };
+  }
+
+  // Sort by modification time (oldest first)
+  allCovers.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+
+  // Delete oldest until we're under the limit
+  let deleted = 0;
+  let freedBytes = 0;
+  let targetToFree = currentSize - maxSizeBytes;
+
+  for (const cover of allCovers) {
+    if (freedBytes >= targetToFree) break;
+
+    try {
+      await unlink(cover.path);
+      deleted++;
+      freedBytes += cover.size;
+    } catch {
+      // Continue with next file
+    }
+  }
+
+  return { deleted, freedBytes };
+}
+
+// =============================================================================
+// Batch Operations
+// =============================================================================
+
+/**
+ * Pre-extract covers for multiple files.
+ */
+export async function batchExtractCovers(
+  fileIds: string[],
+  onProgress?: (current: number, total: number, fileId: string) => void
+): Promise<{
+  success: number;
+  failed: number;
+  cached: number;
+  errors: Array<{ fileId: string; error: string }>;
+}> {
+  let success = 0;
+  let failed = 0;
+  let cached = 0;
+  const errors: Array<{ fileId: string; error: string }> = [];
+
+  for (let i = 0; i < fileIds.length; i++) {
+    const fileId = fileIds[i]!;
+    onProgress?.(i + 1, fileIds.length, fileId);
+
+    const result = await getCoverForFile(fileId);
+
+    if (result.success) {
+      if (result.fromCache) {
+        cached++;
+      } else {
+        success++;
+      }
+    } else {
+      failed++;
+      errors.push({ fileId, error: result.error || 'Unknown error' });
+    }
+  }
+
+  return { success, failed, cached, errors };
+}
+
+/**
+ * Rebuild all covers for a library with new optimization.
+ * Deletes existing covers and re-extracts with Sharp optimization.
+ */
+export async function rebuildAllCovers(
+  libraryId?: string,
+  onProgress?: (current: number, total: number, filename: string) => void
+): Promise<{
+  total: number;
+  success: number;
+  failed: number;
+  errors: Array<{ fileId: string; filename: string; error: string }>;
+}> {
+  const prisma = getDatabase();
+
+  // Get all files to rebuild
+  const files = await prisma.comicFile.findMany({
+    where: libraryId ? { libraryId, status: { not: 'quarantined' } } : { status: { not: 'quarantined' } },
+    select: { id: true, path: true, hash: true, libraryId: true, filename: true },
+  });
+
+  let success = 0;
+  let failed = 0;
+  const errors: Array<{ fileId: string; filename: string; error: string }> = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+    onProgress?.(i + 1, files.length, file.filename);
+
+    if (!file.hash) {
+      failed++;
+      errors.push({ fileId: file.id, filename: file.filename, error: 'File hash not available' });
+      continue;
+    }
+
+    // Delete existing cover (all formats)
+    await deleteCachedCover(file.libraryId, file.hash);
+
+    // Re-extract with optimization
+    const result = await extractCover(file.path, file.libraryId, file.hash);
+
+    if (result.success) {
+      success++;
+    } else {
+      failed++;
+      errors.push({ fileId: file.id, filename: file.filename, error: result.error || 'Unknown error' });
+    }
+  }
+
+  return { total: files.length, success, failed, errors };
+}
+
+/**
+ * Check if a cover needs optimization (is it using the old format?).
+ */
+export async function coverNeedsOptimization(libraryId: string, fileHash: string): Promise<boolean> {
+  const paths = getCoverPaths(libraryId, fileHash);
+
+  // If WebP exists, it's already optimized
+  if (existsSync(paths.webp)) {
+    return false;
+  }
+
+  // If only legacy JPEG exists, needs optimization
+  const legacyPath = getCoverPath(libraryId, fileHash);
+  return existsSync(legacyPath);
+}
+
+/**
+ * Count how many covers need optimization.
+ */
+export async function countCoversNeedingOptimization(libraryId?: string): Promise<{
+  total: number;
+  needsOptimization: number;
+  alreadyOptimized: number;
+}> {
+  const prisma = getDatabase();
+
+  const files = await prisma.comicFile.findMany({
+    where: libraryId ? { libraryId, status: { not: 'quarantined' } } : { status: { not: 'quarantined' } },
+    select: { hash: true, libraryId: true },
+  });
+
+  let needsOptimization = 0;
+  let alreadyOptimized = 0;
+
+  for (const file of files) {
+    if (!file.hash) continue;
+
+    const paths = getCoverPaths(file.libraryId, file.hash);
+    if (existsSync(paths.webp)) {
+      alreadyOptimized++;
+    } else {
+      const legacyPath = getCoverPath(file.libraryId, file.hash);
+      if (existsSync(legacyPath)) {
+        needsOptimization++;
+      }
+    }
+  }
+
+  return {
+    total: files.length,
+    needsOptimization,
+    alreadyOptimized,
+  };
+}
+
+// =============================================================================
+// Series Covers (Downloaded from API)
+// =============================================================================
+
+/**
+ * Result from downloading an API cover
+ */
+export interface DownloadCoverResult {
+  success: boolean;
+  coverHash?: string;
+  webpPath?: string;
+  jpegPath?: string;
+  blurPlaceholder?: string;
+  error?: string;
+}
+
+/**
+ * Generate a hash from a URL for use as a filename
+ */
+export function generateCoverHash(url: string): string {
+  return createHash('md5').update(url).digest('hex');
+}
+
+/**
+ * Get paths for a series cover (downloaded from API)
+ */
+function getSeriesCoverPaths(coverHash: string): {
+  webp: string;
+  jpeg: string;
+  blur: string;
+} {
+  const baseDir = getSeriesCoversDir();
+  return {
+    webp: join(baseDir, `${coverHash}.webp`),
+    jpeg: join(baseDir, `${coverHash}.jpg`),
+    blur: join(baseDir, `${coverHash}.blur`),
+  };
+}
+
+/**
+ * Download a cover image from a URL and cache it locally.
+ * Optimizes the image using the same Sharp pipeline as archive covers.
+ * Returns a hash that can be stored in the database.
+ */
+export async function downloadApiCover(url: string): Promise<DownloadCoverResult> {
+  // Generate hash from URL
+  const coverHash = generateCoverHash(url);
+  const paths = getSeriesCoverPaths(coverHash);
+
+  // Check if already cached
+  if (existsSync(paths.webp)) {
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore blur read errors
+      }
+    }
+
+    return {
+      success: true,
+      coverHash,
+      webpPath: paths.webp,
+      jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+      blurPlaceholder,
+    };
+  }
+
+  try {
+    // Ensure directory exists
+    await mkdir(getSeriesCoversDir(), { recursive: true });
+
+    // Download the image
+    const response = await fetch(url);
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Failed to download: ${response.status} ${response.statusText}`,
+      };
+    }
+
+    const imageBuffer = Buffer.from(await response.arrayBuffer());
+
+    // Process with Sharp
+    const image = sharp(imageBuffer);
+    const metadata = await image.metadata();
+
+    // Only resize if image is larger than target width
+    const needsResize = metadata.width && metadata.width > COVER_WIDTH;
+    const resizedImage = needsResize
+      ? image.resize(COVER_WIDTH, null, { withoutEnlargement: true })
+      : image;
+
+    // Generate WebP (primary format - smaller, modern)
+    await resizedImage
+      .clone()
+      .webp({ quality: COVER_QUALITY_WEBP })
+      .toFile(paths.webp);
+
+    // Generate JPEG fallback
+    await resizedImage
+      .clone()
+      .jpeg({ quality: COVER_QUALITY_JPEG })
+      .toFile(paths.jpeg);
+
+    // Generate tiny blur placeholder (base64 data URL)
+    const blurBuffer = await sharp(imageBuffer)
+      .resize(BLUR_PLACEHOLDER_WIDTH, null, { withoutEnlargement: true })
+      .blur(2)
+      .jpeg({ quality: BLUR_PLACEHOLDER_QUALITY })
+      .toBuffer();
+
+    const blurPlaceholder = `data:image/jpeg;base64,${blurBuffer.toString('base64')}`;
+
+    // Save blur placeholder to disk
+    await writeFile(paths.blur, blurPlaceholder, 'utf-8');
+
+    return {
+      success: true,
+      coverHash,
+      webpPath: paths.webp,
+      jpegPath: paths.jpeg,
+      blurPlaceholder,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Get series cover data for serving, with format negotiation and memory caching.
+ */
+export async function getSeriesCoverData(
+  coverHash: string,
+  acceptWebP: boolean = true
+): Promise<CoverData | null> {
+  const paths = getSeriesCoverPaths(coverHash);
+  const cacheKey = `series/${coverHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+
+  // Check memory cache first
+  const cached = getFromMemoryCache(cacheKey);
+  if (cached) {
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+    return { ...cached, blurPlaceholder };
+  }
+
+  // Determine which format to serve
+  let coverPath: string;
+  let contentType: string;
+
+  if (acceptWebP && existsSync(paths.webp)) {
+    coverPath = paths.webp;
+    contentType = 'image/webp';
+  } else if (existsSync(paths.jpeg)) {
+    coverPath = paths.jpeg;
+    contentType = 'image/jpeg';
+  } else {
+    return null;
+  }
+
+  try {
+    const data = await readFile(coverPath);
+
+    // Add to memory cache
+    addToMemoryCache(cacheKey, data, contentType);
+
+    // Get blur placeholder
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+
+    return { data, contentType, blurPlaceholder };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a series cover exists in cache
+ */
+export function seriesCoverExists(coverHash: string): boolean {
+  const paths = getSeriesCoverPaths(coverHash);
+  return existsSync(paths.webp) || existsSync(paths.jpeg);
+}
+
+/**
+ * Delete a cached series cover
+ */
+export async function deleteSeriesCover(coverHash: string): Promise<boolean> {
+  const paths = getSeriesCoverPaths(coverHash);
+  const cacheKeyWebP = `series/${coverHash}/webp`;
+  const cacheKeyJpeg = `series/${coverHash}/jpeg`;
+
+  // Remove from memory cache
+  coverMemoryCache.delete(cacheKeyWebP);
+  coverMemoryCache.delete(cacheKeyJpeg);
+
+  let success = true;
+
+  // Delete all cover files
+  for (const path of [paths.webp, paths.jpeg, paths.blur]) {
+    if (existsSync(path)) {
+      try {
+        await unlink(path);
+      } catch {
+        success = false;
+      }
+    }
+  }
+
+  return success;
+}

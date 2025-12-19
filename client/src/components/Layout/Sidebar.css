@@ -1,0 +1,779 @@
+/**
+ * Sidebar Styles
+ *
+ * A refined two-panel sidebar with icon rail + context panel.
+ * Inspired by Spotify/Discord's elegant navigation patterns.
+ */
+
+/* =============================================================================
+   Sidebar Shell - Container
+   ============================================================================= */
+
+.sidebar-shell {
+  display: flex;
+  height: 100%;
+  grid-row: 1 / -1;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-subtle);
+  position: relative;
+}
+
+/* =============================================================================
+   Icon Rail - The Spine
+   ============================================================================= */
+
+.icon-rail {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  background: var(--color-bg-tertiary);
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+/* Logo */
+.rail-logo {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.rail-logo svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Dividers */
+.rail-divider {
+  width: 24px;
+  height: 1px;
+  background: var(--color-border-subtle);
+  margin: 8px 0;
+}
+
+/* Sections */
+.rail-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+/* Rail Buttons */
+.rail-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.rail-btn svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.2s ease;
+}
+
+.rail-btn:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.rail-btn:hover svg {
+  transform: scale(1.05);
+}
+
+.rail-btn.active {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+}
+
+.rail-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-focus-ring);
+}
+
+/* Badge on rail button */
+.rail-btn.has-badge::after {
+  content: attr(data-badge);
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =============================================================================
+   Context Panel
+   ============================================================================= */
+
+.context-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+/* Panel Header */
+.panel-header {
+  flex-shrink: 0;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.panel-subtitle {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.02em;
+}
+
+/* Panel Content */
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Resize Handle */
+.panel-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.15s ease;
+  z-index: 10;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.resizing {
+  background-color: var(--color-primary);
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  right: -4px;
+  bottom: 0;
+}
+
+/* =============================================================================
+   View Styles
+   ============================================================================= */
+
+/* Empty State */
+.view-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.view-empty p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Home View */
+.home-view {
+  padding: 16px;
+}
+
+.stat-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary-muted);
+  transform: translateY(-1px);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+
+/* Quick Links */
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-link:hover {
+  background: var(--color-hover);
+}
+
+.quick-link svg {
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.quick-link span {
+  flex: 1;
+}
+
+.quick-link .arrow {
+  width: 14px;
+  height: 14px;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.15s ease;
+}
+
+.quick-link:hover .arrow {
+  opacity: 0.5;
+  transform: translateX(0);
+}
+
+/* Reading View */
+.reading-view {
+  /* Uses existing ContinueReading and WantToReadPanel styles */
+}
+
+/* Collections View */
+.collections-view {
+  /* Uses existing CollectionsSidebar styles */
+}
+
+/* Tools View */
+.tools-view {
+  padding: 16px;
+}
+
+.tool-links {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tool-link:hover {
+  background: var(--color-hover);
+}
+
+.tool-link svg {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.tool-link-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tool-link-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.tool-link-badge {
+  font-size: 0.7rem;
+  color: var(--color-primary);
+}
+
+/* =============================================================================
+   Folders View
+   ============================================================================= */
+
+.folders-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.folders-library-select {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.folders-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.folders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.folder-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.folders-header .scan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.folders-header .scan-btn:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.folders-header .scan-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading-folders {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.folder-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.folder-item:hover {
+  background: var(--color-hover);
+}
+
+.folder-item.selected {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.folder-item.root {
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: 4px;
+}
+
+.folder-item.quarantine {
+  color: var(--color-warning);
+}
+
+.folder-chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+}
+
+.folder-chevron:hover {
+  color: var(--color-text);
+}
+
+.folder-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-chevron-spacer {
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.folder-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.folder-item.selected .folder-chevron {
+  color: var(--color-primary-light, var(--color-primary));
+}
+
+.folder-item.selected .folder-icon {
+  color: var(--color-primary);
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quarantine-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  color: var(--color-bg);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.folder-rename-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-rename-input {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+}
+
+.folder-rename-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.folder-rename-input.error {
+  border-color: var(--color-error);
+}
+
+.folder-rename-error {
+  font-size: 0.6875rem;
+  color: var(--color-error);
+}
+
+.folders-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.folders-empty p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Add Library Form in Folders View */
+.folders-view .add-library-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-elevated);
+}
+
+.folders-view .add-library-form input,
+.folders-view .add-library-form select {
+  padding: 8px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+.folders-view .add-library-form input:focus,
+.folders-view .add-library-form select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.folders-view .path-input-group {
+  display: flex;
+  gap: 4px;
+}
+
+.folders-view .path-input-group input {
+  flex: 1;
+}
+
+.folders-view .btn-browse {
+  padding: 8px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.folders-view .btn-browse:hover {
+  background: var(--color-hover);
+}
+
+.folders-view .form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.folders-view .btn-primary {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 6px;
+  color: var(--color-bg);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.folders-view .btn-primary:hover {
+  opacity: 0.9;
+}
+
+.folders-view .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.folders-view .btn-secondary {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.folders-view .btn-secondary:hover {
+  background: var(--color-hover);
+}
+
+/* Folder Context Menu */
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.folder-context-menu {
+  position: fixed;
+  min-width: 150px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px;
+  z-index: 1001;
+}
+
+.folder-context-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.folder-context-menu button:hover {
+  background: var(--color-hover);
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panel-content > * {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .sidebar-shell {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-shell.open {
+    transform: translateX(0);
+  }
+
+  .context-panel {
+    width: 280px !important;
+    max-width: calc(100vw - 56px);
+  }
+}

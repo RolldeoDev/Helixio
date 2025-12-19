@@ -1,0 +1,368 @@
+/**
+ * SeriesCoverCard Styles
+ *
+ * Cover card for series with theming support.
+ */
+
+/* =============================================================================
+   CSS Custom Properties (Theme Contract)
+   ============================================================================= */
+
+.series-cover-card {
+  /* Dimensions - can be overridden by parent via --cover-size */
+  --series-card-width: var(--cover-size, 180px);
+  --series-card-aspect-ratio: 2 / 3;
+  --series-card-gap: 8px;
+
+  /* Surfaces */
+  --series-card-bg: var(--color-surface-card, #1a1a2e);
+  --series-card-bg-hover: var(--color-surface-card-hover, #252542);
+
+  /* Borders */
+  --series-card-border-color: var(--color-border, rgba(255, 255, 255, 0.1));
+  --series-card-border-focus: var(--color-focus-ring, #818cf8);
+
+  /* Text */
+  --series-card-text-primary: var(--color-text-primary, #e2e8f0);
+  --series-card-text-secondary: var(--color-text-secondary, #94a3b8);
+
+  /* Status */
+  --series-card-progress-bg: var(--color-progress-track, rgba(255, 255, 255, 0.1));
+  --series-card-progress-fill: var(--color-progress-fill, #6366f1);
+  --series-card-completed-color: var(--color-success, #22c55e);
+
+  /* Placeholder */
+  --series-card-placeholder-bg: var(--color-surface-elevated, #252542);
+  --series-card-placeholder-text: var(--color-text-muted, #64748b);
+
+  /* Shadows */
+  --series-card-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+  --series-card-shadow-hover: var(--shadow-card-elevated, 0 10px 15px -3px rgba(0, 0, 0, 0.4));
+
+  /* Transitions */
+  --series-card-transition: var(--transition-fast, 150ms ease);
+
+  /* Border radius */
+  --series-card-radius: var(--radius-md, 8px);
+
+  /* Hover effects */
+  --series-card-hover-scale: var(--scale-hover, 1.02);
+  --series-card-hover-lift: var(--lift-hover, -2px);
+}
+
+/* =============================================================================
+   Base Component
+   ============================================================================= */
+
+.series-cover-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--series-card-width);
+  background: var(--series-card-bg);
+  border-radius: var(--series-card-radius);
+  cursor: pointer;
+  transition:
+    transform var(--series-card-transition),
+    box-shadow var(--series-card-transition);
+  outline: none;
+  box-shadow: var(--series-card-shadow);
+}
+
+.series-cover-card:hover {
+  transform: translateY(var(--series-card-hover-lift)) scale(var(--series-card-hover-scale));
+  box-shadow: var(--series-card-shadow-hover);
+  background: var(--series-card-bg-hover);
+}
+
+.series-cover-card:focus-visible {
+  outline: 2px solid var(--series-card-border-focus);
+  outline-offset: 2px;
+}
+
+/* =============================================================================
+   Size Variants
+   ============================================================================= */
+
+.series-cover-card--small {
+  --series-card-width: var(--cover-size, 120px);
+  --series-card-radius: 6px;
+}
+
+.series-cover-card--medium {
+  --series-card-width: var(--cover-size, 180px);
+}
+
+.series-cover-card--large {
+  --series-card-width: var(--cover-size, 200px);
+  --series-card-radius: 10px;
+}
+
+/* =============================================================================
+   Dynamic Sizing (when --cover-size is set on container)
+   Adjusts font sizes and padding based on cover width
+   ============================================================================= */
+
+.series-cover-card__info {
+  /* Scale padding with card size */
+  --info-padding: clamp(4px, calc(var(--series-card-width) * 0.04), 12px);
+  padding: var(--info-padding);
+}
+
+.series-cover-card__title {
+  /* Scale font size with card width */
+  font-size: clamp(9px, calc(var(--series-card-width) * 0.07), 14px);
+}
+
+.series-cover-card__meta {
+  /* Scale meta font size */
+  font-size: clamp(8px, calc(var(--series-card-width) * 0.06), 12px);
+}
+
+.series-cover-card__initial {
+  /* Scale placeholder initial dynamically */
+  font-size: clamp(24px, calc(var(--series-card-width) * 0.26), 56px);
+}
+
+/* =============================================================================
+   Cover Container
+   ============================================================================= */
+
+.series-cover-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--series-card-aspect-ratio);
+  border-radius: var(--series-card-radius) var(--series-card-radius) 0 0;
+  overflow: hidden;
+  background: var(--series-card-placeholder-bg);
+}
+
+/* =============================================================================
+   Cover Image
+   ============================================================================= */
+
+.series-cover-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity var(--series-card-transition);
+}
+
+.series-cover-card__image--loaded {
+  opacity: 1;
+}
+
+/* Loading spinner */
+.series-cover-card__loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.series-cover-card__spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--series-card-border-color);
+  border-top-color: var(--series-card-progress-fill);
+  border-radius: 50%;
+  animation: series-card-spin 0.8s linear infinite;
+}
+
+@keyframes series-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Placeholder */
+.series-cover-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--series-card-placeholder-bg);
+}
+
+.series-cover-card__initial {
+  font-weight: 700;
+  color: var(--series-card-placeholder-text);
+  text-transform: uppercase;
+  /* Font size is set dynamically in the "Dynamic Sizing" section above */
+}
+
+/* =============================================================================
+   Progress & Badges
+   ============================================================================= */
+
+.series-cover-card__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--series-card-progress-bg);
+}
+
+.series-cover-card__progress-fill {
+  height: 100%;
+  background: var(--series-card-progress-fill);
+  transition: width var(--series-card-transition);
+}
+
+.series-cover-card__completed {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--series-card-completed-color);
+  color: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.series-cover-card__count-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+}
+
+/* =============================================================================
+   Info Section
+   ============================================================================= */
+
+.series-cover-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--series-card-gap);
+}
+
+.series-cover-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--series-card-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-cover-card__meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--series-card-text-secondary);
+}
+
+.series-cover-card__year,
+.series-cover-card__publisher {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes series-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.series-cover-card {
+  animation: series-card-enter 0.3s ease both;
+  animation-delay: calc(var(--animation-index, 0) * 30ms);
+}
+
+/* =============================================================================
+   Context Menu
+   ============================================================================= */
+
+.series-cover-card__context-menu {
+  position: fixed;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--color-bg-elevated, #1e1e2e);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-xl, 0 25px 50px -12px rgba(0, 0, 0, 0.5));
+  z-index: 1000;
+}
+
+.series-cover-card__menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--color-text, #e2e8f0);
+  font-size: 0.875rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.series-cover-card__menu-item:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.series-cover-card__menu-item:focus {
+  outline: none;
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.series-cover-card__menu-item--danger {
+  color: var(--color-error, #ef4444);
+}
+
+.series-cover-card__menu-item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.series-cover-card__menu-divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--color-border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .series-cover-card {
+    --series-card-transition: 0ms;
+    --series-card-hover-scale: 1;
+    --series-card-hover-lift: 0;
+    animation: none;
+  }
+
+  .series-cover-card__spinner {
+    animation: none;
+  }
+}
