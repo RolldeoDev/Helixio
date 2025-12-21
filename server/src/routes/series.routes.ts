@@ -364,6 +364,33 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
 // =============================================================================
 
 /**
+ * Parse issue number string to a sortable numeric value.
+ * Handles formats like: "1", "1.5", "Annual 1", "Special", etc.
+ * Returns { numericValue, hasNumber } where numericValue is the parsed number
+ * and hasNumber indicates if a number was found.
+ */
+function parseIssueNumber(numberStr: string | null | undefined): { numericValue: number; hasNumber: boolean } {
+  if (!numberStr) {
+    return { numericValue: Infinity, hasNumber: false };
+  }
+
+  // Try direct number parse first (handles "1", "1.5", "10", etc.)
+  const directParse = parseFloat(numberStr);
+  if (!isNaN(directParse)) {
+    return { numericValue: directParse, hasNumber: true };
+  }
+
+  // Try extracting number from string (handles "Annual 1", "Issue #5", etc.)
+  const match = numberStr.match(/(\d+(?:\.\d+)?)/);
+  if (match && match[1]) {
+    return { numericValue: parseFloat(match[1]), hasNumber: true };
+  }
+
+  // No number found
+  return { numericValue: Infinity, hasNumber: false };
+}
+
+/**
  * GET /api/series/:id/issues
  * List issues in a series with pagination
  */
@@ -384,13 +411,62 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  // Build orderBy
-  let orderBy: Record<string, unknown>;
+  // For number sorting, we need to fetch all and sort in JS due to string vs numeric sorting
   if (sortBy === 'number') {
-    orderBy = { metadata: { number: sortOrder } };
-  } else {
-    orderBy = { [sortBy]: sortOrder };
+    // Fetch all issues for this series
+    const allIssues = await db.comicFile.findMany({
+      where: { seriesId: req.params.id },
+      include: {
+        metadata: true,
+        readingProgress: {
+          select: {
+            currentPage: true,
+            totalPages: true,
+            completed: true,
+            lastReadAt: true,
+          },
+        },
+      },
+    });
+
+    // Sort issues: numeric issues first (by number), then non-numeric (alphabetically by filename)
+    const sortedIssues = allIssues.sort((a, b) => {
+      const aNum = parseIssueNumber(a.metadata?.number);
+      const bNum = parseIssueNumber(b.metadata?.number);
+
+      // Both have numbers - sort numerically
+      if (aNum.hasNumber && bNum.hasNumber) {
+        const diff = aNum.numericValue - bNum.numericValue;
+        return sortOrder === 'asc' ? diff : -diff;
+      }
+
+      // One has number, one doesn't - numbered issues come first
+      if (aNum.hasNumber !== bNum.hasNumber) {
+        return aNum.hasNumber ? -1 : 1;
+      }
+
+      // Neither has number - sort alphabetically by filename
+      const cmp = a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' });
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+
+    // Apply pagination
+    const total = sortedIssues.length;
+    const paginatedIssues = sortedIssues.slice((page - 1) * limit, page * limit);
+
+    sendSuccess(res, { issues: paginatedIssues }, {
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    });
+    return;
   }
+
+  // For other sort fields, use Prisma's ordering
+  const orderBy = { [sortBy]: sortOrder };
 
   const [issues, total] = await Promise.all([
     db.comicFile.findMany({

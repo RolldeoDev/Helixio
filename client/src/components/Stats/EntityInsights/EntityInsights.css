@@ -1,0 +1,300 @@
+/* =============================================================================
+   Entity Insights Section
+   Grid of entity type cards with halftone texture
+   ============================================================================= */
+
+.entity-insights {
+  animation: stats-section-in 0.6s ease forwards;
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+
+.entity-insights__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.entity-insights__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.entity-insights__subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.entity-insights__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-md);
+}
+
+/* =============================================================================
+   Entity Insight Card
+   ============================================================================= */
+
+.entity-insight-card {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  animation: stats-card-in 0.5s ease forwards;
+  opacity: 0;
+}
+
+@keyframes stats-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.entity-insight-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  border-color: var(--color-primary-muted);
+}
+
+/* Halftone pattern overlay */
+.entity-insight-card__halftone {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(var(--color-border) 1px, transparent 1px);
+  background-size: 6px 6px;
+  opacity: 0.2;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.entity-insight-card:hover .entity-insight-card__halftone {
+  opacity: 0.35;
+}
+
+.entity-insight-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  position: relative;
+  z-index: 1;
+}
+
+.entity-insight-card__icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg));
+  border-radius: var(--radius-md);
+  color: var(--color-primary);
+}
+
+.entity-insight-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.entity-insight-card__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.entity-insight-card__view-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.entity-insight-card__view-all:hover {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.entity-insight-card__view-all svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* =============================================================================
+   Entity Mini List
+   ============================================================================= */
+
+.entity-mini-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  position: relative;
+  z-index: 1;
+}
+
+.entity-mini-list__empty {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.entity-mini-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+}
+
+.entity-mini-item__rank {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-bg);
+  flex-shrink: 0;
+}
+
+.entity-mini-item__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.entity-mini-item__name {
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-mini-item__role {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.entity-mini-item__progress {
+  height: 3px;
+  background: var(--color-bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.entity-mini-item__progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.entity-mini-item__count {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.entity-insights--loading {
+  animation: none;
+  opacity: 1;
+}
+
+.entity-insight-card--skeleton {
+  animation: none;
+  opacity: 1;
+  cursor: default;
+}
+
+.entity-insight-card--skeleton:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.skeleton-header {
+  height: 32px;
+  width: 60%;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.skeleton-list {
+  height: 100px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 1200px) {
+  .entity-insights__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .entity-insights__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .entity-insight-card {
+    padding: var(--spacing-md);
+  }
+}

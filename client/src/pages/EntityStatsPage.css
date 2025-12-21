@@ -1,0 +1,401 @@
+/**
+ * Entity Stats Page Styles
+ */
+
+.entity-stats-page {
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.entity-stats-page.loading,
+.entity-stats-page.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.entity-stats-loading,
+.entity-stats-error {
+  text-align: center;
+}
+
+.entity-stats-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.entity-stats-error h3 {
+  color: var(--danger-color);
+  margin-bottom: 0.5rem;
+}
+
+.entity-stats-error button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.entity-stats-error button:hover {
+  opacity: 0.9;
+}
+
+/* Header */
+.entity-stats-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.entity-back-button {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.entity-back-button:hover {
+  background: var(--hover-color);
+  color: var(--text-color);
+}
+
+.entity-stats-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.entity-stats-breadcrumb a,
+.entity-stats-breadcrumb .breadcrumb-link {
+  color: var(--accent-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.entity-stats-breadcrumb a:hover,
+.entity-stats-breadcrumb .breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+/* Title */
+.entity-stats-title {
+  margin-bottom: 1.5rem;
+}
+
+.entity-stats-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.entity-role-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--accent-color);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.entity-type-label {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Stats Summary */
+.entity-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.entity-stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem;
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.entity-stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.entity-stat-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.entity-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Progress Section */
+.entity-progress-section {
+  margin-bottom: 1.5rem;
+}
+
+.entity-progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.entity-progress-bar-large {
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.entity-progress-fill-large {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success-color), var(--accent-color));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Content Grid */
+.entity-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .entity-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.entity-content-main {
+  min-width: 0;
+}
+
+.entity-content-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Comics Section */
+.entity-comics-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.entity-comics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+
+.entity-comics-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.entity-comics-filter {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.entity-comics-filter button {
+  padding: 0.375rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.entity-comics-filter button:hover {
+  background: var(--hover-color);
+}
+
+.entity-comics-filter button.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: white;
+}
+
+.entity-comics-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.entity-comics-list {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.entity-comic-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.entity-comic-item:hover {
+  background: var(--hover-color);
+}
+
+.entity-comic-item:last-child {
+  border-bottom: none;
+}
+
+.entity-comic-status {
+  flex-shrink: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entity-comic-item.read .entity-comic-status {
+  color: var(--success-color);
+}
+
+.entity-comic-item.unread .entity-comic-status {
+  color: var(--text-muted);
+}
+
+.entity-comic-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.entity-comic-name {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-comic-date {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+}
+
+.entity-comic-time {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-color);
+  border-radius: 4px;
+}
+
+/* Related Sections */
+.entity-related-section {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.entity-related-section h3 {
+  margin: 0;
+  padding: 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+
+.entity-related-list {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.entity-related-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.15s;
+}
+
+.entity-related-item:hover {
+  background: var(--hover-color);
+}
+
+.entity-related-item .related-name {
+  font-size: 0.875rem;
+  color: var(--text-color);
+}
+
+.entity-related-item .related-name small {
+  color: var(--text-secondary);
+}
+
+.entity-related-item .related-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.entity-related-item.series .related-count {
+  color: var(--success-color);
+}

@@ -3,16 +3,19 @@
  *
  * Displays a comparison of series metadata from multiple sources with
  * an auto-merged preview. Shows which source provided each field via tooltips.
+ * User can now select which source to use for each field (interactive mode).
  * User approves the merged result before continuing.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   type SeriesMatch,
   type MergedSeriesMetadata,
+  type AllValuesSeriesMetadata,
   type MetadataSource,
   type SeriesCredit,
 } from '../../services/api.service';
+import { FieldSourceSelector } from './FieldSourceSelector';
 import './MergedMetadataModal.css';
 
 interface MergedMetadataModalProps {
@@ -21,10 +24,12 @@ interface MergedMetadataModalProps {
   onAccept: (merged: MergedSeriesMetadata) => void;
   /** Results from each source (may be null if source had no match) */
   sourceResults: Record<MetadataSource, SeriesMatch | null>;
-  /** The auto-merged preview */
-  mergedPreview: MergedSeriesMetadata;
+  /** The auto-merged preview (can be AllValuesSeriesMetadata for per-field selection) */
+  mergedPreview: MergedSeriesMetadata | AllValuesSeriesMetadata;
   /** Loading state while fetching from sources */
   isLoading?: boolean;
+  /** Enable interactive per-field source selection */
+  interactive?: boolean;
 }
 
 const SOURCE_LABELS: Record<MetadataSource, string> = {
@@ -46,8 +51,77 @@ export function MergedMetadataModal({
   sourceResults,
   mergedPreview,
   isLoading = false,
+  interactive = false,
 }: MergedMetadataModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // State for per-field source overrides (only used in interactive mode)
+  const [fieldSourceOverrides, setFieldSourceOverrides] = useState<Record<string, MetadataSource>>({});
+  const [lockedFields, setLockedFields] = useState<Set<string>>(new Set());
+
+  // Check if we have allFieldValues for interactive mode
+  const hasAllFieldValues = 'allFieldValues' in mergedPreview && mergedPreview.allFieldValues !== undefined;
+
+  // Reset overrides when modal opens with new data
+  useEffect(() => {
+    if (isOpen) {
+      setFieldSourceOverrides({});
+      setLockedFields(new Set());
+    }
+  }, [isOpen, mergedPreview.sourceId]);
+
+  // Handle source change for a field
+  const handleFieldSourceChange = useCallback((fieldName: string, source: MetadataSource) => {
+    setFieldSourceOverrides(prev => ({
+      ...prev,
+      [fieldName]: source,
+    }));
+  }, []);
+
+  // Handle lock toggle for a field
+  const handleLockToggle = useCallback((fieldName: string) => {
+    setLockedFields(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fieldName)) {
+        newSet.delete(fieldName);
+      } else {
+        newSet.add(fieldName);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // Compute final merged result with user overrides
+  const finalMerged = useMemo((): MergedSeriesMetadata => {
+    if (!interactive || !hasAllFieldValues || Object.keys(fieldSourceOverrides).length === 0) {
+      return mergedPreview;
+    }
+
+    const allValues = (mergedPreview as AllValuesSeriesMetadata).allFieldValues;
+    const result = { ...mergedPreview } as MergedSeriesMetadata & Record<string, unknown>;
+
+    // Apply field source overrides
+    for (const [fieldName, source] of Object.entries(fieldSourceOverrides)) {
+      if (allValues[fieldName] && allValues[fieldName][source] !== undefined) {
+        result[fieldName] = allValues[fieldName][source];
+        result.fieldSources = {
+          ...result.fieldSources,
+          [fieldName]: source,
+        };
+      }
+    }
+
+    // Update contributing sources
+    const uniqueSources = new Set(Object.values(result.fieldSources));
+    result.contributingSources = Array.from(uniqueSources) as MetadataSource[];
+
+    return result;
+  }, [interactive, hasAllFieldValues, mergedPreview, fieldSourceOverrides]);
+
+  // Get effective field source (considering overrides)
+  const getEffectiveFieldSource = useCallback((fieldName: string): MetadataSource | undefined => {
+    return fieldSourceOverrides[fieldName] || mergedPreview.fieldSources[fieldName];
+  }, [fieldSourceOverrides, mergedPreview.fieldSources]);
 
   // Handle escape key to close
   useEffect(() => {
@@ -77,13 +151,67 @@ export function MergedMetadataModal({
 
   const sources = Object.keys(sourceResults) as MetadataSource[];
 
+  // Helper to build allValues for FieldSourceSelector from source results
+  const buildAllValuesForField = (fieldName: string): Partial<Record<MetadataSource, unknown>> => {
+    const values: Partial<Record<MetadataSource, unknown>> = {};
+    for (const source of sources) {
+      const data = sourceResults[source];
+      if (data) {
+        const value = (data as unknown as Record<string, unknown>)[fieldName];
+        if (value !== null && value !== undefined && value !== '') {
+          values[source] = value;
+        }
+      }
+    }
+    return values;
+  };
+
+  // Render an interactive field row with per-field source selection
+  const renderInteractiveFieldRow = (
+    label: string,
+    fieldName: string,
+    formatter?: (value: unknown) => string
+  ): JSX.Element | null => {
+    const allFieldValuesData = hasAllFieldValues
+      ? (mergedPreview as AllValuesSeriesMetadata).allFieldValues
+      : null;
+    const fieldValues = allFieldValuesData?.[fieldName] || buildAllValuesForField(fieldName);
+    const effectiveSource = getEffectiveFieldSource(fieldName) || 'comicvine';
+
+    // Cast to the expected type for FieldSourceSelector
+    const allValuesTyped = fieldValues as Record<MetadataSource, unknown>;
+
+    return (
+      <tr className="field-row interactive-field">
+        <td className="field-label">{label}</td>
+        <td className="field-selector" colSpan={sources.length + 1}>
+          <FieldSourceSelector
+            fieldName={fieldName}
+            fieldLabel={label}
+            allValues={allValuesTyped}
+            selectedSource={effectiveSource}
+            onSourceChange={(source) => handleFieldSourceChange(fieldName, source)}
+            locked={lockedFields.has(fieldName)}
+            onLockToggle={() => handleLockToggle(fieldName)}
+            formatValue={formatter}
+          />
+        </td>
+      </tr>
+    );
+  };
+
   const renderFieldRow = (
     label: string,
     fieldName: string,
     formatter?: (value: unknown) => string
-  ) => {
-    const mergedValue = (mergedPreview as unknown as Record<string, unknown>)[fieldName];
-    const fieldSource = mergedPreview.fieldSources[fieldName];
+  ): JSX.Element => {
+    // Use interactive row if in interactive mode
+    if (interactive) {
+      return renderInteractiveFieldRow(label, fieldName, formatter) as JSX.Element;
+    }
+
+    const mergedValue = (finalMerged as unknown as Record<string, unknown>)[fieldName];
+    const fieldSource = getEffectiveFieldSource(fieldName);
 
     return (
       <tr className="field-row">
@@ -128,9 +256,17 @@ export function MergedMetadataModal({
   const renderArrayFieldRow = (
     label: string,
     fieldName: string
-  ) => {
-    const mergedValue = (mergedPreview as unknown as Record<string, unknown>)[fieldName] as unknown[] | undefined;
-    const fieldSource = mergedPreview.fieldSources[fieldName];
+  ): JSX.Element => {
+    // Use interactive row if in interactive mode
+    if (interactive) {
+      return renderInteractiveFieldRow(label, fieldName, (value) => {
+        const arr = value as unknown[] | undefined;
+        return arr?.length ? `${arr.length} items` : '-';
+      }) as JSX.Element;
+    }
+
+    const mergedValue = (finalMerged as unknown as Record<string, unknown>)[fieldName] as unknown[] | undefined;
+    const fieldSource = getEffectiveFieldSource(fieldName);
 
     return (
       <tr className="field-row array-field">
@@ -278,9 +414,17 @@ export function MergedMetadataModal({
           <button className="btn-secondary" onClick={onClose}>
             Cancel
           </button>
+          {interactive && Object.keys(fieldSourceOverrides).length > 0 && (
+            <button
+              className="btn-ghost"
+              onClick={() => setFieldSourceOverrides({})}
+            >
+              Reset to Defaults
+            </button>
+          )}
           <button
             className="btn-primary"
-            onClick={() => onAccept(mergedPreview)}
+            onClick={() => onAccept(finalMerged)}
             disabled={isLoading}
           >
             Use Merged Data

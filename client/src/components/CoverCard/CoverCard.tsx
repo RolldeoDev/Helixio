@@ -183,6 +183,14 @@ export function CoverCard({
             eager={eager}
           />
 
+          {/* Issue number badge */}
+          {showIssueNumber && file.metadata?.number && (
+            <div className="cover-card__issue-badge" aria-label={`Issue ${file.metadata.number}`}>
+              <span className="cover-card__issue-badge-hash">#</span>
+              <span className="cover-card__issue-badge-number">{file.metadata.number}</span>
+            </div>
+          )}
+
           {/* Selection checkbox */}
           {selectable && (
             <div className={`cover-card__checkbox ${isSelected ? 'cover-card__checkbox--checked' : ''}`}>
@@ -206,7 +214,6 @@ export function CoverCard({
             {showSeries && file.metadata?.series && (
               <span className="cover-card__series">
                 {file.metadata.series}
-                {showIssueNumber && file.metadata.number && ` #${file.metadata.number}`}
               </span>
             )}
           </div>

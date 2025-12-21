@@ -60,14 +60,17 @@ router.post('/session/start', async (req: Request, res: Response) => {
 router.put('/session/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
-    const { currentPage } = req.body as { currentPage: number };
+    const { currentPage, confirmedPagesRead } = req.body as {
+      currentPage: number;
+      confirmedPagesRead?: number;
+    };
 
     if (typeof currentPage !== 'number') {
       res.status(400).json({ error: 'currentPage is required' });
       return;
     }
 
-    await updateSession(sessionId!, currentPage);
+    await updateSession(sessionId!, currentPage, confirmedPagesRead);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating session:', error);
@@ -85,9 +88,10 @@ router.put('/session/:sessionId', async (req: Request, res: Response) => {
 router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
-    const { endPage, completed } = req.body as {
+    const { endPage, completed, confirmedPagesRead } = req.body as {
       endPage: number;
       completed?: boolean;
+      confirmedPagesRead?: number;
     };
 
     if (typeof endPage !== 'number') {
@@ -95,7 +99,7 @@ router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
       return;
     }
 
-    const session = await endSession(sessionId!, endPage, completed);
+    const session = await endSession(sessionId!, endPage, completed, confirmedPagesRead);
     res.json(session);
   } catch (error) {
     console.error('Error ending session:', error);

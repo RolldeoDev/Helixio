@@ -13,7 +13,11 @@ import { SmartFilterProvider, useSmartFilter } from './contexts/SmartFilterConte
 import { CollectionsProvider } from './contexts/CollectionsContext';
 import { WantToReadProvider } from './contexts/WantToReadContext';
 import { AnnotationsProvider } from './contexts/AnnotationsContext';
-import { Sidebar, StatusBar } from './components/Layout';
+import { ThemeProvider } from './themes/ThemeContext';
+import { SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects } from './themes';
+import { AchievementProvider } from './contexts/AchievementContext';
+import { AchievementToast } from './components/AchievementToast';
+import { SidebarNew, StatusBar } from './components/Layout';
 import { FileList } from './components/FileList';
 import { GridView } from './components/GridView';
 import { ListView } from './components/ListView';
@@ -38,6 +42,9 @@ import { SeriesDetailPage } from './pages/SeriesDetailPage';
 import { IssueDetailPage } from './pages/IssueDetailPage';
 import { DuplicatesPage } from './pages/DuplicatesPage';
 import { CollectionsPage } from './pages/CollectionsPage';
+import { StatsPage } from './pages/StatsPage';
+import { EntityStatsPage } from './pages/EntityStatsPage';
+import { AchievementsPage } from './pages/AchievementsPage';
 import { SharedLists } from './components/SharedLists';
 import { UserManagement } from './components/Admin';
 
@@ -217,7 +224,7 @@ function AppContent() {
       {/* Job Banner - shows when job is running but modal is closed */}
       <JobBanner />
 
-      {!hideSidebar && <Sidebar />}
+      {!hideSidebar && <SidebarNew />}
 
       <main className="main-content">
         <Routes>
@@ -229,6 +236,9 @@ function AppContent() {
           <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
           <Route path="/issue/:fileId" element={<IssueDetailPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/stats/:entityType/:entityName" element={<EntityStatsPage />} />
+          <Route path="/achievements" element={<AchievementsPage />} />
           <Route path="/read/:fileId" element={<ReaderPage />} />
           <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
@@ -252,21 +262,32 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <SmartFilterProvider>
-          <CollectionsProvider>
-            <WantToReadProvider>
-              <AnnotationsProvider>
-                <MetadataJobProvider>
-                  <AppContent />
-                </MetadataJobProvider>
-              </AnnotationsProvider>
-            </WantToReadProvider>
-          </CollectionsProvider>
-        </SmartFilterProvider>
-      </AppProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppProvider>
+          <SmartFilterProvider>
+            <CollectionsProvider>
+              <WantToReadProvider>
+                <AnnotationsProvider>
+                  <MetadataJobProvider>
+                    <AchievementProvider>
+                      <AppContent />
+                      {/* Achievement notifications */}
+                      <AchievementToast />
+                      {/* Theme-specific effects - renders only when relevant theme is active */}
+                      <SandmanEffects />
+                      <SynthwaveEffects />
+                      <RetroEffects />
+                      <MangaEffects />
+                    </AchievementProvider>
+                  </MetadataJobProvider>
+                </AnnotationsProvider>
+              </WantToReadProvider>
+            </CollectionsProvider>
+          </SmartFilterProvider>
+        </AppProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

@@ -2,8 +2,7 @@
  * Home Page
  *
  * The default reading-focused view for Helixio. Features:
- * - Welcome header with library scope toggle
- * - Hero section with current reading and quick stats
+ * - Premium welcome section with stats, fun facts, and featured reading
  * - Continue reading carousel
  * - Recommendations (series continuations, similar content, recently added)
  * - Discover section with category browsing
@@ -15,12 +14,13 @@ import { useNavigate } from 'react-router-dom';
 import {
   getContinueReading,
   getAllTimeReadingStats,
+  getStatsSummary,
   ContinueReadingItem,
   AllTimeStats,
+  StatsSummary,
 } from '../services/api.service';
 import {
-  HomeHeader,
-  HomeHero,
+  HomeWelcome,
   ContinueReadingSection,
   RecommendedSection,
   DiscoverSection,
@@ -42,6 +42,7 @@ export function HomePage() {
   // Data states
   const [continueReading, setContinueReading] = useState<ContinueReadingItem[]>([]);
   const [allTimeStats, setAllTimeStats] = useState<AllTimeStats | null>(null);
+  const [statsSummary, setStatsSummary] = useState<StatsSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,13 +55,15 @@ export function HomePage() {
     setError(null);
 
     try {
-      const [continueReadingRes, statsRes] = await Promise.all([
+      const [continueReadingRes, statsRes, summaryRes] = await Promise.all([
         getContinueReading(8, effectiveLibraryId),
         getAllTimeReadingStats(),
+        getStatsSummary(effectiveLibraryId),
       ]);
 
       setContinueReading(continueReadingRes.items);
       setAllTimeStats(statsRes);
+      setStatsSummary(summaryRes);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load home page data');
       console.error('Error fetching home page data:', err);
@@ -84,12 +87,6 @@ export function HomePage() {
 
   return (
     <div className={`home-page ${isLoading ? 'loading' : ''}`}>
-      {/* Header with welcome and library toggle */}
-      <HomeHeader
-        libraryScope={libraryScope}
-        onLibraryScopeChange={setLibraryScope}
-      />
-
       {/* Error State */}
       {error && (
         <div className="home-empty-state home-section">
@@ -118,11 +115,14 @@ export function HomePage() {
         </div>
       )}
 
-      {/* Hero Section with featured reading and stats */}
+      {/* Premium Welcome Section */}
       {!error && (
-        <HomeHero
+        <HomeWelcome
+          libraryScope={libraryScope}
+          onLibraryScopeChange={setLibraryScope}
           featuredItem={featuredItem ?? null}
-          stats={allTimeStats}
+          allTimeStats={allTimeStats}
+          statsSummary={statsSummary}
           isLoading={isLoading}
         />
       )}

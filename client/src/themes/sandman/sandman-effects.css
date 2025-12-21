@@ -1,0 +1,737 @@
+/**
+ * Sandman Theme Effects - Morpheus Edition
+ *
+ * "I am Hope." - Dream of the Endless
+ *
+ * Inspired by the stark, high-contrast artwork of The Sandman:
+ * - True deep blacks like the void between stars
+ * - Pale ghostly whites like Morpheus's skin
+ * - Ethereal light blues like the space between dreams
+ * - Golden dream sand that drifts through darkness
+ *
+ * Every card breathes with its own rhythm, each one slightly different,
+ * like dreams themselves - similar yet never quite the same.
+ */
+
+/* =============================================================================
+   Google Fonts Import for Sandman Typography
+   ============================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+/* =============================================================================
+   Sandman Theme Variables - True Blacks with Pale Accents
+   ============================================================================= */
+
+:root[data-theme^="sandman"] {
+  /* The Void - True blacks without purple tint */
+  --sandman-void: #000000;              /* Absolute black */
+  --sandman-abyss: #050508;             /* Near-black with hint of blue */
+  --sandman-deep: #0a0a0f;              /* Deep space */
+  --sandman-dark: #101015;              /* Dark surface */
+
+  /* Morpheus's Palette - Ghostly pale tones */
+  --sandman-white: #f0f0f5;             /* Pale ghostly white */
+  --sandman-pale: #d8d8e0;              /* Soft pale */
+  --sandman-mist: #a0a0b0;              /* Misty grey */
+
+  /* Ethereal Blues - The space between dreams */
+  --sandman-blue-pale: #b8c8e0;         /* Pale ethereal blue */
+  --sandman-blue-light: #8090b0;        /* Light dream blue */
+  --sandman-blue-mist: rgba(160, 180, 220, 0.15); /* Misty blue overlay */
+
+  /* Dream Sand - Golden accents */
+  --sandman-gold: #c9a227;              /* Classic dream sand gold */
+  --sandman-gold-bright: #e0b830;       /* Bright gold */
+  --sandman-gold-pale: #f0d878;         /* Pale gold shimmer */
+  --sandman-gold-glow: rgba(201, 162, 39, 0.4);
+
+  /* Card animation - Randomized per card via nth-child */
+  --card-breathe-duration: 25s;         /* Very slow, subtle breathing */
+
+  /* Hover glow shift */
+  --glow-shift-duration: 8s;            /* Slow color shift */
+
+  /* Particle system */
+  --particle-speed: 25s;
+}
+
+/* =============================================================================
+   Custom Cursor - Dream Helm Inspired
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] {
+  /* Dream Helm / Morpheus inspired cursor - angular, ethereal */
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23f0f0f5'/%3E%3Cstop offset='100%25' style='stop-color:%23c9a227'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M4 4 L16 28 L18 18 L28 16 Z' fill='url(%23g)' stroke='%23000' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='2' fill='%23c9a227' opacity='0.8'%3E%3Canimate attributeName='opacity' values='0.8;0.3;0.8' dur='2s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/svg%3E") 4 4, auto;
+}
+
+:root[data-theme="sandman-dark"] a,
+:root[data-theme="sandman-dark"] button,
+:root[data-theme="sandman-dark"] [role="button"],
+:root[data-theme="sandman-dark"] .clickable {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%23c9a227'/%3E%3Cstop offset='100%25' style='stop-color:%23f0d878'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M8 4 L8 24 L12 20 L16 28 L20 26 L16 18 L22 18 Z' fill='url(%23g)' stroke='%23000' stroke-width='1'/%3E%3Ccircle cx='10' cy='8' r='3' fill='%23f0f0f5' opacity='0.6'%3E%3Canimate attributeName='r' values='3;4;3' dur='1.5s' repeatCount='indefinite'/%3E%3C/circle%3E%3C/svg%3E") 8 4, pointer;
+}
+
+/* =============================================================================
+   Background - The Infinite Void
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] body {
+  background: var(--sandman-void);
+}
+
+:root[data-theme="sandman-dark"] body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -2;
+  background:
+    /* Subtle blue mist in corners - like distant dreams */
+    radial-gradient(ellipse 80% 60% at 10% 10%, var(--sandman-blue-mist) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 50% at 90% 80%, var(--sandman-blue-mist) 0%, transparent 40%),
+    /* True black base */
+    var(--sandman-void);
+  pointer-events: none;
+}
+
+/* Subtle star field */
+:root[data-theme="sandman-dark"] body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  background-image:
+    /* Sparse, pale stars */
+    radial-gradient(1px 1px at 15% 20%, var(--sandman-white) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 45% 10%, var(--sandman-pale) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 30%, var(--sandman-white) 0%, transparent 100%),
+    radial-gradient(2px 2px at 25% 60%, var(--sandman-gold-pale) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 55%, var(--sandman-white) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 80%, var(--sandman-pale) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 10% 90%, var(--sandman-blue-pale) 0%, transparent 100%),
+    radial-gradient(1px 1px at 65% 45%, var(--sandman-white) 0%, transparent 100%);
+  opacity: 0.7;
+  animation: starBreath 30s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes starBreath {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.5; }
+}
+
+/* =============================================================================
+   CARD STYLES - Each Card Breathes Differently
+   Using nth-child selectors to randomize animation timing
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .cover-card,
+:root[data-theme="sandman-dark"] .series-cover-card {
+  /* Remove clip-path morphing - use subtle shadow breathing instead */
+  clip-path: none;
+  border-radius: 4px;
+
+  /* True black background */
+  background: var(--sandman-abyss);
+
+  /* Subtle border */
+  border: 1px solid rgba(160, 180, 220, 0.08);
+
+  position: relative;
+  overflow: hidden;
+
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Breathing shadow animation - black and dark blue */
+:root[data-theme="sandman-dark"] .cover-card::before,
+:root[data-theme="sandman-dark"] .series-cover-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+  opacity: 0.5;
+  animation: cardBreathe var(--card-breathe-duration) ease-in-out infinite;
+}
+
+/* Randomized timing for each card position */
+:root[data-theme="sandman-dark"] .cover-card:nth-child(1)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(1)::before {
+  animation-duration: 22s;
+  animation-delay: -5s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(2)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(2)::before {
+  animation-duration: 28s;
+  animation-delay: -12s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(3)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(3)::before {
+  animation-duration: 25s;
+  animation-delay: -3s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(4)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(4)::before {
+  animation-duration: 30s;
+  animation-delay: -18s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(5)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(5)::before {
+  animation-duration: 23s;
+  animation-delay: -8s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(6)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(6)::before {
+  animation-duration: 27s;
+  animation-delay: -15s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(7)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(7)::before {
+  animation-duration: 24s;
+  animation-delay: -2s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(8)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(8)::before {
+  animation-duration: 29s;
+  animation-delay: -20s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(9)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(9)::before {
+  animation-duration: 26s;
+  animation-delay: -7s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(10)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(10)::before {
+  animation-duration: 31s;
+  animation-delay: -13s;
+}
+/* Pattern continues with nth-child(n+11) using modular arithmetic feel */
+:root[data-theme="sandman-dark"] .cover-card:nth-child(n+11)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(n+11)::before {
+  animation-duration: calc(22s + (var(--card-breathe-duration) * 0.3));
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(odd):nth-child(n+11)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(odd):nth-child(n+11)::before {
+  animation-delay: -9s;
+}
+:root[data-theme="sandman-dark"] .cover-card:nth-child(even):nth-child(n+11)::before,
+:root[data-theme="sandman-dark"] .series-cover-card:nth-child(even):nth-child(n+11)::before {
+  animation-delay: -16s;
+}
+
+@keyframes cardBreathe {
+  0%, 100% {
+    box-shadow:
+      inset 0 0 30px rgba(0, 0, 0, 0.8),
+      inset 0 0 60px rgba(10, 20, 40, 0.3);
+    opacity: 0.4;
+  }
+  50% {
+    box-shadow:
+      inset 0 0 40px rgba(0, 0, 0, 0.9),
+      inset 0 0 80px rgba(20, 40, 80, 0.4);
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   HOVER EFFECT - Slow Color-Shifting Glow
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .cover-card::after,
+:root[data-theme="sandman-dark"] .series-cover-card::after {
+  content: '';
+  position: absolute;
+  inset: -30px;
+  z-index: -1;
+  border-radius: 8px;
+  background: radial-gradient(
+    ellipse at center,
+    var(--sandman-gold-glow) 0%,
+    transparent 70%
+  );
+  opacity: 0;
+  filter: blur(25px);
+  transition: opacity 0.8s ease;
+  animation: hoverGlowShift var(--glow-shift-duration) ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+:root[data-theme="sandman-dark"] .cover-card:hover,
+:root[data-theme="sandman-dark"] .series-cover-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: rgba(201, 162, 39, 0.3);
+}
+
+:root[data-theme="sandman-dark"] .cover-card:hover::before,
+:root[data-theme="sandman-dark"] .series-cover-card:hover::before {
+  animation-play-state: paused;
+  opacity: 0.2;
+}
+
+:root[data-theme="sandman-dark"] .cover-card:hover::after,
+:root[data-theme="sandman-dark"] .series-cover-card:hover::after {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+/* Very slow, subtle color shift on hover */
+@keyframes hoverGlowShift {
+  0%, 100% {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(201, 162, 39, 0.5) 0%,
+      rgba(201, 162, 39, 0.2) 30%,
+      transparent 70%
+    );
+  }
+  25% {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(184, 200, 224, 0.4) 0%,
+      rgba(160, 180, 220, 0.15) 30%,
+      transparent 70%
+    );
+  }
+  50% {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(240, 216, 120, 0.5) 0%,
+      rgba(224, 184, 48, 0.2) 30%,
+      transparent 70%
+    );
+  }
+  75% {
+    background: radial-gradient(
+      ellipse at center,
+      rgba(240, 240, 245, 0.3) 0%,
+      rgba(216, 216, 224, 0.1) 30%,
+      transparent 70%
+    );
+  }
+}
+
+/* =============================================================================
+   TOOLBAR / FILTER BAR - Minimalist Sandman Style
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .library-toolbar,
+:root[data-theme="sandman-dark"] .toolbar,
+:root[data-theme="sandman-dark"] .filter-bar,
+:root[data-theme="sandman-dark"] .series-toolbar {
+  background: var(--sandman-abyss);
+  border: none;
+  border-bottom: 1px solid rgba(160, 180, 220, 0.1);
+  position: relative;
+}
+
+/* Subtle gold accent line */
+:root[data-theme="sandman-dark"] .library-toolbar::after,
+:root[data-theme="sandman-dark"] .series-toolbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sandman-gold) 50%,
+    transparent 100%
+  );
+  opacity: 0.4;
+}
+
+/* Remove the star ornaments - too busy */
+:root[data-theme="sandman-dark"] .library-toolbar::before,
+:root[data-theme="sandman-dark"] .toolbar::before,
+:root[data-theme="sandman-dark"] .filter-bar::before {
+  content: none;
+}
+
+/* =============================================================================
+   SIDEBAR - The Threshold
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .sidebar-new {
+  background: var(--sandman-void);
+  border-right: 1px solid rgba(160, 180, 220, 0.08);
+}
+
+:root[data-theme="sandman-dark"] .sidebar-new .icon-rail {
+  background: var(--sandman-void);
+  border-right: 1px solid rgba(160, 180, 220, 0.05);
+}
+
+/* Rail buttons */
+:root[data-theme^="sandman"] .sidebar-new .rail-btn {
+  position: relative;
+  transition: all 0.3s ease;
+  color: var(--sandman-mist);
+}
+
+:root[data-theme^="sandman"] .sidebar-new .rail-btn:hover {
+  color: var(--sandman-white);
+}
+
+:root[data-theme^="sandman"] .sidebar-new .rail-btn.active {
+  color: var(--sandman-gold);
+}
+
+:root[data-theme^="sandman"] .sidebar-new .rail-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  background: var(--sandman-gold);
+  box-shadow: 0 0 10px var(--sandman-gold-glow);
+}
+
+/* =============================================================================
+   TYPOGRAPHY - Pale and Ethereal
+   ============================================================================= */
+
+:root[data-theme^="sandman"] h1,
+:root[data-theme^="sandman"] h2 {
+  font-family: var(--font-display);
+  color: var(--sandman-white);
+  letter-spacing: 0.05em;
+}
+
+:root[data-theme^="sandman"] h1 {
+  text-shadow: 0 0 30px rgba(201, 162, 39, 0.2);
+}
+
+/* =============================================================================
+   STATUS BAR
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .status-bar {
+  background: var(--sandman-void);
+  border-top: 1px solid rgba(160, 180, 220, 0.08);
+}
+
+/* =============================================================================
+   INPUT FIELDS
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] input[type="text"],
+:root[data-theme="sandman-dark"] input[type="search"],
+:root[data-theme="sandman-dark"] input[type="email"],
+:root[data-theme="sandman-dark"] input[type="password"],
+:root[data-theme="sandman-dark"] textarea,
+:root[data-theme="sandman-dark"] select {
+  background: var(--sandman-void);
+  border: 1px solid rgba(160, 180, 220, 0.15);
+  border-radius: 4px;
+  color: var(--sandman-white);
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="sandman-dark"] input:focus,
+:root[data-theme="sandman-dark"] textarea:focus,
+:root[data-theme="sandman-dark"] select:focus {
+  border-color: var(--sandman-gold);
+  box-shadow: 0 0 20px rgba(201, 162, 39, 0.15);
+  outline: none;
+}
+
+:root[data-theme="sandman-dark"] input::placeholder,
+:root[data-theme="sandman-dark"] textarea::placeholder {
+  color: var(--sandman-mist);
+  opacity: 0.6;
+}
+
+/* =============================================================================
+   SCROLLBAR
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:root[data-theme="sandman-dark"] ::-webkit-scrollbar-track {
+  background: var(--sandman-void);
+}
+
+:root[data-theme="sandman-dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(160, 180, 220, 0.2);
+  border-radius: 3px;
+}
+
+:root[data-theme="sandman-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 162, 39, 0.4);
+}
+
+/* =============================================================================
+   LINKS
+   ============================================================================= */
+
+:root[data-theme^="sandman"] a {
+  color: var(--sandman-gold);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme^="sandman"] a:hover {
+  color: var(--sandman-gold-pale);
+  text-shadow: 0 0 8px var(--sandman-gold-glow);
+}
+
+/* =============================================================================
+   MODALS
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
+}
+
+:root[data-theme="sandman-dark"] .modal-content {
+  background: var(--sandman-abyss);
+  border: 1px solid rgba(160, 180, 220, 0.1);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8);
+}
+
+/* =============================================================================
+   PROGRESS BARS - Dream Sand
+   ============================================================================= */
+
+:root[data-theme^="sandman"] .progress-bar,
+:root[data-theme^="sandman"] .reading-progress-fill,
+:root[data-theme^="sandman"] .flyout-reading-progress-fill {
+  background: linear-gradient(
+    90deg,
+    var(--sandman-gold) 0%,
+    var(--sandman-gold-pale) 50%,
+    var(--sandman-gold) 100%
+  );
+  background-size: 200% 100%;
+  animation: sandFlow 4s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--sandman-gold-glow);
+}
+
+@keyframes sandFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* =============================================================================
+   SELECTION
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] ::selection {
+  background: rgba(201, 162, 39, 0.4);
+  color: var(--sandman-white);
+}
+
+/* =============================================================================
+   LOADING SPINNER
+   ============================================================================= */
+
+:root[data-theme^="sandman"] .spinner {
+  border-color: rgba(160, 180, 220, 0.1);
+  border-top-color: var(--sandman-gold);
+}
+
+/* =============================================================================
+   BUTTONS
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] button,
+:root[data-theme="sandman-dark"] .btn {
+  background: var(--sandman-deep);
+  border: 1px solid rgba(160, 180, 220, 0.15);
+  color: var(--sandman-pale);
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="sandman-dark"] button:hover,
+:root[data-theme="sandman-dark"] .btn:hover {
+  border-color: var(--sandman-gold);
+  color: var(--sandman-gold);
+  box-shadow: 0 0 15px rgba(201, 162, 39, 0.2);
+}
+
+:root[data-theme="sandman-dark"] button:active,
+:root[data-theme="sandman-dark"] .btn:active {
+  transform: translateY(1px);
+}
+
+/* Primary buttons */
+:root[data-theme="sandman-dark"] button.primary,
+:root[data-theme="sandman-dark"] .btn-primary {
+  background: var(--sandman-gold);
+  border-color: var(--sandman-gold);
+  color: var(--sandman-void);
+}
+
+:root[data-theme="sandman-dark"] button.primary:hover,
+:root[data-theme="sandman-dark"] .btn-primary:hover {
+  background: var(--sandman-gold-bright);
+  box-shadow: 0 0 25px var(--sandman-gold-glow);
+}
+
+/* =============================================================================
+   DROPDOWNS
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .dropdown-menu,
+:root[data-theme="sandman-dark"] .flyout-panel {
+  background: var(--sandman-abyss);
+  border: 1px solid rgba(160, 180, 220, 0.1);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.7);
+}
+
+/* =============================================================================
+   DREAM SAND PARTICLES
+   ============================================================================= */
+
+.sandman-particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sandman-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: var(--sandman-gold);
+  border-radius: 50%;
+  animation: particleDrift var(--particle-speed) linear infinite;
+  opacity: 0;
+  box-shadow: 0 0 6px var(--sandman-gold-glow);
+}
+
+.sandman-particle:nth-child(odd) {
+  width: 2px;
+  height: 2px;
+  animation-duration: calc(var(--particle-speed) * 1.2);
+}
+
+.sandman-particle:nth-child(3n) {
+  background: var(--sandman-white);
+  box-shadow: 0 0 4px rgba(240, 240, 245, 0.5);
+}
+
+.sandman-particle:nth-child(5n) {
+  background: var(--sandman-blue-pale);
+  box-shadow: 0 0 5px rgba(184, 200, 224, 0.4);
+}
+
+@keyframes particleDrift {
+  0% {
+    transform: translateY(-10px) translateX(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.8;
+  }
+  95% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(100vh) translateX(30px);
+    opacity: 0;
+  }
+}
+
+/* =============================================================================
+   UNIQUE UI: Subtle Sigil
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] .main-content::before {
+  content: '';
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='none' stroke='%23c9a227' stroke-width='0.5' opacity='0.15'/%3E%3Ccircle cx='50' cy='50' r='30' fill='none' stroke='%23b8c8e0' stroke-width='0.5' opacity='0.1'/%3E%3Ccircle cx='50' cy='50' r='5' fill='%23c9a227' opacity='0.2'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0.6;
+  pointer-events: none;
+  animation: sigilPulse 20s ease-in-out infinite;
+  z-index: 0;
+}
+
+@keyframes sigilPulse {
+  0%, 100% { opacity: 0.6; transform: rotate(0deg); }
+  50% { opacity: 0.3; transform: rotate(180deg); }
+}
+
+/* =============================================================================
+   LIGHT THEME - Lucienne's Library
+   ============================================================================= */
+
+:root[data-theme="sandman-light"] {
+  --sandman-void: #faf8f5;
+  --sandman-abyss: #f5f3f0;
+  --sandman-deep: #eae8e5;
+  --sandman-dark: #e0deda;
+  --sandman-white: #2a2520;
+  --sandman-pale: #3a352f;
+  --sandman-mist: #6a6560;
+}
+
+:root[data-theme="sandman-light"] .cover-card,
+:root[data-theme="sandman-light"] .series-cover-card {
+  background: var(--sandman-abyss);
+  border: 1px solid rgba(42, 37, 32, 0.1);
+}
+
+:root[data-theme="sandman-light"] .sidebar-new {
+  background: var(--sandman-void);
+  border-right: 1px solid rgba(42, 37, 32, 0.08);
+}
+
+/* =============================================================================
+   REDUCED MOTION
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme^="sandman"] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .sandman-particles {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   PRINT STYLES
+   ============================================================================= */
+
+@media print {
+  :root[data-theme^="sandman"] body::before,
+  :root[data-theme^="sandman"] body::after,
+  .sandman-particles,
+  .sandman-sigil,
+  .sandman-quote,
+  .sandman-vignette {
+    display: none !important;
+  }
+}

@@ -170,6 +170,15 @@ async function del<T>(endpoint: string): Promise<T> {
   return handleResponse<T>(response);
 }
 
+async function put<T>(endpoint: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return handleResponse<T>(response);
+}
+
 // =============================================================================
 // Health & System
 // =============================================================================
@@ -2398,12 +2407,13 @@ export async function startReadingSession(
  */
 export async function updateReadingSession(
   sessionId: string,
-  currentPage: number
+  currentPage: number,
+  confirmedPagesRead?: number
 ): Promise<{ success: boolean }> {
   const response = await fetch(`${API_BASE}/reading-history/session/${sessionId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ currentPage }),
+    body: JSON.stringify({ currentPage, confirmedPagesRead }),
   });
   return handleResponse<{ success: boolean }>(response);
 }
@@ -2414,11 +2424,13 @@ export async function updateReadingSession(
 export async function endReadingSession(
   sessionId: string,
   endPage: number,
-  completed: boolean = false
+  completed: boolean = false,
+  confirmedPagesRead?: number
 ): Promise<ReadingSession | null> {
   return post<ReadingSession | null>(`/reading-history/session/${sessionId}/end`, {
     endPage,
     completed,
+    confirmedPagesRead,
   });
 }
 
@@ -3099,6 +3111,55 @@ export interface MergedSeriesMetadata extends SeriesMatch {
 }
 
 /**
+ * Extended merged series metadata with all values from all sources.
+ * Used for per-field source selection in the UI.
+ */
+export interface AllValuesSeriesMetadata extends MergedSeriesMetadata {
+  /** All values from all sources for each field */
+  allFieldValues: Record<string, Record<MetadataSource, unknown>>;
+  /** User-selected source overrides per field */
+  fieldSourceOverrides?: Record<string, MetadataSource>;
+}
+
+// =============================================================================
+// Cross-Source Matching Types
+// =============================================================================
+
+/**
+ * Match factors used to calculate confidence score.
+ */
+export interface CrossMatchFactors {
+  titleSimilarity: number;
+  publisherMatch: boolean;
+  yearMatch: 'exact' | 'close' | 'none';
+  issueCountMatch: boolean;
+  creatorOverlap: string[];
+  aliasMatch: boolean;
+}
+
+/**
+ * A match from a secondary source for a primary series.
+ */
+export interface CrossSourceMatch {
+  source: MetadataSource;
+  sourceId: string;
+  seriesData: SeriesMatch;
+  confidence: number;
+  matchFactors: CrossMatchFactors;
+  isAutoMatchCandidate: boolean;
+}
+
+/**
+ * Result of cross-source matching for a series.
+ */
+export interface CrossSourceResult {
+  primarySource: MetadataSource;
+  primarySourceId: string;
+  matches: CrossSourceMatch[];
+  status: Record<MetadataSource, 'matched' | 'no_match' | 'searching' | 'error' | 'skipped'>;
+}
+
+/**
  * Result of a full data multi-source search
  */
 export interface MultiSourceSearchResult {
@@ -3167,5 +3228,401 @@ export async function getSeriesMetadataFullData(
   sourceId: string
 ): Promise<MergedSeriesMetadata> {
   return get<MergedSeriesMetadata>(`/metadata/series-full/${source}/${sourceId}`);
+}
+
+// =============================================================================
+// Cross-Source Matching
+// =============================================================================
+
+/**
+ * Cached cross-source mapping from database
+ */
+export interface CrossSourceMapping {
+  id: string;
+  primarySource: string;
+  primarySourceId: string;
+  matchedSource: string;
+  matchedSourceId: string;
+  confidence: number;
+  matchMethod: 'auto' | 'user' | 'api_link';
+  verified: boolean;
+  matchFactors?: CrossMatchFactors;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Find cross-source matches for a series.
+ * Searches secondary sources and calculates confidence scores.
+ */
+export async function findCrossSourceMatches(
+  source: MetadataSource,
+  sourceId: string,
+  options: {
+    targetSources?: MetadataSource[];
+    sessionId?: string;
+    threshold?: number;
+  } = {}
+): Promise<CrossSourceResult> {
+  return post<CrossSourceResult>('/metadata/cross-match', {
+    source,
+    sourceId,
+    ...options,
+  });
+}
+
+/**
+ * Get cached cross-source mappings for a series.
+ */
+export async function getCrossSourceMappings(
+  source: MetadataSource,
+  sourceId: string
+): Promise<{ mappings: CrossSourceMapping[] }> {
+  return get<{ mappings: CrossSourceMapping[] }>(
+    `/metadata/cross-matches/${source}/${sourceId}`
+  );
+}
+
+/**
+ * Save a user-confirmed cross-source match.
+ */
+export async function saveCrossSourceMapping(
+  source: MetadataSource,
+  sourceId: string,
+  match: {
+    matchedSource: MetadataSource;
+    matchedSourceId: string;
+    confidence: number;
+    matchFactors?: CrossMatchFactors;
+  }
+): Promise<{ mapping: CrossSourceMapping }> {
+  return put<{ mapping: CrossSourceMapping }>(
+    `/metadata/cross-matches/${source}/${sourceId}`,
+    match
+  );
+}
+
+/**
+ * Invalidate cached cross-source mappings for a series.
+ */
+export async function invalidateCrossSourceMappings(
+  source: MetadataSource,
+  sourceId: string
+): Promise<{ deleted: number }> {
+  return del<{ deleted: number }>(
+    `/metadata/cross-matches/${source}/${sourceId}`
+  );
+}
+
+/**
+ * Get series metadata with all values from all sources for per-field selection.
+ */
+export async function getSeriesWithAllValues(
+  source: MetadataSource,
+  sourceId: string,
+  options: {
+    crossMatchSources?: MetadataSource[];
+    sessionId?: string;
+  } = {}
+): Promise<AllValuesSeriesMetadata> {
+  const params = new URLSearchParams();
+  if (options.crossMatchSources) {
+    params.set('sources', options.crossMatchSources.join(','));
+  }
+  if (options.sessionId) {
+    params.set('sessionId', options.sessionId);
+  }
+  const query = params.toString();
+  return get<AllValuesSeriesMetadata>(
+    `/metadata/series-all-values/${source}/${sourceId}${query ? `?${query}` : ''}`
+  );
+}
+
+// =============================================================================
+// Stats API
+// =============================================================================
+
+export type EntityType = 'creator' | 'genre' | 'character' | 'team' | 'publisher';
+
+export interface AggregatedStats {
+  totalFiles: number;
+  totalSeries: number;
+  totalPages: number;
+  filesRead: number;
+  filesInProgress: number;
+  filesUnread: number;
+  pagesRead: number;
+  readingTime: number;
+  currentStreak?: number;
+  longestStreak?: number;
+  filesWithMetadata?: number;
+}
+
+export interface EntityStatResult {
+  entityType: string;
+  entityName: string;
+  entityRole: string | null;
+  ownedComics: number;
+  ownedSeries: number;
+  ownedPages: number;
+  readComics: number;
+  readPages: number;
+  readTime: number;
+  readPercentage: number;
+}
+
+export interface EntityComic {
+  fileId: string;
+  filename: string;
+  seriesName: string | null;
+  number: string | null;
+  isRead: boolean;
+  readingTime: number;
+  lastReadAt: string | null;
+}
+
+export interface RelatedEntity {
+  entityName: string;
+  entityRole: string | null;
+  sharedComics: number;
+}
+
+export interface RelatedSeries {
+  seriesId: string;
+  seriesName: string;
+  ownedCount: number;
+  readCount: number;
+}
+
+export interface EntityDetails {
+  entityType: string;
+  entityName: string;
+  entityRole: string | null;
+  ownedComics: number;
+  ownedSeries: number;
+  ownedPages: number;
+  readComics: number;
+  readPages: number;
+  readTime: number;
+  comics: EntityComic[];
+  relatedCreators: RelatedEntity[];
+  relatedCharacters: RelatedEntity[];
+  relatedSeries: RelatedSeries[];
+}
+
+export interface StatsSummary extends AggregatedStats {
+  topCreators: EntityStatResult[];
+  topGenres: EntityStatResult[];
+  topCharacters: EntityStatResult[];
+  topPublishers: EntityStatResult[];
+}
+
+export interface SchedulerStatus {
+  isRunning: boolean;
+  isProcessing: boolean;
+  lastHourlyRun: string | null;
+  lastWeeklyRun: string | null;
+  pendingDirtyFlags: number;
+}
+
+/**
+ * Get aggregated stats for user or specific library
+ */
+export async function getAggregatedStats(libraryId?: string): Promise<AggregatedStats> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<AggregatedStats>(`/stats${params}`);
+}
+
+/**
+ * Get stats summary with top entities for dashboard
+ */
+export async function getStatsSummary(libraryId?: string): Promise<StatsSummary> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<StatsSummary>(`/stats/summary${params}`);
+}
+
+/**
+ * Get entity stats list with pagination
+ */
+export async function getEntityStats(params: {
+  entityType: EntityType;
+  libraryId?: string;
+  sortBy?: 'owned' | 'read' | 'time';
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: EntityStatResult[]; total: number }> {
+  const queryParams = new URLSearchParams();
+  if (params.libraryId) queryParams.set('libraryId', params.libraryId);
+  if (params.sortBy) queryParams.set('sortBy', params.sortBy);
+  if (params.limit) queryParams.set('limit', params.limit.toString());
+  if (params.offset) queryParams.set('offset', params.offset.toString());
+
+  const query = queryParams.toString();
+  return get<{ items: EntityStatResult[]; total: number }>(
+    `/stats/entities/${params.entityType}${query ? `?${query}` : ''}`
+  );
+}
+
+/**
+ * Get detailed stats for a specific entity
+ */
+export async function getEntityDetails(params: {
+  entityType: EntityType;
+  entityName: string;
+  entityRole?: string;
+  libraryId?: string;
+}): Promise<EntityDetails> {
+  const queryParams = new URLSearchParams();
+  if (params.entityRole) queryParams.set('entityRole', params.entityRole);
+  if (params.libraryId) queryParams.set('libraryId', params.libraryId);
+
+  const query = queryParams.toString();
+  const encodedName = encodeURIComponent(params.entityName);
+  return get<EntityDetails>(
+    `/stats/entities/${params.entityType}/${encodedName}${query ? `?${query}` : ''}`
+  );
+}
+
+/**
+ * Get just the stat record for a specific entity
+ */
+export async function getEntityStat(params: {
+  entityType: EntityType;
+  entityName: string;
+  entityRole?: string;
+  libraryId?: string;
+}): Promise<EntityStatResult> {
+  const queryParams = new URLSearchParams();
+  if (params.entityRole) queryParams.set('entityRole', params.entityRole);
+  if (params.libraryId) queryParams.set('libraryId', params.libraryId);
+
+  const query = queryParams.toString();
+  const encodedName = encodeURIComponent(params.entityName);
+  return get<EntityStatResult>(
+    `/stats/entities/${params.entityType}/${encodedName}/stat${query ? `?${query}` : ''}`
+  );
+}
+
+/**
+ * Trigger stats rebuild
+ */
+export async function triggerStatsRebuild(scope: 'dirty' | 'full' = 'dirty'): Promise<{
+  success: boolean;
+  message: string;
+  processed?: number;
+}> {
+  return post<{ success: boolean; message: string; processed?: number }>(
+    '/stats/rebuild',
+    { scope }
+  );
+}
+
+/**
+ * Get stats scheduler status
+ */
+export async function getSchedulerStatus(): Promise<SchedulerStatus> {
+  return get<SchedulerStatus>('/stats/scheduler');
+}
+
+// =============================================================================
+// ACHIEVEMENTS API
+// =============================================================================
+
+export interface AchievementWithProgress {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  stars: number;
+  iconName: string;
+  threshold: number | null;
+  minRequired: number | null;
+  progress: number;
+  unlockedAt: string | null;
+  isUnlocked: boolean;
+}
+
+export interface AchievementSummary {
+  totalAchievements: number;
+  unlockedCount: number;
+  totalStars: number;
+  earnedStars: number;
+  categoryCounts: Record<string, { total: number; unlocked: number }>;
+  recentUnlocks: AchievementWithProgress[];
+}
+
+export interface AchievementCategory {
+  key: string;
+  name: string;
+  icon: string;
+  description: string;
+  total: number;
+  unlocked: number;
+}
+
+/**
+ * Get all achievements with user progress
+ */
+export async function getAchievements(): Promise<AchievementWithProgress[]> {
+  return get<AchievementWithProgress[]>('/achievements');
+}
+
+/**
+ * Get achievement summary statistics
+ */
+export async function getAchievementSummary(): Promise<AchievementSummary> {
+  return get<AchievementSummary>('/achievements/summary');
+}
+
+/**
+ * Get all achievement categories with counts
+ */
+export async function getAchievementCategories(): Promise<AchievementCategory[]> {
+  return get<AchievementCategory[]>('/achievements/categories');
+}
+
+/**
+ * Get achievements by category
+ */
+export async function getAchievementsByCategory(category: string): Promise<AchievementWithProgress[]> {
+  return get<AchievementWithProgress[]>(`/achievements/category/${category}`);
+}
+
+/**
+ * Get unlocked achievements
+ */
+export async function getUnlockedAchievements(): Promise<AchievementWithProgress[]> {
+  return get<AchievementWithProgress[]>('/achievements/unlocked');
+}
+
+/**
+ * Get recently unlocked achievements (for notifications)
+ */
+export async function getRecentAchievements(limit = 5): Promise<AchievementWithProgress[]> {
+  return get<AchievementWithProgress[]>(`/achievements/recent?limit=${limit}`);
+}
+
+/**
+ * Mark achievements as notified
+ */
+export async function markAchievementsNotified(achievementIds: string[]): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>('/achievements/mark-notified', { achievementIds });
+}
+
+/**
+ * Seed achievements database with config data
+ */
+export async function seedAchievements(achievements: Array<{
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  stars: number;
+  icon: string;
+  threshold: number;
+  minRequired?: number;
+}>): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>('/achievements/seed', { achievements });
 }
 

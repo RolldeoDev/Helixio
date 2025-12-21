@@ -43,6 +43,10 @@ export interface MetadataSettings {
   sourcePriority: MetadataSource[];
   /** Which metadata sources are enabled */
   enabledSources: MetadataSource[];
+  /** Confidence threshold for auto-matching cross-source series (0.85-1.0) */
+  autoMatchThreshold: number;
+  /** Whether to automatically apply high-confidence cross-source matches */
+  autoApplyHighConfidence: boolean;
 }
 
 export interface CacheSettings {
@@ -97,6 +101,8 @@ const DEFAULT_CONFIG: AppConfig = {
     },
     sourcePriority: ['comicvine', 'metron'],
     enabledSources: ['comicvine', 'metron'],
+    autoMatchThreshold: 0.95,
+    autoApplyHighConfidence: true,
   },
   cache: {
     coverCacheSizeMb: 500,
@@ -328,6 +334,9 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     // Ensure arrays have defaults if not provided
     sourcePriority: partial.metadata?.sourcePriority || DEFAULT_CONFIG.metadata.sourcePriority,
     enabledSources: partial.metadata?.enabledSources || DEFAULT_CONFIG.metadata.enabledSources,
+    // Ensure new cross-source settings have defaults
+    autoMatchThreshold: partial.metadata?.autoMatchThreshold ?? DEFAULT_CONFIG.metadata.autoMatchThreshold,
+    autoApplyHighConfidence: partial.metadata?.autoApplyHighConfidence ?? DEFAULT_CONFIG.metadata.autoApplyHighConfidence,
   };
 
   return {

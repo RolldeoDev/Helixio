@@ -354,6 +354,63 @@
   cursor: not-allowed;
 }
 
+/* =============================================================================
+   Interactive Mode Styles
+   ============================================================================= */
+
+/* Interactive field row - spans the entire table */
+.field-row.interactive-field .field-selector {
+  padding: 0.5rem 1rem;
+  background: var(--surface-elevated);
+}
+
+/* Ghost button for reset */
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+/* Mode indicator */
+.mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface-elevated);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.mode-indicator.interactive {
+  background: rgba(74, 144, 217, 0.1);
+  border: 1px solid rgba(74, 144, 217, 0.3);
+  color: #4a90d9;
+}
+
+.mode-indicator .mode-icon {
+  font-size: 1rem;
+}
+
+/* Override indicator for changed fields */
+.field-row.has-override {
+  background: rgba(255, 193, 7, 0.05);
+}
+
+.field-row.has-override .field-label::after {
+  content: '*';
+  color: #ffc107;
+  margin-left: 0.25rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .merged-modal-overlay {

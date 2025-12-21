@@ -25,6 +25,7 @@ import { getSeriesMetadata } from '../metadata-search.service.js';
 import { applyMetadataToSeries, type SeriesMetadataPayload } from '../series-metadata-fetch.service.js';
 import { getSession, setSession, deleteSessionFromStore } from './session-store.js';
 import { invalidateAfterApplyChanges } from '../metadata-invalidation.service.js';
+import { markDirtyForMetadataChange } from '../stats-dirty.service.js';
 import type { ApprovalSession, ApplyResult, ApplyChangesResult, ProgressCallback } from './types.js';
 
 const logger = createServiceLogger('metadata-approval-apply');
@@ -267,6 +268,22 @@ export async function applyChanges(
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+    }
+  }
+
+  // ==========================================================================
+  // Mark stats as dirty for successful metadata changes
+  // ==========================================================================
+
+  const successfulFileIds = results.filter((r) => r.success).map((r) => r.fileId);
+  if (successfulFileIds.length > 0) {
+    progress('Marking stats for recalculation', `${successfulFileIds.length} file(s)`);
+    for (const fileId of successfulFileIds) {
+      try {
+        await markDirtyForMetadataChange(fileId);
+      } catch (err) {
+        logger.warn({ fileId, error: err }, 'Failed to mark stats dirty for file');
+      }
     }
   }
 

@@ -3,14 +3,27 @@
  *
  * A slide-out drawer for editing issue metadata during the file review step.
  * Displays all ComicInfo.xml fields organized in collapsible sections.
+ * Supports showing field source information when metadata comes from multiple sources.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { FileChange, FieldChange } from '../../services/api.service';
+import type { FileChange, FieldChange, MetadataSource } from '../../services/api.service';
 import { FieldSection } from './FieldSection';
 import { EditableField } from './EditableField';
 import { TagChipsInput } from './TagChipsInput';
 import './IssueEditDrawer.css';
+
+const SOURCE_LABELS: Record<MetadataSource, string> = {
+  comicvine: 'ComicVine',
+  metron: 'Metron',
+  gcd: 'GCD',
+};
+
+const SOURCE_COLORS: Record<MetadataSource, string> = {
+  comicvine: '#f05050',
+  metron: '#4a90d9',
+  gcd: '#4caf50',
+};
 
 // Field definition type
 type FieldDef = {
@@ -165,6 +178,10 @@ interface IssueEditDrawerProps {
   onSwitchMatch: (fileId: string) => void;
   onReject: (fileId: string) => Promise<void>;
   disabled?: boolean;
+  /** Optional field sources showing which provider each field came from */
+  fieldSources?: Record<string, MetadataSource>;
+  /** Whether to show source badges next to field values */
+  showFieldSources?: boolean;
 }
 
 export function IssueEditDrawer({
@@ -176,6 +193,8 @@ export function IssueEditDrawer({
   onSwitchMatch,
   onReject,
   disabled = false,
+  fieldSources,
+  showFieldSources = false,
 }: IssueEditDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [pendingUpdates, setPendingUpdates] = useState<
@@ -321,6 +340,23 @@ export function IssueEditDrawer({
 
   if (!fileChange) return null;
 
+  // Render source badge for a field
+  const renderSourceBadge = (fieldKey: string) => {
+    if (!showFieldSources || !fieldSources) return null;
+    const source = fieldSources[fieldKey];
+    if (!source) return null;
+
+    return (
+      <span
+        className="field-source-badge"
+        style={{ backgroundColor: SOURCE_COLORS[source] }}
+        title={`Data from ${SOURCE_LABELS[source]}`}
+      >
+        {source === 'comicvine' ? 'CV' : source === 'metron' ? 'MT' : 'GCD'}
+      </span>
+    );
+  };
+
   const renderField = (field: {
     key: string;
     label: string;
@@ -331,34 +367,39 @@ export function IssueEditDrawer({
     step?: number;
   }) => {
     const fieldChangeData = getFieldChange(field.key);
+    const sourceBadge = renderSourceBadge(field.key);
 
     if (field.type === 'tags') {
       return (
-        <TagChipsInput
-          key={field.key}
-          label={field.label}
-          fieldKey={field.key}
-          fieldChange={fieldChangeData}
-          onChange={(value) => handleFieldChange(field.key, value)}
-          disabled={disabled}
-        />
+        <div key={field.key} className="field-with-source">
+          <TagChipsInput
+            label={field.label}
+            fieldKey={field.key}
+            fieldChange={fieldChangeData}
+            onChange={(value) => handleFieldChange(field.key, value)}
+            disabled={disabled}
+          />
+          {sourceBadge}
+        </div>
       );
     }
 
     return (
-      <EditableField
-        key={field.key}
-        label={field.label}
-        fieldKey={field.key}
-        fieldChange={fieldChangeData}
-        type={field.type}
-        options={field.options}
-        min={field.min}
-        max={field.max}
-        step={field.step}
-        onChange={(value) => handleFieldChange(field.key, value)}
-        disabled={disabled}
-      />
+      <div key={field.key} className="field-with-source">
+        <EditableField
+          label={field.label}
+          fieldKey={field.key}
+          fieldChange={fieldChangeData}
+          type={field.type}
+          options={field.options}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          onChange={(value) => handleFieldChange(field.key, value)}
+          disabled={disabled}
+        />
+        {sourceBadge}
+      </div>
     );
   };
 

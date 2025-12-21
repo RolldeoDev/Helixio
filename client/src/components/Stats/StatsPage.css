@@ -1,0 +1,133 @@
+/* =============================================================================
+   Stats Page - Comic Archive Editorial
+   Magazine-style statistics dashboard
+   ============================================================================= */
+
+.stats-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+  min-height: calc(100vh - 60px);
+}
+
+/* =============================================================================
+   Layout Rows
+   ============================================================================= */
+
+.stats-page__row {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.stats-page__row--two-col {
+  grid-template-columns: 1.5fr 1fr;
+}
+
+.stats-page__row--equal {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* =============================================================================
+   Error State
+   ============================================================================= */
+
+.stats-page--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stats-page__error {
+  text-align: center;
+  padding: var(--spacing-2xl);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  max-width: 400px;
+}
+
+.stats-page__error h2 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 1.25rem;
+  color: var(--color-error);
+}
+
+.stats-page__error p {
+  margin: 0 0 var(--spacing-lg);
+  color: var(--color-text-muted);
+}
+
+.stats-page__error button {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-bg);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.stats-page__error button:hover {
+  background: var(--color-primary-hover);
+}
+
+/* =============================================================================
+   Global Animation Keyframes
+   ============================================================================= */
+
+@keyframes stats-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stats-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  .stats-page {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-lg);
+  }
+
+  .stats-page__row--two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .stats-page {
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+}

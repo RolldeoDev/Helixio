@@ -8,7 +8,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
-import { renameFile, rebuildCache, getLibraryReadingProgress } from '../../services/api.service';
+import { renameFile, rebuildCache, getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CoverSizeSlider, getCoverWidth } from '../CoverSizeSlider';
 import { groupFiles } from '../../utils/file-grouping';
@@ -211,13 +211,57 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
   }, [selectFile]);
 
   // Handle context menu action
-  const handleMenuAction = useCallback((action: MenuItemPreset | string, fileId: string) => {
+  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
     // Get target file IDs (selected files if the clicked file is selected, otherwise just the clicked file)
-    const targetIds = selectedFiles.has(fileId) ? Array.from(selectedFiles) : [fileId];
+    const targetIds: string[] = selectedFiles.has(fileId) ? Array.from(selectedFiles) as string[] : [fileId];
 
     switch (action) {
       case 'read':
         handleRead(fileId);
+        break;
+      case 'markRead':
+        try {
+          setOperation('Mark as Read', `Marking ${targetIds.length} issue(s) as read...`);
+          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
+          // Update local reading progress state
+          setReadingProgress((prev) => {
+            const updated = { ...prev };
+            targetIds.forEach((id) => {
+              if (updated[id]) {
+                updated[id] = { ...updated[id], completed: true };
+              } else {
+                updated[id] = { currentPage: 0, totalPages: 1, completed: true };
+              }
+            });
+            return updated;
+          });
+          setOperation(null, 'Marked as read');
+          setTimeout(() => setOperation(null), 2000);
+        } catch (err) {
+          setOperation(null, `Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
+          setTimeout(() => setOperation(null), 3000);
+        }
+        break;
+      case 'markUnread':
+        try {
+          setOperation('Mark as Unread', `Marking ${targetIds.length} issue(s) as unread...`);
+          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
+          // Update local reading progress state
+          setReadingProgress((prev) => {
+            const updated = { ...prev };
+            targetIds.forEach((id) => {
+              if (updated[id]) {
+                updated[id] = { ...updated[id], completed: false, currentPage: 0 };
+              }
+            });
+            return updated;
+          });
+          setOperation(null, 'Marked as unread');
+          setTimeout(() => setOperation(null), 2000);
+        } catch (err) {
+          setOperation(null, `Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
+          setTimeout(() => setOperation(null), 3000);
+        }
         break;
       case 'fetchMetadata':
         onFetchMetadata?.(targetIds);
@@ -232,11 +276,13 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
         handleRebuildCache();
         break;
     }
-  }, [handleRead, onFetchMetadata, onEditMetadata, selectedFiles, openRenameDialog, handleRebuildCache]);
+  }, [handleRead, onFetchMetadata, onEditMetadata, selectedFiles, openRenameDialog, handleRebuildCache, setOperation]);
 
   // Determine menu items based on available handlers
   const menuItems: MenuItemPreset[] = [
     'read',
+    'markRead',
+    'markUnread',
     ...(onFetchMetadata ? ['fetchMetadata'] as MenuItemPreset[] : []),
     ...(onEditMetadata ? ['editMetadata'] as MenuItemPreset[] : []),
     'rename',

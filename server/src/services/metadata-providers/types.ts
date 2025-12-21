@@ -155,6 +155,126 @@ export interface MergedIssueMetadata extends IssueMetadata {
 }
 
 // =============================================================================
+// All-Values Merged Metadata (for per-field source selection UI)
+// =============================================================================
+
+/**
+ * Extended merged series metadata that tracks ALL values from ALL sources
+ * for each field, enabling per-field source selection in the UI.
+ */
+export interface AllValuesSeriesMetadata extends MergedSeriesMetadata {
+  /** All values from all sources for each field */
+  allFieldValues: Record<string, Record<MetadataSource, unknown>>;
+  /** User-selected source overrides per field (optional) */
+  fieldSourceOverrides?: Record<string, MetadataSource>;
+}
+
+/**
+ * Extended merged issue metadata that tracks ALL values from ALL sources.
+ */
+export interface AllValuesIssueMetadata extends MergedIssueMetadata {
+  /** All values from all sources for each field */
+  allFieldValues: Record<string, Record<MetadataSource, unknown>>;
+  /** User-selected source overrides per field (optional) */
+  fieldSourceOverrides?: Record<string, MetadataSource>;
+}
+
+// =============================================================================
+// Cross-Source Matching Types
+// =============================================================================
+
+/**
+ * Match factors used to calculate confidence score.
+ */
+export interface CrossMatchFactors {
+  /** Title similarity score (0-1) */
+  titleSimilarity: number;
+  /** Whether publishers match (normalized comparison) */
+  publisherMatch: boolean;
+  /** Year match status */
+  yearMatch: 'exact' | 'close' | 'none';
+  /** Whether issue counts are within tolerance */
+  issueCountMatch: boolean;
+  /** List of creators that overlap between sources */
+  creatorOverlap: string[];
+  /** Whether any aliases matched */
+  aliasMatch: boolean;
+}
+
+/**
+ * A match from a secondary source for a primary series.
+ */
+export interface CrossSourceMatch {
+  /** The secondary source */
+  source: MetadataSource;
+  /** The source ID in the secondary source */
+  sourceId: string;
+  /** Full series metadata from the secondary source */
+  seriesData: SeriesMetadata;
+  /** Overall confidence score (0-1) */
+  confidence: number;
+  /** Breakdown of match factors */
+  matchFactors: CrossMatchFactors;
+  /** Whether this match exceeds the auto-match threshold */
+  isAutoMatchCandidate: boolean;
+}
+
+/**
+ * Result of cross-source matching for a series.
+ */
+export interface CrossSourceResult {
+  /** The primary source that was searched */
+  primarySource: MetadataSource;
+  /** The primary source ID */
+  primarySourceId: string;
+  /** Matches from all secondary sources */
+  matches: CrossSourceMatch[];
+  /** Status of each source's matching attempt */
+  status: Record<MetadataSource, 'matched' | 'no_match' | 'searching' | 'error' | 'skipped'>;
+}
+
+/**
+ * Options for cross-source matching.
+ */
+export interface CrossMatchOptions {
+  /** Confidence threshold for auto-matching (default: 0.95) */
+  autoMatchThreshold?: number;
+  /** Sources to search (default: all enabled except primary) */
+  targetSources?: MetadataSource[];
+  /** Session ID for tracking */
+  sessionId?: string;
+}
+
+/**
+ * Issue-level cross-source match.
+ */
+export interface IssueMatchFactors {
+  /** Issue number match (normalized) */
+  numberMatch: boolean;
+  /** Cover date similarity */
+  coverDateMatch: 'exact' | 'close' | 'none';
+  /** Title similarity (for titled issues) */
+  titleSimilarity: number;
+  /** Page count within tolerance */
+  pageCountMatch: boolean;
+}
+
+export interface IssueCrossMatch {
+  /** The secondary source */
+  source: MetadataSource;
+  /** The issue in the secondary source */
+  issue: IssueMetadata;
+  /** Overall confidence score (0-1) */
+  confidence: number;
+  /** Match factors */
+  matchFactors: IssueMatchFactors;
+  /** Whether this is a variant cover */
+  isVariant?: boolean;
+  /** Variant type if applicable */
+  variantType?: 'cover' | 'edition' | 'printing';
+}
+
+// =============================================================================
 // Provider Interface
 // =============================================================================
 

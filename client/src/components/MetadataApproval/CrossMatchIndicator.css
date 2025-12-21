@@ -1,0 +1,308 @@
+/**
+ * CrossMatchIndicator Styles
+ */
+
+.cross-match-indicator {
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  background: var(--surface-color, #1a1a1a);
+  margin: 8px 0;
+  overflow: hidden;
+}
+
+.cross-match-indicator.expanded {
+  border-color: var(--primary-color, #4a90d9);
+}
+
+/* =============================================================================
+   Summary Row
+   ============================================================================= */
+
+.cross-match-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cross-match-summary:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.cross-match-summary .summary-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #999);
+  font-weight: 500;
+}
+
+.cross-match-summary .searching-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary, #999);
+  font-size: 0.85rem;
+}
+
+.cross-match-summary .source-badges {
+  display: flex;
+  gap: 4px;
+}
+
+.cross-match-summary .source-badge-mini {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: white;
+  position: relative;
+}
+
+.cross-match-summary .source-badge-mini.matched {
+  opacity: 1;
+}
+
+.cross-match-summary .source-badge-mini.no_match,
+.cross-match-summary .source-badge-mini.error,
+.cross-match-summary .source-badge-mini.skipped {
+  opacity: 0.4;
+  color: var(--text-secondary, #999);
+}
+
+.cross-match-summary .source-badge-mini.searching {
+  opacity: 0.7;
+  animation: pulse 1.5s infinite;
+}
+
+.cross-match-summary .source-badge-mini .confidence-dot {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--surface-color, #1a1a1a);
+}
+
+.cross-match-summary .source-badge-mini .confidence-dot.high {
+  background: #4caf50;
+}
+
+.cross-match-summary .source-badge-mini .confidence-dot.medium {
+  background: #ffc107;
+}
+
+.cross-match-summary .source-badge-mini .confidence-dot.low {
+  background: #f44336;
+}
+
+.cross-match-summary .match-summary-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #999);
+}
+
+.cross-match-summary .auto-matched-text {
+  color: #4caf50;
+  font-weight: 500;
+}
+
+.cross-match-summary .expand-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #999);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cross-match-summary .expand-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary, #fff);
+}
+
+/* =============================================================================
+   Expanded Details
+   ============================================================================= */
+
+.cross-match-details {
+  border-top: 1px solid var(--border-color, #333);
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.match-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid;
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 8px;
+}
+
+.match-detail-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.match-detail-row .source-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 80px;
+}
+
+.match-detail-row .match-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.match-detail-row .confidence-badge {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.match-detail-row .confidence-badge.high {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.match-detail-row .confidence-badge.medium {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+.match-detail-row .confidence-badge.low {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.match-detail-row .auto-match-label {
+  font-size: 0.75rem;
+  color: #4caf50;
+  background: rgba(76, 175, 80, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.match-detail-row .series-name {
+  font-size: 0.85rem;
+  color: var(--text-primary, #fff);
+}
+
+.match-detail-row .match-factors {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.match-detail-row .factor {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.match-detail-row .factor.good {
+  color: #4caf50;
+}
+
+.match-detail-row .factor.partial {
+  color: #ffc107;
+}
+
+.match-detail-row .factor.bad {
+  color: #f44336;
+}
+
+.match-detail-row .factor.neutral {
+  color: var(--text-secondary, #999);
+}
+
+.match-detail-row .view-match-btn {
+  background: var(--primary-color, #4a90d9);
+  border: none;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.match-detail-row .view-match-btn:hover {
+  background: var(--primary-color-hover, #5a9de9);
+}
+
+.match-detail-row .status-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #999);
+}
+
+.match-detail-row .status-text.searching {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.match-detail-row .status-text.error {
+  color: #f44336;
+}
+
+.cross-match-details .refresh-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--border-color, #333);
+  color: var(--text-secondary, #999);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s, color 0.2s;
+}
+
+.cross-match-details .refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #fff);
+}
+
+/* =============================================================================
+   Spinner
+   ============================================================================= */
+
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--primary-color, #4a90d9);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

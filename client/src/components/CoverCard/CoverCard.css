@@ -38,18 +38,21 @@
 
   /* Shadows & effects */
   --cover-card-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
-  --cover-card-shadow-hover: var(--shadow-card-elevated, 0 10px 15px -3px rgba(0, 0, 0, 0.4));
+  --cover-card-shadow-hover: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
   --cover-card-shadow-glow: var(--shadow-glow-primary, 0 0 20px rgba(99, 102, 241, 0.3));
+  --cover-card-hover-glow: var(--shadow-hover-glow, 0 0 25px rgba(212, 165, 116, 0.25));
 
   /* Transitions */
-  --cover-card-transition: var(--transition-fast, 150ms ease);
+  --cover-card-transition: var(--transition-medium, 250ms ease);
+  --cover-card-transition-out: var(--transition-slow, 400ms ease);
 
   /* Border radius */
   --cover-card-radius: var(--radius-md, 8px);
 
   /* Hover effects */
-  --cover-card-hover-scale: var(--scale-hover, 1.02);
-  --cover-card-hover-lift: var(--lift-hover, -2px);
+  --cover-card-hover-scale: var(--scale-hover, 1.06);
+  --cover-card-hover-lift: var(--lift-hover, -4px);
+  --cover-card-image-hover-scale: var(--scale-image-hover, 1.05);
 }
 
 /* =============================================================================
@@ -65,18 +68,31 @@
   border-radius: var(--cover-card-radius);
   border: var(--cover-card-border-width) solid transparent;
   cursor: pointer;
+  /* Slower transition for hover-off (easing out) */
   transition:
-    transform var(--cover-card-transition),
-    box-shadow var(--cover-card-transition),
-    border-color var(--cover-card-transition);
+    transform var(--cover-card-transition-out),
+    box-shadow var(--cover-card-transition-out),
+    border-color var(--cover-card-transition-out),
+    background var(--cover-card-transition-out);
   outline: none;
   box-shadow: var(--cover-card-shadow);
+  /* Prevent border-radius clipping issues during transform */
+  overflow: hidden;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .cover-card:hover {
   transform: translateY(var(--cover-card-hover-lift)) scale(var(--cover-card-hover-scale));
-  box-shadow: var(--cover-card-shadow-hover);
+  box-shadow: var(--cover-card-shadow-hover), var(--cover-card-hover-glow);
   background: var(--cover-card-bg-hover);
+  /* Faster transition for hover-on */
+  transition:
+    transform var(--cover-card-transition),
+    box-shadow var(--cover-card-transition),
+    border-color var(--cover-card-transition),
+    background var(--cover-card-transition);
 }
 
 .cover-card:focus-visible {
@@ -203,7 +219,18 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: opacity var(--cover-card-transition);
+  /* Slower transition for hover-off */
+  transition:
+    opacity var(--cover-card-transition),
+    transform var(--cover-card-transition-out);
+}
+
+.cover-card:hover .cover-card__image {
+  transform: scale(var(--cover-card-image-hover-scale));
+  /* Faster transition for hover-on */
+  transition:
+    opacity var(--cover-card-transition),
+    transform var(--cover-card-transition);
 }
 
 .cover-card__image--hidden {
@@ -278,6 +305,108 @@
 .cover-card__error-text {
   font-size: 12px;
   color: var(--cover-card-text-muted);
+}
+
+/* =============================================================================
+   Issue Number Badge (Comic-Inspired)
+   ============================================================================= */
+
+.cover-card__issue-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  padding: 3px 8px 4px 6px;
+
+  /* Comic book corner box aesthetic */
+  background: linear-gradient(
+    135deg,
+    #f5c542 0%,
+    #e5a91d 50%,
+    #d4980a 100%
+  );
+
+  /* Angular cut on top-left corner for dynamic feel */
+  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+
+  /* Depth and pop */
+  box-shadow:
+    2px 2px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+
+  /* Subtle rotation for dynamism */
+  transform: rotate(-2deg);
+  transform-origin: bottom right;
+
+  /* Typography */
+  font-family: 'Impact', 'Haettenschweiler', 'Franklin Gothic Bold', 'Charcoal', 'Helvetica Inserat', 'Bitstream Vera Sans Bold', 'Arial Black', sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+
+  /* Text color with slight shadow for readability */
+  color: #1a1a1a;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+
+  transition:
+    transform var(--cover-card-transition),
+    box-shadow var(--cover-card-transition);
+}
+
+.cover-card:hover .cover-card__issue-badge {
+  transform: rotate(0deg) scale(1.05);
+  box-shadow:
+    3px 3px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.cover-card__issue-badge-hash {
+  font-size: 10px;
+  opacity: 0.7;
+  font-weight: 700;
+  margin-right: 1px;
+}
+
+.cover-card__issue-badge-number {
+  font-size: 14px;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Size variations */
+.cover-card--small .cover-card__issue-badge {
+  padding: 2px 6px 3px 4px;
+  bottom: 4px;
+  right: 4px;
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+}
+
+.cover-card--small .cover-card__issue-badge-hash {
+  font-size: 8px;
+}
+
+.cover-card--small .cover-card__issue-badge-number {
+  font-size: 11px;
+}
+
+.cover-card--large .cover-card__issue-badge {
+  padding: 4px 10px 5px 8px;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+}
+
+.cover-card--large .cover-card__issue-badge-hash {
+  font-size: 12px;
+}
+
+.cover-card--large .cover-card__issue-badge-number {
+  font-size: 18px;
+}
+
+/* Hide in compact mode */
+.cover-card--compact .cover-card__issue-badge {
+  display: none;
 }
 
 /* =============================================================================
@@ -521,16 +650,17 @@
 @keyframes cover-card-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(10px) scale(1);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 .cover-card {
-  animation: cover-card-enter 0.3s ease both;
+  /* Use 'backwards' fill mode so animation doesn't override hover transforms after completion */
+  animation: cover-card-enter 0.3s ease backwards;
   animation-delay: calc(var(--animation-index, 0) * 30ms);
 }
 
@@ -541,8 +671,10 @@
 @media (prefers-reduced-motion: reduce) {
   .cover-card {
     --cover-card-transition: 0ms;
+    --cover-card-transition-out: 0ms;
     --cover-card-hover-scale: 1;
     --cover-card-hover-lift: 0;
+    --cover-card-image-hover-scale: 1;
     animation: none;
   }
 

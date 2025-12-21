@@ -9,7 +9,7 @@
 import { getMetadataSettings } from './config.service.js';
 import * as comicVine from './comicvine.service.js';
 import * as metron from './metron.service.js';
-import { isMetronAvailable } from './metron.service.js';
+import { isMetronAvailable, getSeriesName } from './metron.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
 
 // =============================================================================
@@ -110,7 +110,9 @@ export interface ApplyMetadataResult {
 /**
  * Calculate string similarity using Levenshtein distance
  */
-function stringSimilarity(a: string, b: string): number {
+function stringSimilarity(a: string | undefined, b: string | undefined): number {
+  if (!a || !b) return 0.0;
+
   const aLower = a.toLowerCase().trim();
   const bLower = b.toLowerCase().trim();
 
@@ -367,7 +369,7 @@ export async function searchSeries(
             const match: SeriesMatch = {
               source: 'metron',
               sourceId: String(series.id),
-              name: series.name,
+              name: getSeriesName(series),
               startYear: series.year_began,
               endYear: series.year_end,
               publisher: series.publisher?.name,

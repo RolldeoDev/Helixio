@@ -26,6 +26,8 @@ model Library {
   files           ComicFile[]
   batchOperations BatchOperation[]
   readerSettings  LibraryReaderSettings?
+  entityStats     EntityStat[]
+  libraryStat     LibraryStat?
 
   @@index([name])
 }
@@ -258,6 +260,10 @@ model FileMetadata {
   seriesInherited Boolean  @default(false)  // True if metadata was inherited from Series
   lastInheritedAt DateTime?                  // When metadata was last inherited
   seriesSource    String   @default("comicinfo") // "comicinfo" | "manual" | "fuzzy" | "api"
+
+  // Per-field source overrides (for multi-source metadata)
+  // JSON: {"writer": "metron", "colorist": "comicvine", ...}
+  fieldSourceOverrides String?
 
   // Tracking
   lastScanned DateTime @default(now())
@@ -816,4 +822,182 @@ model SyncChange {
   @@index([userId, version])
   @@index([entityType, entityId])
   @@index([timestamp])
+}
+
+// =============================================================================
+// Cross-Source Metadata Mappings
+// =============================================================================
+
+model CrossSourceMapping {
+  id              String   @id @default(cuid())
+
+  // Primary source (the one user selected or searched from)
+  primarySource   String   // 'comicvine' | 'metron' | 'gcd'
+  primarySourceId String   // External API series ID for primary source
+
+  // Matched source (the secondary source that was matched)
+  matchedSource   String   // 'comicvine' | 'metron' | 'gcd'
+  matchedSourceId String   // External API series ID for matched source
+
+  // Match metadata
+  confidence      Float    // 0.0 - 1.0 confidence score
+  matchMethod     String   // 'auto' | 'user' | 'api_link'
+  verified        Boolean  @default(false) // User has confirmed this mapping
+
+  // Match factors (JSON for debugging/display)
+  matchFactors    String?  // JSON: {"titleSimilarity": 0.95, "yearMatch": "exact", ...}
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([primarySource, primarySourceId, matchedSource])
+  @@index([matchedSource, matchedSourceId])
+  @@index([primarySource, primarySourceId])
+}
+
+// =============================================================================
+// Comprehensive Stats System
+// =============================================================================
+
+// Entity Stats - Aggregated stats per metadata entity (creators, genres, characters, etc.)
+model EntityStat {
+  id            String   @id @default(cuid())
+
+  // Entity identification
+  entityType    String   // "creator" | "genre" | "character" | "team" | "publisher"
+  entityName    String   // Exact name as stored in metadata
+  entityRole    String?  // For creators: "writer" | "penciller" | etc. Null for others
+
+  // Scope (null libraryId = user-level aggregate across all libraries)
+  libraryId     String?
+  library       Library? @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  // Owned stats (collection)
+  ownedComics   Int      @default(0)
+  ownedSeries   Int      @default(0)
+  ownedPages    Int      @default(0)
+
+  // Read stats (reading progress)
+  readComics    Int      @default(0)
+  readPages     Int      @default(0)
+  readTime      Int      @default(0)  // seconds
+
+  // Timestamps
+  updatedAt     DateTime @updatedAt
+
+  @@unique([entityType, entityName, entityRole, libraryId])
+  @@index([entityType, libraryId])
+  @@index([libraryId])
+  @@index([entityType, ownedComics])
+  @@index([entityType, readComics])
+  @@index([entityType, readTime])
+}
+
+// Library Stats - Cached library-level aggregates
+model LibraryStat {
+  id              String   @id @default(cuid())
+  libraryId       String   @unique
+  library         Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  // Collection stats
+  totalFiles      Int      @default(0)
+  totalSeries     Int      @default(0)
+  totalPages      Int      @default(0)
+
+  // Reading stats
+  filesRead       Int      @default(0)
+  filesInProgress Int      @default(0)
+  filesUnread     Int      @default(0)
+  pagesRead       Int      @default(0)
+  readingTime     Int      @default(0)  // seconds
+
+  // Metadata coverage
+  filesWithMetadata Int    @default(0)
+
+  updatedAt       DateTime @updatedAt
+}
+
+// Stats Dirty Flag - Track what needs recalculation
+model StatsDirtyFlag {
+  id          String   @id @default(cuid())
+
+  // What's dirty
+  scope       String   // "library" | "entity" | "user"
+  scopeId     String?  // libraryId for library scope, null for user
+  entityType  String?  // For entity scope: "creator" | "genre" | etc.
+  entityName  String?  // For entity scope: specific entity name
+
+  // Why it's dirty
+  reason      String   // "metadata_change" | "reading_progress" | "file_added" | "file_removed"
+
+  createdAt   DateTime @default(now())
+
+  @@index([scope, scopeId])
+  @@index([createdAt])
+}
+
+// User Stats - User-level aggregates (cross-library)
+model UserStat {
+  id              String   @id @default(cuid())
+
+  // Collection stats (sum of all libraries)
+  totalFiles      Int      @default(0)
+  totalSeries     Int      @default(0)
+  totalPages      Int      @default(0)
+
+  // Reading stats
+  filesRead       Int      @default(0)
+  filesInProgress Int      @default(0)
+  pagesRead       Int      @default(0)
+  readingTime     Int      @default(0)
+
+  // Streaks (cached from ReadingStats)
+  currentStreak   Int      @default(0)
+  longestStreak   Int      @default(0)
+
+  updatedAt       DateTime @updatedAt
+}
+
+// =============================================================================
+// Achievement System
+// =============================================================================
+
+// Achievement Definition - All possible achievements
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique  // Unique identifier e.g., "pages_100", "streak_7"
+  name        String   // Display name
+  description String   // Description of how to unlock
+  category    String   // Category grouping
+  stars       Int      // 1-5 star rating (difficulty/prestige)
+  iconName    String   // Icon identifier for frontend
+  threshold   Int?     // Numeric threshold for progress-based achievements
+  minRequired Int?     // Minimum requirement (e.g., min library size for percentage achievements)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@index([category])
+  @@index([stars])
+}
+
+// User Achievement - Tracks user's progress and unlocks
+model UserAchievement {
+  id            String    @id @default(cuid())
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  // Progress tracking
+  progress      Int       @default(0)  // Current progress toward threshold
+  unlockedAt    DateTime? // Null if not yet unlocked
+  notified      Boolean   @default(false) // Whether user was notified of unlock
+
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([achievementId]) // One record per achievement per user
+  @@index([unlockedAt])
 }

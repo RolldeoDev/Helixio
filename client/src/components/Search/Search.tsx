@@ -6,7 +6,8 @@
 
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CoverCard, type CoverCardFile } from '../CoverCard';
+import { CoverCard, type CoverCardFile, type MenuItemPreset } from '../CoverCard';
+import { markAsCompleted, markAsIncomplete } from '../../services/api.service';
 
 const API_BASE = '/api';
 
@@ -138,6 +139,32 @@ export function Search() {
   const handleResultClick = (result: SearchResult) => {
     navigate(`/library/${result.libraryId}?file=${result.id}`);
   };
+
+  // Menu items for search results
+  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread'];
+
+  // Handle context menu action
+  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
+    switch (action) {
+      case 'read':
+        navigate(`/read/${fileId}`);
+        break;
+      case 'markRead':
+        try {
+          await markAsCompleted(fileId);
+        } catch (err) {
+          console.error('Failed to mark as read:', err);
+        }
+        break;
+      case 'markUnread':
+        try {
+          await markAsIncomplete(fileId);
+        } catch (err) {
+          console.error('Failed to mark as unread:', err);
+        }
+        break;
+    }
+  }, [navigate]);
 
   const activeFilterCount = Object.keys(filters).filter(
     (k) => filters[k as keyof SearchFilters] !== undefined
@@ -332,11 +359,13 @@ export function Search() {
                     variant="grid"
                     size="medium"
                     selectable={false}
-                    contextMenuEnabled={false}
+                    contextMenuEnabled={true}
+                    menuItems={menuItems}
                     showInfo={true}
                     showSeries={true}
                     showIssueNumber={true}
                     onClick={() => handleResultClick(result)}
+                    onMenuAction={handleMenuAction}
                   />
                 );
               })}

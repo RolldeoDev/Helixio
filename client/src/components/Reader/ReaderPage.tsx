@@ -18,7 +18,6 @@ export function ReaderPage() {
     isLandscape,
     goToPage,
     setZoom,
-    setPan,
     getPageRotation,
     detectWebtoonFormat,
   } = useReader();
@@ -34,10 +33,9 @@ export function ReaderPage() {
   // Network-aware preloading configuration
   const preloadConfig = useNetworkAwarePreload(state.preloadCount);
 
-  // Pan state for drag interaction
+  // Drag state for scroll interaction
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
-  const panStartRef = useRef({ x: 0, y: 0 });
 
   // Touch state for pinch-to-zoom
   const lastTouchDistanceRef = useRef<number | null>(null);
@@ -213,21 +211,21 @@ export function ReaderPage() {
     }
   };
 
-  // Get scaling styles
+  // Get scaling styles with zoom applied
   const getImageStyle = (pageIndex: number, splitHalf?: 'left' | 'right' | null) => {
     const colorFilter = getColorCorrectionFilter();
     const rotation = getPageRotation(pageIndex);
+    const zoom = state.zoom;
+    const dims = state.pageDimensions.get(pageIndex);
 
-    // Build transform string
+    // Build transform string - only for rotation
     const transforms: string[] = [];
-    transforms.push(`scale(${state.zoom})`);
-    transforms.push(`translate(${state.panOffset.x}px, ${state.panOffset.y}px)`);
     if (rotation !== 0) {
       transforms.push(`rotate(${rotation}deg)`);
     }
 
     const style: React.CSSProperties = {
-      transform: transforms.join(' '),
+      transform: transforms.length > 0 ? transforms.join(' ') : undefined,
       transformOrigin: 'center center',
       filter: colorFilter || undefined,
     };
@@ -248,6 +246,59 @@ export function ReaderPage() {
       style.marginLeft = '-100%'; // Shift to show right half
     }
 
+    // For zoomed view, use explicit pixel dimensions based on image size
+    // This enables native scrolling since the image has actual larger dimensions
+    if (zoom !== 1 && dims && !splitHalf) {
+      // Calculate the base size at zoom=1 based on scaling mode
+      const containerRef = document.querySelector('.reader-page-container');
+      const containerWidth = containerRef?.clientWidth || window.innerWidth;
+      const containerHeight = containerRef?.clientHeight || window.innerHeight;
+
+      let baseWidth: number;
+      let baseHeight: number;
+
+      switch (state.scaling) {
+        case 'fitHeight':
+          // Height fills container, width scales proportionally
+          baseHeight = containerHeight;
+          baseWidth = (dims.width / dims.height) * baseHeight;
+          break;
+        case 'fitWidth':
+          // Width fills container, height scales proportionally
+          baseWidth = containerWidth;
+          baseHeight = (dims.height / dims.width) * baseWidth;
+          break;
+        case 'fitScreen':
+          // Fit within container maintaining aspect ratio
+          const scaleX = containerWidth / dims.width;
+          const scaleY = containerHeight / dims.height;
+          const scale = Math.min(scaleX, scaleY);
+          baseWidth = dims.width * scale;
+          baseHeight = dims.height * scale;
+          break;
+        case 'original':
+          baseWidth = dims.width;
+          baseHeight = dims.height;
+          break;
+        case 'custom':
+          baseWidth = state.customWidth || dims.width;
+          baseHeight = (dims.height / dims.width) * baseWidth;
+          break;
+        default:
+          baseWidth = dims.width;
+          baseHeight = dims.height;
+      }
+
+      // Apply zoom to get final dimensions
+      style.width = `${baseWidth * zoom}px`;
+      style.height = `${baseHeight * zoom}px`;
+      style.maxWidth = 'none';
+      style.maxHeight = 'none';
+
+      return style;
+    }
+
+    // Apply base scaling (no zoom or dimensions not available)
     switch (state.scaling) {
       case 'fitHeight':
         style.height = '100%';
@@ -271,7 +322,7 @@ export function ReaderPage() {
         }
         break;
       case 'original':
-        // No constraints
+        // No constraints - use natural size
         break;
       case 'custom':
         if (state.customWidth) {
@@ -401,30 +452,47 @@ export function ReaderPage() {
         const container = containerRef.current;
         if (!container) return;
 
-        const delta = e.deltaY > 0 ? -0.15 : 0.15;
-        const newZoom = Math.max(0.25, Math.min(4, state.zoom + delta));
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const oldZoom = state.zoom;
+        const newZoom = Math.max(0.25, Math.min(4, oldZoom + delta));
 
-        // Calculate cursor position relative to container center
+        if (newZoom === oldZoom) return;
+
+        // Store current scroll position to adjust after zoom
+        const scrollLeft = container.scrollLeft;
+        const scrollTop = container.scrollTop;
         const rect = container.getBoundingClientRect();
-        const cursorX = e.clientX - rect.left - rect.width / 2;
-        const cursorY = e.clientY - rect.top - rect.height / 2;
 
-        // Adjust pan to zoom toward cursor position
-        const zoomRatio = newZoom / state.zoom;
-        const newPanX = state.panOffset.x - (cursorX / state.zoom) * (zoomRatio - 1);
-        const newPanY = state.panOffset.y - (cursorY / state.zoom) * (zoomRatio - 1);
+        // Calculate cursor position relative to viewport
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
+
+        // Calculate the point in the content that's under the cursor (in normalized 0-1 space)
+        const contentWidth = container.scrollWidth;
+        const contentHeight = container.scrollHeight;
+        const normalizedX = (scrollLeft + cursorX) / contentWidth;
+        const normalizedY = (scrollTop + cursorY) / contentHeight;
 
         setZoom(newZoom);
-        setPan({ x: newPanX, y: newPanY });
+
+        // After zoom, adjust scroll to keep cursor position stable
+        // Use requestAnimationFrame to let the DOM update first
+        requestAnimationFrame(() => {
+          const newContentWidth = container.scrollWidth;
+          const newContentHeight = container.scrollHeight;
+          const newContentX = normalizedX * newContentWidth;
+          const newContentY = normalizedY * newContentHeight;
+          container.scrollLeft = newContentX - cursorX;
+          container.scrollTop = newContentY - cursorY;
+        });
         return;
       }
 
       // In continuous/webtoon mode, let native scroll work
       if (state.mode === 'continuous' || state.mode === 'webtoon') return;
 
-      // When zoomed, allow panning via scroll
-      if (state.zoom !== 1) {
-        // Allow native scroll behavior for panning
+      // When zoomed, let native scroll handle panning
+      if (state.zoom > 1) {
         return;
       }
 
@@ -440,36 +508,44 @@ export function ReaderPage() {
         }
       }
     },
-    [state.zoom, state.mode, state.direction, state.panOffset, setZoom, setPan, nextPage, prevPage]
+    [state.zoom, state.mode, state.direction, setZoom, nextPage, prevPage]
   );
 
-  // Mouse handlers for drag panning when zoomed
+  // Track scroll position for drag-to-scroll
+  const scrollStartRef = useRef({ x: 0, y: 0 });
+
+  // Mouse handlers for drag-to-scroll when zoomed
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (state.zoom <= 1) return;
       if (e.button !== 0) return; // Only left click
 
+      const container = containerRef.current;
+      if (!container) return;
+
       setIsDragging(true);
       dragStartRef.current = { x: e.clientX, y: e.clientY };
-      panStartRef.current = { ...state.panOffset };
+      scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
       e.preventDefault();
     },
-    [state.zoom, state.panOffset]
+    [state.zoom]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!isDragging) return;
 
-      const deltaX = (e.clientX - dragStartRef.current.x) / state.zoom;
-      const deltaY = (e.clientY - dragStartRef.current.y) / state.zoom;
+      const container = containerRef.current;
+      if (!container) return;
 
-      setPan({
-        x: panStartRef.current.x + deltaX,
-        y: panStartRef.current.y + deltaY,
-      });
+      const deltaX = e.clientX - dragStartRef.current.x;
+      const deltaY = e.clientY - dragStartRef.current.y;
+
+      // Scroll in opposite direction of drag (natural scrolling)
+      container.scrollLeft = scrollStartRef.current.x - deltaX;
+      container.scrollTop = scrollStartRef.current.y - deltaY;
     },
-    [isDragging, state.zoom, setPan]
+    [isDragging]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -511,13 +587,16 @@ export function ReaderPage() {
         lastTouchCenterRef.current = getTouchCenter(e.touches);
         e.preventDefault();
       } else if (e.touches.length === 1 && state.zoom > 1) {
-        // Start pan gesture
+        // Start scroll gesture
+        const container = containerRef.current;
+        if (!container) return;
+
         setIsDragging(true);
         dragStartRef.current = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY };
-        panStartRef.current = { ...state.panOffset };
+        scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
       }
     },
-    [state.zoom, state.panOffset]
+    [state.zoom]
   );
 
   const handleTouchMove = useCallback(
@@ -533,16 +612,18 @@ export function ReaderPage() {
           lastTouchDistanceRef.current = newDistance;
         }
       } else if (e.touches.length === 1 && isDragging) {
-        // Pan
-        const deltaX = (e.touches[0]!.clientX - dragStartRef.current.x) / state.zoom;
-        const deltaY = (e.touches[0]!.clientY - dragStartRef.current.y) / state.zoom;
-        setPan({
-          x: panStartRef.current.x + deltaX,
-          y: panStartRef.current.y + deltaY,
-        });
+        // Scroll via touch
+        const container = containerRef.current;
+        if (!container) return;
+
+        const deltaX = e.touches[0]!.clientX - dragStartRef.current.x;
+        const deltaY = e.touches[0]!.clientY - dragStartRef.current.y;
+
+        container.scrollLeft = scrollStartRef.current.x - deltaX;
+        container.scrollTop = scrollStartRef.current.y - deltaY;
       }
     },
-    [state.zoom, isDragging, setZoom, setPan]
+    [state.zoom, isDragging, setZoom]
   );
 
   const handleTouchEnd = useCallback(() => {
@@ -677,10 +758,50 @@ export function ReaderPage() {
   }
 
   // Render single/double page mode
+  const pageContent = displayPages.map((pageIndex) => {
+    const page = state.pages[pageIndex];
+    if (!page) return null;
+
+    const splitHalf = getSplitHalf(pageIndex);
+
+    // Determine spine shadow class for split view
+    const spineClass = splitHalf && state.showPageShadow
+      ? `with-spine ${splitHalf === 'left' ? 'split-left-view' : 'split-right-view'}`
+      : '';
+
+    return (
+      <div
+        key={page.path}
+        className={`reader-page-wrapper ${state.showPageShadow ? 'with-shadow' : ''} ${splitHalf ? 'split-view' : ''} ${spineClass}`}
+      >
+        {!loadedImages.has(pageIndex) && !imageErrors.has(pageIndex) && (
+          <div className="reader-page-loading">
+            <div className="reader-loading-spinner small" />
+          </div>
+        )}
+        {imageErrors.has(pageIndex) ? (
+          <div className="reader-page-error">
+            <p>Failed to load page {pageIndex + 1}</p>
+          </div>
+        ) : (
+          <img
+            src={page.url}
+            alt={`Page ${pageIndex + 1}${splitHalf ? ` (${splitHalf} half)` : ''}`}
+            className={`reader-page-image ${loadedImages.has(pageIndex) ? 'loaded' : 'loading'} ${splitHalf ? `split-${splitHalf}` : ''}`}
+            style={getImageStyle(pageIndex, splitHalf)}
+            onLoad={(e) => handleImageLoad(pageIndex, e)}
+            onError={() => handleImageError(pageIndex)}
+            draggable={false}
+          />
+        )}
+      </div>
+    );
+  });
+
   return (
     <div
       ref={containerRef}
-      className={`reader-page-container ${state.mode === 'double' || state.mode === 'doubleManga' ? 'reader-double' : 'reader-single'} ${isDragging ? 'dragging' : ''} ${state.zoom > 1 ? 'zoomed' : ''}`}
+      className={`reader-page-container ${state.mode === 'double' || state.mode === 'doubleManga' ? 'reader-double' : 'reader-single'} ${isDragging ? 'dragging' : ''} ${state.zoom !== 1 ? 'zoomed' : ''}`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -690,45 +811,7 @@ export function ReaderPage() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {displayPages.map((pageIndex) => {
-        const page = state.pages[pageIndex];
-        if (!page) return null;
-
-        const splitHalf = getSplitHalf(pageIndex);
-
-        // Determine spine shadow class for split view
-        const spineClass = splitHalf && state.showPageShadow
-          ? `with-spine ${splitHalf === 'left' ? 'split-left-view' : 'split-right-view'}`
-          : '';
-
-        return (
-          <div
-            key={page.path}
-            className={`reader-page-wrapper ${state.showPageShadow ? 'with-shadow' : ''} ${splitHalf ? 'split-view' : ''} ${spineClass}`}
-          >
-            {!loadedImages.has(pageIndex) && !imageErrors.has(pageIndex) && (
-              <div className="reader-page-loading">
-                <div className="reader-loading-spinner small" />
-              </div>
-            )}
-            {imageErrors.has(pageIndex) ? (
-              <div className="reader-page-error">
-                <p>Failed to load page {pageIndex + 1}</p>
-              </div>
-            ) : (
-              <img
-                src={page.url}
-                alt={`Page ${pageIndex + 1}${splitHalf ? ` (${splitHalf} half)` : ''}`}
-                className={`reader-page-image ${loadedImages.has(pageIndex) ? 'loaded' : 'loading'} ${splitHalf ? `split-${splitHalf}` : ''}`}
-                style={getImageStyle(pageIndex, splitHalf)}
-                onLoad={(e) => handleImageLoad(pageIndex, e)}
-                onError={() => handleImageError(pageIndex)}
-                draggable={false}
-              />
-            )}
-          </div>
-        );
-      })}
+      {pageContent}
     </div>
   );
 }

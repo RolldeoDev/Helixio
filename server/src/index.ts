@@ -15,6 +15,7 @@ import {
   updateMetadataSettings,
   updateCacheSettings,
 } from './services/config.service.js';
+import { checkApiAvailability as checkMetronAvailability } from './services/metron.service.js';
 import {
   initializeDatabase,
   closeDatabase,
@@ -46,12 +47,16 @@ import syncRoutes from './routes/sync.routes.js';
 import sharedListsRoutes from './routes/shared-lists.routes.js';
 import recommendationsRoutes from './routes/recommendations.routes.js';
 import seriesRoutes from './routes/series.routes.js';
+import themesRoutes from './routes/themes.routes.js';
+import statsRoutes from './routes/stats.routes.js';
+import achievementsRoutes from './routes/achievements.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
 import { cleanupOldOperationLogs } from './services/rollback.service.js';
 import { recoverInterruptedJobs } from './services/job-queue.service.js';
 import { cleanupExpiredJobs } from './services/metadata-job.service.js';
+import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,13 +127,20 @@ app.get('/api/config/api-keys', (_req, res) => {
   res.json({
     comicVine: config.apiKeys.comicVine || '',
     anthropic: config.apiKeys.anthropic || '',
+    metronUsername: config.apiKeys.metronUsername || '',
+    metronPassword: config.apiKeys.metronPassword || '',
   });
 });
 
 // Update API keys
 app.put('/api/config/api-keys', (req, res) => {
   try {
-    const { comicVine, anthropic } = req.body as { comicVine?: string; anthropic?: string };
+    const { comicVine, anthropic, metronUsername, metronPassword } = req.body as {
+      comicVine?: string;
+      anthropic?: string;
+      metronUsername?: string;
+      metronPassword?: string;
+    };
 
     if (comicVine !== undefined) {
       setApiKey('comicVine', comicVine);
@@ -136,11 +148,32 @@ app.put('/api/config/api-keys', (req, res) => {
     if (anthropic !== undefined) {
       setApiKey('anthropic', anthropic);
     }
+    if (metronUsername !== undefined) {
+      setApiKey('metronUsername', metronUsername);
+    }
+    if (metronPassword !== undefined) {
+      setApiKey('metronPassword', metronPassword);
+    }
 
     res.json({ success: true, message: 'API keys updated' });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+// Test Metron credentials
+app.post('/api/config/test-metron', async (_req, res) => {
+  try {
+    const result = await checkMetronAvailability();
+    if (result.available) {
+      res.json({ success: true, message: 'Metron credentials are valid' });
+    } else {
+      res.status(401).json({ success: false, error: result.error || 'Authentication failed' });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ success: false, error: message });
   }
 });
 
@@ -226,6 +259,9 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/lists', sharedListsRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/series', seriesRoutes);
+app.use('/api/themes', themesRoutes);
+app.use('/api/stats', statsRoutes);
+app.use('/api/achievements', achievementsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -280,6 +316,9 @@ async function startServer(): Promise<void> {
     // Recover interrupted metadata jobs
     await recoverInterruptedJobs();
 
+    // Start stats scheduler for background stat computation
+    startStatsScheduler();
+
     // Get initial stats
     const stats = await getDatabaseStats();
 
@@ -311,6 +350,9 @@ async function startServer(): Promise<void> {
     // Graceful shutdown
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} received. Shutting down gracefully...`);
+
+      // Stop stats scheduler
+      stopStatsScheduler();
 
       server.close(async () => {
         console.log('HTTP server closed');

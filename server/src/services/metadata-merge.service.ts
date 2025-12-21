@@ -11,6 +11,8 @@ import type {
   IssueMetadata,
   MergedSeriesMetadata,
   MergedIssueMetadata,
+  AllValuesSeriesMetadata,
+  AllValuesIssueMetadata,
   Credit,
 } from './metadata-providers/types.js';
 import { getMetadataSettings } from './config.service.js';
@@ -299,6 +301,190 @@ export function mergeIssue(
 }
 
 // =============================================================================
+// All-Values Merge Functions (for per-field source selection UI)
+// =============================================================================
+
+export interface AllValuesMergeOptions extends MergeOptions {
+  /** Per-field source overrides (e.g., { "writer": "metron" }) */
+  fieldOverrides?: Record<string, MetadataSource>;
+}
+
+/**
+ * Collect all values for a field from all sources.
+ */
+function collectAllFieldValues(
+  results: Map<MetadataSource, SeriesMetadata | IssueMetadata | null>,
+  field: string
+): Record<MetadataSource, unknown> {
+  const values: Record<MetadataSource, unknown> = {} as Record<MetadataSource, unknown>;
+
+  for (const [source, data] of results) {
+    if (data !== null) {
+      const value = (data as unknown as Record<string, unknown>)[field];
+      values[source] = value ?? null;
+    }
+  }
+
+  return values;
+}
+
+/**
+ * Merge series metadata with all-values tracking for per-field selection.
+ *
+ * This extended merge function:
+ * 1. Performs the standard priority-based merge
+ * 2. Tracks ALL values from ALL sources for each field
+ * 3. Supports per-field source overrides
+ */
+export function mergeSeriesWithAllValues(
+  results: Map<MetadataSource, SeriesMetadata | null>,
+  options: AllValuesMergeOptions = {}
+): AllValuesSeriesMetadata | null {
+  // First, do the standard merge
+  const baseMerged = mergeSeries(results, options);
+  if (!baseMerged) return null;
+
+  const priorityOrder = options.priorityOrder || getDefaultPriorityOrder();
+
+  // Find sources that have data
+  const sourcesWithData: MetadataSource[] = [];
+  for (const source of priorityOrder) {
+    if (results.has(source) && results.get(source) !== null) {
+      sourcesWithData.push(source);
+    }
+  }
+  for (const [source, data] of results) {
+    if (data !== null && !sourcesWithData.includes(source)) {
+      sourcesWithData.push(source);
+    }
+  }
+
+  // Collect all field values
+  const allFieldValues: Record<string, Record<MetadataSource, unknown>> = {};
+
+  // Scalar fields
+  for (const field of SERIES_SCALAR_FIELDS) {
+    allFieldValues[field] = collectAllFieldValues(results, field);
+  }
+
+  // Array fields
+  for (const field of SERIES_ARRAY_FIELDS) {
+    allFieldValues[field] = collectAllFieldValues(results, field);
+  }
+
+  // Create the extended merged result
+  const merged: AllValuesSeriesMetadata = {
+    ...baseMerged,
+    allFieldValues,
+    fieldSourceOverrides: options.fieldOverrides,
+  };
+
+  // Apply field overrides if provided
+  if (options.fieldOverrides) {
+    for (const [field, preferredSource] of Object.entries(options.fieldOverrides)) {
+      const sourceData = results.get(preferredSource);
+      if (sourceData) {
+        const value = (sourceData as unknown as Record<string, unknown>)[field];
+        if (!isEmpty(value)) {
+          (merged as unknown as Record<string, unknown>)[field] = value;
+          merged.fieldSources[field] = preferredSource;
+        }
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Merge issue metadata with all-values tracking for per-field selection.
+ */
+export function mergeIssueWithAllValues(
+  results: Map<MetadataSource, IssueMetadata | null>,
+  options: AllValuesMergeOptions = {}
+): AllValuesIssueMetadata | null {
+  // First, do the standard merge
+  const baseMerged = mergeIssue(results, options);
+  if (!baseMerged) return null;
+
+  const priorityOrder = options.priorityOrder || getDefaultPriorityOrder();
+
+  // Find sources that have data
+  const sourcesWithData: MetadataSource[] = [];
+  for (const source of priorityOrder) {
+    if (results.has(source) && results.get(source) !== null) {
+      sourcesWithData.push(source);
+    }
+  }
+  for (const [source, data] of results) {
+    if (data !== null && !sourcesWithData.includes(source)) {
+      sourcesWithData.push(source);
+    }
+  }
+
+  // Collect all field values
+  const allFieldValues: Record<string, Record<MetadataSource, unknown>> = {};
+
+  // Scalar fields
+  for (const field of ISSUE_SCALAR_FIELDS) {
+    allFieldValues[field] = collectAllFieldValues(results, field);
+  }
+
+  // Array fields
+  for (const field of ISSUE_ARRAY_FIELDS) {
+    allFieldValues[field] = collectAllFieldValues(results, field);
+  }
+
+  // Create the extended merged result
+  const merged: AllValuesIssueMetadata = {
+    ...baseMerged,
+    allFieldValues,
+    fieldSourceOverrides: options.fieldOverrides,
+  };
+
+  // Apply field overrides if provided
+  if (options.fieldOverrides) {
+    for (const [field, preferredSource] of Object.entries(options.fieldOverrides)) {
+      const sourceData = results.get(preferredSource);
+      if (sourceData) {
+        const value = (sourceData as unknown as Record<string, unknown>)[field];
+        if (!isEmpty(value)) {
+          (merged as unknown as Record<string, unknown>)[field] = value;
+          merged.fieldSources[field] = preferredSource;
+        }
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * Apply field source overrides to an existing merged result.
+ * Useful when user changes field selections in the UI.
+ */
+export function applyFieldOverrides<T extends MergedSeriesMetadata | MergedIssueMetadata>(
+  merged: T,
+  allFieldValues: Record<string, Record<MetadataSource, unknown>>,
+  overrides: Record<string, MetadataSource>
+): T {
+  const updated = { ...merged };
+
+  for (const [field, preferredSource] of Object.entries(overrides)) {
+    const sourceValues = allFieldValues[field];
+    if (sourceValues && sourceValues[preferredSource] !== undefined) {
+      const value = sourceValues[preferredSource];
+      if (!isEmpty(value)) {
+        (updated as unknown as Record<string, unknown>)[field] = value;
+        updated.fieldSources[field] = preferredSource;
+      }
+    }
+  }
+
+  return updated;
+}
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -370,6 +556,9 @@ export function findBestMatch(
 export const MetadataMergeService = {
   mergeSeries,
   mergeIssue,
+  mergeSeriesWithAllValues,
+  mergeIssueWithAllValues,
+  applyFieldOverrides,
   findBestMatch,
 };
 

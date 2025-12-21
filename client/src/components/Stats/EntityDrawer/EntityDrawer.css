@@ -1,0 +1,375 @@
+/* =============================================================================
+   Entity Drawer
+   Slide-out panel for viewing all entities of a type
+   ============================================================================= */
+
+/* =============================================================================
+   Backdrop
+   ============================================================================= */
+
+.entity-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.entity-drawer-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =============================================================================
+   Drawer Container
+   ============================================================================= */
+
+.entity-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 420px;
+  max-width: calc(100vw - 48px);
+  background: var(--color-bg);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.entity-drawer.open {
+  transform: translateX(0);
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.entity-drawer__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.entity-drawer__title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entity-drawer__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text);
+}
+
+.entity-drawer__count {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.entity-drawer__close {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.entity-drawer__close:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.entity-drawer__close svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* =============================================================================
+   Sort Controls
+   ============================================================================= */
+
+.entity-drawer__sort {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.entity-drawer__sort-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.entity-drawer__sort-buttons {
+  display: flex;
+  gap: 2px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.entity-drawer__sort-buttons button {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-drawer__sort-buttons button:hover {
+  color: var(--color-text);
+}
+
+.entity-drawer__sort-buttons button.active {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* =============================================================================
+   Content
+   ============================================================================= */
+
+.entity-drawer__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+}
+
+/* =============================================================================
+   Entity Drawer List
+   ============================================================================= */
+
+.entity-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.entity-drawer-list__empty {
+  text-align: center;
+  padding: var(--spacing-2xl);
+  color: var(--color-text-muted);
+}
+
+.entity-drawer-list__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+/* =============================================================================
+   Entity Drawer Item
+   ============================================================================= */
+
+.entity-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-drawer-item:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-primary-muted);
+  transform: translateX(4px);
+}
+
+.entity-drawer-item__rank {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.entity-drawer-item:nth-child(1) .entity-drawer-item__rank,
+.entity-drawer-item:nth-child(2) .entity-drawer-item__rank,
+.entity-drawer-item:nth-child(3) .entity-drawer-item__rank {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  color: var(--color-bg);
+}
+
+.entity-drawer-item__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.entity-drawer-item__name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.entity-drawer-item__role {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.entity-drawer-item__stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+}
+
+.entity-drawer-item__divider {
+  color: var(--color-border);
+}
+
+.entity-drawer-item__progress-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.entity-drawer-item__progress {
+  width: 60px;
+  height: 4px;
+  background: var(--color-bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.entity-drawer-item__progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.entity-drawer-item__percent {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+}
+
+.entity-drawer-item__chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.15s ease;
+}
+
+.entity-drawer-item:hover .entity-drawer-item__chevron {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* =============================================================================
+   Load More Button
+   ============================================================================= */
+
+.entity-drawer-list__load-more {
+  display: block;
+  width: 100%;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-drawer-list__load-more:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  border-color: var(--color-primary-muted);
+}
+
+.entity-drawer-list__load-more:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Skeleton Loading
+   ============================================================================= */
+
+.entity-drawer-item--skeleton {
+  height: 72px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 480px) {
+  .entity-drawer {
+    width: 100%;
+    max-width: none;
+  }
+
+  .entity-drawer__header {
+    padding: var(--spacing-md);
+  }
+
+  .entity-drawer__title {
+    font-size: 1.25rem;
+  }
+}

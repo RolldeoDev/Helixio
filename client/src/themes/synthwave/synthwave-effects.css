@@ -1,0 +1,586 @@
+/**
+ * Synthwave Theme Effects - "Neon Arcade"
+ *
+ * "The future is now. The past never left."
+ *
+ * Authentic 1980s arcade aesthetics with:
+ * - CRT scan lines that feel like a real monitor
+ * - Perspective grid floor receding to infinity
+ * - Neon glow effects in hot magenta and electric cyan
+ * - Dark purple vignette creating depth and focus
+ * - Floating particles adding atmosphere
+ *
+ * Every detail is crafted to transport you back to the arcade.
+ */
+
+/* =============================================================================
+   Synthwave Color Variables
+   ============================================================================= */
+
+:root[data-theme^="synthwave"] {
+  /* Core neon palette */
+  --synthwave-magenta: #ff00ff;
+  --synthwave-magenta-bright: #ff44ff;
+  --synthwave-magenta-glow: rgba(255, 0, 255, 0.6);
+  --synthwave-magenta-soft: rgba(255, 0, 255, 0.3);
+
+  --synthwave-cyan: #00ffff;
+  --synthwave-cyan-bright: #44ffff;
+  --synthwave-cyan-glow: rgba(0, 255, 255, 0.6);
+  --synthwave-cyan-soft: rgba(0, 255, 255, 0.3);
+
+  --synthwave-purple: #9945ff;
+  --synthwave-purple-deep: #6a1b9a;
+  --synthwave-purple-glow: rgba(153, 69, 255, 0.5);
+
+  /* Void backgrounds */
+  --synthwave-void: #0a0a12;
+  --synthwave-abyss: #06060c;
+  --synthwave-deep: #0f0f1a;
+
+  /* Grid colors */
+  --synthwave-grid-primary: rgba(255, 0, 255, 0.4);
+  --synthwave-grid-secondary: rgba(0, 255, 255, 0.2);
+  --synthwave-horizon: rgba(255, 0, 255, 0.8);
+
+  /* Text and UI */
+  --synthwave-text: #f0f0ff;
+  --synthwave-text-glow: rgba(240, 240, 255, 0.8);
+
+  /* Animation speeds */
+  --synthwave-pulse-speed: 2s;
+  --synthwave-grid-speed: 15s;
+  --synthwave-particle-speed: 25s;
+  --synthwave-flicker-speed: 0.1s;
+}
+
+/* =============================================================================
+   CRT Scan Lines - Authentic Monitor Effect
+   ============================================================================= */
+
+.synthwave-scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* Behind content - subtle overlay */
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  animation: scanlineFlicker 8s ease-in-out infinite;
+}
+
+/* Subtle periodic flicker like old monitors */
+@keyframes scanlineFlicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.98; }
+  52% { opacity: 1; }
+  54% { opacity: 0.97; }
+  56% { opacity: 1; }
+}
+
+/* =============================================================================
+   Perspective Neon Grid - The Iconic Synthwave Floor
+   ============================================================================= */
+
+.synthwave-grid-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45vh;
+  pointer-events: none;
+  z-index: -1;
+  perspective: 500px;
+  overflow: hidden;
+}
+
+.synthwave-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    /* Horizontal lines */
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 40px,
+      var(--synthwave-grid-primary) 40px,
+      var(--synthwave-grid-primary) 41px
+    ),
+    /* Vertical lines */
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px,
+      transparent 60px,
+      var(--synthwave-grid-secondary) 60px,
+      var(--synthwave-grid-secondary) 61px
+    );
+  transform-style: preserve-3d;
+  transform: rotateX(75deg);
+  transform-origin: center bottom;
+  animation: gridScroll var(--synthwave-grid-speed) linear infinite;
+  mask-image: linear-gradient(
+    to top,
+    black 0%,
+    black 60%,
+    transparent 100%
+  );
+}
+
+/* Grid glow overlay */
+.synthwave-grid-glow {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    var(--synthwave-magenta-soft) 0%,
+    var(--synthwave-purple-glow) 30%,
+    transparent 70%
+  );
+  transform: rotateX(75deg);
+  transform-origin: center bottom;
+  opacity: 0.5;
+  animation: glowPulse var(--synthwave-pulse-speed) ease-in-out infinite alternate;
+}
+
+/* Horizon line glow */
+.synthwave-horizon-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--synthwave-cyan) 20%,
+    var(--synthwave-magenta) 50%,
+    var(--synthwave-cyan) 80%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 20px var(--synthwave-magenta-glow),
+    0 0 40px var(--synthwave-cyan-glow),
+    0 0 60px var(--synthwave-magenta-soft);
+  animation: horizonPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes gridScroll {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 80px, 0 0;
+  }
+}
+
+@keyframes glowPulse {
+  from { opacity: 0.4; }
+  to { opacity: 0.6; }
+}
+
+@keyframes horizonPulse {
+  from {
+    box-shadow:
+      0 0 20px var(--synthwave-magenta-glow),
+      0 0 40px var(--synthwave-cyan-glow),
+      0 0 60px var(--synthwave-magenta-soft);
+  }
+  to {
+    box-shadow:
+      0 0 30px var(--synthwave-cyan-glow),
+      0 0 60px var(--synthwave-magenta-glow),
+      0 0 80px var(--synthwave-cyan-soft);
+  }
+}
+
+/* =============================================================================
+   Vignette - Dark Purple Gradient at Edges
+   ============================================================================= */
+
+.synthwave-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 50%,
+    transparent 0%,
+    transparent 40%,
+    rgba(10, 0, 20, 0.3) 70%,
+    rgba(6, 0, 12, 0.6) 100%
+  );
+}
+
+/* =============================================================================
+   Neon Sign - Glowing Corner Element
+   ============================================================================= */
+
+.synthwave-neon-sign {
+  position: fixed;
+  bottom: 80px;
+  left: 100px; /* Account for sidebar width */
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  animation: neonFlicker 4s ease-in-out infinite;
+}
+
+.synthwave-neon-svg {
+  width: 100px;
+  height: 35px;
+}
+
+.synthwave-neon-text {
+  font-family: 'Orbitron', 'Exo 2', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  fill: var(--synthwave-magenta);
+  animation: neonTextGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes neonTextGlow {
+  from {
+    fill: var(--synthwave-magenta);
+    filter: drop-shadow(0 0 5px var(--synthwave-magenta-glow))
+            drop-shadow(0 0 10px var(--synthwave-magenta-soft));
+  }
+  to {
+    fill: var(--synthwave-magenta-bright);
+    filter: drop-shadow(0 0 8px var(--synthwave-magenta-glow))
+            drop-shadow(0 0 15px var(--synthwave-magenta))
+            drop-shadow(0 0 25px var(--synthwave-magenta-soft));
+  }
+}
+
+@keyframes neonFlicker {
+  0%, 100% { opacity: 0.7; }
+  5% { opacity: 0.6; }
+  10% { opacity: 0.75; }
+  15% { opacity: 0.65; }
+  20%, 80% { opacity: 0.7; }
+  82% { opacity: 0.5; }
+  84% { opacity: 0.72; }
+  86% { opacity: 0.55; }
+  88%, 100% { opacity: 0.7; }
+}
+
+/* =============================================================================
+   Arcade Quote - Rotating Retro Gaming Text
+   ============================================================================= */
+
+.synthwave-quote {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  pointer-events: none;
+  z-index: 1;
+  font-family: 'Orbitron', 'Exo 2', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 2px;
+  color: var(--synthwave-cyan);
+  text-shadow:
+    0 0 5px var(--synthwave-cyan-glow),
+    0 0 10px var(--synthwave-cyan-soft);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.synthwave-quote.visible {
+  opacity: 0.8;
+  transform: translateY(0);
+}
+
+.synthwave-quote-text {
+  display: inline;
+}
+
+.synthwave-quote-cursor {
+  display: inline-block;
+  animation: cursorBlink 0.8s step-end infinite;
+  margin-left: 2px;
+}
+
+@keyframes cursorBlink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* =============================================================================
+   Floating Particles - Neon Atmosphere
+   ============================================================================= */
+
+.synthwave-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  overflow: hidden;
+}
+
+.synthwave-particle {
+  position: absolute;
+  border-radius: 50%;
+  animation: particleFloat var(--synthwave-particle-speed) linear infinite;
+  opacity: 0;
+}
+
+.synthwave-particle--small {
+  width: 2px;
+  height: 2px;
+}
+
+.synthwave-particle--medium {
+  width: 3px;
+  height: 3px;
+}
+
+.synthwave-particle--large {
+  width: 4px;
+  height: 4px;
+}
+
+.synthwave-particle--magenta {
+  background: var(--synthwave-magenta);
+  box-shadow: 0 0 6px var(--synthwave-magenta-glow);
+}
+
+.synthwave-particle--cyan {
+  background: var(--synthwave-cyan);
+  box-shadow: 0 0 6px var(--synthwave-cyan-glow);
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(100vh) translateX(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(50vh) translateX(30px);
+  }
+  95% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-10px) translateX(-20px);
+    opacity: 0;
+  }
+}
+
+/* =============================================================================
+   Component-Specific Overrides for Synthwave Theme
+   ============================================================================= */
+
+/* Cards get neon glow on hover */
+:root[data-theme="synthwave-dark"] .cover-card,
+:root[data-theme="synthwave-dark"] .series-cover-card {
+  background: var(--synthwave-deep);
+  border: 1px solid rgba(150, 0, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="synthwave-dark"] .cover-card:hover,
+:root[data-theme="synthwave-dark"] .series-cover-card:hover {
+  border-color: var(--synthwave-magenta);
+  box-shadow:
+    0 0 20px var(--synthwave-magenta-soft),
+    0 0 40px rgba(0, 255, 255, 0.1);
+  transform: translateY(-6px) scale(1.02);
+}
+
+/* Sidebar styling */
+:root[data-theme="synthwave-dark"] .sidebar-new {
+  background: var(--synthwave-void);
+  border-right: 1px solid rgba(150, 0, 255, 0.15);
+}
+
+:root[data-theme="synthwave-dark"] .sidebar-new .rail-btn.active {
+  color: var(--synthwave-magenta);
+}
+
+:root[data-theme="synthwave-dark"] .sidebar-new .rail-btn.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  background: var(--synthwave-magenta);
+  box-shadow: 0 0 10px var(--synthwave-magenta-glow);
+}
+
+/* Buttons with neon effect */
+:root[data-theme="synthwave-dark"] button.primary,
+:root[data-theme="synthwave-dark"] .btn-primary {
+  background: var(--synthwave-magenta);
+  border: none;
+  color: var(--synthwave-void);
+  text-shadow: none;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme="synthwave-dark"] button.primary:hover,
+:root[data-theme="synthwave-dark"] .btn-primary:hover {
+  background: var(--synthwave-magenta-bright);
+  box-shadow:
+    0 0 15px var(--synthwave-magenta-glow),
+    0 0 30px var(--synthwave-magenta-soft);
+}
+
+/* Input focus states */
+:root[data-theme="synthwave-dark"] input:focus,
+:root[data-theme="synthwave-dark"] textarea:focus,
+:root[data-theme="synthwave-dark"] select:focus {
+  border-color: var(--synthwave-cyan);
+  box-shadow: 0 0 15px var(--synthwave-cyan-soft);
+  outline: none;
+}
+
+/* Progress bars with gradient */
+:root[data-theme^="synthwave"] .progress-bar,
+:root[data-theme^="synthwave"] .reading-progress-fill {
+  background: linear-gradient(
+    90deg,
+    var(--synthwave-magenta) 0%,
+    var(--synthwave-purple) 50%,
+    var(--synthwave-cyan) 100%
+  );
+  background-size: 200% 100%;
+  animation: progressGlow 3s ease-in-out infinite;
+  box-shadow: 0 0 10px var(--synthwave-magenta-soft);
+}
+
+@keyframes progressGlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Scrollbar styling */
+:root[data-theme="synthwave-dark"] ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+:root[data-theme="synthwave-dark"] ::-webkit-scrollbar-track {
+  background: var(--synthwave-void);
+}
+
+:root[data-theme="synthwave-dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(150, 0, 255, 0.3);
+  border-radius: 3px;
+}
+
+:root[data-theme="synthwave-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--synthwave-magenta-soft);
+}
+
+/* Selection colors */
+:root[data-theme="synthwave-dark"] ::selection {
+  background: var(--synthwave-magenta-soft);
+  color: var(--synthwave-text);
+}
+
+/* Links */
+:root[data-theme^="synthwave"] a {
+  color: var(--synthwave-cyan);
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+:root[data-theme^="synthwave"] a:hover {
+  color: var(--synthwave-cyan-bright);
+  text-shadow: 0 0 8px var(--synthwave-cyan-glow);
+}
+
+/* Typography enhancements */
+:root[data-theme^="synthwave"] h1,
+:root[data-theme^="synthwave"] h2 {
+  font-family: 'Orbitron', 'Exo 2', var(--font-display);
+  letter-spacing: 0.05em;
+}
+
+:root[data-theme^="synthwave"] h1 {
+  text-shadow: 0 0 20px var(--synthwave-magenta-soft);
+}
+
+/* =============================================================================
+   Light Theme Adjustments
+   ============================================================================= */
+
+:root[data-theme="synthwave-light"] {
+  --synthwave-void: #f8f4ff;
+  --synthwave-abyss: #f0e8ff;
+  --synthwave-deep: #faf6ff;
+  --synthwave-grid-primary: rgba(204, 0, 204, 0.2);
+  --synthwave-grid-secondary: rgba(0, 153, 170, 0.1);
+  --synthwave-magenta: #cc00cc;
+  --synthwave-cyan: #0099aa;
+}
+
+:root[data-theme="synthwave-light"] .synthwave-scanlines {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(100, 50, 100, 0.02) 2px,
+    rgba(100, 50, 100, 0.02) 4px
+  );
+}
+
+:root[data-theme="synthwave-light"] .synthwave-vignette {
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 50%,
+    transparent 0%,
+    transparent 50%,
+    rgba(240, 232, 255, 0.5) 100%
+  );
+}
+
+/* =============================================================================
+   Reduced Motion - Accessibility
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme^="synthwave"] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .synthwave-scanlines,
+  .synthwave-grid-container,
+  .synthwave-particles,
+  .synthwave-neon-sign {
+    display: none;
+  }
+
+  .synthwave-quote {
+    opacity: 0.6;
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Print Styles - Hide All Effects
+   ============================================================================= */
+
+@media print {
+  .synthwave-scanlines,
+  .synthwave-grid-container,
+  .synthwave-vignette,
+  .synthwave-particles,
+  .synthwave-neon-sign,
+  .synthwave-quote {
+    display: none !important;
+  }
+}

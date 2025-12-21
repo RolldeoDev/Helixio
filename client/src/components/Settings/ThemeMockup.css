@@ -1,0 +1,250 @@
+/* ThemeMockup - Mini app preview for theme selection */
+
+.theme-mockup {
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-card);
+  overflow: hidden;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.theme-mockup:hover {
+  border-color: var(--color-primary);
+}
+
+.theme-mockup--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-muted);
+}
+
+/* Preview button */
+.theme-mockup__preview {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.theme-mockup__preview:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+/* Mockup frame - the mini app preview */
+.theme-mockup__frame {
+  display: flex;
+  height: 120px;
+  background: var(--mockup-bg);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.theme-mockup__sidebar {
+  width: 28px;
+  background: var(--mockup-sidebar);
+  border-right: 1px solid var(--mockup-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+  gap: 4px;
+}
+
+.theme-mockup__logo {
+  width: 16px;
+  height: 16px;
+  background: var(--mockup-primary);
+  border-radius: 3px;
+  color: var(--mockup-bg);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.theme-mockup__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 0 3px;
+}
+
+.theme-mockup__nav-item {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mockup-text-muted);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.theme-mockup__nav-item--active {
+  background: var(--mockup-hover);
+  color: var(--mockup-primary);
+}
+
+.theme-mockup__icon {
+  width: 12px;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-mockup__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Content area */
+.theme-mockup__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.theme-mockup__header {
+  height: 18px;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--mockup-border);
+  background: var(--mockup-elevated);
+}
+
+.theme-mockup__title {
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--mockup-text);
+}
+
+.theme-mockup__header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-mockup__search {
+  width: 30px;
+  height: 10px;
+  background: var(--mockup-bg);
+  border: 1px solid var(--mockup-border);
+  border-radius: 3px;
+}
+
+/* Card grid */
+.theme-mockup__grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 6px;
+}
+
+.theme-mockup__card {
+  background: var(--mockup-card);
+  border-radius: 3px;
+  border: 1px solid var(--mockup-border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.theme-mockup__card-cover {
+  height: 28px;
+  background: linear-gradient(
+    135deg,
+    var(--mockup-primary) 0%,
+    var(--mockup-accent) 100%
+  );
+  opacity: 0.6;
+}
+
+.theme-mockup__card-info {
+  height: 10px;
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-mockup__card-info::before {
+  content: '';
+  width: 80%;
+  height: 3px;
+  background: var(--mockup-text-muted);
+  border-radius: 1px;
+  opacity: 0.3;
+}
+
+/* Footer with name and actions */
+.theme-mockup__footer {
+  padding: 8px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--color-bg-secondary);
+}
+
+.theme-mockup__info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.theme-mockup__name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-mockup__check {
+  width: 16px;
+  height: 16px;
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.theme-mockup__check svg {
+  width: 100%;
+  height: 100%;
+}
+
+.theme-mockup__edit-btn {
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.theme-mockup__edit-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-hover);
+}
+
+.theme-mockup__edit-btn:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}

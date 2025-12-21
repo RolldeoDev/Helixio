@@ -233,7 +233,7 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
       return {
         ...state,
         currentPage: Math.max(0, Math.min(action.payload, state.totalPages - 1)),
-        zoom: 1,
+        // Keep zoom level, only reset pan offset when changing pages
         panOffset: { x: 0, y: 0 },
       };
 
@@ -243,7 +243,7 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
       return {
         ...state,
         currentPage: nextPage,
-        zoom: 1,
+        // Keep zoom level, only reset pan offset when changing pages
         panOffset: { x: 0, y: 0 },
       };
     }
@@ -254,16 +254,18 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
       return {
         ...state,
         currentPage: prevPage,
-        zoom: 1,
+        // Keep zoom level, only reset pan offset when changing pages
         panOffset: { x: 0, y: 0 },
       };
     }
 
     case 'FIRST_PAGE':
-      return { ...state, currentPage: 0, zoom: 1, panOffset: { x: 0, y: 0 } };
+      // Keep zoom level, only reset pan offset when changing pages
+      return { ...state, currentPage: 0, panOffset: { x: 0, y: 0 } };
 
     case 'LAST_PAGE':
-      return { ...state, currentPage: state.totalPages - 1, zoom: 1, panOffset: { x: 0, y: 0 } };
+      // Keep zoom level, only reset pan offset when changing pages
+      return { ...state, currentPage: state.totalPages - 1, panOffset: { x: 0, y: 0 } };
 
     case 'SET_MODE':
       return { ...state, mode: action.payload };

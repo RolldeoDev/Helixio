@@ -1,0 +1,152 @@
+/* =============================================================================
+   Reading Insights
+   Quick stats cards showing reading habits
+   ============================================================================= */
+
+.reading-insights {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  animation: stats-section-in 0.6s ease forwards;
+  animation-delay: 0.35s;
+  opacity: 0;
+}
+
+.reading-insights__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.reading-insights__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.reading-insights__subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.reading-insights__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-sm);
+}
+
+/* =============================================================================
+   Insight Card
+   ============================================================================= */
+
+.reading-insight-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: default;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  animation: stats-card-in 0.5s ease forwards;
+  opacity: 0;
+}
+
+.reading-insight-card:hover {
+  border-color: var(--color-primary-muted);
+  transform: translateY(-2px);
+}
+
+.reading-insight-card__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.reading-insight-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.reading-insight-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reading-insight-card__value {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+.reading-insight-card__label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.reading-insights--loading {
+  animation: none;
+  opacity: 1;
+}
+
+.reading-insights__skeleton {
+  height: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 900px) {
+  .reading-insights__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .reading-insights {
+    padding: var(--spacing-md);
+  }
+
+  .reading-insights__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reading-insight-card {
+    padding: var(--spacing-sm);
+  }
+
+  .reading-insight-card__value {
+    font-size: 1.125rem;
+  }
+}

@@ -434,6 +434,7 @@
 }
 
 .entity-chip {
+  flex: 0 0 auto;
   padding: 4px 12px;
   border-radius: var(--radius-full);
   font-size: 0.8125rem;
@@ -545,11 +546,34 @@
 }
 
 .series-issues-header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 500;
   color: var(--color-text);
   margin: 0;
+}
+
+.issue-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.series-issues-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
 }
 
 .series-issues-selection-info {
@@ -573,7 +597,7 @@
 .series-issues-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
 }
 
 @media (min-width: 768px) {

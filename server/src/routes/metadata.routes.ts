@@ -36,6 +36,14 @@ import {
   type SeriesMatch,
   type MetadataSource,
 } from '../services/metadata-search.service.js';
+import {
+  findCrossSourceMatches,
+  getCachedMappings,
+  saveCrossSourceMapping,
+  invalidateCrossSourceMappings,
+} from '../services/cross-source-matcher.service.js';
+import { ProviderRegistry } from '../services/metadata-providers/registry.js';
+import { mergeSeriesWithAllValues } from '../services/metadata-merge.service.js';
 
 const router = Router();
 
@@ -645,7 +653,10 @@ router.get('/scrape-themes', async (req: Request, res: Response): Promise<void> 
     });
 
     if (!response.ok) {
-      res.status(response.status).json({
+      // Return 200 with success: false since theme scraping is optional
+      // Don't proxy ComicVine's status code - our endpoint worked, scraping just failed
+      res.json({
+        success: false,
         error: 'Failed to fetch page',
         message: `ComicVine returned status ${response.status}`,
         themes: [],
@@ -923,6 +934,272 @@ router.get('/series-full/:source/:sourceId', async (req: Request, res: Response)
     console.error('Error getting full series metadata:', err);
     res.status(500).json({
       error: 'Fetch failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// =============================================================================
+// Cross-Source Matching Operations
+// =============================================================================
+
+/**
+ * POST /api/metadata/cross-match
+ * Find matching series across secondary sources for a given primary series.
+ * Body: { source: MetadataSource, sourceId: string, targetSources?: MetadataSource[] }
+ */
+router.post('/cross-match', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { source, sourceId, targetSources, autoMatchThreshold } = req.body as {
+      source?: MetadataSource;
+      sourceId?: string;
+      targetSources?: MetadataSource[];
+      autoMatchThreshold?: number;
+    };
+
+    if (!source || !sourceId) {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'source and sourceId are required',
+      });
+      return;
+    }
+
+    // First, get the primary series metadata
+    const provider = ProviderRegistry.get(source);
+    if (!provider) {
+      res.status(400).json({
+        error: 'Invalid source',
+        message: `Unknown metadata source: ${source}`,
+      });
+      return;
+    }
+
+    const primarySeries = await provider.getSeriesById(sourceId);
+    if (!primarySeries) {
+      res.status(404).json({
+        error: 'Series not found',
+        message: `No series found for ${source}:${sourceId}`,
+      });
+      return;
+    }
+
+    // Find cross-source matches
+    const result = await findCrossSourceMatches(primarySeries, {
+      targetSources,
+      autoMatchThreshold,
+    });
+
+    // Auto-save high-confidence matches to cache
+    for (const match of result.matches) {
+      if (match.isAutoMatchCandidate) {
+        await saveCrossSourceMapping(
+          source,
+          sourceId,
+          match.source,
+          match.sourceId,
+          match.confidence,
+          'auto',
+          match.matchFactors
+        );
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error finding cross-source matches:', err);
+    res.status(500).json({
+      error: 'Cross-match failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * GET /api/metadata/cross-matches/:source/:sourceId
+ * Get cached cross-source mappings for a series.
+ */
+router.get('/cross-matches/:source/:sourceId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { source, sourceId } = req.params;
+
+    if (!source || !sourceId) {
+      res.status(400).json({
+        error: 'Invalid parameters',
+        message: 'source and sourceId are required',
+      });
+      return;
+    }
+
+    const mappings = await getCachedMappings(source as MetadataSource, sourceId);
+
+    res.json({
+      source,
+      sourceId,
+      mappings,
+      count: mappings.length,
+    });
+  } catch (err) {
+    console.error('Error getting cross-source mappings:', err);
+    res.status(500).json({
+      error: 'Failed to get mappings',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * PUT /api/metadata/cross-matches/:source/:sourceId
+ * Save or update a cross-source mapping (user-confirmed match).
+ * Body: { matchedSource: MetadataSource, matchedSourceId: string, confidence?: number }
+ */
+router.put('/cross-matches/:source/:sourceId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { source, sourceId } = req.params;
+    const { matchedSource, matchedSourceId, confidence } = req.body as {
+      matchedSource?: MetadataSource;
+      matchedSourceId?: string;
+      confidence?: number;
+    };
+
+    if (!source || !sourceId || !matchedSource || !matchedSourceId) {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'source, sourceId, matchedSource, and matchedSourceId are required',
+      });
+      return;
+    }
+
+    await saveCrossSourceMapping(
+      source as MetadataSource,
+      sourceId,
+      matchedSource,
+      matchedSourceId,
+      confidence ?? 1.0, // User-confirmed = 100% confidence
+      'user'
+    );
+
+    res.json({
+      success: true,
+      message: 'Cross-source mapping saved',
+    });
+  } catch (err) {
+    console.error('Error saving cross-source mapping:', err);
+    res.status(500).json({
+      error: 'Failed to save mapping',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * DELETE /api/metadata/cross-matches/:source/:sourceId
+ * Invalidate all cross-source mappings for a series.
+ */
+router.delete('/cross-matches/:source/:sourceId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { source, sourceId } = req.params;
+
+    if (!source || !sourceId) {
+      res.status(400).json({
+        error: 'Invalid parameters',
+        message: 'source and sourceId are required',
+      });
+      return;
+    }
+
+    const deletedCount = await invalidateCrossSourceMappings(source as MetadataSource, sourceId);
+
+    res.json({
+      success: true,
+      deletedCount,
+      message: `Invalidated ${deletedCount} cross-source mappings`,
+    });
+  } catch (err) {
+    console.error('Error invalidating cross-source mappings:', err);
+    res.status(500).json({
+      error: 'Failed to invalidate mappings',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * GET /api/metadata/series-all-values/:source/:sourceId
+ * Get series metadata with all values from all sources for per-field selection.
+ * Query: sources (comma-separated list of sources to cross-match against), sessionId
+ */
+router.get('/series-all-values/:source/:sourceId', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { source, sourceId } = req.params;
+    const { sources, sessionId } = req.query;
+
+    if (!source || !sourceId) {
+      res.status(400).json({
+        error: 'Invalid parameters',
+        message: 'source and sourceId are required',
+      });
+      return;
+    }
+
+    // Parse target sources from query
+    const targetSources = sources
+      ? (sources as string).split(',').filter(s => s.trim()) as MetadataSource[]
+      : undefined;
+
+    // First, get the primary series data
+    const provider = ProviderRegistry.get(source as MetadataSource);
+    if (!provider) {
+      res.status(400).json({
+        error: 'Invalid source',
+        message: `Unknown metadata source: ${source}`,
+      });
+      return;
+    }
+
+    const primarySeries = await provider.getSeriesById(sourceId, sessionId as string | undefined);
+    if (!primarySeries) {
+      res.status(404).json({
+        error: 'Series not found',
+        message: `Series with ID ${sourceId} not found in ${source}`,
+      });
+      return;
+    }
+
+    // Find cross-source matches to get data from other sources
+    const crossMatchResult = await findCrossSourceMatches(primarySeries, { targetSources });
+
+    // Collect all series data into a Map for merging
+    const allSeriesData = new Map<MetadataSource, typeof primarySeries | null>();
+    allSeriesData.set(source as MetadataSource, primarySeries);
+
+    for (const match of crossMatchResult.matches) {
+      if (match.seriesData) {
+        // The match already has series data from cross-matcher
+        allSeriesData.set(match.source, match.seriesData);
+      }
+    }
+
+    // Merge with all values tracking
+    const mergedWithAllValues = mergeSeriesWithAllValues(allSeriesData);
+
+    if (!mergedWithAllValues) {
+      res.status(500).json({
+        error: 'Failed to merge metadata',
+        message: 'No valid metadata found to merge',
+      });
+      return;
+    }
+
+    // Add cross-match status
+    res.json({
+      ...mergedWithAllValues,
+      crossMatchStatus: crossMatchResult.status,
+    });
+  } catch (err) {
+    console.error('Error getting series with all values:', err);
+    res.status(500).json({
+      error: 'Failed to get series with all values',
       message: err instanceof Error ? err.message : String(err),
     });
   }

@@ -1,0 +1,194 @@
+/* =============================================================================
+   Collection Donut Chart
+   Animated SVG donut showing read/in-progress/unread breakdown
+   ============================================================================= */
+
+.collection-donut {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  animation: stats-section-in 0.6s ease forwards;
+  animation-delay: 0.1s;
+  opacity: 0;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.collection-donut__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.collection-donut__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.collection-donut__subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Chart
+   ============================================================================= */
+
+.collection-donut__chart-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md) 0;
+  flex: 1;
+}
+
+.collection-donut__chart {
+  width: 160px;
+  height: 160px;
+}
+
+.collection-donut__segment {
+  cursor: pointer;
+  transition: stroke-width 0.2s ease, opacity 0.2s ease;
+  animation: donut-segment-in 0.8s ease forwards;
+  stroke-dasharray: 0 251.2 !important;
+}
+
+@keyframes donut-segment-in {
+  to {
+    stroke-dasharray: inherit !important;
+  }
+}
+
+.collection-donut__center-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  fill: var(--color-text);
+}
+
+.collection-donut__center-label {
+  font-size: 8px;
+  fill: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* =============================================================================
+   Legend
+   ============================================================================= */
+
+.collection-donut__legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.collection-donut__legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.collection-donut__legend-item:hover,
+.collection-donut__legend-item.active {
+  background: var(--color-bg-tertiary);
+}
+
+.collection-donut__legend-item.dimmed {
+  opacity: 0.5;
+}
+
+.collection-donut__legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.collection-donut__legend-label {
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  flex: 1;
+}
+
+.collection-donut__legend-value {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 50px;
+  text-align: right;
+}
+
+.collection-donut__legend-percent {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* =============================================================================
+   Empty State
+   ============================================================================= */
+
+.collection-donut--empty .collection-donut__empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  padding: var(--spacing-xl);
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.collection-donut--loading {
+  animation: none;
+  opacity: 1;
+}
+
+.collection-donut__skeleton {
+  flex: 1;
+  min-height: 200px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 600px) {
+  .collection-donut {
+    padding: var(--spacing-md);
+  }
+
+  .collection-donut__chart {
+    width: 140px;
+    height: 140px;
+  }
+}

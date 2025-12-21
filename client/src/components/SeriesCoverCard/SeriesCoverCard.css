@@ -37,17 +37,20 @@
 
   /* Shadows */
   --series-card-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
-  --series-card-shadow-hover: var(--shadow-card-elevated, 0 10px 15px -3px rgba(0, 0, 0, 0.4));
+  --series-card-shadow-hover: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
+  --series-card-hover-glow: var(--shadow-hover-glow, 0 0 25px rgba(212, 165, 116, 0.25));
 
   /* Transitions */
-  --series-card-transition: var(--transition-fast, 150ms ease);
+  --series-card-transition: var(--transition-medium, 250ms ease);
+  --series-card-transition-out: var(--transition-slow, 400ms ease);
 
   /* Border radius */
   --series-card-radius: var(--radius-md, 8px);
 
   /* Hover effects */
-  --series-card-hover-scale: var(--scale-hover, 1.02);
-  --series-card-hover-lift: var(--lift-hover, -2px);
+  --series-card-hover-scale: var(--scale-hover, 1.06);
+  --series-card-hover-lift: var(--lift-hover, -4px);
+  --series-card-image-hover-scale: var(--scale-image-hover, 1.05);
 }
 
 /* =============================================================================
@@ -62,17 +65,29 @@
   background: var(--series-card-bg);
   border-radius: var(--series-card-radius);
   cursor: pointer;
+  /* Slower transition for hover-off (easing out) */
   transition:
-    transform var(--series-card-transition),
-    box-shadow var(--series-card-transition);
+    transform var(--series-card-transition-out),
+    box-shadow var(--series-card-transition-out),
+    background var(--series-card-transition-out);
   outline: none;
   box-shadow: var(--series-card-shadow);
+  /* Prevent border-radius clipping issues during transform */
+  overflow: hidden;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .series-cover-card:hover {
   transform: translateY(var(--series-card-hover-lift)) scale(var(--series-card-hover-scale));
-  box-shadow: var(--series-card-shadow-hover);
+  box-shadow: var(--series-card-shadow-hover), var(--series-card-hover-glow);
   background: var(--series-card-bg-hover);
+  /* Faster transition for hover-on */
+  transition:
+    transform var(--series-card-transition),
+    box-shadow var(--series-card-transition),
+    background var(--series-card-transition);
 }
 
 .series-cover-card:focus-visible {
@@ -148,7 +163,18 @@
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  transition: opacity var(--series-card-transition);
+  /* Slower transition for hover-off */
+  transition:
+    opacity var(--series-card-transition),
+    transform var(--series-card-transition-out);
+}
+
+.series-cover-card:hover .series-cover-card__image {
+  transform: scale(var(--series-card-image-hover-scale));
+  /* Faster transition for hover-on */
+  transition:
+    opacity var(--series-card-transition),
+    transform var(--series-card-transition);
 }
 
 .series-cover-card__image--loaded {
@@ -284,16 +310,17 @@
 @keyframes series-card-enter {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(10px) scale(1);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 .series-cover-card {
-  animation: series-card-enter 0.3s ease both;
+  /* Use 'backwards' fill mode so animation doesn't override hover transforms after completion */
+  animation: series-card-enter 0.3s ease backwards;
   animation-delay: calc(var(--animation-index, 0) * 30ms);
 }
 
@@ -357,8 +384,10 @@
 @media (prefers-reduced-motion: reduce) {
   .series-cover-card {
     --series-card-transition: 0ms;
+    --series-card-transition-out: 0ms;
     --series-card-hover-scale: 1;
     --series-card-hover-lift: 0;
+    --series-card-image-hover-scale: 1;
     animation: none;
   }
 

@@ -20,6 +20,7 @@
   overflow: hidden;
 }
 
+
 .reader-fullscreen {
   position: fixed;
 }
@@ -189,6 +190,8 @@
   position: relative;
 }
 
+
+
 /* =============================================================================
    Edge Navigation Zones
    ============================================================================= */
@@ -265,7 +268,26 @@
 
 .reader-page-container.zoomed {
   cursor: grab;
+  /* Enable scrolling when zoomed */
   overflow: auto;
+  /* Use safe centering - falls back to start when content overflows */
+  align-items: safe center;
+  justify-content: safe center;
+}
+
+/* When zoomed, the page wrapper should not constrain the image */
+.reader-page-container.zoomed .reader-page-wrapper {
+  height: auto;
+  width: auto;
+  flex-shrink: 0;
+  /* Use margin auto for centering that respects scroll bounds */
+  margin: auto;
+}
+
+/* Override max constraints on zoomed images */
+.reader-page-container.zoomed .reader-page-image {
+  max-width: none;
+  max-height: none;
 }
 
 .reader-page-container.dragging {

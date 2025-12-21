@@ -72,3 +72,8 @@ docs/orchestration/README.md
 docs/DOCKER.md
 docs/GCD-API-INFO.md
 docs/JOB_ARCHITECTURE.md
+MOBILE_APP.md
+THEME_PLANNER.md
+.gitignore
+CLAUDE.md
+MULTIMETADATA_PROVIDER.md

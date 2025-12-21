@@ -16,6 +16,7 @@ import {
   markAsCompleted,
   markAsIncomplete,
   rebuildCache,
+  fetchSeriesMetadata,
   Series,
   SeriesIssue,
   SeriesForMerge,
@@ -30,7 +31,31 @@ import { MetadataEditor } from '../components/MetadataEditor';
 import { EditSeriesModal } from '../components/EditSeriesModal';
 import { SeriesSelectModal } from '../components/SeriesSelectModal';
 import { MergeSeriesModal } from '../components/MergeSeriesModal';
+import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
 import './SeriesDetailPage.css';
+
+// =============================================================================
+// Menu Configurations
+// =============================================================================
+
+/** Series-level actions */
+const SERIES_ACTION_ITEMS: ActionMenuItem[] = [
+  { id: 'editSeries', label: 'Edit Series' },
+  { id: 'fetchSeriesMetadata', label: 'Fetch Metadata (Series)', dividerBefore: true },
+  { id: 'fetchAllIssuesMetadata', label: 'Fetch Metadata (All Issues)' },
+  { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
+  { id: 'markAllUnread', label: 'Mark All as Unread' },
+  { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
+  { id: 'rebuildCache', label: 'Rebuild All Covers', dividerBefore: true },
+];
+
+/** Issue-level actions (for selected issues) */
+const ISSUE_BULK_ACTION_ITEMS: ActionMenuItem[] = [
+  { id: 'markRead', label: 'Mark as Read' },
+  { id: 'markUnread', label: 'Mark as Unread' },
+  { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
+  { id: 'rebuildCache', label: 'Rebuild Cover Cache', dividerBefore: true },
+];
 
 export function SeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
@@ -229,11 +254,6 @@ export function SeriesDetailPage() {
     }
   }, [selectedFiles, handleReadIssue, fetchSeries, navigate]);
 
-  // Handle merge with... button click
-  const handleMergeWithClick = () => {
-    setShowSeriesSelectModal(true);
-  };
-
   // Helper to convert Series to SeriesForMerge
   const seriesToMergeFormat = (s: Series): SeriesForMerge => ({
     id: s.id,
@@ -278,6 +298,139 @@ export function SeriesDetailPage() {
     // Refresh to get updated data (or navigate away if this series was merged into another)
     fetchSeries();
   };
+
+  // Handle series-level actions from ActionMenu
+  const handleSeriesAction = useCallback(async (actionId: string) => {
+    if (!series) return;
+
+    switch (actionId) {
+      case 'editSeries':
+        setIsEditSeriesModalOpen(true);
+        break;
+
+      case 'fetchSeriesMetadata':
+        // Fetch metadata for the series itself
+        try {
+          setOperationMessage('Fetching series metadata...');
+          const result = await fetchSeriesMetadata(series.id);
+          if (result.needsSearch) {
+            setOperationMessage('No linked metadata source. Use Edit Series to search and link.');
+          } else if (result.metadata) {
+            setOperationMessage('Series metadata updated');
+            fetchSeries();
+          } else {
+            setOperationMessage(result.message || 'No metadata found');
+          }
+          setTimeout(() => setOperationMessage(null), 3000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to fetch metadata'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'fetchAllIssuesMetadata':
+        // Start metadata job for all issues in the series
+        const allIssueIds = issues.map((i) => i.id);
+        if (allIssueIds.length > 0) {
+          startJob(allIssueIds);
+        }
+        break;
+
+      case 'markAllRead':
+        try {
+          setOperationMessage('Marking all issues as read...');
+          await Promise.all(issues.map((i) => markAsCompleted(i.id)));
+          setOperationMessage('All issues marked as read');
+          fetchSeries();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'markAllUnread':
+        try {
+          setOperationMessage('Marking all issues as unread...');
+          await Promise.all(issues.map((i) => markAsIncomplete(i.id)));
+          setOperationMessage('All issues marked as unread');
+          fetchSeries();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'mergeWith':
+        setShowSeriesSelectModal(true);
+        break;
+
+      case 'rebuildCache':
+        try {
+          const allFileIds = issues.map((i) => i.id);
+          setOperationMessage(`Rebuilding cache for ${allFileIds.length} file(s)...`);
+          await rebuildCache({ fileIds: allFileIds, type: 'full' });
+          setOperationMessage('Cache rebuild started');
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to rebuild cache'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+    }
+  }, [series, issues, startJob, fetchSeries]);
+
+  // Handle bulk issue actions from ActionMenu
+  const handleBulkIssueAction = useCallback(async (actionId: string) => {
+    if (selectedFiles.size === 0) return;
+
+    const targetIds = Array.from(selectedFiles);
+
+    switch (actionId) {
+      case 'markRead':
+        try {
+          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
+          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
+          setOperationMessage('Marked as read');
+          fetchSeries();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'markUnread':
+        try {
+          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
+          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
+          setOperationMessage('Marked as unread');
+          fetchSeries();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'fetchMetadata':
+        startJob(targetIds);
+        break;
+
+      case 'rebuildCache':
+        try {
+          setOperationMessage(`Rebuilding cache for ${targetIds.length} file(s)...`);
+          await rebuildCache({ fileIds: targetIds, type: 'full' });
+          setOperationMessage('Cache rebuild started');
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to rebuild cache'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+    }
+  }, [selectedFiles, startJob, fetchSeries]);
 
   if (loading) {
     return (
@@ -405,18 +558,12 @@ export function SeriesDetailPage() {
             {!nextIssue && isComplete && (
               <span className="series-complete-badge">Series Complete</span>
             )}
-            <button
-              className="btn-secondary"
-              onClick={() => setIsEditSeriesModalOpen(true)}
-            >
-              Edit Series
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={handleMergeWithClick}
-            >
-              Merge with...
-            </button>
+            <ActionMenu
+              items={SERIES_ACTION_ITEMS}
+              onAction={handleSeriesAction}
+              ariaLabel="Series actions"
+              size="medium"
+            />
           </div>
         </div>
       </div>
@@ -511,18 +658,29 @@ export function SeriesDetailPage() {
       {/* Issues section - moved above entities */}
       <div className="series-issues-section">
         <div className="series-issues-header">
-          <h2>Issues ({totalOwned})</h2>
-          {selectedFiles.size > 0 && (
-            <div className="series-issues-selection-info">
-              <span>{selectedFiles.size} selected</span>
-              <button
-                className="btn-ghost"
-                onClick={() => setSelectedFiles(new Set())}
-              >
-                Clear
-              </button>
-            </div>
-          )}
+          <h2>Issues <span className="issue-count-pill">{totalOwned}</span></h2>
+          <div className="series-issues-header-actions">
+            {selectedFiles.size > 0 && (
+              <div className="series-issues-selection-info">
+                <span>{selectedFiles.size} selected</span>
+                <button
+                  className="btn-ghost"
+                  onClick={() => setSelectedFiles(new Set())}
+                >
+                  Clear
+                </button>
+                <ActionMenu
+                  items={ISSUE_BULK_ACTION_ITEMS.map(item => ({
+                    ...item,
+                    label: item.label + ` (${selectedFiles.size})`,
+                  }))}
+                  onAction={handleBulkIssueAction}
+                  ariaLabel="Bulk issue actions"
+                  size="small"
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Operation message */}

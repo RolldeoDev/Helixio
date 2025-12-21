@@ -336,7 +336,7 @@ export function ContinueReading({ libraryId, limit = 5 }: ContinueReadingProps) 
             </button>
             <div className="context-menu-divider" />
             <button onClick={handleMarkCompleted}>
-              Mark as Completed
+              Mark as Read
             </button>
             <button onClick={handleMarkUnread}>
               Mark as Unread

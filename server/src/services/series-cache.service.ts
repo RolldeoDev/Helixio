@@ -28,6 +28,7 @@ import {
 import {
   getSeries as getMetronSeries,
   getSeriesIssues as getMetronSeriesIssues,
+  getSeriesName as getMetronSeriesName,
   type MetronSeries,
   type MetronIssue,
 } from './metron.service.js';
@@ -204,7 +205,7 @@ export async function getOrFetchSeries(
       return null;
     }
     seriesData = series;
-    name = series.name;
+    name = getMetronSeriesName(series);
     publisher = series.publisher?.name;
     startYear = series.year_began;
     issueCount = series.issue_count;

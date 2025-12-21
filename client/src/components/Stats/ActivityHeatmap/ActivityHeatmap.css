@@ -1,0 +1,298 @@
+/* =============================================================================
+   Activity Heatmap
+   GitHub-style contribution calendar for reading activity
+   ============================================================================= */
+
+.activity-heatmap {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  animation: stats-section-in 0.6s ease forwards;
+  opacity: 0;
+}
+
+@keyframes stats-section-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.activity-heatmap__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.activity-heatmap__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.activity-heatmap__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.activity-heatmap__subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Toggle Switch
+   ============================================================================= */
+
+.activity-heatmap__toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 3px;
+}
+
+.activity-heatmap__toggle-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.activity-heatmap__toggle-btn:hover {
+  color: var(--color-text);
+}
+
+.activity-heatmap__toggle-btn.active {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* =============================================================================
+   Chart
+   ============================================================================= */
+
+.activity-heatmap__chart-wrapper {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  margin: 0 calc(-1 * var(--spacing-md));
+  padding: 0 var(--spacing-md);
+}
+
+.activity-heatmap__chart-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+
+.activity-heatmap__chart-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.activity-heatmap__chart-wrapper::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.activity-heatmap__chart {
+  display: block;
+  width: 100%;
+  min-width: 780px;
+  height: auto;
+}
+
+.activity-heatmap__cell {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+}
+
+.activity-heatmap__cell:hover {
+  transform-origin: center;
+  transform: scale(1.35);
+  opacity: 1 !important;
+  filter: brightness(1.1);
+}
+
+.activity-heatmap__day-label,
+.activity-heatmap__month-label {
+  font-size: 9px;
+  fill: var(--color-text-subtle);
+  font-family: var(--font-body);
+}
+
+.activity-heatmap__month-label {
+  font-size: 10px;
+  fill: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Legend
+   ============================================================================= */
+
+.activity-heatmap__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.activity-heatmap__legend-label {
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+}
+
+.activity-heatmap__legend {
+  display: flex;
+  gap: 3px;
+}
+
+.activity-heatmap__legend-cell {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+
+/* =============================================================================
+   Tooltip
+   ============================================================================= */
+
+.heatmap-tooltip {
+  position: fixed;
+  z-index: 1000;
+  transform: translate(-50%, -100%);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--shadow-lg);
+  pointer-events: none;
+  animation: tooltip-in 0.15s ease;
+  white-space: nowrap;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%) translateY(0);
+  }
+}
+
+.heatmap-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--color-border);
+}
+
+.heatmap-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: -1px;
+  border: 5px solid transparent;
+  border-top-color: var(--color-bg-elevated);
+  z-index: 1;
+}
+
+.heatmap-tooltip__date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.heatmap-tooltip__stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.heatmap-tooltip__stat strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.heatmap-tooltip__divider {
+  color: var(--color-text-subtle);
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.activity-heatmap--loading {
+  animation: none;
+  opacity: 1;
+}
+
+.activity-heatmap__skeleton {
+  height: 128px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .activity-heatmap {
+    padding: var(--spacing-md);
+  }
+
+  .activity-heatmap__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .activity-heatmap__chart-wrapper {
+    margin: 0 calc(-1 * var(--spacing-sm));
+    padding: 0 var(--spacing-sm);
+  }
+}

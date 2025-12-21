@@ -12,6 +12,7 @@ import { generatePartialHash, getFileInfo } from './hash.service.js';
 import { triggerCacheGenerationForNewFiles } from './cache-job.service.js';
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
+import { markDirtyForFileChange } from './stats-dirty.service.js';
 
 // Supported comic file extensions
 const COMIC_EXTENSIONS = new Set(['.cbz', '.cbr']);
@@ -291,6 +292,23 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
     autoLinkNewFilesToSeries(newFileIds).catch((err) => {
       console.error('Error auto-linking files to series:', err);
     });
+  }
+
+  // Mark stats as dirty if files were added or orphaned
+  if (added > 0) {
+    try {
+      await markDirtyForFileChange(scanResult.libraryId, 'file_added');
+    } catch {
+      // Non-critical, continue even if dirty marking fails
+    }
+  }
+
+  if (orphaned > 0) {
+    try {
+      await markDirtyForFileChange(scanResult.libraryId, 'file_removed');
+    } catch {
+      // Non-critical, continue even if dirty marking fails
+    }
   }
 
   return { added, moved, orphaned };

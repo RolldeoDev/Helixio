@@ -10,6 +10,7 @@
 
 import { rm } from 'fs/promises';
 import { getDatabase } from './database.service.js';
+import { markDirtyForReadingProgress } from './stats-dirty.service.js';
 
 // =============================================================================
 // Types
@@ -124,6 +125,13 @@ export async function updateProgress(
   // Sync series progress if file is linked to a series
   await syncSeriesProgressInternal(db, fileId);
 
+  // Mark stats as dirty for recalculation
+  try {
+    await markDirtyForReadingProgress(fileId);
+  } catch {
+    // Non-critical, continue even if dirty marking fails
+  }
+
   return {
     ...progress,
     bookmarks: JSON.parse(progress.bookmarks) as number[],
@@ -152,6 +160,13 @@ export async function markCompleted(fileId: string): Promise<ReadingProgress> {
   // Sync series progress if file is linked to a series
   await syncSeriesProgressInternal(db, fileId);
 
+  // Mark stats as dirty for recalculation
+  try {
+    await markDirtyForReadingProgress(fileId);
+  } catch {
+    // Non-critical, continue even if dirty marking fails
+  }
+
   return {
     ...progress,
     bookmarks: JSON.parse(progress.bookmarks) as number[],
@@ -176,6 +191,13 @@ export async function markIncomplete(fileId: string): Promise<ReadingProgress> {
 
   // Sync series progress if file is linked to a series
   await syncSeriesProgressInternal(db, fileId);
+
+  // Mark stats as dirty for recalculation
+  try {
+    await markDirtyForReadingProgress(fileId);
+  } catch {
+    // Non-critical, continue even if dirty marking fails
+  }
 
   // Clear the page extraction cache for this file
   const cacheDir = `/tmp/helixio-archive-cache-${fileId}`;

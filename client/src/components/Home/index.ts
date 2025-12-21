@@ -8,6 +8,7 @@ export { SectionHeader } from './SectionHeader';
 export { HomeHeader } from './HomeHeader';
 export type { LibraryScope } from './HomeHeader';
 export { HomeHero } from './HomeHero';
+export { HomeWelcome } from './HomeWelcome';
 export { ComicCarousel } from './ComicCarousel';
 export type { ComicCarouselItem } from './ComicCarousel';
 export { ContinueReadingSection } from './ContinueReadingSection';

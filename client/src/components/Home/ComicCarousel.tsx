@@ -9,7 +9,8 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { CoverCard, type CoverCardFile } from '../CoverCard';
+import { CoverCard, type CoverCardFile, type MenuItemPreset } from '../CoverCard';
+import { markAsCompleted, markAsIncomplete } from '../../services/api.service';
 
 // =============================================================================
 // Types
@@ -29,6 +30,7 @@ export interface ComicCarouselItem {
 interface ComicCarouselProps {
   items: ComicCarouselItem[];
   onItemClick?: (fileId: string) => void;
+  onItemsChange?: () => void;
   cardSize?: 'small' | 'medium' | 'large';
   showNavigation?: boolean;
 }
@@ -40,12 +42,41 @@ interface ComicCarouselProps {
 export function ComicCarousel({
   items,
   onItemClick,
+  onItemsChange,
   cardSize = 'medium',
   showNavigation = true,
 }: ComicCarouselProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  // Menu items for carousel context menu
+  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread'];
+
+  // Handle context menu action
+  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
+    switch (action) {
+      case 'read':
+        onItemClick?.(fileId);
+        break;
+      case 'markRead':
+        try {
+          await markAsCompleted(fileId);
+          onItemsChange?.();
+        } catch (err) {
+          console.error('Failed to mark as read:', err);
+        }
+        break;
+      case 'markUnread':
+        try {
+          await markAsIncomplete(fileId);
+          onItemsChange?.();
+        } catch (err) {
+          console.error('Failed to mark as unread:', err);
+        }
+        break;
+    }
+  }, [onItemClick, onItemsChange]);
 
   // Check scroll position to update arrow visibility
   const updateScrollState = useCallback(() => {
@@ -132,12 +163,14 @@ export function ComicCarousel({
               variant="carousel"
               size={cardSize}
               selectable={false}
-              contextMenuEnabled={false}
+              contextMenuEnabled={true}
+              menuItems={menuItems}
               showInfo={true}
               showSeries={!!item.series}
               showIssueNumber={!!item.number}
               badge={item.badge ? { text: item.badge, type: item.badgeType } : undefined}
               onClick={() => onItemClick?.(item.fileId)}
+              onMenuAction={handleMenuAction}
               animationIndex={index}
             />
           );

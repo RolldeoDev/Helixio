@@ -47,7 +47,10 @@ export interface MetronSeriesType {
 
 export interface MetronSeries {
   id: number;
-  name: string;
+  /** Series name - used in detail endpoint */
+  name?: string;
+  /** Series name - used in list/search endpoint (Metron API inconsistency) */
+  series?: string;
   sort_name?: string;
   volume?: number;
   year_began?: number;
@@ -58,6 +61,14 @@ export interface MetronSeries {
   desc?: string;
   image?: string;
   resource_url?: string;
+}
+
+/**
+ * Get normalized series name from MetronSeries
+ * Handles API inconsistency where list endpoint uses "series" and detail uses "name"
+ */
+export function getSeriesName(series: MetronSeries): string {
+  return series.name || series.series || 'Unknown Series';
 }
 
 export interface MetronCredit {
@@ -667,7 +678,7 @@ export function issueToComicInfo(
  */
 export function seriesToSeriesMetadata(series: MetronSeries): Record<string, unknown> {
   return {
-    seriesName: series.name,
+    seriesName: getSeriesName(series),
     publisher: series.publisher?.name,
     startYear: series.year_began,
     endYear: series.year_end,

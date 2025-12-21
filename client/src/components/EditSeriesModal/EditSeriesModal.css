@@ -11,17 +11,28 @@
 
 .edit-series-modal-overlay {
   z-index: 1000;
+  /* Ensure overlay properly centers content */
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  padding: var(--spacing-lg, 24px);
 }
 
 .edit-series-modal {
   width: 90vw;
   max-width: 900px;
   max-height: 90vh;
+  min-height: 400px;
   display: flex;
   flex-direction: column;
   background: var(--color-bg-secondary, #151b23);
   border-radius: var(--radius-lg, 12px);
   box-shadow: var(--shadow-lg, 0 20px 40px rgba(0, 0, 0, 0.4));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
 }
 
 .edit-series-modal .modal-header {
@@ -500,15 +511,25 @@
 @media (max-width: 640px) {
   .cover-picker-content {
     grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .cover-preview {
+    width: 120px;
+    max-width: 120px;
   }
 }
 
 .cover-preview {
+  position: relative; /* Contain any absolutely positioned children */
+  width: 160px;
+  max-width: 160px;
   aspect-ratio: 2/3;
   border-radius: var(--radius-md, 8px);
   overflow: hidden;
   border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
   background: var(--color-bg, #0a0e13);
+  flex-shrink: 0;
 }
 
 .cover-preview img {
@@ -518,6 +539,9 @@
 }
 
 .cover-preview .cover-placeholder {
+  /* Override global .cover-placeholder styles from SeriesGrid.css */
+  position: static;
+  inset: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -525,6 +549,7 @@
   height: 100%;
   color: var(--color-text-muted, rgba(232, 228, 223, 0.4));
   font-size: 0.85rem;
+  background: transparent;
 }
 
 .cover-picker-selector {

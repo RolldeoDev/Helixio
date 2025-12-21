@@ -406,6 +406,303 @@
 }
 
 /* =============================================================================
+   Stats Tabs
+   ============================================================================= */
+
+.stats-tabs {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.stats-tabs button {
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.stats-tabs button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.stats-tabs button.active {
+  background: var(--accent-color);
+  color: white;
+}
+
+.stats-time-range-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* =============================================================================
+   Top Entities Grid
+   ============================================================================= */
+
+.top-entities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.top-entities-section {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  padding: 1rem;
+}
+
+.top-entities-section h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.top-entities-section .no-data {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+.top-entities-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.top-entities-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.top-entities-list li:hover {
+  background: var(--bg-tertiary);
+}
+
+.top-entities-list .rank {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.top-entities-list .name {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-entities-list .name small {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.top-entities-list .count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   Entity List (for tabs)
+   ============================================================================= */
+
+.entity-list-section {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  padding: 1.25rem;
+}
+
+.entity-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.entity-list-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.entity-sort-buttons {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  padding: 0.125rem;
+}
+
+.entity-sort-buttons button {
+  padding: 0.375rem 0.625rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-sort-buttons button:hover {
+  color: var(--text-primary);
+}
+
+.entity-sort-buttons button.active {
+  background: var(--accent-color);
+  color: white;
+}
+
+.entity-list-loading,
+.entity-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--text-muted);
+}
+
+.entity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entity-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-item:hover {
+  background: var(--bg-hover);
+}
+
+.entity-rank {
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.entity-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.entity-name {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.entity-role {
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
+
+.entity-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.entity-stat {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.entity-progress-bar {
+  width: 80px;
+  height: 6px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.entity-progress-fill {
+  height: 100%;
+  background: var(--accent-color);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.entity-load-more {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.entity-load-more:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.entity-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
    Responsive
    ============================================================================= */
 

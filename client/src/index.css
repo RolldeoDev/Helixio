@@ -3,7 +3,10 @@
    A luxury design system inspired by fine hotels and rare book collections
    ============================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=DM+Sans:wght@400;500;600;700&display=swap');
+/* Theme System Imports */
+@import './themes/base/fonts.css';
+@import './themes/base/tokens.css';
+@import './themes/sandman/sandman-effects.css';
 
 :root {
   /* Primary Palette - Deep Slate & Warm Amber */
@@ -74,6 +77,162 @@
   --transition-fast: 0.15s ease;
   --transition-medium: 0.25s ease;
   --transition-slow: 0.4s ease;
+
+  /* =============================================================================
+     Variable Aliases (for component compatibility)
+     These map legacy/component-specific variables to the theme system
+     ============================================================================= */
+
+  /* Surface colors - mapped to background variants */
+  --color-surface-card: var(--color-bg-card);
+  --color-surface-card-hover: var(--color-bg-elevated);
+
+  /* Text colors - aliases for component compatibility */
+  --color-text-primary: var(--color-text);
+  --color-text-secondary: var(--color-text-muted);
+
+  /* Progress indicators */
+  --color-progress-track: var(--color-bg-tertiary);
+  --color-progress-fill: var(--color-primary);
+
+  /* Shadow variants for cards */
+  --shadow-card: var(--shadow-sm);
+  --shadow-card-elevated: var(--shadow-md);
+  --shadow-glow-primary: var(--shadow-glow);
+
+  /* Hover/transform effects */
+  --scale-hover: 1.06;
+  --scale-image-hover: 1.05;
+  --lift-hover: -4px;
+  --shadow-hover-glow: 0 0 25px rgba(212, 165, 116, 0.25);
+}
+
+/* =============================================================================
+   Light Mode Fallback (ensures light colors even if inline styles fail)
+   ============================================================================= */
+
+:root[data-color-scheme="light"] {
+  --color-bg: #faf8f5;
+  --color-bg-secondary: #f2efe9;
+  --color-bg-tertiary: #ffffff;
+  --color-bg-elevated: #ffffff;
+  --color-bg-card: #ffffff;
+  --color-primary: #8b6914;
+  --color-primary-hover: #a37d1a;
+  --color-primary-muted: rgba(139, 105, 20, 0.12);
+  --color-secondary: #e8e4de;
+  --color-accent: #6b5344;
+  --color-text: #2c2824;
+  --color-text-muted: #5c5550;
+  --color-text-subtle: #8c857c;
+  --color-success: #2d8a4e;
+  --color-warning: #b8860b;
+  --color-error: #c53030;
+  --color-danger: #b91c1c;
+  --color-info: #2563eb;
+  --color-border: #d4cfc6;
+  --color-border-subtle: #e8e4de;
+  --color-divider: linear-gradient(90deg, transparent, #d4cfc6 20%, #d4cfc6 80%, transparent);
+  --color-hover: rgba(139, 105, 20, 0.06);
+  --color-selected: rgba(139, 105, 20, 0.12);
+  --color-focus-ring: rgba(139, 105, 20, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-glow: 0 0 20px rgba(139, 105, 20, 0.1);
+}
+
+/* =============================================================================
+   Sandman Dark Theme Fallback - The Dreaming
+   ============================================================================= */
+
+:root[data-theme="sandman-dark"] {
+  --color-bg: #0a0612;
+  --color-bg-secondary: #120b1f;
+  --color-bg-tertiary: #0d0818;
+  --color-bg-elevated: #1a0f2e;
+  --color-bg-card: #150c24;
+  --color-primary: #c9a227;
+  --color-primary-hover: #e5b82a;
+  --color-primary-muted: rgba(201, 162, 39, 0.15);
+  --color-secondary: #2d1f4e;
+  --color-accent: #7b68ee;
+  --color-text: #e8e4f0;
+  --color-text-muted: #9d8ec2;
+  --color-text-subtle: #6b5b8c;
+  --color-success: #50c878;
+  --color-warning: #daa520;
+  --color-error: #dc3545;
+  --color-danger: #8b0000;
+  --color-info: #87ceeb;
+  --color-border: #3d2a5c;
+  --color-border-subtle: #2a1d40;
+  --color-divider: linear-gradient(90deg, transparent, #c9a227 20%, #7b68ee 50%, #c9a227 80%, transparent);
+  --color-hover: rgba(201, 162, 39, 0.08);
+  --color-selected: rgba(123, 104, 238, 0.2);
+  --color-focus-ring: rgba(201, 162, 39, 0.5);
+  --font-display: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Crimson Text', 'EB Garamond', Georgia, serif;
+  --shadow-sm: 0 2px 8px rgba(10, 6, 18, 0.6), 0 0 20px rgba(123, 104, 238, 0.05);
+  --shadow-md: 0 4px 20px rgba(10, 6, 18, 0.7), 0 0 40px rgba(201, 162, 39, 0.08);
+  --shadow-lg: 0 8px 40px rgba(10, 6, 18, 0.8), 0 0 60px rgba(123, 104, 238, 0.1);
+  --shadow-glow: 0 0 30px rgba(201, 162, 39, 0.3), 0 0 60px rgba(123, 104, 238, 0.15);
+}
+
+/* =============================================================================
+   Sandman Light Theme Fallback - Lucienne's Library
+   ============================================================================= */
+
+:root[data-theme="sandman-light"] {
+  --color-bg: #faf6ed;
+  --color-bg-secondary: #f0ebe0;
+  --color-bg-tertiary: #fffdf8;
+  --color-bg-elevated: #ffffff;
+  --color-bg-card: #fdfbf6;
+  --color-primary: #8b6914;
+  --color-primary-hover: #a37d1a;
+  --color-primary-muted: rgba(139, 105, 20, 0.12);
+  --color-secondary: #e8e3d9;
+  --color-accent: #4a3875;
+  --color-text: #1a1520;
+  --color-text-muted: #5c4d6b;
+  --color-text-subtle: #8a7a99;
+  --color-success: #2d6a4f;
+  --color-warning: #b8860b;
+  --color-error: #9b2335;
+  --color-danger: #7b1d1d;
+  --color-info: #2563eb;
+  --color-border: #d4cfc6;
+  --color-border-subtle: #e8e4dc;
+  --color-divider: linear-gradient(90deg, transparent, #8b6914 20%, #4a3875 50%, #8b6914 80%, transparent);
+  --color-hover: rgba(139, 105, 20, 0.06);
+  --color-selected: rgba(74, 56, 117, 0.12);
+  --color-focus-ring: rgba(139, 105, 20, 0.4);
+  --font-display: 'Cinzel', 'Cormorant Garamond', Georgia, serif;
+  --font-body: 'Crimson Text', 'EB Garamond', Georgia, serif;
+  --shadow-sm: 0 2px 8px rgba(26, 21, 32, 0.06), 0 0 0 1px rgba(139, 105, 20, 0.03);
+  --shadow-md: 0 4px 16px rgba(26, 21, 32, 0.08), 0 0 0 1px rgba(139, 105, 20, 0.05);
+  --shadow-lg: 0 8px 32px rgba(26, 21, 32, 0.1), 0 0 20px rgba(74, 56, 117, 0.05);
+  --shadow-glow: 0 0 20px rgba(139, 105, 20, 0.15), 0 0 40px rgba(74, 56, 117, 0.08);
+}
+
+/* =============================================================================
+   Theme Transitions (150ms fast fade)
+   ============================================================================= */
+
+:root,
+:root * {
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+/* Disable transitions for elements that shouldn't animate */
+.no-transition,
+.no-transition * {
+  transition: none !important;
 }
 
 /* =============================================================================
@@ -3224,6 +3383,45 @@ body {
 .unit {
   color: var(--color-text-muted);
   margin-left: var(--spacing-sm);
+}
+
+/* Subheader in settings sections */
+.settings-subheader {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-top: var(--spacing-xl);
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Checkbox group styling */
+.setting-group.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.checkbox-text {
+  color: var(--color-text);
+  font-weight: 500;
 }
 
 .priority-list {

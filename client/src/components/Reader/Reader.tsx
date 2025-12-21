@@ -17,6 +17,7 @@ import { ReadingQueue } from './ReadingQueue';
 import { UpNextIndicator } from './UpNextIndicator';
 import { useKeyboardShortcuts, ShortcutAction } from './hooks/useKeyboardShortcuts';
 import { useTouchGestures } from './hooks/useTouchGestures';
+import { useReadingSession } from './hooks/useReadingSession';
 import './Reader.css';
 
 interface ReaderProps {
@@ -53,6 +54,14 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     rotatePageCW,
     rotatePageCCW,
   } = useReader();
+
+  // Track reading session and page view times
+  useReadingSession({
+    fileId: state.fileId,
+    currentPage: state.currentPage,
+    totalPages: state.totalPages,
+    isLoading: state.isLoading,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout>>();

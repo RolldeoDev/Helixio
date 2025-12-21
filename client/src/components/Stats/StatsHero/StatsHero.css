@@ -1,0 +1,297 @@
+/* =============================================================================
+   Stats Hero Section
+   Editorial-style hero with large display numbers and trend indicators
+   ============================================================================= */
+
+.stats-hero {
+  background: linear-gradient(
+    165deg,
+    rgba(212, 165, 116, 0.08) 0%,
+    var(--color-bg-secondary) 40%,
+    var(--color-bg) 100%
+  );
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle texture overlay */
+.stats-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    var(--color-border) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 12px 12px;
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.stats-hero__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-lg);
+  position: relative;
+  z-index: 1;
+}
+
+/* =============================================================================
+   Hero Cards
+   ============================================================================= */
+
+.stats-hero-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  animation: stats-hero-card-in 0.6s ease forwards;
+  opacity: 0;
+  transform: translateY(16px);
+}
+
+@keyframes stats-hero-card-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stats-hero-card:hover {
+  border-color: var(--color-primary-muted);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.stats-hero-card__icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+.stats-hero-card__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.stats-hero-card__icon--flame {
+  background: linear-gradient(135deg, rgba(212, 165, 116, 0.2), rgba(229, 181, 103, 0.1));
+  color: var(--color-primary);
+}
+
+.stats-hero-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.stats-hero-card__value {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.stats-hero-card__value--time {
+  font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+}
+
+.stats-hero-card__value-suffix {
+  font-size: 0.4em;
+  font-style: normal;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.stats-hero-card__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stats-hero-card__sub {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  margin-top: var(--spacing-xs);
+}
+
+.stats-hero-card__trend {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+}
+
+/* =============================================================================
+   Trend Badge
+   ============================================================================= */
+
+.trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: var(--radius-full, 999px);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.trend-badge--up {
+  background: rgba(125, 206, 160, 0.15);
+  color: var(--color-success);
+}
+
+.trend-badge--down {
+  background: rgba(224, 122, 122, 0.15);
+  color: var(--color-error);
+}
+
+.trend-badge--neutral {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.trend-badge__icon {
+  font-size: 0.65rem;
+}
+
+/* =============================================================================
+   Streak Card Special Styling
+   ============================================================================= */
+
+.stats-hero-card--streak {
+  background: linear-gradient(
+    135deg,
+    var(--color-bg) 0%,
+    rgba(212, 165, 116, 0.05) 100%
+  );
+}
+
+.stats-hero-card__flame-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  background: radial-gradient(
+    ellipse at top left,
+    rgba(212, 165, 116, 0.1) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+  animation: flame-pulse 2s ease-in-out infinite;
+}
+
+@keyframes flame-pulse {
+  0%, 100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* =============================================================================
+   Loading Skeleton
+   ============================================================================= */
+
+.stats-hero--loading .stats-hero-card--skeleton {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+.skeleton-value {
+  height: 48px;
+  width: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-label {
+  height: 14px;
+  width: 80px;
+  margin-top: var(--spacing-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-secondary) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  .stats-hero__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .stats-hero {
+    padding: var(--spacing-lg) var(--spacing-md);
+  }
+
+  .stats-hero__grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .stats-hero-card {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .stats-hero-card__content {
+    flex: 1;
+  }
+
+  .stats-hero-card__value {
+    font-size: 1.75rem;
+  }
+
+  .stats-hero-card__trend {
+    position: static;
+    margin-left: auto;
+  }
+}

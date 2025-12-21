@@ -85,10 +85,12 @@ export async function startSession(
 
 /**
  * Update a reading session with current progress
+ * @param confirmedPagesRead - Number of pages confirmed as read (viewed for 3+ seconds)
  */
 export async function updateSession(
   sessionId: string,
-  currentPage: number
+  currentPage: number,
+  confirmedPagesRead?: number
 ): Promise<void> {
   const db = getDatabase();
 
@@ -98,7 +100,8 @@ export async function updateSession(
 
   if (!session) return;
 
-  const pagesRead = Math.max(0, currentPage - session.startPage + 1);
+  // Use confirmed pages if provided, otherwise fall back to range calculation
+  const pagesRead = confirmedPagesRead ?? Math.max(0, currentPage - session.startPage + 1);
   const duration = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
 
   await db.readingHistory.update({
@@ -113,11 +116,13 @@ export async function updateSession(
 
 /**
  * End a reading session
+ * @param confirmedPagesRead - Number of pages confirmed as read (viewed for 3+ seconds)
  */
 export async function endSession(
   sessionId: string,
   endPage: number,
-  completed: boolean = false
+  completed: boolean = false,
+  confirmedPagesRead?: number
 ): Promise<ReadingSession | null> {
   const db = getDatabase();
 
@@ -127,7 +132,8 @@ export async function endSession(
 
   if (!session) return null;
 
-  const pagesRead = Math.max(0, endPage - session.startPage + 1);
+  // Use confirmed pages if provided, otherwise fall back to range calculation
+  const pagesRead = confirmedPagesRead ?? Math.max(0, endPage - session.startPage + 1);
   const duration = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
 
   const updated = await db.readingHistory.update({
@@ -317,13 +323,24 @@ export async function getAllTimeStats(): Promise<AllTimeStats> {
   let longestStreak = 0;
   let tempStreak = 0;
   let lastDate: Date | null = null;
+  const today = getTodayStart();
 
   for (const stat of stats) {
     if (stat.sessionsCount > 0) {
       if (lastDate === null) {
-        // First day with activity
-        tempStreak = 1;
-        currentStreak = 1;
+        // First day with activity - check if it's today or yesterday
+        const daysSinceActivity = Math.floor(
+          (today.getTime() - stat.date.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (daysSinceActivity <= 1) {
+          // Activity today or yesterday - streak is active
+          tempStreak = 1;
+          currentStreak = 1;
+        } else {
+          // Last activity was more than 1 day ago - no current streak
+          tempStreak = 1;
+          currentStreak = 0;
+        }
       } else {
         // Check if consecutive day
         const dayDiff = Math.floor(

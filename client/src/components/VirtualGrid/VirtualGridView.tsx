@@ -9,8 +9,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
-import { getLibraryReadingProgress } from '../../services/api.service';
-import { CoverCard } from '../CoverCard';
+import { getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
+import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import type { ComicFile } from '../../services/api.service';
 import './VirtualGrid.css';
 
@@ -52,6 +52,9 @@ export function VirtualGridView({
 
   // Reading progress state
   const [readingProgress, setReadingProgress] = useState<Record<string, { currentPage: number; totalPages: number; completed: boolean }>>({});
+
+  // Operation message state
+  const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
   // Fetch reading progress when library changes
   useEffect(() => {
@@ -104,6 +107,70 @@ export function VirtualGridView({
     selectFile(fileId, true);
   }, [selectFile]);
 
+  // Handle context menu action
+  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
+    const targetIds: string[] = selectedFiles.has(fileId) ? Array.from(selectedFiles) as string[] : [fileId];
+
+    switch (action) {
+      case 'read':
+        handleItemDoubleClick(fileId);
+        break;
+      case 'markRead':
+        try {
+          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
+          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
+          setReadingProgress((prev) => {
+            const updated = { ...prev };
+            targetIds.forEach((id) => {
+              if (updated[id]) {
+                updated[id] = { ...updated[id], completed: true };
+              } else {
+                updated[id] = { currentPage: 0, totalPages: 1, completed: true };
+              }
+            });
+            return updated;
+          });
+          setOperationMessage('Marked as read');
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+      case 'markUnread':
+        try {
+          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
+          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
+          setReadingProgress((prev) => {
+            const updated = { ...prev };
+            targetIds.forEach((id) => {
+              if (updated[id]) {
+                updated[id] = { ...updated[id], completed: false, currentPage: 0 };
+              }
+            });
+            return updated;
+          });
+          setOperationMessage('Marked as unread');
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+      case 'fetchMetadata':
+        onFetchMetadata?.(targetIds);
+        break;
+    }
+  }, [selectedFiles, handleItemDoubleClick, onFetchMetadata]);
+
+  // Menu items for context menu
+  const menuItems: MenuItemPreset[] = [
+    'read',
+    'markRead',
+    'markUnread',
+    ...(onFetchMetadata ? ['fetchMetadata'] as MenuItemPreset[] : []),
+  ];
+
   if (files.length === 0) {
     return (
       <div className="vgrid-empty">
@@ -117,6 +184,9 @@ export function VirtualGridView({
       {/* Toolbar */}
       <div className="vgrid-toolbar">
         <span className="vgrid-count">{files.length} comics</span>
+        {operationMessage && (
+          <span className="vgrid-operation-message">{operationMessage}</span>
+        )}
         {selectedFiles.size > 0 && (
           <div className="vgrid-toolbar-actions">
             {onFetchMetadata && (
@@ -161,13 +231,16 @@ export function VirtualGridView({
                 selectable={true}
                 isSelected={selectedFiles.has(item.id)}
                 checkboxVisibility="hover"
-                contextMenuEnabled={false}
+                contextMenuEnabled={true}
+                menuItems={menuItems}
+                selectedCount={selectedFiles.size}
                 showInfo={true}
                 showSeries={true}
                 showIssueNumber={true}
                 onClick={handleItemClick}
                 onDoubleClick={handleItemDoubleClick}
                 onSelectionChange={handleSelectionChange}
+                onMenuAction={handleMenuAction}
               />
             </div>
           ))}

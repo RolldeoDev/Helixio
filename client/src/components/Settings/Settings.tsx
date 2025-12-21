@@ -22,6 +22,7 @@ import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import { TrackerSettings } from './TrackerSettings';
 import { SyncSettings } from './SyncSettings';
 import { AccountSettings } from './AccountSettings';
+import { ThemeSettings } from './ThemeSettings';
 
 const API_BASE = '/api';
 
@@ -36,16 +37,18 @@ interface AppConfig {
     rateLimitAggressiveness: number;
     coverCacheSizeMB: number;
     logRetentionDays: number;
+    autoMatchThreshold?: number;
+    autoApplyHighConfidence?: boolean;
   };
 }
 
-type SettingsTab = 'general' | 'libraries' | 'api' | 'cache' | 'trackers' | 'sync' | 'account';
+type SettingsTab = 'appearance' | 'general' | 'libraries' | 'api' | 'cache' | 'trackers' | 'sync' | 'account';
 
 export function Settings() {
   const { libraries, refreshLibraries, selectLibrary } = useApp();
   const { isAuthenticated } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,11 +64,18 @@ export function Settings() {
   // API key state
   const [comicVineKey, setComicVineKey] = useState('');
   const [anthropicKey, setAnthropicKey] = useState('');
+  const [metronUsername, setMetronUsername] = useState('');
+  const [metronPassword, setMetronPassword] = useState('');
+  const [testingMetron, setTestingMetron] = useState(false);
 
   // Settings state
   const [metadataSourcePriority, setMetadataSourcePriority] = useState<string[]>(['comicvine', 'metron']);
   const [rateLimitAggressiveness, setRateLimitAggressiveness] = useState(5);
   const [coverCacheSizeMB, setCoverCacheSizeMB] = useState(500);
+
+  // Cross-source matching settings
+  const [autoMatchThreshold, setAutoMatchThreshold] = useState(0.95);
+  const [autoApplyHighConfidence, setAutoApplyHighConfidence] = useState(true);
 
   // Series cache state
   const [seriesCacheStats, setSeriesCacheStats] = useState<SeriesCacheStats | null>(null);
@@ -89,6 +99,13 @@ export function Settings() {
           setMetadataSourcePriority(data.settings.metadataSourcePriority || ['comicvine', 'metron']);
           setRateLimitAggressiveness(data.settings.rateLimitAggressiveness || 5);
           setCoverCacheSizeMB(data.settings.coverCacheSizeMB || 500);
+          // Cross-source matching settings
+          if (data.settings.autoMatchThreshold !== undefined) {
+            setAutoMatchThreshold(data.settings.autoMatchThreshold);
+          }
+          if (data.settings.autoApplyHighConfidence !== undefined) {
+            setAutoApplyHighConfidence(data.settings.autoApplyHighConfidence);
+          }
         }
 
         // Load actual API key values (this is a local app, safe to show)
@@ -96,6 +113,8 @@ export function Settings() {
         const keys = await keysRes.json();
         setComicVineKey(keys.comicVine || '');
         setAnthropicKey(keys.anthropic || '');
+        setMetronUsername(keys.metronUsername || '');
+        setMetronPassword(keys.metronPassword || '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load configuration');
       } finally {
@@ -130,6 +149,8 @@ export function Settings() {
         body: JSON.stringify({
           comicVine: comicVineKey || undefined,
           anthropic: anthropicKey || undefined,
+          metronUsername: metronUsername || undefined,
+          metronPassword: metronPassword || undefined,
         }),
       });
 
@@ -146,6 +167,28 @@ export function Settings() {
     }
   };
 
+  // Test Metron credentials
+  const handleTestMetron = async () => {
+    setTestingMetron(true);
+    try {
+      const response = await fetch(`${API_BASE}/config/test-metron`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showMessage('Metron credentials are valid');
+      } else {
+        showMessage(data.error || 'Metron authentication failed', true);
+      }
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to test Metron credentials', true);
+    } finally {
+      setTestingMetron(false);
+    }
+  };
+
   // Save general settings
   const handleSaveSettings = async () => {
     setSaving(true);
@@ -157,6 +200,8 @@ export function Settings() {
           metadataSourcePriority,
           rateLimitAggressiveness,
           coverCacheSizeMB,
+          autoMatchThreshold,
+          autoApplyHighConfidence,
         }),
       });
 
@@ -329,6 +374,12 @@ export function Settings() {
         {/* Tab Navigation */}
         <div className="settings-tabs">
           <button
+            className={`tab ${activeTab === 'appearance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('appearance')}
+          >
+            Appearance
+          </button>
+          <button
             className={`tab ${activeTab === 'general' ? 'active' : ''}`}
             onClick={() => setActiveTab('general')}
           >
@@ -378,6 +429,11 @@ export function Settings() {
 
         {/* Tab Content */}
         <div className="settings-panel">
+          {/* Appearance Settings */}
+          {activeTab === 'appearance' && (
+            <ThemeSettings />
+          )}
+
           {/* General Settings */}
           {activeTab === 'general' && (
             <div className="settings-section">
@@ -438,6 +494,45 @@ export function Settings() {
                   onChange={(e) => setRateLimitAggressiveness(parseInt(e.target.value, 10))}
                 />
                 <span className="range-value">{rateLimitAggressiveness}</span>
+              </div>
+
+              <h3 className="settings-subheader">Cross-Source Matching</h3>
+              <p className="setting-description">
+                When you select a series from one source, Helixio can automatically search other sources
+                to find matching series and combine their metadata.
+              </p>
+
+              <div className="setting-group">
+                <label htmlFor="autoMatchThreshold">Auto-Match Threshold</label>
+                <p className="setting-description">
+                  Minimum confidence level ({Math.round(autoMatchThreshold * 100)}%) for cross-source matches to be automatically linked.
+                  Higher values require more certainty before auto-linking.
+                </p>
+                <input
+                  id="autoMatchThreshold"
+                  type="range"
+                  min="0.85"
+                  max="1.0"
+                  step="0.01"
+                  value={autoMatchThreshold}
+                  onChange={(e) => setAutoMatchThreshold(parseFloat(e.target.value))}
+                />
+                <span className="range-value">{Math.round(autoMatchThreshold * 100)}%</span>
+              </div>
+
+              <div className="setting-group checkbox-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={autoApplyHighConfidence}
+                    onChange={(e) => setAutoApplyHighConfidence(e.target.checked)}
+                  />
+                  <span className="checkbox-text">Auto-apply high-confidence matches</span>
+                </label>
+                <p className="setting-description">
+                  When enabled, cross-source matches above the threshold are automatically linked without requiring review.
+                  Disable this to review all cross-source matches manually.
+                </p>
               </div>
 
               <button
@@ -636,10 +731,49 @@ export function Settings() {
                 />
               </div>
 
+              <div className="setting-group">
+                <label htmlFor="metronUsername">Metron Username</label>
+                <p className="setting-description">
+                  Required for fetching metadata from Metron. Create a free account at{' '}
+                  <a href="https://metron.cloud" target="_blank" rel="noopener noreferrer">
+                    metron.cloud
+                  </a>
+                </p>
+                <input
+                  id="metronUsername"
+                  type="text"
+                  placeholder="Enter your Metron username"
+                  value={metronUsername}
+                  onChange={(e) => setMetronUsername(e.target.value)}
+                />
+              </div>
+
+              <div className="setting-group">
+                <label htmlFor="metronPassword">Metron Password</label>
+                <p className="setting-description">
+                  Your Metron account password.
+                </p>
+                <input
+                  id="metronPassword"
+                  type="password"
+                  placeholder="Enter your Metron password"
+                  value={metronPassword}
+                  onChange={(e) => setMetronPassword(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="btn-secondary"
+                onClick={handleTestMetron}
+                disabled={testingMetron}
+              >
+                {testingMetron ? 'Testing...' : 'Test Metron Credentials'}
+              </button>
+
               <button
                 className="btn-primary"
                 onClick={handleSaveApiKeys}
-                disabled={saving || (!comicVineKey && !anthropicKey)}
+                disabled={saving || (!comicVineKey && !anthropicKey && !metronUsername && !metronPassword)}
               >
                 {saving ? 'Saving...' : 'Save API Keys'}
               </button>

@@ -1,0 +1,450 @@
+/**
+ * Manga Theme Effects
+ *
+ * Visual effects for the Manga/Anime theme:
+ * - Sakura petals floating
+ * - Paper texture overlay
+ * - Soft vignette
+ * - Speed lines
+ * - Manga expressions
+ * - Sparkle stars
+ * - Corner decorations
+ */
+
+/* ============================================
+   CSS Variables
+   ============================================ */
+
+:root[data-theme^="manga"] {
+  --manga-sakura-pink: #ffb7c5;
+  --manga-sakura-light: #ffd6de;
+  --manga-sakura-dark: #e896a6;
+  --manga-wisteria: #c4a7e7;
+  --manga-cream: #fff9f5;
+  --manga-ink: #2a2530;
+}
+
+/* ============================================
+   Paper Texture Overlay
+   ============================================ */
+
+.manga-paper-texture {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* Subtle overlay behind content */
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+[data-color-scheme="light"] .manga-paper-texture {
+  opacity: 0.03;
+}
+
+/* ============================================
+   Vignette
+   ============================================ */
+
+.manga-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* Subtle overlay behind content */
+  background: radial-gradient(
+    ellipse at center,
+    transparent 50%,
+    rgba(255, 183, 197, 0.03) 70%,
+    rgba(255, 183, 197, 0.08) 100%
+  );
+}
+
+[data-color-scheme="dark"] .manga-vignette {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(15, 15, 20, 0.2) 70%,
+    rgba(15, 15, 20, 0.5) 100%
+  );
+}
+
+/* ============================================
+   Sakura Petals
+   ============================================ */
+
+.manga-sakura {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  overflow: hidden;
+}
+
+.manga-petal {
+  position: absolute;
+  top: -30px;
+  width: 12px;
+  height: 10px;
+  background: var(--manga-sakura-pink);
+  border-radius: 50% 0 50% 50%;
+  opacity: 0.6;
+  animation: manga-petal-fall linear infinite;
+  transform: rotate(var(--petal-rotation, 0deg));
+  box-shadow: 0 0 6px rgba(255, 183, 197, 0.3);
+}
+
+.manga-petal::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 60%;
+  height: 60%;
+  background: var(--manga-sakura-light);
+  border-radius: 50% 0 50% 50%;
+  opacity: 0.7;
+}
+
+.manga-petal--small {
+  width: 8px;
+  height: 6px;
+  opacity: 0.4;
+}
+
+.manga-petal--large {
+  width: 16px;
+  height: 13px;
+  opacity: 0.7;
+}
+
+@keyframes manga-petal-fall {
+  0% {
+    transform: translateY(0) rotate(var(--petal-rotation, 0deg)) translateX(0);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(50vh) rotate(calc(var(--petal-rotation, 0deg) + 180deg)) translateX(30px);
+  }
+  95% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(110vh) rotate(calc(var(--petal-rotation, 0deg) + 360deg)) translateX(-20px);
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   Speed Lines
+   ============================================ */
+
+.manga-speed-lines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0; /* Subtle effect behind content */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: manga-speed-flash 0.8s ease-out forwards;
+}
+
+.manga-speed-line {
+  position: absolute;
+  width: 2px;
+  height: 100vh;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--manga-sakura-pink) 20%,
+    var(--manga-sakura-pink) 80%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: rotate(var(--line-angle, 0deg));
+  animation: manga-speed-line 0.6s ease-out forwards;
+  animation-delay: var(--line-delay, 0s);
+}
+
+@keyframes manga-speed-flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes manga-speed-line {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--line-angle, 0deg)) scaleY(0);
+  }
+  30% {
+    opacity: 0.3;
+    transform: rotate(var(--line-angle, 0deg)) scaleY(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--line-angle, 0deg)) scaleY(1);
+  }
+}
+
+/* ============================================
+   Manga Expressions
+   ============================================ */
+
+.manga-expression {
+  position: fixed;
+  bottom: 130px;
+  left: 100px; /* Account for sidebar width */
+  pointer-events: none;
+  z-index: 1; /* UI element - slightly above content but unobtrusive */
+  opacity: 0;
+  transform: scale(0.8) rotate(-5deg);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  font-family: 'Shippori Antique', 'Comic Sans MS', cursive;
+}
+
+.manga-expression.visible {
+  opacity: 1;
+  transform: scale(1) rotate(-3deg);
+}
+
+.manga-expression-text {
+  display: block;
+  padding: 8px 16px;
+  background: var(--manga-cream);
+  color: var(--manga-ink);
+  border: 3px solid var(--manga-ink);
+  border-radius: 8px 8px 8px 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow:
+    4px 4px 0 var(--manga-ink),
+    0 0 15px rgba(255, 183, 197, 0.3);
+  white-space: nowrap;
+}
+
+[data-color-scheme="dark"] .manga-expression-text {
+  background: var(--manga-ink);
+  color: var(--manga-cream);
+  border-color: var(--manga-sakura-pink);
+  box-shadow:
+    4px 4px 0 var(--manga-sakura-dark),
+    0 0 20px rgba(255, 183, 197, 0.2);
+}
+
+/* Expression style variations */
+.manga-expression--excited .manga-expression-text {
+  animation: manga-bounce 0.5s ease infinite;
+}
+
+.manga-expression--cute .manga-expression-text {
+  border-color: var(--manga-sakura-pink);
+}
+
+.manga-expression--shock .manga-expression-text {
+  animation: manga-shake 0.3s ease infinite;
+  font-size: 18px;
+}
+
+.manga-expression--heartbeat .manga-expression-text {
+  animation: manga-heartbeat 1s ease infinite;
+}
+
+@keyframes manga-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes manga-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px) rotate(-2deg);
+  }
+  75% {
+    transform: translateX(3px) rotate(2deg);
+  }
+}
+
+@keyframes manga-heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  15% {
+    transform: scale(1.1);
+  }
+  30% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+  }
+}
+
+/* ============================================
+   Sakura Flower Decoration
+   ============================================ */
+
+.manga-corner-decoration {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.4;
+}
+
+.manga-corner-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Sakura flower shape using CSS */
+.manga-corner-decoration::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--manga-sakura-pink);
+  border-radius: 50% 0 50% 50%;
+  transform: rotate(45deg);
+  box-shadow:
+    12px 12px 0 var(--manga-sakura-light),
+    -12px 12px 0 var(--manga-sakura-pink),
+    12px -12px 0 var(--manga-sakura-light),
+    -12px -12px 0 var(--manga-sakura-pink);
+  animation: manga-flower-spin 30s linear infinite;
+}
+
+.manga-corner-decoration::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--manga-wisteria);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+@keyframes manga-flower-spin {
+  from { transform: rotate(45deg); }
+  to { transform: rotate(405deg); }
+}
+
+[data-color-scheme="light"] .manga-corner-decoration {
+  opacity: 0.3;
+}
+
+/* ============================================
+   Sparkle Stars
+   ============================================ */
+
+.manga-sparkles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+}
+
+.manga-sparkle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  opacity: 0;
+  animation: manga-sparkle ease-in-out infinite;
+}
+
+.manga-sparkle::before,
+.manga-sparkle::after {
+  content: '';
+  position: absolute;
+  background: var(--manga-sakura-light);
+}
+
+.manga-sparkle::before {
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+  border-radius: 1px;
+}
+
+.manga-sparkle::after {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+}
+
+@keyframes manga-sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.5) rotate(0deg);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1) rotate(45deg);
+  }
+}
+
+/* ============================================
+   Accessibility & Performance
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .manga-petal,
+  .manga-speed-line,
+  .manga-expression-text,
+  .manga-sparkle {
+    animation: none !important;
+  }
+
+  .manga-sakura,
+  .manga-speed-lines,
+  .manga-sparkles {
+    display: none;
+  }
+}
+
+@media print {
+  .manga-paper-texture,
+  .manga-vignette,
+  .manga-sakura,
+  .manga-speed-lines,
+  .manga-expression,
+  .manga-corner-decoration,
+  .manga-sparkles {
+    display: none !important;
+  }
+}
+
+/* Performance: reduce effects on low-power devices */
+@media (prefers-reduced-motion: no-preference) and (hover: none) {
+  .manga-petal {
+    animation-duration: 25s;
+  }
+
+  .manga-sakura .manga-petal:nth-child(n+12) {
+    display: none;
+  }
+}

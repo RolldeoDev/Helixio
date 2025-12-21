@@ -5,11 +5,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { getActiveBatch, getCacheJobs, type BatchProgress, type CacheJob } from '../../services/api.service';
 
 export function StatusBar() {
+  const location = useLocation();
   const {
     selectedLibrary,
     selectedFiles,
@@ -17,6 +18,9 @@ export function StatusBar() {
     operationInProgress,
     operationMessage,
   } = useApp();
+
+  // Pagination is only relevant on library routes
+  const isLibraryRoute = location.pathname === '/library' || location.pathname.startsWith('/library/');
 
   const [activeBatch, setActiveBatch] = useState<BatchProgress | null>(null);
   const [activeCacheJob, setActiveCacheJob] = useState<CacheJob | null>(null);
@@ -95,13 +99,13 @@ export function StatusBar() {
           </Link>
         ) : operationMessage ? (
           <span className="operation-message">{operationMessage}</span>
-        ) : selectedLibrary ? (
+        ) : isLibraryRoute && selectedLibrary ? (
           <span>
             {selectedLibrary.name} - {pagination.total} files
           </span>
-        ) : (
+        ) : isLibraryRoute ? (
           <span>Select a library to begin</span>
-        )}
+        ) : null}
       </div>
 
       <div className="status-center">
@@ -121,7 +125,7 @@ export function StatusBar() {
             History
           </Link>
         </div>
-        {pagination.pages > 1 && (
+        {isLibraryRoute && pagination.pages > 1 && (
           <span className="page-info">
             Page {pagination.page} of {pagination.pages}
           </span>

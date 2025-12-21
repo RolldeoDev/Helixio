@@ -30,7 +30,7 @@ function seriesToSeriesMetadata(series: metron.MetronSeries): SeriesMetadata {
   return {
     source: 'metron',
     sourceId: String(series.id),
-    name: series.name,
+    name: metron.getSeriesName(series),
     publisher: series.publisher?.name,
     startYear: series.year_began,
     endYear: series.year_end,
