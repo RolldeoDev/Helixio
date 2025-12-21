@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { mangaEffects } from './manga-dark';
 
 /**
  * Manga Light Theme - "Sakura Garden"
@@ -73,5 +74,17 @@ export const mangaLightTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(42, 37, 48, 0.1)',
     shadowGlow: '0 0 20px rgba(212, 122, 140, 0.1), 0 0 40px rgba(155, 114, 207, 0.06)',
     shadowHoverGlow: '0 0 25px rgba(212, 122, 140, 0.15), 0 0 50px rgba(155, 114, 207, 0.1)',
+
+    // Title effects - Soft sakura tint
+    shadowTitleLocation: '0 1px 2px',
+    colorShadowTitle: '#d47a8c',
+
+    // Border radius - Soft, rounded edges
+    radiusSm: '6px',
+    radiusMd: '10px',
+    radiusLg: '14px',
+    radiusXl: '20px',
+    radiusFull: '9999px',
   },
+  effects: mangaEffects,
 };

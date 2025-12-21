@@ -46,6 +46,10 @@
    ============================================================================= */
 
 .reader-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -65,6 +69,10 @@
 
 .reader-toolbar.visible {
   transform: translateY(0);
+  opacity: 0.75;
+}
+
+.reader-toolbar.visible:hover {
   opacity: 1;
 }
 
@@ -181,13 +189,16 @@
    ============================================================================= */
 
 .reader-content {
-  flex: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   cursor: pointer;
-  position: relative;
 }
 
 
@@ -544,6 +555,10 @@
    ============================================================================= */
 
 .reader-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
   padding: 12px 16px;
@@ -562,6 +577,10 @@
 
 .reader-footer.visible {
   transform: translateY(0);
+  opacity: 0.75;
+}
+
+.reader-footer.visible:hover {
   opacity: 1;
 }
 
@@ -1018,6 +1037,10 @@
 
 .thumbnail-strip.visible {
   transform: translateY(0);
+  opacity: 0.75;
+}
+
+.thumbnail-strip.visible:hover {
   opacity: 1;
 }
 

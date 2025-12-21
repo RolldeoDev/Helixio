@@ -196,37 +196,80 @@ function MorpheusSigil() {
 }
 
 /**
- * Main SandmanEffects Component
+ * Vignette Effect Component
  */
-export function SandmanEffects() {
-  const { themeId, effectsEnabled } = useTheme();
+function VignetteEffect() {
+  return (
+    <div
+      className="sandman-vignette"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        pointerEvents: 'none',
+        zIndex: 0,
+        background: `
+          radial-gradient(
+            ellipse at center,
+            transparent 0%,
+            transparent 50%,
+            rgba(10, 6, 18, 0.3) 100%
+          )
+        `,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/**
+ * Dream Sand Particles Component
+ */
+function DreamSandParticles() {
   const [particles, setParticles] = useState<Particle[]>([]);
-  const [isActive, setIsActive] = useState(false);
 
-  // Check if Sandman theme is active
   useEffect(() => {
-    const isSandman = themeId === 'sandman' && effectsEnabled;
-    setIsActive(isSandman);
+    const newParticles = Array.from(
+      { length: PARTICLE_COUNT },
+      (_, i) => generateParticle(i)
+    );
+    setParticles(newParticles);
+  }, []);
 
-    if (isSandman) {
-      // Generate particles when theme becomes active
-      const newParticles = Array.from(
-        { length: PARTICLE_COUNT },
-        (_, i) => generateParticle(i)
-      );
-      setParticles(newParticles);
-    } else {
-      // Clear particles when theme changes away
-      setParticles([]);
-    }
-  }, [themeId, effectsEnabled]);
-
-  // Regenerate particles periodically for variety
   const regenerateParticle = useCallback((id: number) => {
     setParticles(prev =>
       prev.map(p => p.id === id ? generateParticle(id) : p)
     );
   }, []);
+
+  return (
+    <div className="sandman-particles" aria-hidden="true">
+      {particles.map(particle => (
+        <div
+          key={particle.id}
+          className={`sandman-particle sandman-particle--${particle.size}`}
+          style={{
+            left: particle.left,
+            animationDelay: particle.animationDelay,
+            animationDuration: particle.animationDuration,
+          }}
+          onAnimationIteration={() => regenerateParticle(particle.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Main SandmanEffects Component
+ */
+export function SandmanEffects() {
+  const { themeId, getEffectEnabled } = useTheme();
+  const [isActive, setIsActive] = useState(false);
+
+  // Check if Sandman theme is active
+  useEffect(() => {
+    setIsActive(themeId === 'sandman');
+  }, [themeId]);
 
   // Don't render anything if theme isn't active
   if (!isActive) {
@@ -236,44 +279,14 @@ export function SandmanEffects() {
   return (
     <>
       {/* Particle Container */}
-      <div className="sandman-particles" aria-hidden="true">
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            className={`sandman-particle sandman-particle--${particle.size}`}
-            style={{
-              left: particle.left,
-              animationDelay: particle.animationDelay,
-              animationDuration: particle.animationDuration,
-            }}
-            onAnimationIteration={() => regenerateParticle(particle.id)}
-          />
-        ))}
-      </div>
+      {getEffectEnabled('dreamSand') && <DreamSandParticles />}
 
       {/* Decorative Elements */}
-      <MorpheusSigil />
-      <DreamQuote />
+      {getEffectEnabled('morpheusSigil') && <MorpheusSigil />}
+      {getEffectEnabled('dreamQuote') && <DreamQuote />}
 
       {/* Vignette Effect */}
-      <div
-        className="sandman-vignette"
-        style={{
-          position: 'fixed',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 0,
-          background: `
-            radial-gradient(
-              ellipse at center,
-              transparent 0%,
-              transparent 50%,
-              rgba(10, 6, 18, 0.3) 100%
-            )
-          `,
-        }}
-        aria-hidden="true"
-      />
+      {getEffectEnabled('vignette') && <VignetteEffect />}
     </>
   );
 }

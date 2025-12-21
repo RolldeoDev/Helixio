@@ -16,12 +16,10 @@ export function ThemeSettings() {
     themeId,
     colorScheme,
     followSystem,
-    effectsEnabled,
     externalThemes,
     setTheme,
     setColorScheme,
     setFollowSystem,
-    setEffectsEnabled,
     enableExternalTheme,
     disableExternalTheme,
     deleteExternalTheme,
@@ -138,22 +136,6 @@ export function ThemeSettings() {
         </div>
       </section>
 
-      {/* Background Effects Section */}
-      <section className="theme-settings__section">
-        <h3 className="theme-settings__section-title">Background Effects</h3>
-        <p className="theme-settings__section-description">
-          Some themes include animated background effects like floating particles, sakura petals, or retro game elements.
-        </p>
-        <label className="theme-settings__effects-toggle">
-          <input
-            type="checkbox"
-            checked={effectsEnabled}
-            onChange={(e) => setEffectsEnabled(e.target.checked)}
-          />
-          <span>Enable animated background effects</span>
-        </label>
-      </section>
-
       {/* Bundled Themes Section */}
       <section className="theme-settings__section">
         <h3 className="theme-settings__section-title">Theme</h3>
@@ -168,7 +150,7 @@ export function ThemeSettings() {
                 theme={theme}
                 isSelected={themeId === id}
                 onClick={() => handleSelectTheme(id)}
-                onEdit={openEditor}
+                onEdit={(themeIdToEdit) => openEditor(themeIdToEdit)}
               />
             );
           })}

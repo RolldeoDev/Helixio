@@ -211,33 +211,33 @@ function SparkleStars() {
  * Main MangaEffects Component
  */
 export function MangaEffects() {
-  const { themeId, effectsEnabled } = useTheme();
+  const { themeId, getEffectEnabled } = useTheme();
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
     setIsActive(themeId === 'manga');
   }, [themeId]);
 
-  if (!isActive || !effectsEnabled) {
+  if (!isActive) {
     return null;
   }
 
   return (
     <>
       {/* Background effects */}
-      <PaperTexture />
-      <Vignette />
+      {getEffectEnabled('paperTexture') && <PaperTexture />}
+      {getEffectEnabled('vignette') && <Vignette />}
 
       {/* Floating elements */}
-      <SakuraPetals />
-      <SparkleStars />
+      {getEffectEnabled('sakuraPetals') && <SakuraPetals />}
+      {getEffectEnabled('sparkleStars') && <SparkleStars />}
 
       {/* Dynamic effects */}
-      <SpeedLines />
+      {getEffectEnabled('speedLines') && <SpeedLines />}
 
       {/* UI elements */}
-      <SakuraFlower />
-      <MangaExpression />
+      {getEffectEnabled('sakuraFlower') && <SakuraFlower />}
+      {getEffectEnabled('mangaExpression') && <MangaExpression />}
     </>
   );
 }

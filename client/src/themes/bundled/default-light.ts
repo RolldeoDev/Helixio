@@ -65,5 +65,16 @@ export const defaultLightTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(0, 0, 0, 0.12)',
     shadowGlow: '0 0 20px rgba(139, 105, 20, 0.1)',
     shadowHoverGlow: '0 0 25px rgba(139, 105, 20, 0.2)',
+
+    // Title effects
+    shadowTitleLocation: '0 1px 2px',
+    colorShadowTitle: 'rgba(0, 0, 0, 0.1)',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
 };

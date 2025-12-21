@@ -22,5 +22,8 @@ export { retroLightTheme } from '../bundled/retro-light';
 // Visual effects component (imports CSS automatically)
 export { RetroEffects } from './RetroEffects';
 
+// Stats hook for self-contained data fetching
+export { useRetroStats } from './useRetroStats';
+
 // Re-export types for convenience
 export type { ThemeDefinition, ThemeTokens, ThemeMeta } from '../types';

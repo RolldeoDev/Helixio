@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { retroEffects } from './retro-dark';
 
 /**
  * Retro Gaming Light Theme - "Game Boy"
@@ -70,5 +71,17 @@ export const retroLightTheme: ThemeDefinition = {
     shadowLg: '6px 6px 0 rgba(15, 56, 15, 0.4)',
     shadowGlow: '0 0 0 2px #0f380f',
     shadowHoverGlow: '0 0 0 3px #0f380f, 0 0 10px rgba(15, 56, 15, 0.3)',
+
+    // Title effects - Game Boy style
+    shadowTitleLocation: '2px 2px 0',
+    colorShadowTitle: '#306850',
+
+    // Border radius - Pixel-perfect with no rounding
+    radiusSm: '0px',
+    radiusMd: '0px',
+    radiusLg: '0px',
+    radiusXl: '0px',
+    radiusFull: '0px',
   },
+  effects: retroEffects,
 };

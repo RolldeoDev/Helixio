@@ -1,12 +1,25 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../../themes/ThemeContext';
+import { getTheme } from '../../themes';
 import { VARIABLE_GROUPS, toKebabCase } from '../../themes/types';
-import type { ThemeTokens } from '../../themes/types';
+import type { ThemeTokens, ThemeId, EffectToggleDefinition, EffectCategory } from '../../themes/types';
+import { RgbaColorPicker } from './RgbaColorPicker';
+import { RadiusPicker } from './RadiusPicker';
 import './VariableEditor.css';
 
 interface VariableEditorProps {
   onClose: () => void;
 }
+
+// Category display names and order
+const EFFECT_CATEGORY_LABELS: Record<EffectCategory, string> = {
+  background: 'Background',
+  overlay: 'Overlay',
+  particles: 'Particles',
+  ui: 'UI Elements',
+};
+
+const EFFECT_CATEGORY_ORDER: EffectCategory[] = ['background', 'overlay', 'particles', 'ui'];
 
 /**
  * VariableEditor - Full CSS variable editor with collapsible groups and search
@@ -14,15 +27,76 @@ interface VariableEditorProps {
 export function VariableEditor({ onClose }: VariableEditorProps) {
   const {
     currentTheme,
-    userOverrides,
+    editingThemeId,
+    colorScheme,
     setOverride,
     removeOverride,
     resetToDefaults,
+    getOverridesForTheme,
+    getEffectTogglesForTheme,
+    setEffectEnabledForTheme,
+    setAllEffectsEnabledForTheme,
   } = useTheme();
+
+  // Get the theme being edited (may differ from currently active theme)
+  const editingTheme = useMemo(() => {
+    if (editingThemeId) {
+      const theme = getTheme(editingThemeId as ThemeId, colorScheme);
+      if (theme) return theme;
+    }
+    return currentTheme;
+  }, [editingThemeId, colorScheme, currentTheme]);
+
+  // Get overrides for the theme being edited
+  const userOverrides = useMemo(() => {
+    return getOverridesForTheme(editingTheme.id as ThemeId, colorScheme);
+  }, [editingTheme.id, colorScheme, getOverridesForTheme]);
+
+  // Get effect toggles for the theme being edited
+  const effectToggles = useMemo(() => {
+    return getEffectTogglesForTheme(editingTheme.id as ThemeId, colorScheme);
+  }, [editingTheme.id, colorScheme, getEffectTogglesForTheme]);
+
+  // Get available effects for the theme being edited
+  const editingThemeEffects = useMemo((): EffectToggleDefinition[] => {
+    return editingTheme.effects || [];
+  }, [editingTheme.effects]);
+
+  // Group effects by category
+  const effectsByCategory = useMemo(() => {
+    const categories: Record<EffectCategory, EffectToggleDefinition[]> = {
+      background: [],
+      overlay: [],
+      particles: [],
+      ui: [],
+    };
+
+    editingThemeEffects.forEach((effect) => {
+      const cat = effect.category || 'ui';
+      categories[cat].push(effect);
+    });
+
+    return categories;
+  }, [editingThemeEffects]);
+
+  const hasEffects = editingThemeEffects.length > 0;
+
+  // Effect toggle handlers
+  const handleEffectToggle = useCallback((effectId: string, enabled: boolean) => {
+    setEffectEnabledForTheme(editingTheme.id as ThemeId, colorScheme, effectId, enabled);
+  }, [editingTheme.id, colorScheme, setEffectEnabledForTheme]);
+
+  const handleEnableAllEffects = useCallback(() => {
+    setAllEffectsEnabledForTheme(editingTheme.id as ThemeId, colorScheme, true);
+  }, [editingTheme.id, colorScheme, setAllEffectsEnabledForTheme]);
+
+  const handleDisableAllEffects = useCallback(() => {
+    setAllEffectsEnabledForTheme(editingTheme.id as ThemeId, colorScheme, false);
+  }, [editingTheme.id, colorScheme, setAllEffectsEnabledForTheme]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(['Background Colors', 'Primary & Accent Colors'])
+    new Set(['Theme Effects', 'Background Colors', 'Primary & Accent Colors'])
   );
 
   // Get the current value for a variable (override or theme default)
@@ -31,7 +105,7 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
     if (userOverrides[cssVar]) {
       return userOverrides[cssVar];
     }
-    return currentTheme.tokens[tokenKey];
+    return editingTheme.tokens[tokenKey];
   };
 
   // Check if a variable has been overridden
@@ -97,7 +171,7 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
       <div className="variable-editor__header">
         <div className="variable-editor__title-row">
           <h2 className="variable-editor__title">
-            Edit Theme: {currentTheme.meta.name}
+            Edit Theme: {editingTheme.meta.name}
           </h2>
           {overrideCount > 0 && (
             <button
@@ -135,6 +209,82 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
       </div>
 
       <div className="variable-editor__groups">
+        {/* Theme Effects Section */}
+        {hasEffects && (
+          <div className="variable-editor__group">
+            <button
+              className="variable-editor__group-header"
+              onClick={() => toggleGroup('Theme Effects')}
+              type="button"
+              aria-expanded={expandedGroups.has('Theme Effects')}
+            >
+              <span className="variable-editor__group-arrow">
+                {expandedGroups.has('Theme Effects') ? '▼' : '▶'}
+              </span>
+              <span className="variable-editor__group-name">Theme Effects</span>
+              <span className="variable-editor__group-count">
+                ({editingThemeEffects.length})
+              </span>
+            </button>
+
+            {expandedGroups.has('Theme Effects') && (
+              <div className="variable-editor__group-content">
+                {/* Master toggle buttons */}
+                <div className="variable-editor__effect-master">
+                  <button
+                    className="variable-editor__effect-all-btn"
+                    onClick={handleEnableAllEffects}
+                    type="button"
+                  >
+                    Enable All
+                  </button>
+                  <button
+                    className="variable-editor__effect-all-btn"
+                    onClick={handleDisableAllEffects}
+                    type="button"
+                  >
+                    Disable All
+                  </button>
+                </div>
+
+                {/* Effect toggles by category */}
+                {EFFECT_CATEGORY_ORDER.map((category) => {
+                  const effects = effectsByCategory[category];
+                  if (effects.length === 0) return null;
+
+                  return (
+                    <div key={category} className="variable-editor__effect-category">
+                      <span className="variable-editor__effect-category-label">
+                        {EFFECT_CATEGORY_LABELS[category]}
+                      </span>
+                      {effects.map((effect) => (
+                        <div key={effect.id} className="variable-editor__effect-item">
+                          <label className="variable-editor__effect-toggle">
+                            <input
+                              type="checkbox"
+                              checked={effectToggles[effect.id] ?? false}
+                              onChange={(e) => handleEffectToggle(effect.id, e.target.checked)}
+                            />
+                            <span className="variable-editor__effect-label">
+                              {effect.label}
+                            </span>
+                          </label>
+                          {effect.description && (
+                            <span className="variable-editor__effect-description">
+                              {effect.description}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CSS Variable Groups */}
         {filteredGroups.map((group) => (
           <div key={group.name} className="variable-editor__group">
             <button
@@ -171,30 +321,25 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
 
                       <div className="variable-editor__control">
                         {variable.type === 'color' ? (
-                          <div className="variable-editor__color-input">
-                            <input
-                              type="color"
-                              value={parseColorValue(value)}
-                              onChange={(e) =>
-                                handleChange(
-                                  variable.key as keyof ThemeTokens,
-                                  e.target.value
-                                )
-                              }
-                              className="variable-editor__color-picker"
-                            />
-                            <input
-                              type="text"
-                              value={value}
-                              onChange={(e) =>
-                                handleChange(
-                                  variable.key as keyof ThemeTokens,
-                                  e.target.value
-                                )
-                              }
-                              className="variable-editor__text-input"
-                            />
-                          </div>
+                          <RgbaColorPicker
+                            value={value}
+                            onChange={(newValue) =>
+                              handleChange(
+                                variable.key as keyof ThemeTokens,
+                                newValue
+                              )
+                            }
+                          />
+                        ) : variable.type === 'radius' ? (
+                          <RadiusPicker
+                            value={value}
+                            onChange={(newValue) =>
+                              handleChange(
+                                variable.key as keyof ThemeTokens,
+                                newValue
+                              )
+                            }
+                          />
                         ) : (
                           <input
                             type="text"
@@ -245,26 +390,6 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
       </div>
     </div>
   );
-}
-
-// Helper to parse color value for color picker (handles rgba, etc.)
-function parseColorValue(value: string): string {
-  // If it's already a hex color, return it
-  if (value.startsWith('#') && (value.length === 4 || value.length === 7)) {
-    return value;
-  }
-
-  // Try to parse rgba to hex
-  const rgbaMatch = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (rgbaMatch) {
-    const r = parseInt(rgbaMatch[1]!, 10);
-    const g = parseInt(rgbaMatch[2]!, 10);
-    const b = parseInt(rgbaMatch[3]!, 10);
-    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-  }
-
-  // Return a default if unparseable
-  return '#888888';
 }
 
 export default VariableEditor;

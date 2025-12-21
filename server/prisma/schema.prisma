@@ -189,6 +189,12 @@ model ComicFile {
   seriesId     String?
   series       Series?  @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
+  // Cover management (auto = first page, page = specific page, custom = URL/upload)
+  coverSource    String  @default("auto")  // "auto" | "page" | "custom"
+  coverPageIndex Int?                       // Page index if source is "page" (0-indexed)
+  coverHash      String?                    // Hash of custom cover (URL/upload stored in series covers cache)
+  coverUrl       String?                    // Original URL if cover was downloaded from URL
+
   // Relations
   library         Library          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   metadata        FileMetadata?

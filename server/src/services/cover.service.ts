@@ -1177,3 +1177,267 @@ export async function deleteSeriesCover(coverHash: string): Promise<boolean> {
 
   return success;
 }
+
+/**
+ * Save an uploaded cover image from a buffer.
+ * Generates a unique hash based on the image content.
+ * Optimizes the image using the same Sharp pipeline as other covers.
+ */
+export async function saveUploadedCover(imageBuffer: Buffer): Promise<DownloadCoverResult> {
+  // Generate hash from image content for uniqueness
+  const coverHash = createHash('md5').update(imageBuffer).digest('hex');
+  const paths = getSeriesCoverPaths(coverHash);
+
+  // Check if already cached (same image uploaded before)
+  if (existsSync(paths.webp)) {
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore blur read errors
+      }
+    }
+
+    return {
+      success: true,
+      coverHash,
+      webpPath: paths.webp,
+      jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+      blurPlaceholder,
+    };
+  }
+
+  try {
+    // Ensure directory exists
+    await mkdir(getSeriesCoversDir(), { recursive: true });
+
+    // Process with Sharp
+    const image = sharp(imageBuffer);
+    const metadata = await image.metadata();
+
+    // Only resize if image is larger than target width
+    const needsResize = metadata.width && metadata.width > COVER_WIDTH;
+    const resizedImage = needsResize
+      ? image.resize(COVER_WIDTH, null, { withoutEnlargement: true })
+      : image;
+
+    // Generate WebP (primary format - smaller, modern)
+    await resizedImage
+      .clone()
+      .webp({ quality: COVER_QUALITY_WEBP })
+      .toFile(paths.webp);
+
+    // Generate JPEG fallback
+    await resizedImage
+      .clone()
+      .jpeg({ quality: COVER_QUALITY_JPEG })
+      .toFile(paths.jpeg);
+
+    // Generate tiny blur placeholder (base64 data URL)
+    const blurBuffer = await sharp(imageBuffer)
+      .resize(BLUR_PLACEHOLDER_WIDTH, null, { withoutEnlargement: true })
+      .blur(2)
+      .jpeg({ quality: BLUR_PLACEHOLDER_QUALITY })
+      .toBuffer();
+
+    const blurPlaceholder = `data:image/jpeg;base64,${blurBuffer.toString('base64')}`;
+
+    // Save blur placeholder to disk
+    await writeFile(paths.blur, blurPlaceholder, 'utf-8');
+
+    return {
+      success: true,
+      coverHash,
+      webpPath: paths.webp,
+      jpegPath: paths.jpeg,
+      blurPlaceholder,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// =============================================================================
+// Issue Cover Functions
+// =============================================================================
+
+/**
+ * Get pages list from an archive for cover selection.
+ * Returns array of page paths sorted alphabetically.
+ */
+export async function getArchivePages(archivePath: string): Promise<{ success: boolean; pages?: string[]; error?: string }> {
+  try {
+    const archiveInfo = await listArchiveContents(archivePath);
+
+    // Filter to only image files and sort alphabetically
+    const pages = archiveInfo.entries
+      .filter(entry => !entry.isDirectory && isImageFile(entry.path))
+      .map(entry => entry.path)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+    return { success: true, pages };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Extract a specific page from an archive and save it as a custom cover.
+ * Returns a cover hash that can be used to retrieve the cover.
+ */
+export async function extractPageAsCover(
+  archivePath: string,
+  pageIndex: number
+): Promise<DownloadCoverResult> {
+  try {
+    // Get archive pages
+    const pagesResult = await getArchivePages(archivePath);
+    if (!pagesResult.success || !pagesResult.pages) {
+      return { success: false, error: pagesResult.error || 'Failed to list archive pages' };
+    }
+
+    if (pageIndex < 0 || pageIndex >= pagesResult.pages.length) {
+      return { success: false, error: `Invalid page index: ${pageIndex}. Archive has ${pagesResult.pages.length} pages.` };
+    }
+
+    const pagePath = pagesResult.pages[pageIndex];
+    if (!pagePath) {
+      return { success: false, error: 'Page path not found' };
+    }
+
+    // Extract to temp location
+    const tempDir = await createTempDir('page-cover-');
+    const tempFile = join(tempDir, 'page' + extname(pagePath));
+
+    try {
+      const result = await extractSingleFile(archivePath, pagePath, tempFile);
+      if (!result.success) {
+        return { success: false, error: result.error || 'Failed to extract page' };
+      }
+
+      // Read the extracted image
+      const imageBuffer = await readFile(tempFile);
+
+      // Use the same saveUploadedCover function to process and store
+      return await saveUploadedCover(imageBuffer);
+    } finally {
+      await cleanupTempDir(tempDir);
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Get the cover for a comic file, respecting its coverSource setting.
+ * - 'auto': Default behavior (first image or cover.jpg)
+ * - 'page': Use specific page index (extracts on-demand)
+ * - 'custom': Use custom cover hash (URL/upload stored in series covers)
+ */
+export async function getFileCover(fileId: string): Promise<CoverExtractionResult> {
+  const prisma = getDatabase();
+  const file = await prisma.comicFile.findUnique({
+    where: { id: fileId },
+    select: {
+      id: true,
+      path: true,
+      hash: true,
+      libraryId: true,
+      coverSource: true,
+      coverPageIndex: true,
+      coverHash: true,
+    },
+  });
+
+  if (!file) {
+    return { success: false, fromCache: false, error: 'File not found' };
+  }
+
+  // Handle custom cover (uploaded or URL-based)
+  if (file.coverSource === 'custom' && file.coverHash) {
+    const paths = getSeriesCoverPaths(file.coverHash);
+    if (existsSync(paths.webp)) {
+      let blurPlaceholder: string | undefined;
+      if (existsSync(paths.blur)) {
+        try {
+          blurPlaceholder = await readFile(paths.blur, 'utf-8');
+        } catch {
+          // Ignore blur read errors
+        }
+      }
+      return {
+        success: true,
+        coverPath: paths.webp,
+        webpPath: paths.webp,
+        jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+        blurPlaceholder,
+        fromCache: true,
+      };
+    }
+    // Fall through to default if custom cover not found
+  }
+
+  // Handle page-based cover
+  if (file.coverSource === 'page' && file.coverPageIndex !== null) {
+    // Check if we have a cached version with this page
+    const pageHash = `${file.hash}-page${file.coverPageIndex}`;
+    const paths = getSeriesCoverPaths(pageHash);
+
+    if (existsSync(paths.webp)) {
+      let blurPlaceholder: string | undefined;
+      if (existsSync(paths.blur)) {
+        try {
+          blurPlaceholder = await readFile(paths.blur, 'utf-8');
+        } catch {
+          // Ignore blur read errors
+        }
+      }
+      return {
+        success: true,
+        coverPath: paths.webp,
+        webpPath: paths.webp,
+        jpegPath: existsSync(paths.jpeg) ? paths.jpeg : undefined,
+        blurPlaceholder,
+        fromCache: true,
+      };
+    }
+
+    // Extract the specific page as cover
+    const result = await extractPageAsCover(file.path, file.coverPageIndex);
+    if (result.success && result.coverHash) {
+      // Update the file's coverHash to the extracted page hash for future lookups
+      await prisma.comicFile.update({
+        where: { id: fileId },
+        data: { coverHash: result.coverHash },
+      });
+
+      const newPaths = getSeriesCoverPaths(result.coverHash);
+      return {
+        success: true,
+        coverPath: newPaths.webp,
+        webpPath: newPaths.webp,
+        jpegPath: result.jpegPath,
+        blurPlaceholder: result.blurPlaceholder,
+        fromCache: false,
+      };
+    }
+    // Fall through to default if page extraction failed
+  }
+
+  // Default: use normal cover extraction
+  if (!file.hash) {
+    return { success: false, fromCache: false, error: 'File hash not available' };
+  }
+
+  return extractCover(file.path, file.libraryId, file.hash);
+}

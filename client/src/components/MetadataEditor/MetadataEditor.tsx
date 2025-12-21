@@ -5,18 +5,23 @@
  * Supports single file editing and batch editing mode.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   getComicInfo,
   updateComicInfo,
   ComicInfo,
   getCoverUrl,
+  getFileCoverInfo,
+  getApiCoverUrl,
+  FileCoverInfo,
 } from '../../services/api.service';
+import { IssueCoverPicker } from '../IssueCoverPicker';
 
 interface MetadataEditorProps {
   fileIds: string[];
   onClose?: () => void;
   onSave?: () => void;
+  onCoverChange?: (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => void;
 }
 
 type EditableField = keyof ComicInfo;
@@ -47,7 +52,7 @@ const EDITABLE_FIELDS: { key: EditableField; label: string; type: 'text' | 'numb
   { key: 'StoryArc', label: 'Story Arc', type: 'text' },
 ];
 
-export function MetadataEditor({ fileIds, onClose, onSave }: MetadataEditorProps) {
+export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: MetadataEditorProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,20 +60,29 @@ export function MetadataEditor({ fileIds, onClose, onSave }: MetadataEditorProps
   const [originalMetadata, setOriginalMetadata] = useState<ComicInfo>({});
   const [filename, setFilename] = useState<string>('');
   const [batchFields, setBatchFields] = useState<Set<EditableField>>(new Set());
+  const [coverInfo, setCoverInfo] = useState<FileCoverInfo | null>(null);
+  const [coverKey, setCoverKey] = useState(0);
+  const [isEditingCover, setIsEditingCover] = useState(false);
 
   const isBatchMode = fileIds.length > 1;
 
-  // Load metadata for single file mode
+  // Load metadata and cover info for single file mode
   useEffect(() => {
     if (!isBatchMode && fileIds[0]) {
       setLoading(true);
       setError(null);
 
-      getComicInfo(fileIds[0])
-        .then((response) => {
-          setMetadata(response.comicInfo || {});
-          setOriginalMetadata(response.comicInfo || {});
-          setFilename(response.filename);
+      Promise.all([
+        getComicInfo(fileIds[0]),
+        getFileCoverInfo(fileIds[0]).catch(() => null),
+      ])
+        .then(([metadataResponse, coverInfoResponse]) => {
+          setMetadata(metadataResponse.comicInfo || {});
+          setOriginalMetadata(metadataResponse.comicInfo || {});
+          setFilename(metadataResponse.filename);
+          if (coverInfoResponse) {
+            setCoverInfo(coverInfoResponse);
+          }
         })
         .catch((err) => {
           setError(err instanceof Error ? err.message : 'Failed to load metadata');
@@ -149,6 +163,29 @@ export function MetadataEditor({ fileIds, onClose, onSave }: MetadataEditorProps
     setBatchFields(new Set());
   };
 
+  // Handle cover change from the picker
+  const handleCoverUpdate = useCallback((result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
+    setCoverInfo((prev) => ({
+      id: prev?.id || '',
+      coverSource: result.source,
+      coverPageIndex: result.pageIndex ?? null,
+      coverHash: result.coverHash ?? null,
+      coverUrl: null,
+    }));
+    setCoverKey((k) => k + 1);
+    setIsEditingCover(false);
+    onCoverChange?.(result);
+  }, [onCoverChange]);
+
+  // Get cover URL based on cover info
+  const getCoverDisplayUrl = useCallback(() => {
+    if (!fileIds[0]) return '';
+    if (coverInfo?.coverSource === 'custom' && coverInfo?.coverHash) {
+      return getApiCoverUrl(coverInfo.coverHash);
+    }
+    return `${getCoverUrl(fileIds[0])}?v=${coverKey}`;
+  }, [fileIds, coverInfo, coverKey]);
+
   if (loading) {
     return (
       <div className="metadata-editor">
@@ -187,17 +224,36 @@ export function MetadataEditor({ fileIds, onClose, onSave }: MetadataEditorProps
       )}
 
       <div className="metadata-editor-content">
-        {/* Cover Preview (single file mode) */}
+        {/* Cover Preview and Editor (single file mode) */}
         {!isBatchMode && fileIds[0] && (
-          <div className="metadata-cover-preview">
-            <img
-              src={getCoverUrl(fileIds[0])}
-              alt={filename}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            <div className="filename">{filename}</div>
+          <div className="metadata-cover-section">
+            <div className="metadata-cover-preview">
+              <img
+                src={getCoverDisplayUrl()}
+                alt={filename}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <div className="filename">{filename}</div>
+              <button
+                className="btn-edit-cover"
+                onClick={() => setIsEditingCover(!isEditingCover)}
+              >
+                {isEditingCover ? 'Cancel' : 'Edit Cover'}
+              </button>
+            </div>
+            {isEditingCover && (
+              <div className="metadata-cover-picker">
+                <IssueCoverPicker
+                  fileId={fileIds[0]}
+                  currentCoverSource={coverInfo?.coverSource as 'auto' | 'page' | 'custom' || 'auto'}
+                  currentCoverPageIndex={coverInfo?.coverPageIndex ?? null}
+                  currentCoverHash={coverInfo?.coverHash ?? null}
+                  onCoverChange={handleCoverUpdate}
+                />
+              </div>
+            )}
           </div>
         )}
 

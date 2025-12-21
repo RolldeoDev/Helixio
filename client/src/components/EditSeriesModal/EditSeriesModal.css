@@ -745,3 +745,68 @@
   width: 100%;
   justify-content: center;
 }
+
+/* =============================================================================
+   Cover Picker - Disabled State
+   ============================================================================= */
+
+.cover-picker-mode.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cover-picker-mode.disabled input[type="radio"] {
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Cover Upload
+   ============================================================================= */
+
+.cover-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm, 8px);
+}
+
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-md, 12px) var(--spacing-xl, 24px);
+  background: var(--color-bg, #0a0e13);
+  border: 2px dashed var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.upload-button:hover {
+  border-color: var(--color-primary, #d4a574);
+  color: var(--color-primary, #d4a574);
+  background: var(--color-primary-bg, rgba(212, 165, 116, 0.1));
+}
+
+.upload-button.uploading {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.upload-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.upload-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.3));
+}

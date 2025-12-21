@@ -1,4 +1,50 @@
-import type { ThemeDefinition } from '../types';
+import type { EffectToggleDefinition, ThemeDefinition } from '../types';
+
+// Shared effect definitions for Retro theme (used by both light and dark)
+export const retroEffects: EffectToggleDefinition[] = [
+  {
+    id: 'pixelGrid',
+    label: 'Pixel Grid',
+    description: 'CRT pixel pattern overlay for authentic 8-bit feel',
+    defaultEnabled: true,
+    category: 'background',
+  },
+  {
+    id: 'crtEffect',
+    label: 'CRT Scanlines',
+    description: 'Curved screen edges and horizontal scanlines',
+    defaultEnabled: true,
+    category: 'overlay',
+  },
+  {
+    id: 'floatingPixels',
+    label: 'Floating Pixels',
+    description: 'Coins, stars, hearts, and gems floating upward',
+    defaultEnabled: true,
+    category: 'particles',
+  },
+  {
+    id: 'gameQuote',
+    label: 'Game Quotes',
+    description: 'Classic gaming quotes with typewriter effect',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+  {
+    id: 'scoreDisplay',
+    label: 'Score Display',
+    description: 'Pages read counter in retro game UI style',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+  {
+    id: 'livesDisplay',
+    label: 'Lives Display',
+    description: 'Three hearts in corner',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+];
 
 /**
  * Retro Gaming Dark Theme - "Pixel Quest"
@@ -69,5 +115,17 @@ export const retroDarkTheme: ThemeDefinition = {
     shadowLg: '8px 8px 0 rgba(0, 0, 0, 0.5)',
     shadowGlow: '0 0 0 2px #e63946, 0 0 20px rgba(230, 57, 70, 0.3)',
     shadowHoverGlow: '0 0 0 3px #ffcc00, 0 0 30px rgba(255, 204, 0, 0.4)',
+
+    // Title effects - Classic game title red drop shadow
+    shadowTitleLocation: '4px 4px 0',
+    colorShadowTitle: '#be1c31',
+
+    // Border radius - Pixel-perfect with no rounding
+    radiusSm: '0px',
+    radiusMd: '0px',
+    radiusLg: '0px',
+    radiusXl: '0px',
+    radiusFull: '0px',
   },
+  effects: retroEffects,
 };

@@ -8,7 +8,7 @@
  * - Validation and unsaved changes detection
  */
 
-import { useEffect, useCallback, useReducer } from 'react';
+import { useEffect, useCallback, useReducer, useState } from 'react';
 import {
   Series,
   SeriesIssue,
@@ -19,6 +19,8 @@ import {
   lockField,
   unlockField,
   setSeriesCover,
+  uploadSeriesCover,
+  getApiCoverUrl,
   // Metadata fetch imports
   MetadataSource,
   SeriesMetadataPayload,
@@ -384,6 +386,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
   // Cover Handlers
   // =============================================================================
 
+  // State for uploaded cover preview
+  const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(null);
+
   const handleCoverChange = useCallback(
     (source: 'api' | 'user' | 'auto', fileId: string | null, url: string | null) => {
       dispatch({ type: 'UPDATE_FIELD', field: 'coverSource', value: source });
@@ -392,6 +397,31 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
     },
     []
   );
+
+  const handleCoverUpload = useCallback(
+    async (file: File) => {
+      try {
+        const result = await uploadSeriesCover(seriesId, file);
+        // Update local state with new cover hash
+        setUploadedCoverHash(result.coverHash);
+        // Update the series state to reflect the new cover
+        dispatch({ type: 'UPDATE_FIELD', field: 'coverSource', value: 'api' });
+        dispatch({ type: 'UPDATE_FIELD', field: 'coverHash', value: result.coverHash });
+        dispatch({ type: 'UPDATE_FIELD', field: 'coverFileId', value: null });
+        dispatch({ type: 'UPDATE_FIELD', field: 'coverUrl', value: null });
+      } catch (err) {
+        dispatch({
+          type: 'SET_ERROR',
+          error: err instanceof Error ? err.message : 'Failed to upload cover',
+        });
+        throw err; // Re-throw so CoverPicker can handle it
+      }
+    },
+    [seriesId]
+  );
+
+  // Get uploaded preview URL
+  const uploadedPreviewUrl = uploadedCoverHash ? getApiCoverUrl(uploadedCoverHash) : null;
 
   // =============================================================================
   // Validation
@@ -991,10 +1021,12 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                 <CoverPicker
                   currentCoverSource={series.coverSource || 'auto'}
                   currentCoverUrl={series.coverUrl || null}
-                  currentCoverHash={series.coverHash || null}
+                  currentCoverHash={uploadedCoverHash || series.coverHash || null}
                   currentCoverFileId={series.coverFileId || null}
                   issues={state.issues}
                   onCoverChange={handleCoverChange}
+                  onUpload={handleCoverUpload}
+                  uploadedPreviewUrl={uploadedPreviewUrl}
                 />
               </CollapsibleSection>
 

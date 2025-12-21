@@ -14,6 +14,49 @@
 }
 
 /* =============================================================================
+   Header with Recalculate Button
+   ============================================================================= */
+
+.stats-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.stats-page__title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.stats-page__recalculate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stats-page__recalculate-btn:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border-hover);
+}
+
+.stats-page__recalculate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
    Layout Rows
    ============================================================================= */
 

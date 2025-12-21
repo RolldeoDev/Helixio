@@ -118,8 +118,8 @@ export function StatusBar() {
 
       <div className="status-right">
         <div className="status-links">
-          <Link to="/batches" className="status-link" title="Batch Operations">
-            Batches
+          <Link to="/batches" className="status-link" title="Job History">
+            Job History
           </Link>
           <Link to="/history" className="status-link" title="Operation History">
             History

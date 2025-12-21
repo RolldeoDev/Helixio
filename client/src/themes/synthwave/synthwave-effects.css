@@ -93,7 +93,7 @@
   right: 0;
   height: 45vh;
   pointer-events: none;
-  z-index: -1;
+  z-index: 1;
   perspective: 500px;
   overflow: hidden;
 }
@@ -320,7 +320,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  z-index: 1; /* Low z-index - floating elements should be unobtrusive */
   overflow: hidden;
 }
 

@@ -65,5 +65,16 @@ export const dcDarkTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(0, 0, 0, 0.5)',
     shadowGlow: '0 0 20px rgba(255, 215, 0, 0.2)',
     shadowHoverGlow: '0 0 25px rgba(255, 215, 0, 0.3)',
+
+    // Title effects - Batman gold glow
+    shadowTitleLocation: '0 0 10px',
+    colorShadowTitle: '#ffd700',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
 };

@@ -113,9 +113,8 @@ export function ReaderToolbar({
       </div>
 
       <div className="reader-toolbar-right">
-        {/* Zoom controls - only show when zoomed or can zoom */}
-        {state.zoom !== 1 && (
-          <div className="reader-toolbar-zoom">
+        {/* Zoom controls - always visible */}
+        <div className="reader-toolbar-zoom">
             <button
               className="reader-toolbar-btn reader-zoom-btn"
               onClick={zoomOut}
@@ -148,8 +147,7 @@ export function ReaderToolbar({
                 <line x1="8" y1="11" x2="14" y2="11" />
               </svg>
             </button>
-          </div>
-        )}
+        </div>
 
         <button
           className={`reader-toolbar-btn ${currentPageBookmarked ? 'active' : ''}`}

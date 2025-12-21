@@ -14,6 +14,8 @@ import {
   getReadingProgress,
   getFileReadingHistory,
   getCoverUrl,
+  getFileCoverInfo,
+  getApiCoverUrl,
   markAsCompleted,
   markAsIncomplete,
   ComicFile,
@@ -21,6 +23,7 @@ import {
   ArchiveInfo,
   ReadingProgress,
   ReadingSession,
+  FileCoverInfo,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { MetadataEditor } from '../components/MetadataEditor';
@@ -84,6 +87,8 @@ export function IssueDetailPage() {
   const [archiveInfo, setArchiveInfo] = useState<ArchiveInfo | null>(null);
   const [progress, setProgress] = useState<ReadingProgress | null>(null);
   const [history, setHistory] = useState<ReadingSession[]>([]);
+  const [coverInfo, setCoverInfo] = useState<FileCoverInfo | null>(null);
+  const [coverKey, setCoverKey] = useState(0); // For forcing cover refresh
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -103,13 +108,14 @@ export function IssueDetailPage() {
     setError(null);
 
     try {
-      const [fileResult, comicInfoResult, archiveResult, progressResult, historyResult] =
+      const [fileResult, comicInfoResult, archiveResult, progressResult, historyResult, coverInfoResult] =
         await Promise.allSettled([
           getFile(fileId),
           getComicInfo(fileId),
           getArchiveInfo(fileId),
           getReadingProgress(fileId),
           getFileReadingHistory(fileId),
+          getFileCoverInfo(fileId),
         ]);
 
       // File is required
@@ -137,6 +143,11 @@ export function IssueDetailPage() {
       // History is optional
       if (historyResult.status === 'fulfilled') {
         setHistory(historyResult.value.sessions || []);
+      }
+
+      // Cover info is optional
+      if (coverInfoResult.status === 'fulfilled') {
+        setCoverInfo(coverInfoResult.value);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load issue');
@@ -205,6 +216,21 @@ export function IssueDetailPage() {
 
   const handleEditMetadata = () => {
     setIsEditingMetadata(true);
+  };
+
+  const handleCoverChange = (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
+    // Update cover info
+    setCoverInfo((prev) => ({
+      id: prev?.id || '',
+      coverSource: result.source,
+      coverPageIndex: result.pageIndex ?? null,
+      coverHash: result.coverHash ?? null,
+      coverUrl: null,
+    }));
+    // Force cover image refresh
+    setCoverKey((k) => k + 1);
+    setOperationMessage('Cover updated');
+    setTimeout(() => setOperationMessage(null), 2000);
   };
 
   // Loading state
@@ -299,8 +325,10 @@ export function IssueDetailPage() {
   const progressPercent = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
   const hasProgress = currentPage > 0 && !isCompleted;
 
-  // Cover URL
-  const coverUrl = getCoverUrl(fileId!);
+  // Cover URL - use custom cover hash if available, otherwise default
+  const coverUrl = coverInfo?.coverSource === 'custom' && coverInfo?.coverHash
+    ? getApiCoverUrl(coverInfo.coverHash)
+    : `${getCoverUrl(fileId!)}?v=${coverKey}`;
 
   // Get seriesId from file (not in type but exists in data)
   const fileSeriesId = (file as unknown as { seriesId?: string }).seriesId;
@@ -667,6 +695,7 @@ export function IssueDetailPage() {
                 setIsEditingMetadata(false);
                 fetchData();
               }}
+              onCoverChange={handleCoverChange}
             />
           </div>
         </div>

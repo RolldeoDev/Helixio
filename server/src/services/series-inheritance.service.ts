@@ -14,6 +14,8 @@ import { getDatabase } from './database.service.js';
 import { getSeries } from './series.service.js';
 import { ComicInfo, mergeComicInfo, readComicInfo } from './comicinfo.service.js';
 import { createServiceLogger } from './logger.service.js';
+import { markDirtyForMetadataChange } from './stats-dirty.service.js';
+import { triggerDirtyStatsProcessing } from './stats-scheduler.service.js';
 
 const logger = createServiceLogger('series-inheritance');
 
@@ -216,6 +218,9 @@ export async function inheritMetadataToIssue(
         },
       });
 
+      // Mark stats as dirty for recalculation
+      await markDirtyForMetadataChange(fileId);
+
       logger.info(
         { fileId, filename: file.filename, fieldsInherited },
         'Inherited metadata to issue'
@@ -299,6 +304,13 @@ export async function inheritMetadataToAllIssues(
     { seriesId, seriesName: series.name, totalFiles: issues.length, updated, skipped, errors },
     'Completed batch inheritance'
   );
+
+  // Trigger immediate stats recalculation if any files were updated
+  if (updated > 0) {
+    triggerDirtyStatsProcessing().catch((err) => {
+      logger.error({ err }, 'Failed to trigger stats processing after inheritance');
+    });
+  }
 
   return {
     seriesId,

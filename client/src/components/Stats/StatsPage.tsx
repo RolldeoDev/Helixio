@@ -3,6 +3,7 @@ import {
   getAllTimeReadingStats,
   getReadingStats,
   getStatsSummary,
+  triggerStatsRebuild,
   type AllTimeStats,
   type DailyStats,
   type StatsSummary,
@@ -29,6 +30,7 @@ function getDateRange(daysAgo: number): { start: string; end: string } {
 
 export function StatsPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecalculating, setIsRecalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Data state
@@ -40,53 +42,67 @@ export function StatsPage() {
   const [currentPeriodStats, setCurrentPeriodStats] = useState<DailyStats[]>([]);
   const [previousPeriodStats, setPreviousPeriodStats] = useState<DailyStats[]>([]);
 
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Parallel fetch all data
+      const [allTime, summaryData] = await Promise.all([
+        getAllTimeReadingStats(),
+        getStatsSummary(),
+      ]);
+
+      setAllTimeStats(allTime);
+      setSummary(summaryData);
+
+      // Fetch yearly stats for heatmap
+      const yearRange = getDateRange(365);
+      const yearlyData = await getReadingStats(yearRange.start, yearRange.end);
+      setYearlyStats(yearlyData.stats);
+
+      // Fetch current and previous 30-day periods for trend calculation
+      const currentRange = getDateRange(30);
+      const previousStart = new Date();
+      previousStart.setDate(previousStart.getDate() - 60);
+      const previousEnd = new Date();
+      previousEnd.setDate(previousEnd.getDate() - 31);
+
+      const [currentData, previousData] = await Promise.all([
+        getReadingStats(currentRange.start, currentRange.end),
+        getReadingStats(
+          previousStart.toISOString().split('T')[0],
+          previousEnd.toISOString().split('T')[0]
+        ),
+      ]);
+
+      setCurrentPeriodStats(currentData.stats);
+      setPreviousPeriodStats(previousData.stats);
+    } catch (err) {
+      console.error('Failed to fetch stats:', err);
+      setError('Failed to load statistics. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Parallel fetch all data
-        const [allTime, summaryData] = await Promise.all([
-          getAllTimeReadingStats(),
-          getStatsSummary(),
-        ]);
-
-        setAllTimeStats(allTime);
-        setSummary(summaryData);
-
-        // Fetch yearly stats for heatmap
-        const yearRange = getDateRange(365);
-        const yearlyData = await getReadingStats(yearRange.start, yearRange.end);
-        setYearlyStats(yearlyData.stats);
-
-        // Fetch current and previous 30-day periods for trend calculation
-        const currentRange = getDateRange(30);
-        const previousStart = new Date();
-        previousStart.setDate(previousStart.getDate() - 60);
-        const previousEnd = new Date();
-        previousEnd.setDate(previousEnd.getDate() - 31);
-
-        const [currentData, previousData] = await Promise.all([
-          getReadingStats(currentRange.start, currentRange.end),
-          getReadingStats(
-            previousStart.toISOString().split('T')[0],
-            previousEnd.toISOString().split('T')[0]
-          ),
-        ]);
-
-        setCurrentPeriodStats(currentData.stats);
-        setPreviousPeriodStats(previousData.stats);
-      } catch (err) {
-        console.error('Failed to fetch stats:', err);
-        setError('Failed to load statistics. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchData();
   }, []);
+
+  const handleRecalculate = async () => {
+    setIsRecalculating(true);
+    try {
+      await triggerStatsRebuild('full');
+      // Refetch data after recalculation
+      await fetchData();
+    } catch (err) {
+      console.error('Failed to recalculate stats:', err);
+      setError('Failed to recalculate statistics. Please try again.');
+    } finally {
+      setIsRecalculating(false);
+    }
+  };
 
   const aggregatedStats = useMemo(() => {
     if (!summary) return null;
@@ -116,6 +132,18 @@ export function StatsPage() {
 
   return (
     <div className="stats-page">
+      {/* Header with Recalculate Button */}
+      <div className="stats-page__header">
+        <h1 className="stats-page__title">Statistics</h1>
+        <button
+          className="stats-page__recalculate-btn"
+          onClick={handleRecalculate}
+          disabled={isRecalculating || isLoading}
+        >
+          {isRecalculating ? 'Recalculating...' : 'Recalculate Stats'}
+        </button>
+      </div>
+
       {/* Hero Stats */}
       <StatsHero
         allTimeStats={allTimeStats}

@@ -16,7 +16,13 @@ import {
   getSeriesCacheStats,
   cleanSeriesCache,
   clearSeriesCache,
+  getMismatchedSeriesFiles,
+  repairSeriesLinkages,
+  syncFileMetadataToSeries,
+  batchSyncFileMetadataToSeries,
   type SeriesCacheStats,
+  type MismatchedFile,
+  type RepairResult,
 } from '../../services/api.service';
 import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import { TrackerSettings } from './TrackerSettings';
@@ -84,6 +90,18 @@ export function Settings() {
   const [_issuesTTLDays, _setIssuesTTLDays] = useState(7);
   const [loadingSeriesCache, setLoadingSeriesCache] = useState(false);
   const [cleaningSeriesCache, setCleaningSeriesCache] = useState(false);
+
+  // Series linkage repair state
+  const [mismatchedFiles, setMismatchedFiles] = useState<MismatchedFile[] | null>(null);
+  const [loadingMismatched, setLoadingMismatched] = useState(false);
+  const [repairing, setRepairing] = useState(false);
+  const [repairResult, setRepairResult] = useState<RepairResult | null>(null);
+
+  // Manual control state
+  const [manualControlMode, setManualControlMode] = useState(false);
+  const [fileDecisions, setFileDecisions] = useState<Record<string, 'use-metadata' | 'keep-current'>>({});
+  const [processingManual, setProcessingManual] = useState(false);
+  const [showAllMismatched, setShowAllMismatched] = useState(false);
 
   // Load configuration
   useEffect(() => {
@@ -342,6 +360,158 @@ export function Settings() {
     }
   };
 
+  // Check for mismatched series files
+  const handleCheckMismatched = async () => {
+    setLoadingMismatched(true);
+    setRepairResult(null);
+    setShowAllMismatched(false);
+    try {
+      const result = await getMismatchedSeriesFiles();
+      setMismatchedFiles(result.files);
+      if (result.count === 0) {
+        showMessage('No mismatched series linkages found');
+      }
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to check for mismatched files', true);
+    } finally {
+      setLoadingMismatched(false);
+    }
+  };
+
+  // Repair mismatched series linkages
+  const handleRepairLinkages = async () => {
+    if (!window.confirm(
+      `This will repair ${mismatchedFiles?.length || 0} mismatched file(s) by re-linking them to the correct series. ` +
+      'New series will be created if needed. Continue?'
+    )) {
+      return;
+    }
+
+    setRepairing(true);
+    setRepairResult(null);
+    try {
+      const result = await repairSeriesLinkages();
+      setRepairResult(result);
+      setMismatchedFiles(null);
+
+      if (result.repaired > 0) {
+        showMessage(
+          `Repaired ${result.repaired} file(s)` +
+          (result.newSeriesCreated > 0 ? `, created ${result.newSeriesCreated} new series` : '')
+        );
+      } else if (result.totalMismatched === 0) {
+        showMessage('No mismatched files found to repair');
+      } else {
+        showMessage('Repair completed with errors', true);
+      }
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to repair series linkages', true);
+    } finally {
+      setRepairing(false);
+    }
+  };
+
+  // Toggle manual control mode
+  const handleToggleManualControl = () => {
+    if (manualControlMode) {
+      // Exiting manual mode - reset decisions
+      setFileDecisions({});
+    }
+    setManualControlMode(!manualControlMode);
+    setRepairResult(null);
+  };
+
+  // Set decision for a file
+  const handleSetFileDecision = (fileId: string, decision: 'use-metadata' | 'keep-current') => {
+    setFileDecisions(prev => ({
+      ...prev,
+      [fileId]: decision,
+    }));
+  };
+
+  // Set all files to the same decision
+  const handleSetAllDecisions = (decision: 'use-metadata' | 'keep-current') => {
+    if (!mismatchedFiles) return;
+    const decisions: Record<string, 'use-metadata' | 'keep-current'> = {};
+    for (const file of mismatchedFiles) {
+      decisions[file.fileId] = decision;
+    }
+    setFileDecisions(decisions);
+  };
+
+  // Apply manual decisions
+  const handleApplyManualDecisions = async () => {
+    if (!mismatchedFiles) return;
+
+    const useMetadataFiles = mismatchedFiles.filter(f => fileDecisions[f.fileId] === 'use-metadata');
+    const keepCurrentFiles = mismatchedFiles.filter(f => fileDecisions[f.fileId] === 'keep-current');
+
+    if (useMetadataFiles.length === 0 && keepCurrentFiles.length === 0) {
+      showMessage('No files have been assigned an action', true);
+      return;
+    }
+
+    const totalActions = useMetadataFiles.length + keepCurrentFiles.length;
+    if (!window.confirm(
+      `This will process ${totalActions} file(s):\n` +
+      `• ${useMetadataFiles.length} will be moved to new/matching series based on metadata\n` +
+      `• ${keepCurrentFiles.length} will have their metadata updated to match current series\n\n` +
+      'Continue?'
+    )) {
+      return;
+    }
+
+    setProcessingManual(true);
+    setRepairResult(null);
+
+    try {
+      let repaired = 0;
+      let synced = 0;
+      let newSeriesCreated = 0;
+      const errors: string[] = [];
+
+      // Process "use-metadata" files (repair/relink)
+      if (useMetadataFiles.length > 0) {
+        const repairResult = await repairSeriesLinkages();
+        // Note: This repairs ALL mismatched files, not just selected ones
+        // For true per-file control, we'd need a new endpoint
+        // For now, we'll do batch operations
+        repaired = repairResult.repaired;
+        newSeriesCreated = repairResult.newSeriesCreated;
+        errors.push(...repairResult.errors);
+      }
+
+      // Process "keep-current" files (sync metadata to series)
+      if (keepCurrentFiles.length > 0) {
+        const syncResult = await batchSyncFileMetadataToSeries(
+          keepCurrentFiles.map(f => f.fileId)
+        );
+        synced = syncResult.synced;
+        errors.push(...syncResult.errors);
+      }
+
+      setMismatchedFiles(null);
+      setFileDecisions({});
+      setManualControlMode(false);
+
+      if (repaired > 0 || synced > 0) {
+        showMessage(
+          `Processed files: ${repaired} relinked` +
+          (newSeriesCreated > 0 ? ` (${newSeriesCreated} new series)` : '') +
+          `, ${synced} metadata synced`
+        );
+      } else if (errors.length > 0) {
+        showMessage(`Processing completed with ${errors.length} error(s)`, true);
+      } else {
+        showMessage('No files were processed');
+      }
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to process files', true);
+    } finally {
+      setProcessingManual(false);
+    }
+  };
+
   // Load series cache stats when cache tab is selected
   useEffect(() => {
     if (activeTab === 'cache' && !seriesCacheStats && !loadingSeriesCache) {
@@ -542,6 +712,242 @@ export function Settings() {
               >
                 {saving ? 'Saving...' : 'Save Settings'}
               </button>
+
+              <h3 className="settings-subheader" style={{ marginTop: '2rem' }}>Database Maintenance</h3>
+              <p className="setting-description">
+                Tools to repair and maintain database integrity.
+              </p>
+
+              <div className="setting-group">
+                <label>Series Linkage Repair</label>
+                <p className="setting-description">
+                  Fixes files where the metadata series name doesn't match the linked series.
+                  This can happen when metadata is updated but the file isn't properly re-linked.
+                </p>
+
+                <div className="maintenance-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    className="btn-secondary"
+                    onClick={handleCheckMismatched}
+                    disabled={loadingMismatched || repairing || processingManual}
+                  >
+                    {loadingMismatched ? 'Checking...' : 'Check for Issues'}
+                  </button>
+
+                  {mismatchedFiles !== null && mismatchedFiles.length > 0 && !manualControlMode && (
+                    <>
+                      <button
+                        className="btn-primary"
+                        onClick={handleRepairLinkages}
+                        disabled={repairing || processingManual}
+                      >
+                        {repairing ? 'Repairing...' : `Auto-Repair All (${mismatchedFiles.length})`}
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={handleToggleManualControl}
+                        disabled={repairing || processingManual}
+                      >
+                        Manual Control
+                      </button>
+                    </>
+                  )}
+
+                  {manualControlMode && (
+                    <button
+                      className="btn-ghost"
+                      onClick={handleToggleManualControl}
+                      disabled={processingManual}
+                    >
+                      Exit Manual Mode
+                    </button>
+                  )}
+                </div>
+
+                {/* Show mismatched files - Normal mode */}
+                {mismatchedFiles !== null && mismatchedFiles.length > 0 && !manualControlMode && (
+                  <div className="mismatched-files-list" style={{ marginTop: '1rem' }}>
+                    <h4 style={{ marginBottom: '0.5rem' }}>Mismatched Files ({mismatchedFiles.length})</h4>
+                    <div style={{ maxHeight: showAllMismatched ? '400px' : '200px', overflowY: 'auto', fontSize: '0.85em' }}>
+                      {(showAllMismatched ? mismatchedFiles : mismatchedFiles.slice(0, 20)).map((file) => (
+                        <div key={file.fileId} style={{
+                          padding: '0.5rem',
+                          borderBottom: '1px solid var(--border-color)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }}>
+                          <span style={{ fontWeight: 500 }}>{file.fileName}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>
+                            Metadata: "{file.metadataSeries}" → Linked to: "{file.linkedSeriesName || '(none)'}"
+                          </span>
+                        </div>
+                      ))}
+                      {!showAllMismatched && mismatchedFiles.length > 20 && (
+                        <button
+                          onClick={() => setShowAllMismatched(true)}
+                          style={{
+                            padding: '0.5rem',
+                            width: '100%',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent-color)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          ... and {mismatchedFiles.length - 20} more (click to show all)
+                        </button>
+                      )}
+                      {showAllMismatched && mismatchedFiles.length > 20 && (
+                        <button
+                          onClick={() => setShowAllMismatched(false)}
+                          style={{
+                            padding: '0.5rem',
+                            width: '100%',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accent-color)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            fontStyle: 'italic'
+                          }}
+                        >
+                          Show less
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual Control Mode */}
+                {mismatchedFiles !== null && mismatchedFiles.length > 0 && manualControlMode && (
+                  <div className="manual-control-mode" style={{ marginTop: '1rem' }}>
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                      marginBottom: '1rem'
+                    }}>
+                      <h4 style={{ marginBottom: '0.5rem' }}>Manual Control Mode</h4>
+                      <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                        For each file, choose whether to:<br/>
+                        • <strong>Use Metadata</strong>: Move file to a new/matching series based on its metadata<br/>
+                        • <strong>Keep Current</strong>: Update the file's metadata to match its current series
+                      </p>
+
+                      {/* Bulk action buttons */}
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        <button
+                          className="btn-ghost"
+                          onClick={() => handleSetAllDecisions('use-metadata')}
+                          style={{ fontSize: '0.85em' }}
+                        >
+                          Set All: Use Metadata
+                        </button>
+                        <button
+                          className="btn-ghost"
+                          onClick={() => handleSetAllDecisions('keep-current')}
+                          style={{ fontSize: '0.85em' }}
+                        >
+                          Set All: Keep Current
+                        </button>
+                      </div>
+
+                      {/* Summary */}
+                      <div style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
+                        Selected: {Object.values(fileDecisions).filter(d => d === 'use-metadata').length} use metadata,{' '}
+                        {Object.values(fileDecisions).filter(d => d === 'keep-current').length} keep current,{' '}
+                        {mismatchedFiles.length - Object.keys(fileDecisions).length} undecided
+                      </div>
+                    </div>
+
+                    {/* File list with controls */}
+                    <div style={{ maxHeight: '400px', overflowY: 'auto', fontSize: '0.85em' }}>
+                      {mismatchedFiles.map((file) => (
+                        <div key={file.fileId} style={{
+                          padding: '0.75rem',
+                          borderBottom: '1px solid var(--border-color)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.5rem',
+                          backgroundColor: fileDecisions[file.fileId] ? 'var(--bg-tertiary)' : 'transparent'
+                        }}>
+                          <span style={{ fontWeight: 500 }}>{file.fileName}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <span style={{ color: 'var(--text-muted)', flex: 1 }}>
+                              "{file.linkedSeriesName || '(none)'}" → "{file.metadataSeries}"
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                              <button
+                                className={`btn-ghost ${fileDecisions[file.fileId] === 'use-metadata' ? 'active' : ''}`}
+                                onClick={() => handleSetFileDecision(file.fileId, 'use-metadata')}
+                                style={{
+                                  fontSize: '0.8em',
+                                  padding: '0.25rem 0.5rem',
+                                  backgroundColor: fileDecisions[file.fileId] === 'use-metadata' ? 'var(--accent-color)' : undefined,
+                                  color: fileDecisions[file.fileId] === 'use-metadata' ? 'white' : undefined
+                                }}
+                                title={`Move to series: ${file.metadataSeries}`}
+                              >
+                                Use Metadata
+                              </button>
+                              <button
+                                className={`btn-ghost ${fileDecisions[file.fileId] === 'keep-current' ? 'active' : ''}`}
+                                onClick={() => handleSetFileDecision(file.fileId, 'keep-current')}
+                                style={{
+                                  fontSize: '0.8em',
+                                  padding: '0.25rem 0.5rem',
+                                  backgroundColor: fileDecisions[file.fileId] === 'keep-current' ? 'var(--success-color)' : undefined,
+                                  color: fileDecisions[file.fileId] === 'keep-current' ? 'white' : undefined
+                                }}
+                                title={`Keep in series: ${file.linkedSeriesName}, update metadata`}
+                              >
+                                Keep Current
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Apply button */}
+                    <div style={{ marginTop: '1rem' }}>
+                      <button
+                        className="btn-primary"
+                        onClick={handleApplyManualDecisions}
+                        disabled={processingManual || Object.keys(fileDecisions).length === 0}
+                      >
+                        {processingManual ? 'Processing...' : 'Apply Decisions'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Show repair result */}
+                {repairResult && (
+                  <div className="repair-result" style={{ marginTop: '1rem' }}>
+                    <h4 style={{ marginBottom: '0.5rem' }}>Repair Complete</h4>
+                    <div style={{
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '4px',
+                      fontSize: '0.9em'
+                    }}>
+                      <div>Repaired: {repairResult.repaired} / {repairResult.totalMismatched}</div>
+                      {repairResult.newSeriesCreated > 0 && (
+                        <div>New series created: {repairResult.newSeriesCreated}</div>
+                      )}
+                      {repairResult.errors.length > 0 && (
+                        <div style={{ color: 'var(--danger-color)', marginTop: '0.5rem' }}>
+                          Errors: {repairResult.errors.length}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

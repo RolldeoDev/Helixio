@@ -1,4 +1,36 @@
-import type { ThemeDefinition } from '../types';
+import type { EffectToggleDefinition, ThemeDefinition } from '../types';
+
+// Shared effect definitions for Sandman theme (used by both light and dark)
+export const sandmanEffects: EffectToggleDefinition[] = [
+  {
+    id: 'dreamSand',
+    label: 'Dream Sand',
+    description: 'Golden particles drifting across the screen',
+    defaultEnabled: true,
+    category: 'particles',
+  },
+  {
+    id: 'morpheusSigil',
+    label: 'Morpheus Sigil',
+    description: 'Animated sigil in the corner inspired by the Dream Helm',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+  {
+    id: 'dreamQuote',
+    label: 'Dream Quotes',
+    description: 'Ethereal quotes from The Sandman',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+  {
+    id: 'vignette',
+    label: 'Vignette',
+    description: 'Dark edges creating a dreamlike focus effect',
+    defaultEnabled: true,
+    category: 'overlay',
+  },
+];
 
 /**
  * Sandman Dark Theme - "The Dreaming"
@@ -76,5 +108,17 @@ export const sandmanDarkTheme: ThemeDefinition = {
     shadowLg: '0 8px 40px rgba(0, 0, 0, 0.8)',
     shadowGlow: '0 0 30px rgba(201, 162, 39, 0.25)',
     shadowHoverGlow: '0 0 35px rgba(201, 162, 39, 0.35)',
+
+    // Title effects - Dream sand gold glow
+    shadowTitleLocation: '0 0 15px',
+    colorShadowTitle: '#c9a227',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
+  effects: sandmanEffects,
 };

@@ -65,5 +65,16 @@ export const marvelDarkTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(0, 0, 0, 0.45)',
     shadowGlow: '0 0 25px rgba(237, 29, 36, 0.25)',
     shadowHoverGlow: '0 0 30px rgba(237, 29, 36, 0.35)',
+
+    // Title effects - Marvel red glow
+    shadowTitleLocation: '0 0 8px',
+    colorShadowTitle: '#ed1d24',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
 };

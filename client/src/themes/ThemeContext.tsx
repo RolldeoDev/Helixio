@@ -16,6 +16,8 @@ import type {
   ExternalTheme,
   ThemePreferences,
   FontFamily,
+  EffectToggleStates,
+  EffectToggleDefinition,
 } from './types';
 import {
   getTheme,
@@ -33,8 +35,26 @@ const defaultPreferences: ThemePreferences = {
   colorScheme: 'dark',
   followSystem: false,
   overrides: {},
-  effectsEnabled: false, // Off by default - users can opt-in to animated effects
+  effectToggles: {}, // Per-theme effect toggle states
 };
+
+// Helper to get default effect states from a theme definition
+function getDefaultEffectStates(theme: ThemeDefinition): EffectToggleStates {
+  if (!theme.effects?.length) return {};
+  return theme.effects.reduce((acc, effect) => {
+    acc[effect.id] = effect.defaultEnabled;
+    return acc;
+  }, {} as EffectToggleStates);
+}
+
+// Merge stored effect states with theme defaults (handles new effects added to theme)
+function mergeEffectStates(
+  stored: EffectToggleStates | undefined,
+  theme: ThemeDefinition
+): EffectToggleStates {
+  const defaults = getDefaultEffectStates(theme);
+  return { ...defaults, ...(stored || {}) };
+}
 
 // Create context with undefined default (will be provided by ThemeProvider)
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -45,7 +65,7 @@ function getSystemColorScheme(): ColorScheme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-// Load preferences from localStorage
+// Load preferences from localStorage with migration support
 function loadPreferences(): ThemePreferences {
   if (typeof window === 'undefined') return defaultPreferences;
 
@@ -53,6 +73,17 @@ function loadPreferences(): ThemePreferences {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+
+      // Migration: Convert old effectsEnabled to new effectToggles format
+      if ('effectsEnabled' in parsed && !('effectToggles' in parsed)) {
+        const wasEnabled = parsed.effectsEnabled as boolean;
+        delete parsed.effectsEnabled;
+        // We'll apply the old global setting when effects are first accessed
+        // Store a migration flag to handle this
+        parsed.effectToggles = {};
+        parsed._migratedFromEffectsEnabled = wasEnabled;
+      }
+
       return { ...defaultPreferences, ...parsed };
     }
   } catch (e) {
@@ -82,6 +113,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [preferences, setPreferences] = useState<ThemePreferences>(loadPreferences);
   const [externalThemes, setExternalThemes] = useState<ExternalTheme[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editingThemeId, setEditingThemeId] = useState<ThemeId | null>(null);
 
   // Compute effective color scheme
   const effectiveColorScheme = useMemo((): ColorScheme => {
@@ -125,6 +157,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   // Get current theme's overrides
   const themeKey = `${currentTheme.id}-${currentTheme.scheme}`;
   const userOverrides = preferences.overrides[themeKey] || {};
+
+  // When editor is open, we may be editing a different theme
+  const editingThemeKey = useMemo(() => {
+    if (editingThemeId) {
+      return `${editingThemeId}-${effectiveColorScheme}`;
+    }
+    return themeKey;
+  }, [editingThemeId, effectiveColorScheme, themeKey]);
 
   // Apply theme when it changes
   useEffect(() => {
@@ -210,68 +250,189 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setPreferences((prev) => ({ ...prev, followSystem }));
   }, []);
 
-  const setEffectsEnabled = useCallback((effectsEnabled: boolean) => {
-    setPreferences((prev) => ({ ...prev, effectsEnabled }));
-  }, []);
+  // Effect toggle methods
+  const effectToggles = useMemo((): EffectToggleStates => {
+    const key = `${currentTheme.id}-${currentTheme.scheme}`;
+    const stored = preferences.effectToggles[key];
+
+    // Handle migration from old effectsEnabled
+    if ((preferences as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled !== undefined) {
+      const wasEnabled = (preferences as unknown as { _migratedFromEffectsEnabled: boolean })._migratedFromEffectsEnabled;
+      // Initialize all effects based on old global setting
+      const allStates: EffectToggleStates = {};
+      currentTheme.effects?.forEach((effect) => {
+        allStates[effect.id] = wasEnabled ? effect.defaultEnabled : false;
+      });
+      return allStates;
+    }
+
+    return mergeEffectStates(stored, currentTheme);
+  }, [currentTheme, preferences.effectToggles, preferences]);
+
+  const availableEffects = useMemo((): EffectToggleDefinition[] => {
+    return currentTheme.effects || [];
+  }, [currentTheme]);
+
+  const getEffectEnabled = useCallback((effectId: string): boolean => {
+    return effectToggles[effectId] ?? false;
+  }, [effectToggles]);
+
+  const setEffectEnabled = useCallback((effectId: string, enabled: boolean) => {
+    const key = `${currentTheme.id}-${currentTheme.scheme}`;
+    setPreferences((prev) => {
+      // Clear migration flag if present
+      const newPrefs = { ...prev };
+      delete (newPrefs as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled;
+
+      return {
+        ...newPrefs,
+        effectToggles: {
+          ...newPrefs.effectToggles,
+          [key]: {
+            ...mergeEffectStates(newPrefs.effectToggles[key], currentTheme),
+            [effectId]: enabled,
+          },
+        },
+      };
+    });
+  }, [currentTheme]);
+
+  const setAllEffectsEnabled = useCallback((enabled: boolean) => {
+    const key = `${currentTheme.id}-${currentTheme.scheme}`;
+    const allStates: EffectToggleStates = {};
+    currentTheme.effects?.forEach((effect) => {
+      allStates[effect.id] = enabled;
+    });
+
+    setPreferences((prev) => {
+      // Clear migration flag if present
+      const newPrefs = { ...prev };
+      delete (newPrefs as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled;
+
+      return {
+        ...newPrefs,
+        effectToggles: {
+          ...newPrefs.effectToggles,
+          [key]: allStates,
+        },
+      };
+    });
+  }, [currentTheme]);
+
+  const getEffectTogglesForTheme = useCallback(
+    (themeId: ThemeId, scheme: ColorScheme): EffectToggleStates => {
+      const key = `${themeId}-${scheme}`;
+      const theme = getTheme(themeId, scheme);
+      if (!theme) return {};
+      return mergeEffectStates(preferences.effectToggles[key], theme);
+    },
+    [preferences.effectToggles]
+  );
+
+  const setEffectEnabledForTheme = useCallback(
+    (themeId: ThemeId, scheme: ColorScheme, effectId: string, enabled: boolean) => {
+      const key = `${themeId}-${scheme}`;
+      const theme = getTheme(themeId, scheme);
+      if (!theme) return;
+
+      setPreferences((prev) => ({
+        ...prev,
+        effectToggles: {
+          ...prev.effectToggles,
+          [key]: {
+            ...mergeEffectStates(prev.effectToggles[key], theme),
+            [effectId]: enabled,
+          },
+        },
+      }));
+    },
+    []
+  );
+
+  const setAllEffectsEnabledForTheme = useCallback(
+    (themeId: ThemeId, scheme: ColorScheme, enabled: boolean) => {
+      const key = `${themeId}-${scheme}`;
+      const theme = getTheme(themeId, scheme);
+      if (!theme) return;
+
+      const allStates: EffectToggleStates = {};
+      theme.effects?.forEach((effect) => {
+        allStates[effect.id] = enabled;
+      });
+
+      setPreferences((prev) => ({
+        ...prev,
+        effectToggles: {
+          ...prev.effectToggles,
+          [key]: allStates,
+        },
+      }));
+    },
+    []
+  );
 
   const setOverride = useCallback(
     (variable: string, value: string) => {
+      const key = editingThemeKey;
       setPreferences((prev) => ({
         ...prev,
         overrides: {
           ...prev.overrides,
-          [themeKey]: {
-            ...(prev.overrides[themeKey] || {}),
+          [key]: {
+            ...(prev.overrides[key] || {}),
             [variable]: value,
           },
         },
       }));
     },
-    [themeKey]
+    [editingThemeKey]
   );
 
   const removeOverride = useCallback(
     (variable: string) => {
+      const key = editingThemeKey;
       setPreferences((prev) => {
-        const currentOverrides = { ...(prev.overrides[themeKey] || {}) };
+        const currentOverrides = { ...(prev.overrides[key] || {}) };
         delete currentOverrides[variable];
 
         return {
           ...prev,
           overrides: {
             ...prev.overrides,
-            [themeKey]: currentOverrides,
+            [key]: currentOverrides,
           },
         };
       });
     },
-    [themeKey]
+    [editingThemeKey]
   );
 
   const clearAllOverrides = useCallback(() => {
+    const key = editingThemeKey;
     setPreferences((prev) => ({
       ...prev,
       overrides: {
         ...prev.overrides,
-        [themeKey]: {},
+        [key]: {},
       },
     }));
-  }, [themeKey]);
+  }, [editingThemeKey]);
 
   const resetToDefaults = useCallback(() => {
+    const key = editingThemeKey;
     // Get the original bundled theme
-    const originalTheme = bundledThemes[themeKey as keyof typeof bundledThemes];
+    const originalTheme = bundledThemes[key as keyof typeof bundledThemes];
     if (originalTheme) {
       // Clear overrides and re-apply original
       setPreferences((prev) => ({
         ...prev,
         overrides: {
           ...prev.overrides,
-          [themeKey]: {},
+          [key]: {},
         },
       }));
     }
-  }, [themeKey]);
+  }, [editingThemeKey]);
 
   const setDisplayFont = useCallback((font: FontFamily) => {
     const fontValue = getFontValue(font, 'display');
@@ -283,8 +444,22 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setOverride('--font-body', fontValue);
   }, [setOverride]);
 
-  const openEditor = useCallback(() => setIsEditorOpen(true), []);
-  const closeEditor = useCallback(() => setIsEditorOpen(false), []);
+  const openEditor = useCallback((themeIdToEdit?: ThemeId) => {
+    setEditingThemeId(themeIdToEdit ?? preferences.themeId);
+    setIsEditorOpen(true);
+  }, [preferences.themeId]);
+  const closeEditor = useCallback(() => {
+    setIsEditorOpen(false);
+    setEditingThemeId(null);
+  }, []);
+
+  const getOverridesForTheme = useCallback(
+    (themeId: ThemeId, scheme: ColorScheme): Record<string, string> => {
+      const key = `${themeId}-${scheme}`;
+      return preferences.overrides[key] || {};
+    },
+    [preferences.overrides]
+  );
 
   const enableExternalTheme = useCallback((id: string) => {
     setExternalThemes((prev) =>
@@ -413,16 +588,25 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     themeId: preferences.themeId,
     colorScheme: effectiveColorScheme,
     followSystem: preferences.followSystem,
-    effectsEnabled: preferences.effectsEnabled,
     userOverrides,
     availableThemes,
     externalThemes,
     isEditorOpen,
+    editingThemeId,
+    // Effect toggles
+    effectToggles,
+    availableEffects,
+    getEffectEnabled,
+    setEffectEnabled,
+    setAllEffectsEnabled,
+    getEffectTogglesForTheme,
+    setEffectEnabledForTheme,
+    setAllEffectsEnabledForTheme,
+    // Theme selection
     setTheme,
     setColorScheme,
     toggleColorScheme,
     setFollowSystem,
-    setEffectsEnabled,
     setOverride,
     removeOverride,
     clearAllOverrides,
@@ -431,6 +615,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setBodyFont,
     openEditor,
     closeEditor,
+    getOverridesForTheme,
     enableExternalTheme,
     disableExternalTheme,
     deleteExternalTheme,

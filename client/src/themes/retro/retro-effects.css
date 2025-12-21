@@ -77,7 +77,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0; /* Subtle overlay behind content */
+  z-index: 9998; /* High z-index to overlay on covers and content */
   overflow: hidden;
 }
 
@@ -89,8 +89,8 @@
     0deg,
     transparent 0px,
     transparent 2px,
-    rgba(0, 0, 0, 0.04) 2px,
-    rgba(0, 0, 0, 0.04) 4px
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
   );
   animation: scanlineScroll 10s linear infinite;
 }
@@ -107,9 +107,9 @@
   background: radial-gradient(
     ellipse 120% 120% at 50% 50%,
     transparent 0%,
-    transparent 50%,
-    rgba(0, 0, 0, 0.15) 80%,
-    rgba(0, 0, 0, 0.4) 100%
+    transparent 40%,
+    rgba(0, 0, 0, 0.25) 70%,
+    rgba(0, 0, 0, 0.55) 100%
   );
   border-radius: 20px;
 }
@@ -122,7 +122,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  z-index: 1; /* Low z-index - floating elements should be unobtrusive */
   overflow: hidden;
 }
 
@@ -279,6 +279,11 @@
   color: var(--retro-white);
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
   opacity: 0.6;
+  transition: opacity 0.3s ease;
+}
+
+.retro-score-display.loading {
+  opacity: 0.3;
 }
 
 .retro-score-row {
@@ -511,7 +516,7 @@
 }
 
 :root[data-theme^="retro"] h1 {
-  text-shadow: 4px 4px 0 var(--retro-red-dark);
+  text-shadow: var(--shadow-title-location, 4px 4px 0) var(--color-shadow-title, var(--retro-red-dark));
 }
 
 /* =============================================================================
@@ -535,8 +540,8 @@
     0deg,
     transparent 0px,
     transparent 2px,
-    rgba(15, 56, 15, 0.03) 2px,
-    rgba(15, 56, 15, 0.03) 4px
+    rgba(15, 56, 15, 0.12) 2px,
+    rgba(15, 56, 15, 0.12) 4px
   );
 }
 

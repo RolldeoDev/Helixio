@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { synthwaveEffects } from './synthwave-dark';
 
 /**
  * Synthwave Light Theme - "Daytime Arcade"
@@ -70,5 +71,17 @@ export const synthwaveLightTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(60, 40, 80, 0.12)',
     shadowGlow: '0 0 20px rgba(204, 0, 204, 0.15)',
     shadowHoverGlow: '0 0 30px rgba(204, 0, 204, 0.25)',
+
+    // Title effects - Pastel magenta glow
+    shadowTitleLocation: '0 0 8px',
+    colorShadowTitle: '#cc00cc',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
+  effects: synthwaveEffects,
 };

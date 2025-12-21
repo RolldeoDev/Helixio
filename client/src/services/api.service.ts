@@ -375,6 +375,77 @@ export async function bulkQuarantineFiles(
 }
 
 // =============================================================================
+// File Cover Management
+// =============================================================================
+
+export interface FileCoverInfo {
+  id: string;
+  coverSource: 'auto' | 'page' | 'custom';
+  coverPageIndex: number | null;
+  coverHash: string | null;
+  coverUrl: string | null;
+}
+
+/**
+ * Get pages list for an archive (for cover selection)
+ */
+export async function getFilePages(
+  fileId: string
+): Promise<{ fileId: string; pages: string[]; pageCount: number }> {
+  return get(`/files/${fileId}/pages`);
+}
+
+/**
+ * Get current cover settings for a file
+ */
+export async function getFileCoverInfo(fileId: string): Promise<FileCoverInfo> {
+  return get(`/files/${fileId}/cover-info`);
+}
+
+/**
+ * Set cover for a file
+ * - source 'auto': Reset to default (first page/cover.jpg)
+ * - source 'page': Use specific page index
+ * - source 'custom' with url: Download from URL
+ */
+export async function setFileCover(
+  fileId: string,
+  options: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; url?: string }
+): Promise<{ success: boolean; coverSource: string; coverHash?: string; coverPageIndex?: number }> {
+  return post(`/files/${fileId}/cover`, options);
+}
+
+/**
+ * Upload a custom cover image for a file
+ */
+export async function uploadFileCover(
+  fileId: string,
+  file: File
+): Promise<{ success: boolean; coverSource: string; coverHash: string }> {
+  const formData = new FormData();
+  formData.append('cover', file);
+
+  const response = await fetch(`${API_BASE}/files/${fileId}/cover/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(error.error || error.message || 'Failed to upload cover');
+  }
+
+  return response.json();
+}
+
+/**
+ * Get page thumbnail URL for cover preview
+ */
+export function getPageThumbnailUrl(fileId: string, pagePath: string): string {
+  return `${API_BASE}/archives/${fileId}/page/${encodeURIComponent(pagePath)}`;
+}
+
+// =============================================================================
 // Archives
 // =============================================================================
 
@@ -1507,6 +1578,87 @@ export async function clearSeriesCache(): Promise<{
   freedMb: number;
 }> {
   return post('/metadata-approval/cache/clear');
+}
+
+// =============================================================================
+// Series Linkage Repair
+// =============================================================================
+
+export interface MismatchedFile {
+  fileId: string;
+  fileName: string;
+  metadataSeries: string | null;
+  linkedSeriesName: string | null;
+  linkedSeriesId: string | null;
+}
+
+export interface RepairResult {
+  totalMismatched: number;
+  repaired: number;
+  newSeriesCreated: number;
+  errors: string[];
+  details: Array<{
+    fileId: string;
+    fileName: string;
+    oldSeriesName: string | null;
+    newSeriesName: string | null;
+    action: 'relinked' | 'created' | 'error';
+    error?: string;
+  }>;
+}
+
+/**
+ * Get files where FileMetadata.series doesn't match their linked Series.name
+ */
+export async function getMismatchedSeriesFiles(): Promise<{
+  count: number;
+  files: MismatchedFile[];
+}> {
+  return get('/series/admin/mismatched');
+}
+
+/**
+ * Repair mismatched series linkages.
+ * Re-links files to the correct series based on their FileMetadata.series,
+ * creating new series if needed.
+ */
+export async function repairSeriesLinkages(): Promise<RepairResult> {
+  return post('/series/admin/repair');
+}
+
+export interface SyncMetadataResult {
+  success: boolean;
+  oldSeriesName: string | null;
+  newSeriesName: string | null;
+  error?: string;
+}
+
+export interface BatchSyncMetadataResult {
+  total: number;
+  synced: number;
+  errors: string[];
+  details: Array<{
+    fileId: string;
+    oldSeriesName: string | null;
+    newSeriesName: string | null;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
+/**
+ * Sync a single file's metadata to match its linked series.
+ * Use when the file is in the correct series but the metadata is wrong.
+ */
+export async function syncFileMetadataToSeries(fileId: string): Promise<SyncMetadataResult> {
+  return post(`/series/admin/sync-metadata/${fileId}`);
+}
+
+/**
+ * Batch sync file metadata to match their linked series.
+ */
+export async function batchSyncFileMetadataToSeries(fileIds: string[]): Promise<BatchSyncMetadataResult> {
+  return post('/series/admin/sync-metadata-batch', { fileIds });
 }
 
 // =============================================================================
@@ -2787,6 +2939,30 @@ export async function setSeriesCover(
   options: { source?: 'api' | 'user' | 'auto'; fileId?: string; url?: string }
 ): Promise<{ cover: SeriesCover }> {
   return post<{ cover: SeriesCover }>(`/series/${seriesId}/cover`, options);
+}
+
+/**
+ * Upload a custom cover image for a series
+ */
+export async function uploadSeriesCover(
+  seriesId: string,
+  file: File
+): Promise<{ cover: SeriesCover; coverHash: string }> {
+  const formData = new FormData();
+  formData.append('cover', file);
+
+  const response = await fetch(`${API_BASE}/series/${seriesId}/cover/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(error.error || error.message || 'Failed to upload cover');
+  }
+
+  const data = await response.json();
+  return data.data;
 }
 
 // =============================================================================

@@ -120,6 +120,13 @@ export function tokensToCSSVariables(tokens: ThemeTokens): Record<string, string
     shadowLg: '--shadow-lg',
     shadowGlow: '--shadow-glow',
     shadowHoverGlow: '--shadow-hover-glow',
+    shadowTitleLocation: '--shadow-title-location',
+    colorShadowTitle: '--color-shadow-title',
+    radiusSm: '--radius-sm',
+    radiusMd: '--radius-md',
+    radiusLg: '--radius-lg',
+    radiusXl: '--radius-xl',
+    radiusFull: '--radius-full',
   };
 
   (Object.keys(tokens) as (keyof ThemeTokens)[]).forEach((key) => {

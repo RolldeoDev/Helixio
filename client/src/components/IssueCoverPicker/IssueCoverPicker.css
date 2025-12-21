@@ -1,0 +1,301 @@
+/**
+ * IssueCoverPicker Styles
+ */
+
+.issue-cover-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg, 16px);
+}
+
+/* =============================================================================
+   Mode Selection
+   ============================================================================= */
+
+.issue-cover-picker .cover-picker-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 8px);
+}
+
+.issue-cover-picker .cover-picker-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  background: var(--color-bg-secondary, #1a1e24);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+  font-size: 0.875rem;
+}
+
+.issue-cover-picker .cover-picker-mode:hover {
+  border-color: var(--color-border-hover, rgba(255, 255, 255, 0.2));
+  background: var(--color-bg-tertiary, #252a32);
+}
+
+.issue-cover-picker .cover-picker-mode.active {
+  border-color: var(--color-primary, #d4a574);
+  background: var(--color-primary-bg, rgba(212, 165, 116, 0.1));
+}
+
+.issue-cover-picker .cover-picker-mode input[type="radio"] {
+  margin: 0;
+  accent-color: var(--color-primary, #d4a574);
+}
+
+.issue-cover-picker .mode-label {
+  color: var(--color-text, #e8e4df);
+}
+
+/* =============================================================================
+   Content Layout
+   ============================================================================= */
+
+.issue-cover-picker .cover-picker-content {
+  display: flex;
+  gap: var(--spacing-lg, 16px);
+}
+
+.issue-cover-picker .cover-preview-container {
+  flex-shrink: 0;
+  width: 120px;
+  height: 180px;
+  background: var(--color-bg-secondary, #1a1e24);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.issue-cover-picker .cover-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.issue-cover-picker .cover-preview-placeholder {
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.4));
+  font-size: 0.75rem;
+  text-align: center;
+  padding: var(--spacing-sm, 8px);
+}
+
+.issue-cover-picker .cover-mode-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =============================================================================
+   Mode-Specific Content
+   ============================================================================= */
+
+.issue-cover-picker .mode-description {
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+/* Page Selector */
+.issue-cover-picker .page-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.issue-cover-picker .loading-pages,
+.issue-cover-picker .pages-error,
+.issue-cover-picker .no-pages {
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.issue-cover-picker .pages-error {
+  color: var(--color-error, #ff6b6b);
+}
+
+.issue-cover-picker .page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: var(--spacing-sm, 8px);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.issue-cover-picker .page-thumbnail {
+  position: relative;
+  aspect-ratio: 2/3;
+  background: var(--color-bg-secondary, #1a1e24);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm, 4px);
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.issue-cover-picker .page-thumbnail:hover {
+  border-color: var(--color-border-hover, rgba(255, 255, 255, 0.3));
+}
+
+.issue-cover-picker .page-thumbnail.selected {
+  border-color: var(--color-primary, #d4a574);
+  box-shadow: 0 0 0 2px var(--color-primary-bg, rgba(212, 165, 116, 0.3));
+}
+
+.issue-cover-picker .page-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.issue-cover-picker .page-number {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 0.625rem;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.issue-cover-picker .more-pages {
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.4));
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+/* URL Input */
+.issue-cover-picker .cover-url-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+}
+
+.issue-cover-picker .cover-url-input label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text, #e8e4df);
+}
+
+.issue-cover-picker .cover-url-input .field-input {
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  background: var(--color-bg, #0a0e13);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text, #e8e4df);
+  font-size: 0.875rem;
+  transition: border-color var(--transition-fast, 0.15s) ease;
+}
+
+.issue-cover-picker .cover-url-input .field-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #d4a574);
+}
+
+.issue-cover-picker .url-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.4));
+  margin: 0;
+}
+
+/* Upload */
+.issue-cover-picker .cover-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-sm, 8px);
+}
+
+.issue-cover-picker .upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-md, 12px) var(--spacing-xl, 24px);
+  background: var(--color-bg, #0a0e13);
+  border: 2px dashed var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.issue-cover-picker .upload-button:hover {
+  border-color: var(--color-primary, #d4a574);
+  color: var(--color-primary, #d4a574);
+  background: var(--color-primary-bg, rgba(212, 165, 116, 0.1));
+}
+
+.issue-cover-picker .upload-button.uploading {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.issue-cover-picker .upload-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.issue-cover-picker .upload-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.4));
+  margin: 0;
+}
+
+/* =============================================================================
+   Actions
+   ============================================================================= */
+
+.issue-cover-picker .cover-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--spacing-md, 12px);
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+}
+
+.issue-cover-picker .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-sm, 8px) var(--spacing-lg, 16px);
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.issue-cover-picker .btn-primary {
+  background: var(--color-primary, #d4a574);
+  color: var(--color-bg, #0a0e13);
+}
+
+.issue-cover-picker .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #e0b58a);
+}
+
+.issue-cover-picker .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

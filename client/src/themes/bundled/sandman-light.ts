@@ -1,4 +1,5 @@
 import type { ThemeDefinition } from '../types';
+import { sandmanEffects } from './sandman-dark';
 
 /**
  * Sandman Light Theme - "Lucienne's Library"
@@ -78,5 +79,17 @@ export const sandmanLightTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(26, 21, 32, 0.1), 0 0 20px rgba(74, 56, 117, 0.05)',
     shadowGlow: '0 0 20px rgba(139, 105, 20, 0.15), 0 0 40px rgba(74, 56, 117, 0.08)',
     shadowHoverGlow: '0 0 25px rgba(139, 105, 20, 0.25), 0 0 50px rgba(74, 56, 117, 0.12)',
+
+    // Title effects - Gold leaf glow
+    shadowTitleLocation: '0 1px 2px',
+    colorShadowTitle: '#8b6914',
+
+    // Border radius
+    radiusSm: '4px',
+    radiusMd: '8px',
+    radiusLg: '12px',
+    radiusXl: '16px',
+    radiusFull: '9999px',
   },
+  effects: sandmanEffects,
 };

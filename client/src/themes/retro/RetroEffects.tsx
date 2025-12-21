@@ -15,6 +15,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../ThemeContext';
+import { useRetroStats } from './useRetroStats';
 import './retro-effects.css';
 
 /**
@@ -160,31 +161,20 @@ function GameQuote() {
 
 /**
  * Score Display - Classic game UI corner element
+ * Shows real reading stats: score = pages read, coins = comics completed
  */
 function ScoreDisplay() {
-  const [score, setScore] = useState(0);
-  const [coins, setCoins] = useState(0);
-
-  // Slowly increment score for fun
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setScore(prev => prev + Math.floor(Math.random() * 100) + 10);
-      if (Math.random() > 0.7) {
-        setCoins(prev => prev + 1);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { score, coins, isLoading } = useRetroStats();
 
   return (
-    <div className="retro-score-display" aria-hidden="true">
+    <div className={`retro-score-display ${isLoading ? 'loading' : ''}`} aria-hidden="true">
       <div className="retro-score-row">
         <span className="retro-score-label">SCORE</span>
         <span className="retro-score-value">{score.toString().padStart(8, '0')}</span>
       </div>
       <div className="retro-score-row">
         <span className="retro-coin-icon" />
-        <span className="retro-score-value">x{coins.toString().padStart(2, '0')}</span>
+        <span className="retro-score-value">x{coins.toString().padStart(3, '0')}</span>
       </div>
     </div>
   );
@@ -207,30 +197,30 @@ function LivesDisplay() {
  * Main RetroEffects Component
  */
 export function RetroEffects() {
-  const { themeId, effectsEnabled } = useTheme();
+  const { themeId, getEffectEnabled } = useTheme();
   const [isActive, setIsActive] = useState(false);
 
   useEffect(() => {
     setIsActive(themeId === 'retro');
   }, [themeId]);
 
-  if (!isActive || !effectsEnabled) {
+  if (!isActive) {
     return null;
   }
 
   return (
     <>
       {/* Background effects */}
-      <PixelGrid />
-      <CRTEffect />
+      {getEffectEnabled('pixelGrid') && <PixelGrid />}
+      {getEffectEnabled('crtEffect') && <CRTEffect />}
 
       {/* Floating elements */}
-      <FloatingPixels />
+      {getEffectEnabled('floatingPixels') && <FloatingPixels />}
 
       {/* UI elements */}
-      <ScoreDisplay />
-      <LivesDisplay />
-      <GameQuote />
+      {getEffectEnabled('scoreDisplay') && <ScoreDisplay />}
+      {getEffectEnabled('livesDisplay') && <LivesDisplay />}
+      {getEffectEnabled('gameQuote') && <GameQuote />}
     </>
   );
 }

@@ -4,6 +4,20 @@ export type ColorScheme = 'light' | 'dark';
 export type ThemeId = 'default' | 'dc' | 'marvel' | 'sandman' | 'synthwave' | 'retro' | 'manga' | string; // string for external themes
 export type ThemeKey = `${ThemeId}-${ColorScheme}`;
 
+// Effect toggle definition - declared by each theme
+export type EffectCategory = 'background' | 'overlay' | 'ui' | 'particles';
+
+export interface EffectToggleDefinition {
+  id: string;                    // Unique ID within theme: 'pixelGrid', 'crtEffect', etc.
+  label: string;                 // Display name: 'Pixel Grid Overlay'
+  description?: string;          // Optional tooltip: 'Adds CRT pixel pattern overlay'
+  defaultEnabled: boolean;       // Default state when theme is first used
+  category?: EffectCategory;     // For grouping in UI
+}
+
+// Effect toggle states - stored per-theme in preferences
+export type EffectToggleStates = Record<string, boolean>;  // { pixelGrid: true, crtEffect: false, ... }
+
 export type FontFamily =
   | 'oswald'
   | 'roboto'
@@ -59,6 +73,17 @@ export interface ThemeTokens {
   shadowLg: string;
   shadowGlow: string;
   shadowHoverGlow: string;
+
+  // Title effects
+  shadowTitleLocation: string; // Shadow offset/blur for headings (e.g., "4px 4px 0")
+  colorShadowTitle: string; // Shadow color for title text shadow
+
+  // Border radius
+  radiusSm: string;
+  radiusMd: string;
+  radiusLg: string;
+  radiusXl: string;
+  radiusFull: string;
 }
 
 export interface ThemeMeta {
@@ -79,6 +104,7 @@ export interface ThemeDefinition {
   scheme: ColorScheme;
   meta: ThemeMeta;
   tokens: ThemeTokens;
+  effects?: EffectToggleDefinition[];  // Available effects for this theme
 }
 
 export interface ThemePreferences {
@@ -88,7 +114,7 @@ export interface ThemePreferences {
   overrides: Record<string, Record<string, string>>; // Per-theme: { 'default-dark': { '--color-primary': '#fff' } }
   displayFont?: FontFamily;
   bodyFont?: FontFamily;
-  effectsEnabled: boolean; // Whether to show animated background effects (sakura petals, floating pixels, etc.)
+  effectToggles: Record<string, EffectToggleStates>; // Per-theme effect states: { 'retro-dark': { pixelGrid: true } }
 }
 
 export interface ExternalTheme {
@@ -107,18 +133,27 @@ export interface ThemeContextValue {
   themeId: ThemeId;
   colorScheme: ColorScheme;
   followSystem: boolean;
-  effectsEnabled: boolean; // Whether animated effects are shown
   userOverrides: Record<string, string>; // Current theme's overrides
   availableThemes: ThemeMeta[];
   externalThemes: ExternalTheme[];
   isEditorOpen: boolean;
+  editingThemeId: ThemeId | null; // Theme being edited in the editor (may differ from current)
+
+  // Effect toggles
+  effectToggles: EffectToggleStates;           // Current theme's effect states
+  availableEffects: EffectToggleDefinition[];  // Current theme's available effects
+  getEffectEnabled: (effectId: string) => boolean;
+  setEffectEnabled: (effectId: string, enabled: boolean) => void;
+  setAllEffectsEnabled: (enabled: boolean) => void;
+  getEffectTogglesForTheme: (themeId: ThemeId, scheme: ColorScheme) => EffectToggleStates;
+  setEffectEnabledForTheme: (themeId: ThemeId, scheme: ColorScheme, effectId: string, enabled: boolean) => void;
+  setAllEffectsEnabledForTheme: (themeId: ThemeId, scheme: ColorScheme, enabled: boolean) => void;
 
   // Theme selection
   setTheme: (themeId: ThemeId) => void;
   setColorScheme: (scheme: ColorScheme) => void;
   toggleColorScheme: () => void;
   setFollowSystem: (follow: boolean) => void;
-  setEffectsEnabled: (enabled: boolean) => void;
 
   // Variable overrides (per-theme, persisted to localStorage)
   setOverride: (variable: string, value: string) => void;
@@ -131,8 +166,9 @@ export interface ThemeContextValue {
   setBodyFont: (font: FontFamily) => void;
 
   // Editor UI
-  openEditor: () => void;
+  openEditor: (themeId?: ThemeId) => void;
   closeEditor: () => void;
+  getOverridesForTheme: (themeId: ThemeId, scheme: ColorScheme) => Record<string, string>;
 
   // External theme management
   enableExternalTheme: (themeId: string) => void;
@@ -152,7 +188,7 @@ export interface VariableGroup {
   variables: {
     key: string;
     label: string;
-    type: 'color' | 'font' | 'size' | 'shadow';
+    type: 'color' | 'font' | 'size' | 'shadow' | 'radius';
   }[];
 }
 
@@ -222,6 +258,23 @@ export const VARIABLE_GROUPS: VariableGroup[] = [
       { key: 'shadowLg', label: '--shadow-lg', type: 'shadow' },
       { key: 'shadowGlow', label: '--shadow-glow', type: 'shadow' },
       { key: 'shadowHoverGlow', label: '--shadow-hover-glow', type: 'shadow' },
+    ],
+  },
+  {
+    name: 'Title Effects',
+    variables: [
+      { key: 'shadowTitleLocation', label: '--shadow-title-location', type: 'shadow' },
+      { key: 'colorShadowTitle', label: '--color-shadow-title', type: 'color' },
+    ],
+  },
+  {
+    name: 'Border Radius',
+    variables: [
+      { key: 'radiusSm', label: '--radius-sm', type: 'radius' },
+      { key: 'radiusMd', label: '--radius-md', type: 'radius' },
+      { key: 'radiusLg', label: '--radius-lg', type: 'radius' },
+      { key: 'radiusXl', label: '--radius-xl', type: 'radius' },
+      { key: 'radiusFull', label: '--radius-full', type: 'radius' },
     ],
   },
 ];

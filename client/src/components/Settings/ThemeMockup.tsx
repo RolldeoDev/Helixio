@@ -6,7 +6,7 @@ interface ThemeMockupProps {
   theme: ThemeDefinition;
   isSelected: boolean;
   onClick: () => void;
-  onEdit: () => void;
+  onEdit: (themeId: string) => void;
 }
 
 /**
@@ -118,7 +118,7 @@ export function ThemeMockup({ theme, isSelected, onClick, onEdit }: ThemeMockupP
           className="theme-mockup__edit-btn"
           onClick={(e) => {
             e.stopPropagation();
-            onEdit();
+            onEdit(theme.id);
           }}
           type="button"
         >

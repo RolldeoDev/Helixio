@@ -1,4 +1,57 @@
-import type { ThemeDefinition } from '../types';
+import type { EffectToggleDefinition, ThemeDefinition } from '../types';
+
+// Shared effect definitions for Manga theme (used by both light and dark)
+export const mangaEffects: EffectToggleDefinition[] = [
+  {
+    id: 'sakuraPetals',
+    label: 'Sakura Petals',
+    description: 'Gentle cherry blossom petals floating down',
+    defaultEnabled: true,
+    category: 'particles',
+  },
+  {
+    id: 'paperTexture',
+    label: 'Paper Texture',
+    description: 'Subtle paper grain overlay for authentic manga feel',
+    defaultEnabled: true,
+    category: 'background',
+  },
+  {
+    id: 'vignette',
+    label: 'Vignette',
+    description: 'Soft pink edges creating a dreamy focus',
+    defaultEnabled: true,
+    category: 'overlay',
+  },
+  {
+    id: 'speedLines',
+    label: 'Speed Lines',
+    description: 'Manga-style action lines radiating from center',
+    defaultEnabled: false,
+    category: 'background',
+  },
+  {
+    id: 'sparkleStars',
+    label: 'Sparkle Stars',
+    description: 'Twinkling stars for magical moments',
+    defaultEnabled: true,
+    category: 'particles',
+  },
+  {
+    id: 'sakuraFlower',
+    label: 'Sakura Flower',
+    description: 'Decorative cherry blossom in corner',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+  {
+    id: 'mangaExpression',
+    label: 'Manga Expressions',
+    description: 'Japanese sound effects and expressions (Sugoi!, Kawaii, etc.)',
+    defaultEnabled: true,
+    category: 'ui',
+  },
+];
 
 /**
  * Manga Dark Theme - "Midnight Manga"
@@ -73,5 +126,17 @@ export const mangaDarkTheme: ThemeDefinition = {
     shadowLg: '0 8px 32px rgba(0, 0, 0, 0.45)',
     shadowGlow: '0 0 20px rgba(255, 183, 197, 0.12), 0 0 40px rgba(196, 167, 231, 0.08)',
     shadowHoverGlow: '0 0 25px rgba(255, 183, 197, 0.2), 0 0 50px rgba(196, 167, 231, 0.12)',
+
+    // Title effects - Sakura pink soft glow
+    shadowTitleLocation: '0 0 8px',
+    colorShadowTitle: '#ffb7c5',
+
+    // Border radius - Soft, rounded edges
+    radiusSm: '6px',
+    radiusMd: '10px',
+    radiusLg: '14px',
+    radiusXl: '20px',
+    radiusFull: '9999px',
   },
+  effects: mangaEffects,
 };

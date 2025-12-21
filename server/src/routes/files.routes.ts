@@ -6,9 +6,11 @@
  * - Move/rename files
  * - Delete files
  * - Quarantine/restore files
+ * - Cover management
  */
 
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { getDatabase } from '../services/database.service.js';
 import {
   moveFile,
@@ -18,8 +20,34 @@ import {
   restoreFromQuarantine,
   verifyFile,
 } from '../services/file-operations.service.js';
+import {
+  getArchivePages,
+  extractPageAsCover,
+  saveUploadedCover,
+  downloadApiCover,
+  getFileCover,
+  getSeriesCoverData,
+} from '../services/cover.service.js';
 
 const router = Router();
+
+// Configure multer for cover image uploads
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: multer.FileFilterCallback
+  ) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (validTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPG, PNG, WebP, GIF) are allowed'));
+    }
+  },
+});
 
 // =============================================================================
 // File Details
@@ -375,6 +403,267 @@ router.post('/bulk/quarantine', async (req: Request, res: Response) => {
     console.error('Error bulk quarantining files:', error);
     res.status(500).json({
       error: 'Failed to bulk quarantine files',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Cover Management
+// =============================================================================
+
+/**
+ * GET /api/files/:id/pages
+ * Get list of pages in the archive for cover selection
+ */
+router.get('/:id/pages', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.id! },
+      select: { id: true, path: true },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const result = await getArchivePages(file.path);
+
+    if (!result.success) {
+      res.status(500).json({
+        error: 'Failed to list pages',
+        message: result.error,
+      });
+      return;
+    }
+
+    res.json({
+      fileId: file.id,
+      pages: result.pages,
+      pageCount: result.pages?.length || 0,
+    });
+  } catch (error) {
+    console.error('Error listing pages:', error);
+    res.status(500).json({
+      error: 'Failed to list pages',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/files/:id/cover-info
+ * Get current cover settings for a file
+ */
+router.get('/:id/cover-info', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.id! },
+      select: {
+        id: true,
+        coverSource: true,
+        coverPageIndex: true,
+        coverHash: true,
+        coverUrl: true,
+      },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    res.json(file);
+  } catch (error) {
+    console.error('Error getting cover info:', error);
+    res.status(500).json({
+      error: 'Failed to get cover info',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/files/:id/cover
+ * Set cover for a file
+ * Body: { source: 'auto' | 'page' | 'custom', pageIndex?: number, url?: string }
+ */
+router.post('/:id/cover', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const { source, pageIndex, url } = req.body as {
+      source?: 'auto' | 'page' | 'custom';
+      pageIndex?: number;
+      url?: string;
+    };
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.id! },
+      select: { id: true, path: true },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Handle different sources
+    if (source === 'auto') {
+      // Reset to auto (default behavior)
+      await db.comicFile.update({
+        where: { id: file.id },
+        data: {
+          coverSource: 'auto',
+          coverPageIndex: null,
+          coverHash: null,
+          coverUrl: null,
+        },
+      });
+
+      res.json({ success: true, coverSource: 'auto' });
+      return;
+    }
+
+    if (source === 'page') {
+      if (pageIndex === undefined || pageIndex < 0) {
+        res.status(400).json({ error: 'Invalid page index' });
+        return;
+      }
+
+      // Extract the page as cover
+      const result = await extractPageAsCover(file.path, pageIndex);
+
+      if (!result.success) {
+        res.status(400).json({
+          error: 'Failed to extract page as cover',
+          message: result.error,
+        });
+        return;
+      }
+
+      await db.comicFile.update({
+        where: { id: file.id },
+        data: {
+          coverSource: 'page',
+          coverPageIndex: pageIndex,
+          coverHash: result.coverHash,
+          coverUrl: null,
+        },
+      });
+
+      res.json({
+        success: true,
+        coverSource: 'page',
+        coverPageIndex: pageIndex,
+        coverHash: result.coverHash,
+      });
+      return;
+    }
+
+    if (source === 'custom' && url) {
+      // Download from URL
+      const result = await downloadApiCover(url);
+
+      if (!result.success) {
+        res.status(400).json({
+          error: 'Failed to download cover from URL',
+          message: result.error,
+        });
+        return;
+      }
+
+      await db.comicFile.update({
+        where: { id: file.id },
+        data: {
+          coverSource: 'custom',
+          coverPageIndex: null,
+          coverHash: result.coverHash,
+          coverUrl: url,
+        },
+      });
+
+      res.json({
+        success: true,
+        coverSource: 'custom',
+        coverHash: result.coverHash,
+        coverUrl: url,
+      });
+      return;
+    }
+
+    res.status(400).json({
+      error: 'Invalid request',
+      message: 'Provide source with appropriate parameters (pageIndex for page, url for custom)',
+    });
+  } catch (error) {
+    console.error('Error setting cover:', error);
+    res.status(500).json({
+      error: 'Failed to set cover',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/files/:id/cover/upload
+ * Upload a custom cover image
+ */
+router.post('/:id/cover/upload', coverUpload.single('cover'), async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.id! },
+      select: { id: true },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const uploadedFile = req.file;
+    if (!uploadedFile) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    // Save the uploaded cover
+    const result = await saveUploadedCover(uploadedFile.buffer);
+
+    if (!result.success) {
+      res.status(400).json({
+        error: 'Failed to process uploaded cover',
+        message: result.error,
+      });
+      return;
+    }
+
+    // Update file record
+    await db.comicFile.update({
+      where: { id: file.id },
+      data: {
+        coverSource: 'custom',
+        coverPageIndex: null,
+        coverHash: result.coverHash,
+        coverUrl: null,
+      },
+    });
+
+    res.json({
+      success: true,
+      coverSource: 'custom',
+      coverHash: result.coverHash,
+    });
+  } catch (error) {
+    console.error('Error uploading cover:', error);
+    res.status(500).json({
+      error: 'Failed to upload cover',
       message: error instanceof Error ? error.message : String(error),
     });
   }

@@ -75,7 +75,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  z-index: 1; /* Low z-index - floating elements should be unobtrusive */
   overflow: hidden;
 }
 
@@ -303,53 +303,32 @@
   position: fixed;
   bottom: 80px;
   right: 20px;
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.4;
+  opacity: 0.5;
+  animation: manga-flower-spin 30s linear infinite;
 }
 
-.manga-corner-svg {
-  width: 100%;
-  height: 100%;
-}
-
-/* Sakura flower shape using CSS */
+/* Sakura flower using SVG embedded in background
+   Authentic sakura petals have a distinctive notch at the tip */
 .manga-corner-decoration::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--manga-sakura-pink);
-  border-radius: 50% 0 50% 50%;
-  transform: rotate(45deg);
-  box-shadow:
-    12px 12px 0 var(--manga-sakura-light),
-    -12px 12px 0 var(--manga-sakura-pink),
-    12px -12px 0 var(--manga-sakura-light),
-    -12px -12px 0 var(--manga-sakura-pink);
-  animation: manga-flower-spin 30s linear infinite;
-}
-
-.manga-corner-decoration::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  background: var(--manga-wisteria);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='petalGrad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ffd6de'/%3E%3Cstop offset='100%25' stop-color='%23ffb7c5'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23petalGrad)'%3E%3Cpath d='M50 50 L42 20 Q38 8 44 8 Q48 8 50 15 Q52 8 56 8 Q62 8 58 20 Z' transform='rotate(0 50 50)'/%3E%3Cpath d='M50 50 L42 20 Q38 8 44 8 Q48 8 50 15 Q52 8 56 8 Q62 8 58 20 Z' transform='rotate(72 50 50)'/%3E%3Cpath d='M50 50 L42 20 Q38 8 44 8 Q48 8 50 15 Q52 8 56 8 Q62 8 58 20 Z' transform='rotate(144 50 50)'/%3E%3Cpath d='M50 50 L42 20 Q38 8 44 8 Q48 8 50 15 Q52 8 56 8 Q62 8 58 20 Z' transform='rotate(216 50 50)'/%3E%3Cpath d='M50 50 L42 20 Q38 8 44 8 Q48 8 50 15 Q52 8 56 8 Q62 8 58 20 Z' transform='rotate(288 50 50)'/%3E%3C/g%3E%3Ccircle cx='50' cy='50' r='8' fill='%23c4a7e7'/%3E%3Cg fill='%23ffd700'%3E%3Ccircle cx='50' cy='40' r='2.5'/%3E%3Ccircle cx='58' cy='45' r='2.5'/%3E%3Ccircle cx='56' cy='56' r='2.5'/%3E%3Ccircle cx='44' cy='56' r='2.5'/%3E%3Ccircle cx='42' cy='45' r='2.5'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
 }
 
 @keyframes manga-flower-spin {
-  from { transform: rotate(45deg); }
-  to { transform: rotate(405deg); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 [data-color-scheme="light"] .manga-corner-decoration {
-  opacity: 0.3;
+  opacity: 0.4;
 }
 
 /* ============================================
@@ -360,7 +339,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: -1; /* Behind all content - floating elements should be unobtrusive */
+  z-index: 1; /* Low z-index - floating elements should be unobtrusive */
 }
 
 .manga-sparkle {

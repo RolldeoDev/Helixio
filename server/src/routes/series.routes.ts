@@ -13,6 +13,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { getDatabase } from '../services/database.service.js';
 import {
   createSeries,
@@ -66,7 +67,13 @@ import {
   type SeriesMetadataPayload,
 } from '../services/series-metadata-fetch.service.js';
 import { searchSeries as searchExternalSeries, type MetadataSource } from '../services/metadata-search.service.js';
-import { invalidateSeriesData } from '../services/metadata-invalidation.service.js';
+import {
+  invalidateSeriesData,
+  findMismatchedSeriesFiles,
+  repairSeriesLinkages,
+  syncFileMetadataToSeries,
+  batchSyncFileMetadataToSeries,
+} from '../services/metadata-invalidation.service.js';
 import { processExistingFiles } from '../services/scanner.service.js';
 import { createServiceLogger } from '../services/logger.service.js';
 import {
@@ -79,6 +86,24 @@ import {
 
 const router = Router();
 const logger = createServiceLogger('series-routes');
+
+// Configure multer for image uploads
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: multer.FileFilterCallback
+  ) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (validTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (JPG, PNG, WebP, GIF) are allowed'));
+    }
+  },
+});
 
 // =============================================================================
 // Series CRUD
@@ -632,6 +657,59 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
   const cover = await getSeriesCover(seriesId);
   logger.info({ seriesId, source, fileId: fileId || null, url: url ? '[provided]' : null }, 'Updated series cover');
   sendSuccess(res, { cover });
+}));
+
+/**
+ * POST /api/series/:id/cover/upload
+ * Upload a custom cover image from file
+ * Multipart form data with 'cover' field
+ */
+router.post('/:id/cover/upload', coverUpload.single('cover'), asyncHandler(async (req: Request, res: Response) => {
+  const seriesId = req.params.id!;
+  const db = getDatabase();
+
+  // Check series exists
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+    select: { id: true },
+  });
+
+  if (!series) {
+    sendNotFound(res, 'Series not found');
+    return;
+  }
+
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) {
+    sendBadRequest(res, 'No file uploaded');
+    return;
+  }
+
+  // Import the save function
+  const { saveUploadedCover } = await import('../services/cover.service.js');
+
+  // Save the uploaded image
+  const result = await saveUploadedCover(file.buffer);
+
+  if (!result.success || !result.coverHash) {
+    sendBadRequest(res, result.error || 'Failed to process uploaded image');
+    return;
+  }
+
+  // Update series with new cover hash
+  await db.series.update({
+    where: { id: seriesId },
+    data: {
+      coverSource: 'api',  // Stored locally, same as API covers
+      coverUrl: null,       // No URL for uploaded files
+      coverHash: result.coverHash,
+      coverFileId: null,
+    },
+  });
+
+  const cover = await getSeriesCover(seriesId);
+  logger.info({ seriesId, coverHash: result.coverHash }, 'Uploaded custom series cover');
+  sendSuccess(res, { cover, coverHash: result.coverHash });
 }));
 
 // =============================================================================
@@ -1220,6 +1298,83 @@ router.post('/admin/process-files', asyncHandler(async (req: Request, res: Respo
 router.get('/admin/needs-confirmation', asyncHandler(async (_req: Request, res: Response) => {
   const files = await getFilesNeedingConfirmation();
   sendSuccess(res, { files });
+}));
+
+// =============================================================================
+// Series Linkage Repair Endpoints
+// =============================================================================
+
+/**
+ * GET /api/admin/series/mismatched
+ * Get files where FileMetadata.series doesn't match their linked Series.name
+ */
+router.get('/admin/mismatched', asyncHandler(async (_req: Request, res: Response) => {
+  const mismatched = await findMismatchedSeriesFiles();
+  sendSuccess(res, {
+    count: mismatched.length,
+    files: mismatched,
+  });
+}));
+
+/**
+ * POST /api/admin/series/repair
+ * Repair mismatched series linkages
+ * Re-links files to the correct series based on their FileMetadata.series,
+ * creating new series if needed.
+ */
+router.post('/admin/repair', asyncHandler(async (_req: Request, res: Response) => {
+  logger.info('Starting series linkage repair');
+  const result = await repairSeriesLinkages();
+  logger.info(
+    {
+      totalMismatched: result.totalMismatched,
+      repaired: result.repaired,
+      newSeriesCreated: result.newSeriesCreated,
+      errors: result.errors.length,
+    },
+    'Series linkage repair complete'
+  );
+  sendSuccess(res, result);
+}));
+
+/**
+ * POST /api/admin/series/sync-metadata/:fileId
+ * Sync a single file's metadata to match its linked series.
+ * Use when the file is in the correct series but the metadata is wrong.
+ */
+router.post('/admin/sync-metadata/:fileId', asyncHandler(async (req: Request, res: Response) => {
+  const { fileId } = req.params;
+  if (!fileId) {
+    return sendBadRequest(res, 'fileId is required');
+  }
+
+  const result = await syncFileMetadataToSeries(fileId);
+
+  if (!result.success) {
+    return sendBadRequest(res, result.error || 'Failed to sync metadata');
+  }
+
+  sendSuccess(res, result);
+}));
+
+/**
+ * POST /api/admin/series/sync-metadata-batch
+ * Batch sync file metadata to match their linked series.
+ */
+router.post('/admin/sync-metadata-batch', asyncHandler(async (req: Request, res: Response) => {
+  const { fileIds } = req.body as { fileIds: string[] };
+
+  if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+    return sendBadRequest(res, 'fileIds array is required');
+  }
+
+  logger.info({ count: fileIds.length }, 'Starting batch metadata sync to series');
+  const result = await batchSyncFileMetadataToSeries(fileIds);
+  logger.info(
+    { total: result.total, synced: result.synced, errors: result.errors.length },
+    'Batch metadata sync complete'
+  );
+  sendSuccess(res, result);
 }));
 
 export default router;
