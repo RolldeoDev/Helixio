@@ -70,6 +70,12 @@ export const dcDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 10px',
     colorShadowTitle: '#ffd700',
 
+    // Issue badge - Batman yellow
+    colorIssueBadge: '#ffd700',
+    colorIssueBadgeCompleted: '#44d62c',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

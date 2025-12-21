@@ -14,6 +14,8 @@ export function ReaderPage() {
   const navigate = useNavigate();
 
   const filename = searchParams.get('filename') || 'Comic';
+  const startPageParam = searchParams.get('page');
+  const startPage = startPageParam !== null ? parseInt(startPageParam, 10) : undefined;
 
   if (!fileId) {
     return (
@@ -35,14 +37,15 @@ export function ReaderPage() {
     }
   };
 
-  const handleNavigateToFile = (newFileId: string) => {
+  const handleNavigateToFile = (newFileId: string, options?: { startPage?: number }) => {
     // Navigate to the new file, replacing current history entry
     // to allow easy back navigation to the library view
-    navigate(`/read/${newFileId}`, { replace: true });
+    const pageParam = options?.startPage !== undefined ? `?page=${options.startPage}` : '';
+    navigate(`/read/${newFileId}${pageParam}`, { replace: true });
   };
 
   return (
-    <ReaderProvider fileId={fileId} filename={filename}>
+    <ReaderProvider fileId={fileId} filename={filename} startPage={startPage}>
       <Reader onClose={handleClose} onNavigateToFile={handleNavigateToFile} />
     </ReaderProvider>
   );

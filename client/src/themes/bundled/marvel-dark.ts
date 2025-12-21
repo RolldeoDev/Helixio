@@ -70,6 +70,12 @@ export const marvelDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 8px',
     colorShadowTitle: '#ed1d24',
 
+    // Issue badge - Iron Man gold
+    colorIssueBadge: '#ffc500',
+    colorIssueBadgeCompleted: '#2eb82e',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

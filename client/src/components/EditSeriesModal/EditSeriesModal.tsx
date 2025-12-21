@@ -35,6 +35,7 @@ import { TagInput } from './TagInput';
 import { CoverPicker } from './CoverPicker';
 import { MetadataPreviewModal } from '../MetadataPreviewModal';
 import { SeriesMetadataSearchModal } from '../SeriesMetadataSearchModal';
+import { DescriptionGenerator } from '../DescriptionGenerator';
 import './EditSeriesModal.css';
 
 // =============================================================================
@@ -618,6 +619,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
         dispatch({ type: 'FETCH_METADATA_SUCCESS' });
         onSave?.();
         onClose();
+
+        // Refresh the page to show updated metadata
+        window.location.reload();
       } catch (err) {
         dispatch({
           type: 'FETCH_METADATA_ERROR',
@@ -647,6 +651,11 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
           series: result.series,
           fieldsUpdated: result.fieldsUpdated,
         });
+
+        // Refresh the page to show updated metadata
+        onSave?.();
+        onClose();
+        window.location.reload();
       } catch (err) {
         dispatch({
           type: 'APPLY_METADATA_ERROR',
@@ -654,7 +663,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
         });
       }
     },
-    [seriesId, state.pendingMetadata, state.pendingSource, state.pendingExternalId]
+    [seriesId, state.pendingMetadata, state.pendingSource, state.pendingExternalId, onSave, onClose]
   );
 
   const handleCloseSearchModal = useCallback(() => {
@@ -871,6 +880,20 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               {/* Description Section */}
               <CollapsibleSection title="Description" defaultExpanded={false}>
                 <div className="section-fields">
+                  <DescriptionGenerator
+                    type="series"
+                    entityId={seriesId}
+                    entityName={series.name || ''}
+                    currentDescription={series.summary}
+                    currentDeck={series.deck}
+                    onGenerated={(result) => {
+                      dispatch({ type: 'UPDATE_FIELD', field: 'summary', value: result.description });
+                      if (result.deck) {
+                        dispatch({ type: 'UPDATE_FIELD', field: 'deck', value: result.deck });
+                      }
+                    }}
+                    disabled={state.saving || state.loading}
+                  />
                   <FieldWithLock
                     fieldName="summary"
                     label="Summary"
@@ -946,6 +969,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('genres')}
                     fieldSource={getFieldSource('genres')}
                     placeholder="Add genres..."
+                    autocompleteField="genres"
                   />
                   <TagInput
                     fieldName="tags"
@@ -956,6 +980,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('tags')}
                     fieldSource={getFieldSource('tags')}
                     placeholder="Add tags..."
+                    autocompleteField="tags"
                   />
                   <FieldWithLock
                     fieldName="languageISO"
@@ -982,6 +1007,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('characters')}
                     fieldSource={getFieldSource('characters')}
                     placeholder="Add characters..."
+                    autocompleteField="characters"
                   />
                   <TagInput
                     fieldName="teams"
@@ -992,6 +1018,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('teams')}
                     fieldSource={getFieldSource('teams')}
                     placeholder="Add teams..."
+                    autocompleteField="teams"
                   />
                   <TagInput
                     fieldName="locations"
@@ -1002,6 +1029,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('locations')}
                     fieldSource={getFieldSource('locations')}
                     placeholder="Add locations..."
+                    autocompleteField="locations"
                   />
                   <TagInput
                     fieldName="storyArcs"
@@ -1012,6 +1040,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     onToggleLock={() => handleToggleLock('storyArcs')}
                     fieldSource={getFieldSource('storyArcs')}
                     placeholder="Add story arcs..."
+                    autocompleteField="storyArcs"
                   />
                 </div>
               </CollapsibleSection>

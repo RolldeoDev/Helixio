@@ -11,6 +11,7 @@ import { useApp } from '../../contexts/AppContext';
 import { renameFile, rebuildCache, getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CoverSizeSlider, getCoverWidth } from '../CoverSizeSlider';
+import { CollectionPickerModal } from '../CollectionPickerModal';
 import { groupFiles } from '../../utils/file-grouping';
 
 import type { ComicFile } from '../../services/api.service';
@@ -70,6 +71,9 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     currentFilename: string;
     newFilename: string;
   } | null>(null);
+
+  // Collection picker modal state
+  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   // Fetch reading progress when library changes
   useEffect(() => {
@@ -263,6 +267,9 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
           setTimeout(() => setOperation(null), 3000);
         }
         break;
+      case 'addToCollection':
+        setCollectionPickerFileIds(targetIds);
+        break;
       case 'fetchMetadata':
         onFetchMetadata?.(targetIds);
         break;
@@ -283,6 +290,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     'read',
     'markRead',
     'markUnread',
+    'addToCollection',
     ...(onFetchMetadata ? ['fetchMetadata'] as MenuItemPreset[] : []),
     ...(onEditMetadata ? ['editMetadata'] as MenuItemPreset[] : []),
     'rename',
@@ -445,6 +453,13 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
           </div>
         </div>
       )}
+
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={collectionPickerFileIds.length > 0}
+        onClose={() => setCollectionPickerFileIds([])}
+        fileIds={collectionPickerFileIds}
+      />
     </div>
   );
 }

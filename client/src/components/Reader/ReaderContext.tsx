@@ -27,6 +27,7 @@ import {
   removeBookmark as apiRemoveBookmark,
   getAdjacentFiles,
   generateThumbnails,
+  markAsCompleted as apiMarkAsCompleted,
   ReaderSettings,
   ReadingMode as BaseReadingMode,
   ReadingDirection,
@@ -115,6 +116,9 @@ export interface ReaderState {
 
   // Auto-detected webtoon (based on image aspect ratios)
   isAutoWebtoon: boolean;
+
+  // Transition screen (for navigating between issues)
+  transitionScreen: 'none' | 'start' | 'end';
 }
 
 type ReaderAction =
@@ -162,7 +166,10 @@ type ReaderAction =
   | { type: 'ROTATE_PAGE_CW'; payload: number }
   | { type: 'ROTATE_PAGE_CCW'; payload: number }
   | { type: 'RESET_PAGE_ROTATION'; payload: number }
-  | { type: 'SET_AUTO_WEBTOON'; payload: boolean };
+  | { type: 'SET_AUTO_WEBTOON'; payload: boolean }
+  | { type: 'SHOW_START_SCREEN' }
+  | { type: 'SHOW_END_SCREEN' }
+  | { type: 'HIDE_TRANSITION_SCREEN' };
 
 const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
@@ -204,6 +211,7 @@ const createInitialState = (fileId: string, filename: string): ReaderState => ({
   completed: false,
   adjacentFiles: null,
   isAutoWebtoon: false,
+  transitionScreen: 'none',
 });
 
 // =============================================================================
@@ -213,7 +221,7 @@ const createInitialState = (fileId: string, filename: string): ReaderState => ({
 function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
   switch (action.type) {
     case 'INIT_START':
-      return { ...state, isLoading: true, error: null };
+      return { ...state, isLoading: true, error: null, transitionScreen: 'none' };
 
     case 'INIT_SUCCESS':
       return {
@@ -428,6 +436,15 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
     case 'SET_AUTO_WEBTOON':
       return { ...state, isAutoWebtoon: action.payload };
 
+    case 'SHOW_START_SCREEN':
+      return { ...state, transitionScreen: 'start' };
+
+    case 'SHOW_END_SCREEN':
+      return { ...state, transitionScreen: 'end' };
+
+    case 'HIDE_TRANSITION_SCREEN':
+      return { ...state, transitionScreen: 'none' };
+
     default:
       return state;
   }
@@ -494,6 +511,8 @@ interface ReaderContextValue {
   hasPrevChapter: boolean;
   // Webtoon detection
   detectWebtoonFormat: () => void;
+  // Transition screens
+  exitTransitionScreen: () => void;
 }
 
 const ReaderContext = createContext<ReaderContextValue | null>(null);
@@ -505,10 +524,11 @@ const ReaderContext = createContext<ReaderContextValue | null>(null);
 interface ReaderProviderProps {
   fileId: string;
   filename: string;
+  startPage?: number;
   children: ReactNode;
 }
 
-export function ReaderProvider({ fileId, filename, children }: ReaderProviderProps) {
+export function ReaderProvider({ fileId, filename, startPage, children }: ReaderProviderProps) {
   const [state, dispatch] = useReducer(readerReducer, createInitialState(fileId, filename));
 
   // Initialize reader
@@ -553,7 +573,9 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
           payload: {
             pages,
             progress: {
-              currentPage: progressResponse.currentPage || 0,
+              // Use startPage if provided (e.g., when transitioning between issues),
+              // otherwise use saved progress
+              currentPage: startPage !== undefined ? startPage : (progressResponse.currentPage || 0),
               bookmarks: progressResponse.bookmarks || [],
               completed: progressResponse.completed || false,
             },
@@ -585,7 +607,7 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [fileId, startPage]);
 
   // Save progress when page changes
   useEffect(() => {
@@ -623,6 +645,17 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
   }, []);
 
   const nextPage = useCallback(() => {
+    // If on start screen, hide it and return to first page
+    if (state.transitionScreen === 'start') {
+      dispatch({ type: 'HIDE_TRANSITION_SCREEN' });
+      return;
+    }
+
+    // If on end screen, do nothing (navigation to next issue handled by Reader.tsx)
+    if (state.transitionScreen === 'end') {
+      return;
+    }
+
     // Handle split page navigation
     if (shouldSplitCurrentPage()) {
       const firstHalf = state.splitting === 'rtl' ? 'right' : 'left';
@@ -640,11 +673,36 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
       // On second half - proceed to next page (fall through)
     }
 
+    // Check if we're on the last page - if so, show end screen
+    const isLastPage = state.currentPage >= state.totalPages - 1;
+    if (isLastPage) {
+      dispatch({ type: 'SHOW_END_SCREEN' });
+      // Mark as completed
+      if (!state.completed) {
+        apiMarkAsCompleted(fileId).catch((err) => {
+          console.error('Failed to mark as completed:', err);
+        });
+        dispatch({ type: 'MARK_COMPLETED' });
+      }
+      return;
+    }
+
     dispatch({ type: 'NEXT_PAGE' });
     dispatch({ type: 'SET_SPLIT_VIEW', payload: 'full' });
-  }, [shouldSplitCurrentPage, state.splitting, state.splitView]);
+  }, [shouldSplitCurrentPage, state.splitting, state.splitView, state.transitionScreen, state.currentPage, state.totalPages, state.completed, fileId]);
 
   const prevPage = useCallback(() => {
+    // If on end screen, hide it and return to last page
+    if (state.transitionScreen === 'end') {
+      dispatch({ type: 'HIDE_TRANSITION_SCREEN' });
+      return;
+    }
+
+    // If on start screen, do nothing (navigation to prev issue handled by Reader.tsx)
+    if (state.transitionScreen === 'start') {
+      return;
+    }
+
     // Handle split page navigation
     if (shouldSplitCurrentPage()) {
       const firstHalf = state.splitting === 'rtl' ? 'right' : 'left';
@@ -658,9 +716,16 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
       // On first half or full - proceed to prev page (fall through)
     }
 
+    // Check if we're on the first page with a previous issue - if so, show start screen
+    const isFirstPage = state.currentPage === 0;
+    if (isFirstPage && state.adjacentFiles?.previous) {
+      dispatch({ type: 'SHOW_START_SCREEN' });
+      return;
+    }
+
     dispatch({ type: 'PREV_PAGE' });
     dispatch({ type: 'SET_SPLIT_VIEW', payload: 'full' });
-  }, [shouldSplitCurrentPage, state.splitting, state.splitView]);
+  }, [shouldSplitCurrentPage, state.splitting, state.splitView, state.transitionScreen, state.currentPage, state.adjacentFiles]);
 
   const firstPage = useCallback(() => {
     dispatch({ type: 'FIRST_PAGE' });
@@ -937,6 +1002,11 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
     return null;
   }, [state.adjacentFiles]);
 
+  // Exit transition screen
+  const exitTransitionScreen = useCallback(() => {
+    dispatch({ type: 'HIDE_TRANSITION_SCREEN' });
+  }, []);
+
   // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -994,6 +1064,7 @@ export function ReaderProvider({ fileId, filename, children }: ReaderProviderPro
     hasNextChapter,
     hasPrevChapter,
     detectWebtoonFormat,
+    exitTransitionScreen,
   };
 
   return <ReaderContext.Provider value={value}>{children}</ReaderContext.Provider>;

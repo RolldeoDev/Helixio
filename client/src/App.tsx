@@ -210,11 +210,14 @@ function AppContent() {
     return <LoginPage />;
   }
 
+  // Check if we're on the reader route
+  const isReaderRoute = location.pathname.startsWith('/read/');
+
   // Don't show sidebar for search (full-width view) or reader (fullscreen)
-  const hideSidebar = ['/search'].includes(location.pathname) || location.pathname.startsWith('/read/');
+  const hideSidebar = ['/search'].includes(location.pathname) || isReaderRoute;
 
   // Hide status bar for reader
-  const hideStatusBar = location.pathname.startsWith('/read/');
+  const hideStatusBar = isReaderRoute;
 
   // Add class when job banner is visible
   const showBanner = hasActiveJob && !isModalOpen;
@@ -256,6 +259,16 @@ function AppContent() {
 
       {/* Metadata Approval Modal - controlled by context */}
       {isModalOpen && <MetadataApprovalModal />}
+
+      {/* Theme-specific effects - not shown in reader (would be distracting and cover content) */}
+      {!isReaderRoute && (
+        <>
+          <SandmanEffects />
+          <SynthwaveEffects />
+          <RetroEffects />
+          <MangaEffects />
+        </>
+      )}
     </div>
   );
 }
@@ -274,11 +287,6 @@ function App() {
                       <AppContent />
                       {/* Achievement notifications */}
                       <AchievementToast />
-                      {/* Theme-specific effects - renders only when relevant theme is active */}
-                      <SandmanEffects />
-                      <SynthwaveEffects />
-                      <RetroEffects />
-                      <MangaEffects />
                     </AchievementProvider>
                   </MetadataJobProvider>
                 </AnnotationsProvider>

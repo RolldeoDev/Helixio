@@ -76,6 +76,12 @@ export const retroLightTheme: ThemeDefinition = {
     shadowTitleLocation: '2px 2px 0',
     colorShadowTitle: '#306850',
 
+    // Issue badge - Dark Game Boy green
+    colorIssueBadge: '#306850',
+    colorIssueBadgeCompleted: '#0f380f',
+    colorIssueBadgeText: '#9bbc0f',
+    colorIssueBadgeTextCompleted: '#9bbc0f',
+
     // Border radius - Pixel-perfect with no rounding
     radiusSm: '0px',
     radiusMd: '0px',

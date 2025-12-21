@@ -70,6 +70,12 @@ export const defaultLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 1px 2px',
     colorShadowTitle: 'rgba(0, 0, 0, 0.1)',
 
+    // Issue badge - Deeper gold for light background contrast
+    colorIssueBadge: '#d4980a',
+    colorIssueBadgeCompleted: '#2d8a4e',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#ffffff',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

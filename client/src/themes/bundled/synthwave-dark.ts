@@ -121,6 +121,12 @@ export const synthwaveDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 10px',
     colorShadowTitle: '#ff00ff',
 
+    // Issue badge - Electric yellow arcade style
+    colorIssueBadge: '#ffcc00',
+    colorIssueBadgeCompleted: '#00ff88',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

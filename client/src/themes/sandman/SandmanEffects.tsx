@@ -263,30 +263,24 @@ function DreamSandParticles() {
  * Main SandmanEffects Component
  */
 export function SandmanEffects() {
-  const { themeId, getEffectEnabled } = useTheme();
-  const [isActive, setIsActive] = useState(false);
-
-  // Check if Sandman theme is active
-  useEffect(() => {
-    setIsActive(themeId === 'sandman');
-  }, [themeId]);
+  const { themeId, effectToggles } = useTheme();
 
   // Don't render anything if theme isn't active
-  if (!isActive) {
+  if (themeId !== 'sandman') {
     return null;
   }
 
   return (
     <>
       {/* Particle Container */}
-      {getEffectEnabled('dreamSand') && <DreamSandParticles />}
+      {effectToggles.dreamSand && <DreamSandParticles />}
 
       {/* Decorative Elements */}
-      {getEffectEnabled('morpheusSigil') && <MorpheusSigil />}
-      {getEffectEnabled('dreamQuote') && <DreamQuote />}
+      {effectToggles.morpheusSigil && <MorpheusSigil />}
+      {effectToggles.dreamQuote && <DreamQuote />}
 
       {/* Vignette Effect */}
-      {getEffectEnabled('vignette') && <VignetteEffect />}
+      {effectToggles.vignette && <VignetteEffect />}
     </>
   );
 }

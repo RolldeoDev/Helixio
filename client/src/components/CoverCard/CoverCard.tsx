@@ -10,6 +10,8 @@ import { CoverImage } from './CoverImage';
 import { ContextMenu } from './ContextMenu';
 import { useContextMenu } from './useContextMenu';
 import { DEFAULT_MENU_ITEMS } from './menuPresets';
+import { useApp } from '../../contexts/AppContext';
+import { getTitleDisplay } from '../../utils/titleDisplay';
 import type {
   CoverCardProps,
   CoverCardSize,
@@ -49,6 +51,7 @@ export function CoverCard({
   badge,
   showInfo = true,
   showSeries = true,
+  showSeriesAsSubtitle = false,
   showIssueNumber = true,
   selectable = false,
   isSelected = false,
@@ -69,9 +72,15 @@ export function CoverCard({
   eager = false,
 }: CoverCardProps) {
   const { menuState, handleContextMenu, closeMenu } = useContextMenu();
+  const { preferFilenameOverMetadata } = useApp();
 
-  // Display name without extension
-  const displayName = file.filename.replace(/\.cb[rz7t]$/i, '');
+  // Compute display title using metadata with fallbacks
+  const { primaryTitle, subtitle, tooltipTitle } = getTitleDisplay(file, {
+    preferFilename: preferFilenameOverMetadata,
+  });
+
+  // Legacy displayName for backwards compatibility in aria-labels
+  const displayName = primaryTitle;
 
   // Handle click
   const handleClick = useCallback(
@@ -185,7 +194,10 @@ export function CoverCard({
 
           {/* Issue number badge */}
           {showIssueNumber && file.metadata?.number && (
-            <div className="cover-card__issue-badge" aria-label={`Issue ${file.metadata.number}`}>
+            <div
+              className={`cover-card__issue-badge${progress?.completed ? ' cover-card__issue-badge--completed' : ''}`}
+              aria-label={`Issue ${file.metadata.number}${progress?.completed ? ', completed' : ''}`}
+            >
               <span className="cover-card__issue-badge-hash">#</span>
               <span className="cover-card__issue-badge-number">{file.metadata.number}</span>
             </div>
@@ -208,10 +220,17 @@ export function CoverCard({
         {/* Info section */}
         {showInfo && (
           <div className="cover-card__info">
-            <span className="cover-card__title" title={file.filename}>
-              {displayName}
+            <span className="cover-card__title" title={tooltipTitle}>
+              {primaryTitle}
             </span>
-            {showSeries && file.metadata?.series && (
+            {/* showSeriesAsSubtitle takes precedence over showSeries */}
+            {showSeriesAsSubtitle && subtitle && (
+              <span className="cover-card__series">
+                {subtitle}
+              </span>
+            )}
+            {/* Fallback to legacy showSeries behavior if not using subtitle mode */}
+            {!showSeriesAsSubtitle && showSeries && file.metadata?.series && (
               <span className="cover-card__series">
                 {file.metadata.series}
               </span>

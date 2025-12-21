@@ -1,0 +1,286 @@
+/**
+ * CollectionPickerModal Styles
+ */
+
+.collection-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: overlay-fade-in 0.15s ease;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.collection-picker-modal {
+  background: var(--color-bg-elevated, #1e1e1e);
+  border: 1px solid var(--color-border, #333);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-xl, 0 20px 50px rgba(0, 0, 0, 0.5));
+  min-width: 300px;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  animation: modal-slide-in 0.2s ease;
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.collection-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md, 16px);
+  border-bottom: 1px solid var(--color-border, #333);
+}
+
+.collection-picker-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #fff);
+}
+
+.collection-picker-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-secondary, #888);
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.collection-picker-close:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+  color: var(--color-text, #fff);
+}
+
+.collection-picker-close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Content */
+.collection-picker-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm, 8px) 0;
+}
+
+.collection-picker-loading {
+  padding: var(--spacing-lg, 24px);
+  text-align: center;
+  color: var(--color-text-secondary, #888);
+}
+
+.collection-picker-empty {
+  padding: var(--spacing-md, 16px);
+  text-align: center;
+  color: var(--color-text-secondary, #888);
+  font-style: italic;
+}
+
+/* Divider */
+.collection-picker-divider {
+  height: 1px;
+  margin: var(--spacing-xs, 4px) var(--spacing-md, 16px);
+  background: var(--color-border, #333);
+}
+
+/* Collection item */
+.collection-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  width: 100%;
+  padding: var(--spacing-sm, 10px) var(--spacing-md, 16px);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text, #fff);
+  font-size: 0.875rem;
+  transition: background var(--transition-fast, 0.15s) ease;
+}
+
+.collection-picker-item:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.collection-picker-item:focus-visible {
+  outline: none;
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.collection-picker-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.collection-picker-item.checked {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.collection-picker-item.pending {
+  opacity: 0.6;
+}
+
+/* Item icon */
+.collection-picker-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #888);
+}
+
+.collection-picker-item-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.collection-picker-item.checked .collection-picker-item-icon {
+  color: var(--color-primary, #3b82f6);
+}
+
+/* Favorite heart color */
+.collection-picker-item:first-of-type .collection-picker-item-icon {
+  color: #ef4444;
+}
+
+/* Item name */
+.collection-picker-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Checkmark */
+.collection-picker-item-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-primary, #3b82f6);
+}
+
+.collection-picker-item-check svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Create new button */
+.collection-picker-create {
+  color: var(--color-primary, #3b82f6);
+}
+
+.collection-picker-create .collection-picker-item-icon {
+  color: var(--color-primary, #3b82f6);
+}
+
+/* Create form */
+.collection-picker-create-form {
+  display: flex;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+}
+
+.collection-picker-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-xs, 6px) var(--spacing-sm, 10px);
+  background: var(--color-bg-secondary, #2a2a2a);
+  border: 1px solid var(--color-border, #333);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text, #fff);
+  font-size: 0.875rem;
+}
+
+.collection-picker-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.collection-picker-input::placeholder {
+  color: var(--color-text-secondary, #888);
+}
+
+.collection-picker-create-btn {
+  padding: var(--spacing-xs, 6px) var(--spacing-sm, 12px);
+  background: var(--color-primary, #3b82f6);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast, 0.15s) ease;
+}
+
+.collection-picker-create-btn:hover {
+  background: var(--color-primary-hover, #2563eb);
+}
+
+.collection-picker-create-btn:disabled {
+  background: var(--color-text-secondary, #888);
+  cursor: not-allowed;
+}
+
+/* Footer */
+.collection-picker-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--spacing-md, 16px);
+  border-top: 1px solid var(--color-border, #333);
+}
+
+.collection-picker-done {
+  padding: var(--spacing-sm, 8px) var(--spacing-lg, 20px);
+  background: var(--color-primary, #3b82f6);
+  border: none;
+  border-radius: var(--radius-md, 6px);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast, 0.15s) ease;
+}
+
+.collection-picker-done:hover {
+  background: var(--color-primary-hover, #2563eb);
+}

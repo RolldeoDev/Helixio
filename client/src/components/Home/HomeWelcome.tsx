@@ -20,6 +20,7 @@ import {
   StatsSummary,
 } from '../../services/api.service';
 import { generateFunFact, FunFact } from '../../utils/funFacts';
+import { getTitleDisplay } from '../../utils/titleDisplay';
 import './HomeWelcome.css';
 
 // =============================================================================
@@ -157,7 +158,7 @@ export function HomeWelcome({
   isLoading,
 }: HomeWelcomeProps) {
   const navigate = useNavigate();
-  const { libraries } = useApp();
+  const { libraries, preferFilenameOverMetadata } = useApp();
   const { user, isAuthenticated } = useAuth();
 
   const [funFact, setFunFact] = useState<FunFact | null>(null);
@@ -341,46 +342,83 @@ export function HomeWelcome({
           {isLoading ? (
             <div className="welcome-featured-card skeleton" />
           ) : featuredItem ? (
-            <div
-              className="welcome-featured-card"
-              onClick={handleContinueReading}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') handleContinueReading();
-              }}
-            >
-              <div className="welcome-featured-cover">
-                <img
-                  src={getCoverUrl(featuredItem.fileId)}
-                  alt={featuredItem.filename}
-                  loading="eager"
-                />
-                <div className="welcome-featured-overlay" />
-                <div className="welcome-featured-play">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="welcome-featured-info">
-                <span className="welcome-featured-label">Continue Reading</span>
-                <h3 className="welcome-featured-title">
-                  {featuredItem.filename.replace(/\.cb[rz7t]$/i, '')}
-                </h3>
-                <div className="welcome-featured-progress">
-                  <div className="welcome-featured-progress-bar">
-                    <div
-                      className="welcome-featured-progress-fill"
-                      style={{ width: `${featuredItem.progress}%` }}
+            (() => {
+              // Compute display title using metadata with fallbacks
+              const { primaryTitle } = getTitleDisplay(
+                {
+                  filename: featuredItem.filename,
+                  metadata: {
+                    series: featuredItem.series,
+                    number: featuredItem.number,
+                    title: featuredItem.title,
+                  },
+                },
+                { preferFilename: preferFilenameOverMetadata }
+              );
+
+              // Build issue info string (e.g., "Issue 2 of 5")
+              const issueInfo = featuredItem.number
+                ? featuredItem.issueCount
+                  ? `Issue ${featuredItem.number} of ${featuredItem.issueCount}`
+                  : `Issue #${featuredItem.number}`
+                : null;
+
+              return (
+                <div
+                  className="welcome-featured-card"
+                  onClick={handleContinueReading}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') handleContinueReading();
+                  }}
+                >
+                  <div className="welcome-featured-cover">
+                    <img
+                      src={getCoverUrl(featuredItem.fileId)}
+                      alt={featuredItem.filename}
+                      loading="eager"
                     />
+                    <div className="welcome-featured-overlay" />
+                    {/* Issue number badge */}
+                    {featuredItem.number && (
+                      <div className="welcome-featured-issue-badge">
+                        <span className="welcome-featured-issue-hash">#</span>
+                        <span className="welcome-featured-issue-number">{featuredItem.number}</span>
+                      </div>
+                    )}
+                    <div className="welcome-featured-play">
+                      <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </div>
                   </div>
-                  <span className="welcome-featured-progress-text">
-                    {Math.round(featuredItem.progress)}% • Page {featuredItem.currentPage + 1}/{featuredItem.totalPages}
-                  </span>
+                  <div className="welcome-featured-info">
+                    <span className="welcome-featured-label">Continue Reading</span>
+                    <h3 className="welcome-featured-title">{primaryTitle}</h3>
+                    {/* Series name as subtitle if different from title */}
+                    {featuredItem.series && featuredItem.series !== primaryTitle && (
+                      <span className="welcome-featured-series">{featuredItem.series}</span>
+                    )}
+                    {/* Issue info (e.g., "Issue 2 of 5") */}
+                    {issueInfo && (
+                      <span className="welcome-featured-issue-info">{issueInfo}</span>
+                    )}
+                    <div className="welcome-featured-progress">
+                      <div className="welcome-featured-progress-bar">
+                        <div
+                          className="welcome-featured-progress-fill"
+                          style={{ width: `${featuredItem.progress}%` }}
+                        />
+                      </div>
+                      <span className="welcome-featured-progress-text">
+                        {Math.round(featuredItem.progress)}% • Page {featuredItem.currentPage + 1}/{featuredItem.totalPages}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })()
           ) : (
             <div className="welcome-featured-empty">
               <div className="welcome-featured-empty-icon">

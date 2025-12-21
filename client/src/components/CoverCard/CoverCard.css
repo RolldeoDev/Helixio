@@ -314,7 +314,7 @@
 
 .cover-card__issue-badge {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   right: 8px;
   z-index: 6;
   display: flex;
@@ -322,25 +322,31 @@
   gap: 1px;
   padding: 3px 8px 4px 6px;
 
-  /* Comic book corner box aesthetic */
-  background: linear-gradient(
-    135deg,
-    #f5c542 0%,
-    #e5a91d 50%,
-    #d4980a 100%
-  );
+  /* Comic book corner box aesthetic - uses theme color */
+  background: var(--color-issue-badge, #f5c542);
 
-  /* Angular cut on top-left corner for dynamic feel */
-  clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+  /* Angular cut on bottom-left corner for dynamic feel */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
 
-  /* Depth and pop */
-  box-shadow:
-    2px 2px 0 rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  /* Border via drop-shadow (follows clip-path, unlike border property) */
+  /* 2px solid black outline on all 8 directions for hard edge, plus depth shadow */
+  filter:
+    drop-shadow(2px 0 0 black)
+    drop-shadow(-2px 0 0 black)
+    drop-shadow(0 2px 0 black)
+    drop-shadow(0 -2px 0 black)
+    drop-shadow(2px 2px 0 black)
+    drop-shadow(-2px -2px 0 black)
+    drop-shadow(2px -2px 0 black)
+    drop-shadow(-2px 2px 0 black)
+    drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.5));
+
+  /* Inner highlight for depth */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 
   /* Subtle rotation for dynamism */
-  transform: rotate(-2deg);
-  transform-origin: bottom right;
+  transform: rotate(2deg);
+  transform-origin: top right;
 
   /* Typography */
   font-family: 'Impact', 'Haettenschweiler', 'Franklin Gothic Bold', 'Charcoal', 'Helvetica Inserat', 'Bitstream Vera Sans Bold', 'Arial Black', sans-serif;
@@ -348,20 +354,29 @@
   letter-spacing: -0.02em;
   line-height: 1;
 
-  /* Text color with slight shadow for readability */
-  color: #1a1a1a;
+  /* Text color with slight shadow for readability - uses theme variable */
+  color: var(--color-issue-badge-text, #1a1a1a);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
 
   transition:
     transform var(--cover-card-transition),
-    box-shadow var(--cover-card-transition);
+    box-shadow var(--cover-card-transition),
+    filter var(--cover-card-transition);
 }
 
 .cover-card:hover .cover-card__issue-badge {
   transform: rotate(0deg) scale(1.05);
-  box-shadow:
-    3px 3px 0 rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  filter:
+    drop-shadow(2px 0 0 black)
+    drop-shadow(-2px 0 0 black)
+    drop-shadow(0 2px 0 black)
+    drop-shadow(0 -2px 0 black)
+    drop-shadow(2px 2px 0 black)
+    drop-shadow(-2px -2px 0 black)
+    drop-shadow(2px -2px 0 black)
+    drop-shadow(-2px 2px 0 black)
+    drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.6));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .cover-card__issue-badge-hash {
@@ -379,9 +394,9 @@
 /* Size variations */
 .cover-card--small .cover-card__issue-badge {
   padding: 2px 6px 3px 4px;
-  bottom: 4px;
+  top: 4px;
   right: 4px;
-  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 6px 100%, 0 calc(100% - 6px));
 }
 
 .cover-card--small .cover-card__issue-badge-hash {
@@ -394,7 +409,7 @@
 
 .cover-card--large .cover-card__issue-badge {
   padding: 4px 10px 5px 8px;
-  clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 10px 100%, 0 calc(100% - 10px));
 }
 
 .cover-card--large .cover-card__issue-badge-hash {
@@ -408,6 +423,13 @@
 /* Hide in compact mode */
 .cover-card--compact .cover-card__issue-badge {
   display: none;
+}
+
+/* Completed state - uses theme-defined completed color */
+.cover-card__issue-badge--completed {
+  background: var(--color-issue-badge-completed, var(--cover-card-completed-color));
+  color: var(--color-issue-badge-text-completed, white);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 /* =============================================================================
@@ -432,22 +454,6 @@
 /* =============================================================================
    Badges
    ============================================================================= */
-
-/* Completed badge */
-.cover-card__completed {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--cover-card-completed-color);
-  color: white;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
 
 /* Continue reading badge */
 .cover-card__continue-badge {

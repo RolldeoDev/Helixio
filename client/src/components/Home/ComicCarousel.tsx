@@ -10,6 +10,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { CoverCard, type CoverCardFile, type MenuItemPreset } from '../CoverCard';
+import { CollectionPickerModal } from '../CollectionPickerModal';
 import { markAsCompleted, markAsIncomplete } from '../../services/api.service';
 
 // =============================================================================
@@ -25,6 +26,7 @@ export interface ComicCarouselItem {
   badgeType?: 'primary' | 'success' | 'warning' | 'info';
   series?: string | null;
   number?: string | null;
+  title?: string | null;
 }
 
 interface ComicCarouselProps {
@@ -49,9 +51,10 @@ export function ComicCarousel({
   const trackRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   // Menu items for carousel context menu
-  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread'];
+  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread', 'addToCollection'];
 
   // Handle context menu action
   const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
@@ -74,6 +77,9 @@ export function ComicCarousel({
         } catch (err) {
           console.error('Failed to mark as unread:', err);
         }
+        break;
+      case 'addToCollection':
+        setCollectionPickerFileIds([fileId]);
         break;
     }
   }, [onItemClick, onItemsChange]);
@@ -143,6 +149,7 @@ export function ComicCarousel({
             metadata: {
               series: item.series,
               number: item.number,
+              title: item.title,
             },
           };
 
@@ -166,7 +173,7 @@ export function ComicCarousel({
               contextMenuEnabled={true}
               menuItems={menuItems}
               showInfo={true}
-              showSeries={!!item.series}
+              showSeriesAsSubtitle={true}
               showIssueNumber={!!item.number}
               badge={item.badge ? { text: item.badge, type: item.badgeType } : undefined}
               onClick={() => onItemClick?.(item.fileId)}
@@ -189,6 +196,13 @@ export function ComicCarousel({
           </svg>
         </button>
       )}
+
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={collectionPickerFileIds.length > 0}
+        onClose={() => setCollectionPickerFileIds([])}
+        fileIds={collectionPickerFileIds}
+      />
     </div>
   );
 }

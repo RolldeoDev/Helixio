@@ -14,6 +14,7 @@
 
 import { getDatabase } from './database.service.js';
 import type { Series, ComicFile, SeriesProgress, Prisma } from '@prisma/client';
+import { refreshTagsFromSeries } from './tag-autocomplete.service.js';
 import {
   SeriesMetadata,
   readSeriesJson,
@@ -340,10 +341,15 @@ export async function updateSeries(
     dataToUpdate.fieldSources = JSON.stringify(currentSources);
   }
 
-  return db.series.update({
+  const updated = await db.series.update({
     where: { id: seriesId },
     data: dataToUpdate as Prisma.SeriesUpdateInput,
   });
+
+  // Extract tags for autocomplete after series is updated
+  await refreshTagsFromSeries(seriesId);
+
+  return updated;
 }
 
 /**

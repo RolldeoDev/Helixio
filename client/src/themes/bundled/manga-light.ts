@@ -79,6 +79,12 @@ export const mangaLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 1px 2px',
     colorShadowTitle: '#d47a8c',
 
+    // Issue badge - Warm honey gold
+    colorIssueBadge: '#d4a056',
+    colorIssueBadgeCompleted: '#7ec88b',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius - Soft, rounded edges
     radiusSm: '6px',
     radiusMd: '10px',

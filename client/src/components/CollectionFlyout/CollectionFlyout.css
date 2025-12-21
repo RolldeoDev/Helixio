@@ -1,0 +1,279 @@
+/**
+ * CollectionFlyout Styles
+ */
+
+.collection-flyout {
+  position: relative;
+  display: inline-block;
+}
+
+/* Trigger button */
+.collection-flyout-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--color-text-secondary, #888);
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.collection-flyout-trigger:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+  color: var(--color-text, #fff);
+}
+
+.collection-flyout-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-focus-ring, #3b82f6);
+}
+
+/* Trigger sizes */
+.collection-flyout-trigger--small {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+
+.collection-flyout-trigger--small svg {
+  width: 16px;
+  height: 16px;
+}
+
+.collection-flyout-trigger--medium {
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+}
+
+.collection-flyout-trigger--medium svg {
+  width: 20px;
+  height: 20px;
+}
+
+.collection-flyout-trigger--large {
+  width: 44px;
+  height: 44px;
+  padding: 8px;
+}
+
+.collection-flyout-trigger--large svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Menu dropdown */
+.collection-flyout-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 1000;
+  min-width: 220px;
+  max-width: 300px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--color-bg-elevated, #1e1e1e);
+  border: 1px solid var(--color-border, #333);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--shadow-lg, 0 10px 40px rgba(0, 0, 0, 0.4));
+  animation: flyout-appear 0.15s ease;
+}
+
+.collection-flyout-menu--left {
+  left: 0;
+}
+
+.collection-flyout-menu--right {
+  right: 0;
+}
+
+@keyframes flyout-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.collection-flyout-header {
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-secondary, #888);
+  border-bottom: 1px solid var(--color-border, #333);
+}
+
+/* Loading state */
+.collection-flyout-loading {
+  padding: var(--spacing-lg, 16px);
+  text-align: center;
+  color: var(--color-text-secondary, #888);
+  font-size: 0.875rem;
+}
+
+/* Empty state */
+.collection-flyout-empty {
+  padding: var(--spacing-md, 12px);
+  text-align: center;
+  color: var(--color-text-secondary, #888);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Divider */
+.collection-flyout-divider {
+  height: 1px;
+  margin: var(--spacing-xs, 4px) 0;
+  background: var(--color-border, #333);
+}
+
+/* Collection item */
+.collection-flyout-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  width: 100%;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text, #fff);
+  font-size: 0.875rem;
+  transition: background var(--transition-fast, 0.15s) ease;
+}
+
+.collection-flyout-item:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.collection-flyout-item:focus-visible {
+  outline: none;
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.collection-flyout-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.collection-flyout-item.checked {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.collection-flyout-item.pending {
+  opacity: 0.6;
+}
+
+/* Item icon */
+.collection-flyout-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-text-secondary, #888);
+}
+
+.collection-flyout-item-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.collection-flyout-item.checked .collection-flyout-item-icon {
+  color: var(--color-primary, #3b82f6);
+}
+
+/* Favorite heart color */
+.collection-flyout-item:first-of-type .collection-flyout-item-icon {
+  color: #ef4444;
+}
+
+/* Item name */
+.collection-flyout-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Checkmark */
+.collection-flyout-item-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-primary, #3b82f6);
+}
+
+.collection-flyout-item-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Create new button */
+.collection-flyout-create {
+  color: var(--color-primary, #3b82f6);
+}
+
+.collection-flyout-create .collection-flyout-item-icon {
+  color: var(--color-primary, #3b82f6);
+}
+
+/* Create form */
+.collection-flyout-create-form {
+  display: flex;
+  gap: var(--spacing-xs, 4px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+}
+
+.collection-flyout-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  background: var(--color-bg-secondary, #2a2a2a);
+  border: 1px solid var(--color-border, #333);
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text, #fff);
+  font-size: 0.875rem;
+}
+
+.collection-flyout-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.collection-flyout-input::placeholder {
+  color: var(--color-text-secondary, #888);
+}
+
+.collection-flyout-create-btn {
+  padding: var(--spacing-xs, 4px) var(--spacing-sm, 8px);
+  background: var(--color-primary, #3b82f6);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast, 0.15s) ease;
+}
+
+.collection-flyout-create-btn:hover {
+  background: var(--color-primary-hover, #2563eb);
+}
+
+.collection-flyout-create-btn:disabled {
+  background: var(--color-text-secondary, #888);
+  cursor: not-allowed;
+}

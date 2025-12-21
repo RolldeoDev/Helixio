@@ -4,10 +4,10 @@
  * Tests for the achievement notification toast component.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render } from '@testing-library/react';
 import { AchievementToast } from '../AchievementToast';
-import { AchievementProvider, useAchievements } from '../../../contexts/AchievementContext';
+import { AchievementProvider, useAchievements, type AchievementContextType } from '../../../contexts/AchievementContext';
 import * as apiService from '../../../services/api.service';
 
 // Mock the API service
@@ -21,7 +21,7 @@ vi.mock('../../../services/api.service', () => ({
 // =============================================================================
 
 // Component to expose context for testing
-function TestContextConsumer({ onContext }: { onContext: (ctx: ReturnType<typeof useAchievements>) => void }) {
+function TestContextConsumer({ onContext }: { onContext: (ctx: AchievementContextType) => void }) {
   const context = useAchievements();
   onContext(context);
   return null;
@@ -63,38 +63,38 @@ describe('AchievementToast', () => {
     it('should provide notifications array', () => {
       vi.mocked(apiService.getRecentAchievements).mockResolvedValue([]);
 
-      let capturedContext: ReturnType<typeof useAchievements> | null = null;
+      const contextRef: { current: AchievementContextType | null } = { current: null };
 
       renderWithProvider(
-        <TestContextConsumer onContext={(ctx) => { capturedContext = ctx; }} />
+        <TestContextConsumer onContext={(ctx) => { contextRef.current = ctx; }} />
       );
 
-      expect(capturedContext).not.toBeNull();
-      expect(capturedContext?.notifications).toEqual([]);
+      expect(contextRef.current).not.toBeNull();
+      expect(contextRef.current!.notifications).toEqual([]);
     });
 
     it('should provide dismissNotification function', () => {
       vi.mocked(apiService.getRecentAchievements).mockResolvedValue([]);
 
-      let capturedContext: ReturnType<typeof useAchievements> | null = null;
+      const contextRef: { current: AchievementContextType | null } = { current: null };
 
       renderWithProvider(
-        <TestContextConsumer onContext={(ctx) => { capturedContext = ctx; }} />
+        <TestContextConsumer onContext={(ctx) => { contextRef.current = ctx; }} />
       );
 
-      expect(capturedContext?.dismissNotification).toBeInstanceOf(Function);
+      expect(contextRef.current!.dismissNotification).toBeInstanceOf(Function);
     });
 
     it('should provide dismissAll function', () => {
       vi.mocked(apiService.getRecentAchievements).mockResolvedValue([]);
 
-      let capturedContext: ReturnType<typeof useAchievements> | null = null;
+      const contextRef: { current: AchievementContextType | null } = { current: null };
 
       renderWithProvider(
-        <TestContextConsumer onContext={(ctx) => { capturedContext = ctx; }} />
+        <TestContextConsumer onContext={(ctx) => { contextRef.current = ctx; }} />
       );
 
-      expect(capturedContext?.dismissAll).toBeInstanceOf(Function);
+      expect(contextRef.current!.dismissAll).toBeInstanceOf(Function);
     });
   });
 
@@ -138,7 +138,7 @@ describe('AchievementToast Display', () => {
     };
 
     vi.mocked(apiService.getRecentAchievements).mockResolvedValue([mockAchievement]);
-    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue(undefined);
+    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue({ success: true });
 
     renderWithProvider(<AchievementToast />);
 
@@ -166,7 +166,7 @@ describe('AchievementToast Display', () => {
     };
 
     vi.mocked(apiService.getRecentAchievements).mockResolvedValue([mockAchievement]);
-    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue(undefined);
+    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue({ success: true });
 
     renderWithProvider(<AchievementToast />);
 
@@ -218,7 +218,7 @@ describe('AchievementToast Polling', () => {
     };
 
     vi.mocked(apiService.getRecentAchievements).mockResolvedValue([mockAchievement]);
-    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue(undefined);
+    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue({ success: true });
 
     renderWithProvider(<AchievementToast />);
 
@@ -257,7 +257,7 @@ describe('AchievementToast Auto-dismiss', () => {
     vi.mocked(apiService.getRecentAchievements)
       .mockResolvedValueOnce([mockAchievement])
       .mockResolvedValue([]);
-    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue(undefined);
+    vi.mocked(apiService.markAchievementsNotified).mockResolvedValue({ success: true });
 
     renderWithProvider(<AchievementToast />);
 

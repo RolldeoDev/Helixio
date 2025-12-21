@@ -168,30 +168,25 @@ function FloatingParticles() {
  * Main SynthwaveEffects Component
  */
 export function SynthwaveEffects() {
-  const { themeId, getEffectEnabled } = useTheme();
-  const [isActive, setIsActive] = useState(false);
+  const { themeId, effectToggles } = useTheme();
 
-  useEffect(() => {
-    setIsActive(themeId === 'synthwave');
-  }, [themeId]);
-
-  if (!isActive) {
+  if (themeId !== 'synthwave') {
     return null;
   }
 
   return (
     <>
       {/* Background effects layer */}
-      {getEffectEnabled('neonGrid') && <NeonGrid />}
-      {getEffectEnabled('vignette') && <Vignette />}
+      {effectToggles.neonGrid && <NeonGrid />}
+      {effectToggles.vignette && <Vignette />}
 
       {/* Overlay effects */}
-      {getEffectEnabled('scanLines') && <ScanLines />}
-      {getEffectEnabled('floatingParticles') && <FloatingParticles />}
+      {effectToggles.scanLines && <ScanLines />}
+      {effectToggles.floatingParticles && <FloatingParticles />}
 
       {/* UI elements */}
-      {getEffectEnabled('neonSign') && <NeonSign />}
-      {getEffectEnabled('arcadeQuote') && <ArcadeQuote />}
+      {effectToggles.neonSign && <NeonSign />}
+      {effectToggles.arcadeQuote && <ArcadeQuote />}
     </>
   );
 }

@@ -197,30 +197,26 @@ function LivesDisplay() {
  * Main RetroEffects Component
  */
 export function RetroEffects() {
-  const { themeId, getEffectEnabled } = useTheme();
-  const [isActive, setIsActive] = useState(false);
+  const { themeId, effectToggles } = useTheme();
 
-  useEffect(() => {
-    setIsActive(themeId === 'retro');
-  }, [themeId]);
-
-  if (!isActive) {
+  // Don't render if not the retro theme
+  if (themeId !== 'retro') {
     return null;
   }
 
   return (
     <>
       {/* Background effects */}
-      {getEffectEnabled('pixelGrid') && <PixelGrid />}
-      {getEffectEnabled('crtEffect') && <CRTEffect />}
+      {effectToggles.pixelGrid && <PixelGrid />}
+      {effectToggles.crtEffect && <CRTEffect />}
 
       {/* Floating elements */}
-      {getEffectEnabled('floatingPixels') && <FloatingPixels />}
+      {effectToggles.floatingPixels && <FloatingPixels />}
 
       {/* UI elements */}
-      {getEffectEnabled('scoreDisplay') && <ScoreDisplay />}
-      {getEffectEnabled('livesDisplay') && <LivesDisplay />}
-      {getEffectEnabled('gameQuote') && <GameQuote />}
+      {effectToggles.scoreDisplay && <ScoreDisplay />}
+      {effectToggles.livesDisplay && <LivesDisplay />}
+      {effectToggles.gameQuote && <GameQuote />}
     </>
   );
 }

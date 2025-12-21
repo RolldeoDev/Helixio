@@ -424,13 +424,18 @@
   font-size: 0.8rem;
 }
 
-/* Modal footer */
+/* Modal footer - fixed at bottom of modal viewport */
 .series-search-modal .modal-footer {
   display: flex;
   justify-content: flex-end;
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Responsive adjustments */

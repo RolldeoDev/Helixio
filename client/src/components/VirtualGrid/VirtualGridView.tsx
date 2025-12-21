@@ -11,6 +11,7 @@ import { useApp } from '../../contexts/AppContext';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import { getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
+import { CollectionPickerModal } from '../CollectionPickerModal';
 import type { ComicFile } from '../../services/api.service';
 import './VirtualGrid.css';
 
@@ -55,6 +56,9 @@ export function VirtualGridView({
 
   // Operation message state
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
+
+  // Collection picker modal state
+  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   // Fetch reading progress when library changes
   useEffect(() => {
@@ -157,6 +161,9 @@ export function VirtualGridView({
           setTimeout(() => setOperationMessage(null), 3000);
         }
         break;
+      case 'addToCollection':
+        setCollectionPickerFileIds(targetIds);
+        break;
       case 'fetchMetadata':
         onFetchMetadata?.(targetIds);
         break;
@@ -168,6 +175,7 @@ export function VirtualGridView({
     'read',
     'markRead',
     'markUnread',
+    'addToCollection',
     ...(onFetchMetadata ? ['fetchMetadata'] as MenuItemPreset[] : []),
   ];
 
@@ -246,6 +254,13 @@ export function VirtualGridView({
           ))}
         </div>
       </div>
+
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={collectionPickerFileIds.length > 0}
+        onClose={() => setCollectionPickerFileIds([])}
+        fileIds={collectionPickerFileIds}
+      />
     </div>
   );
 }

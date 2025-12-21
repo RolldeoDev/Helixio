@@ -42,6 +42,11 @@ export interface ContinueReadingItem {
   totalPages: number;
   progress: number; // 0-100 percentage
   lastReadAt: Date;
+  // Metadata fields
+  series: string | null;
+  number: string | null;
+  title: string | null;
+  issueCount: number | null; // Total issues in series (for "Issue X of Y")
 }
 
 export interface AdjacentFile {
@@ -353,6 +358,18 @@ export async function getContinueReading(
           filename: true,
           relativePath: true,
           libraryId: true,
+          metadata: {
+            select: {
+              series: true,
+              number: true,
+              title: true,
+            },
+          },
+          series: {
+            select: {
+              issueCount: true,
+            },
+          },
         },
       },
     },
@@ -367,6 +384,10 @@ export async function getContinueReading(
     totalPages: p.totalPages,
     progress: p.totalPages > 0 ? Math.round((p.currentPage / p.totalPages) * 100) : 0,
     lastReadAt: p.lastReadAt,
+    series: p.file.metadata?.series ?? null,
+    number: p.file.metadata?.number ?? null,
+    title: p.file.metadata?.title ?? null,
+    issueCount: p.file.series?.issueCount ?? null,
   }));
 }
 

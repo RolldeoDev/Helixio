@@ -18,7 +18,6 @@ import {
   clearSeriesCache,
   getMismatchedSeriesFiles,
   repairSeriesLinkages,
-  syncFileMetadataToSeries,
   batchSyncFileMetadataToSeries,
   type SeriesCacheStats,
   type MismatchedFile,
@@ -51,7 +50,7 @@ interface AppConfig {
 type SettingsTab = 'appearance' | 'general' | 'libraries' | 'api' | 'cache' | 'trackers' | 'sync' | 'account';
 
 export function Settings() {
-  const { libraries, refreshLibraries, selectLibrary } = useApp();
+  const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata } = useApp();
   const { isAuthenticated } = useAuth();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
@@ -712,6 +711,26 @@ export function Settings() {
               >
                 {saving ? 'Saving...' : 'Save Settings'}
               </button>
+
+              <h3 className="settings-subheader" style={{ marginTop: '2rem' }}>Display Preferences</h3>
+              <p className="setting-description">
+                Customize how comics are displayed in the application.
+              </p>
+
+              <div className="setting-group checkbox-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={preferFilenameOverMetadata}
+                    onChange={(e) => setPreferFilenameOverMetadata(e.target.checked)}
+                  />
+                  <span className="checkbox-text">Prefer filename over metadata for titles</span>
+                </label>
+                <p className="setting-description">
+                  When enabled, card titles will show the original filename instead of metadata titles.
+                  Useful if you have a well-organized file naming convention.
+                </p>
+              </div>
 
               <h3 className="settings-subheader" style={{ marginTop: '2rem' }}>Database Maintenance</h3>
               <p className="setting-description">

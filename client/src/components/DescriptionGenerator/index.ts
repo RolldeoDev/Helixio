@@ -1,0 +1,1 @@
+export { DescriptionGenerator } from './DescriptionGenerator';

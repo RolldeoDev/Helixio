@@ -1007,3 +1007,77 @@ model UserAchievement {
   @@unique([achievementId]) // One record per achievement per user
   @@index([unlockedAt])
 }
+
+// =============================================================================
+// Tag Autocomplete Cache
+// =============================================================================
+
+model TagValue {
+  id         String   @id @default(cuid())
+  fieldType  String   // "characters" | "teams" | "locations" | "genres" | "tags" | "storyArcs" | "publishers" | "writers" | "pencillers" | "inkers" | "colorists" | "letterers" | "coverArtists" | "editors"
+  value      String   // The actual tag value
+  valueLower String   // Lowercase version for case-insensitive prefix search
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([fieldType, value])
+  @@index([fieldType, valueLower])
+  @@index([fieldType])
+}
+
+// =============================================================================
+// Collections (User Collections + System Collections)
+// =============================================================================
+
+model Collection {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  // System collection flag (Favorites, Want to Read)
+  isSystem    Boolean  @default(false)
+  systemKey   String?  @unique  // "favorites" | "want-to-read" | null for user collections
+
+  // Visual customization
+  iconName    String?            // Icon identifier (e.g., "heart", "bookmark", "star")
+  color       String?            // Hex color for UI accent
+
+  // Ordering
+  sortOrder   Int      @default(0)  // For custom ordering in UI
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  items       CollectionItem[]
+
+  @@index([isSystem])
+  @@index([systemKey])
+  @@index([sortOrder])
+}
+
+model CollectionItem {
+  id           String     @id @default(cuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  // Hybrid item support: either seriesId OR fileId (never both)
+  seriesId     String?
+  fileId       String?
+
+  // Ordering within collection
+  position     Int        @default(0)
+
+  // Metadata
+  addedAt      DateTime   @default(now())
+  notes        String?    // Optional user notes about this item
+
+  @@unique([collectionId, seriesId])
+  @@unique([collectionId, fileId])
+  @@index([collectionId])
+  @@index([seriesId])
+  @@index([fileId])
+  @@index([position])
+}

@@ -1,0 +1,152 @@
+/**
+ * QuickCollectionIcons Styles
+ */
+
+.quick-collection-icons {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+}
+
+/* Size variants */
+.quick-collection-icons--small .quick-collection-icon {
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+}
+
+.quick-collection-icons--small .quick-collection-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.quick-collection-icons--medium .quick-collection-icon {
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+}
+
+.quick-collection-icons--medium .quick-collection-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.quick-collection-icons--large .quick-collection-icon {
+  width: 44px;
+  height: 44px;
+  padding: 8px;
+}
+
+.quick-collection-icons--large .quick-collection-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Icon button base */
+.quick-collection-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  color: var(--color-text-secondary, #888);
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.quick-collection-icon:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+  color: var(--color-text, #fff);
+}
+
+.quick-collection-icon:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-focus-ring, #3b82f6);
+}
+
+.quick-collection-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Active states */
+.quick-collection-icon.active {
+  color: var(--color-primary, #3b82f6);
+}
+
+.quick-collection-icon.active:hover {
+  color: var(--color-primary-hover, #2563eb);
+}
+
+/* Favorite specific - red/pink when active */
+.quick-collection-icon:first-child.active {
+  color: #ef4444;
+}
+
+.quick-collection-icon:first-child.active:hover {
+  color: #dc2626;
+}
+
+/* Want to Read specific - blue when active */
+.quick-collection-icon:last-child.active {
+  color: var(--color-primary, #3b82f6);
+}
+
+.quick-collection-icon:last-child.active:hover {
+  color: var(--color-primary-hover, #2563eb);
+}
+
+/* Loading state */
+.quick-collection-icon.loading {
+  position: relative;
+}
+
+.quick-collection-icon.loading::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* SVG icon styling */
+.quick-collection-icon svg {
+  transition: transform var(--transition-fast, 0.15s) ease;
+}
+
+.quick-collection-icon:hover svg {
+  transform: scale(1.1);
+}
+
+.quick-collection-icon:active svg {
+  transform: scale(0.95);
+}
+
+/* Pop animation when toggling */
+.quick-collection-icon.active svg {
+  animation: pop 0.3s ease;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

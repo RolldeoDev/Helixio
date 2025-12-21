@@ -24,6 +24,10 @@ export const MENU_ITEM_DEFINITIONS: Record<MenuItemPreset, CoverCardMenuItem> = 
     label: 'Mark as Unread',
     dividerAfter: true,
   },
+  addToCollection: {
+    id: 'addToCollection',
+    label: 'Add to Collection...',
+  },
   fetchMetadata: {
     id: 'fetchMetadata',
     label: 'Fetch Metadata',
@@ -31,7 +35,6 @@ export const MENU_ITEM_DEFINITIONS: Record<MenuItemPreset, CoverCardMenuItem> = 
   editMetadata: {
     id: 'editMetadata',
     label: 'Edit Metadata',
-    singleOnly: true,
     dividerAfter: true,
   },
   rename: {
@@ -67,6 +70,7 @@ export const DEFAULT_MENU_ITEMS: MenuItemPreset[] = [
   'read',
   'markRead',
   'markUnread',
+  'addToCollection',
   'fetchMetadata',
   'editMetadata',
   'rename',
@@ -80,6 +84,7 @@ export const EXTENDED_MENU_ITEMS: MenuItemPreset[] = [
   'read',
   'markRead',
   'markUnread',
+  'addToCollection',
   'fetchMetadata',
   'editMetadata',
   'rename',
@@ -96,6 +101,7 @@ export const SERIES_ISSUE_MENU_ITEMS: MenuItemPreset[] = [
   'read',
   'markRead',
   'markUnread',
+  'addToCollection',
   'fetchMetadata',
   'editMetadata',
   'rebuildCache',
@@ -111,7 +117,7 @@ export function getMenuItemWithCount(
   const definition = MENU_ITEM_DEFINITIONS[preset];
 
   // Items that show count in label when multiple selected
-  const countableItems: MenuItemPreset[] = ['markRead', 'markUnread', 'fetchMetadata', 'rebuildCache', 'quarantine', 'delete'];
+  const countableItems: MenuItemPreset[] = ['markRead', 'markUnread', 'fetchMetadata', 'editMetadata', 'rebuildCache', 'quarantine', 'delete'];
 
   if (countableItems.includes(preset) && selectedCount > 1) {
     return {

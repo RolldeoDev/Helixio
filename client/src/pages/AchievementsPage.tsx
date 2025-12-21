@@ -10,7 +10,8 @@ import {
   type AchievementCategory,
 } from '../services/api.service';
 import { ALL_ACHIEVEMENTS, CATEGORY_INFO } from '../components/Stats/Achievements/achievements-config';
-import { Star, ChevronLeft, Lock, Check, Award, Trophy, Filter } from 'lucide-react';
+import { AchievementCard } from '../components/AchievementCard';
+import { Star, ChevronLeft, Check, Award, Trophy, Filter, Lock } from 'lucide-react';
 import './AchievementsPage.css';
 
 type StarFilter = 'all' | 1 | 2 | 3 | 4 | 5;
@@ -115,31 +116,6 @@ export function AchievementsPage() {
     }
     return groups;
   }, [filteredAchievements, selectedCategory]);
-
-  function renderStars(count: number, size: 'small' | 'medium' = 'small') {
-    const starSize = size === 'small' ? 12 : 16;
-    return (
-      <div className="achievement-stars">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Star
-            key={i}
-            size={starSize}
-            className={i < count ? 'star-filled' : 'star-empty'}
-            fill={i < count ? 'currentColor' : 'none'}
-          />
-        ))}
-      </div>
-    );
-  }
-
-  function formatDate(dateStr: string | null): string {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  }
 
   if (isLoading || isSeeding) {
     return (
@@ -294,42 +270,7 @@ export function AchievementsPage() {
 
             <div className="achievements-grid">
               {categoryAchievements.map((achievement) => (
-                <div
-                  key={achievement.id}
-                  className={`achievement-card ${achievement.isUnlocked ? 'unlocked' : 'locked'}`}
-                >
-                  <div className="achievement-card__header">
-                    {renderStars(achievement.stars)}
-                    {achievement.isUnlocked ? (
-                      <Check size={16} className="achievement-status unlocked" />
-                    ) : (
-                      <Lock size={16} className="achievement-status locked" />
-                    )}
-                  </div>
-
-                  <div className="achievement-card__content">
-                    <h3 className="achievement-name">{achievement.name}</h3>
-                    <p className="achievement-description">{achievement.description}</p>
-                  </div>
-
-                  {!achievement.isUnlocked && achievement.progress > 0 && (
-                    <div className="achievement-card__progress">
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill"
-                          style={{ width: `${achievement.progress}%` }}
-                        />
-                      </div>
-                      <span className="progress-text">{achievement.progress}%</span>
-                    </div>
-                  )}
-
-                  {achievement.isUnlocked && achievement.unlockedAt && (
-                    <div className="achievement-card__unlocked">
-                      Unlocked {formatDate(achievement.unlockedAt)}
-                    </div>
-                  )}
-                </div>
+                <AchievementCard key={achievement.id} achievement={achievement} />
               ))}
             </div>
           </div>

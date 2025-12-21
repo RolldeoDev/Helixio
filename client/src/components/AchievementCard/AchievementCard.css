@@ -1,0 +1,382 @@
+/* =============================================================================
+   Achievement Card Component
+   A distinctive, trophy-like card for displaying achievements
+   Designed to work seamlessly with all themes via CSS variables
+   ============================================================================= */
+
+.achievement-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.achievement-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* =============================================================================
+   Card Header - Icon & Stars Display
+   ============================================================================= */
+
+.achievement-card__header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-sm) var(--spacing-sm);
+  background: linear-gradient(
+    180deg,
+    var(--color-bg-tertiary) 0%,
+    var(--color-bg-secondary) 100%
+  );
+}
+
+/* Icon container - hexagonal badge effect */
+.achievement-card__icon-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.achievement-card__icon-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  transition: transform 0.3s ease, filter 0.3s ease;
+}
+
+.achievement-card:hover .achievement-card__icon-bg {
+  transform: scale(1.08);
+}
+
+.achievement-card__icon-inner {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  z-index: 1;
+}
+
+.achievement-card__icon {
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.achievement-card__icon svg {
+  width: 24px;
+  height: 24px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* Stars display */
+.achievement-card__stars {
+  display: flex;
+  gap: 2px;
+  margin-top: var(--spacing-xs);
+}
+
+.achievement-card__star {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+
+.achievement-card__star--filled {
+  color: var(--color-warning);
+  filter: drop-shadow(0 0 2px var(--color-warning));
+}
+
+.achievement-card__star--empty {
+  color: var(--color-text-muted);
+  opacity: 0.3;
+}
+
+.achievement-card:hover .achievement-card__star--filled {
+  transform: scale(1.1);
+}
+
+/* Status badge - corner indicator */
+.achievement-card__status {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s ease;
+}
+
+.achievement-card__status--unlocked {
+  background: var(--color-success);
+  color: var(--color-bg);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.achievement-card__status--locked {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.achievement-card__status svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* =============================================================================
+   Card Body - Name, Description, Progress
+   ============================================================================= */
+
+.achievement-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+}
+
+.achievement-card__name {
+  margin: 0 0 var(--spacing-xs);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.achievement-card__description {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  text-align: center;
+  flex: 1;
+}
+
+/* =============================================================================
+   Progress Section
+   ============================================================================= */
+
+.achievement-card__progress-section {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border-subtle, var(--color-border));
+}
+
+.achievement-card__progress-bar {
+  position: relative;
+  height: 6px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.achievement-card__progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  border-radius: var(--radius-sm);
+  transition: width 0.5s ease;
+}
+
+.achievement-card__progress-text {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--spacing-xs);
+  font-size: 0.65rem;
+  color: var(--color-text-subtle, var(--color-text-muted));
+}
+
+.achievement-card__progress-percent {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* =============================================================================
+   Unlock Date
+   ============================================================================= */
+
+.achievement-card__unlocked-date {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border-subtle, var(--color-border));
+  font-size: 0.7rem;
+  color: var(--color-success);
+}
+
+.achievement-card__unlocked-date svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* =============================================================================
+   Locked State Modifications
+   ============================================================================= */
+
+.achievement-card--locked {
+  opacity: 0.65;
+}
+
+.achievement-card--locked .achievement-card__icon-bg {
+  background: linear-gradient(135deg, var(--color-text-muted) 0%, var(--color-border) 100%);
+  filter: grayscale(0.7);
+}
+
+.achievement-card--locked .achievement-card__icon {
+  color: var(--color-text-muted);
+}
+
+.achievement-card--locked:hover {
+  opacity: 0.85;
+}
+
+/* =============================================================================
+   Unlocked State - Celebratory Glow
+   ============================================================================= */
+
+.achievement-card--unlocked {
+  border-color: var(--color-primary-muted, rgba(var(--color-primary), 0.3));
+}
+
+.achievement-card--unlocked:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-lg), 0 0 20px var(--color-primary-muted, rgba(59, 130, 246, 0.2));
+}
+
+/* Subtle shine effect on unlocked cards */
+.achievement-card--unlocked::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+
+.achievement-card--unlocked:hover::before {
+  left: 150%;
+}
+
+/* =============================================================================
+   Rarity Borders (Based on Star Count)
+   ============================================================================= */
+
+.achievement-card--stars-1 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, #71717a 0%, #a1a1aa 100%);
+}
+
+.achievement-card--stars-2 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+}
+
+.achievement-card--stars-3 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+}
+
+.achievement-card--stars-4 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 100%);
+}
+
+.achievement-card--stars-5 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+/* Locked cards lose rarity coloring */
+.achievement-card--locked.achievement-card--stars-1 .achievement-card__icon-bg,
+.achievement-card--locked.achievement-card--stars-2 .achievement-card__icon-bg,
+.achievement-card--locked.achievement-card--stars-3 .achievement-card__icon-bg,
+.achievement-card--locked.achievement-card--stars-4 .achievement-card__icon-bg,
+.achievement-card--locked.achievement-card--stars-5 .achievement-card__icon-bg {
+  background: linear-gradient(135deg, var(--color-text-muted) 0%, var(--color-border) 100%);
+  box-shadow: none;
+  filter: grayscale(0.7);
+}
+
+/* =============================================================================
+   Accessibility - Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-card,
+  .achievement-card__icon-bg,
+  .achievement-card__star,
+  .achievement-card__progress-fill,
+  .achievement-card--unlocked::before {
+    transition: none;
+  }
+
+  .achievement-card:hover {
+    transform: none;
+  }
+
+  .achievement-card--unlocked::before {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 480px) {
+  .achievement-card__icon-wrapper {
+    width: 56px;
+    height: 56px;
+  }
+
+  .achievement-card__icon-inner {
+    width: 48px;
+    height: 48px;
+  }
+
+  .achievement-card__icon {
+    font-size: 20px;
+  }
+
+  .achievement-card__icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .achievement-card__name {
+    font-size: 0.8rem;
+  }
+
+  .achievement-card__description {
+    font-size: 0.7rem;
+  }
+}

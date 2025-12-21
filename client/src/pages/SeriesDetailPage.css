@@ -282,19 +282,25 @@
   display: none;
 }
 
-.series-deck {
+.series-deck.markdown-content {
   color: var(--color-text-muted);
   font-size: 0.9375rem;
   font-style: italic;
   line-height: 1.6;
-  margin: 0;
 }
 
-.series-summary-text {
+.series-deck.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.series-summary-text.markdown-content {
   color: var(--color-text);
   font-size: 0.9375rem;
   line-height: 1.6;
-  margin: 0;
+}
+
+.series-summary-text.markdown-content p:last-child {
+  margin-bottom: 0;
 }
 
 .description-toggle {

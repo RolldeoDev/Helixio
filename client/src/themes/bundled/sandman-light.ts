@@ -84,6 +84,12 @@ export const sandmanLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 1px 2px',
     colorShadowTitle: '#8b6914',
 
+    // Issue badge - Antique gold
+    colorIssueBadge: '#a37d1a',
+    colorIssueBadgeCompleted: '#2d6a4f',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#ffffff',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

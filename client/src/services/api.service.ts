@@ -2078,6 +2078,11 @@ export interface ContinueReadingItem {
   totalPages: number;
   progress: number;
   lastReadAt: string;
+  // Metadata fields
+  series: string | null;
+  number: string | null;
+  title: string | null;
+  issueCount: number | null; // Total issues in series (for "Issue X of Y")
 }
 
 export interface LibraryReadingStats {
@@ -3800,5 +3805,323 @@ export async function seedAchievements(achievements: Array<{
   minRequired?: number;
 }>): Promise<{ success: boolean; message: string }> {
   return post<{ success: boolean; message: string }>('/achievements/seed', { achievements });
+}
+
+// =============================================================================
+// LLM Description Generation
+// =============================================================================
+
+/**
+ * LLM description generation status
+ */
+export interface DescriptionGenerationStatus {
+  available: boolean;
+  model: string | null;
+}
+
+/**
+ * Check if LLM description generation is available
+ */
+export async function getDescriptionGenerationStatus(): Promise<DescriptionGenerationStatus> {
+  return get<DescriptionGenerationStatus>('/description/status');
+}
+
+/**
+ * Generated description result for series
+ */
+export interface GeneratedSeriesDescription {
+  description: string;
+  deck?: string;
+  tokensUsed?: number;
+}
+
+/**
+ * Generate a description for a series using LLM
+ */
+export async function generateSeriesDescription(
+  seriesId: string,
+  options?: { useWebSearch?: boolean }
+): Promise<GeneratedSeriesDescription> {
+  return post<GeneratedSeriesDescription>(
+    `/description/series/${seriesId}/generate-description`,
+    options || {}
+  );
+}
+
+/**
+ * Generated summary result for issues
+ */
+export interface GeneratedIssueSummary {
+  summary: string;
+  tokensUsed?: number;
+}
+
+/**
+ * Generate a summary for an issue using LLM
+ */
+export async function generateIssueSummary(
+  fileId: string,
+  options?: { useWebSearch?: boolean }
+): Promise<GeneratedIssueSummary> {
+  return post<GeneratedIssueSummary>(
+    `/description/files/${fileId}/generate-summary`,
+    options || {}
+  );
+}
+
+// =============================================================================
+// Tag Autocomplete
+// =============================================================================
+
+/**
+ * Tag field types for autocomplete
+ */
+export type TagFieldType =
+  | 'characters'
+  | 'teams'
+  | 'locations'
+  | 'genres'
+  | 'tags'
+  | 'storyArcs'
+  | 'publishers'
+  | 'writers'
+  | 'pencillers'
+  | 'inkers'
+  | 'colorists'
+  | 'letterers'
+  | 'coverArtists'
+  | 'editors';
+
+/**
+ * Result from tag autocomplete search
+ */
+export interface TagAutocompleteResult {
+  values: string[];
+  hasMore: boolean;
+  field: TagFieldType;
+  query: string;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Search for tag autocomplete suggestions
+ */
+export async function getTagAutocomplete(
+  field: TagFieldType,
+  query: string,
+  limit: number = 10,
+  offset: number = 0
+): Promise<TagAutocompleteResult> {
+  const params = new URLSearchParams({
+    field,
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return get<TagAutocompleteResult>(`/tags/autocomplete?${params}`);
+}
+
+/**
+ * Rebuild all tags from source data (admin operation)
+ */
+export async function rebuildTags(): Promise<{
+  success: boolean;
+  totalValues: number;
+  byFieldType: Partial<Record<TagFieldType, number>>;
+  durationMs: number;
+}> {
+  return post<{
+    success: boolean;
+    totalValues: number;
+    byFieldType: Partial<Record<TagFieldType, number>>;
+    durationMs: number;
+  }>('/tags/rebuild', {});
+}
+
+/**
+ * Get tag statistics
+ */
+export async function getTagStats(): Promise<{
+  totalValues: number;
+  byFieldType: Record<string, number>;
+}> {
+  return get<{
+    totalValues: number;
+    byFieldType: Record<string, number>;
+  }>('/tags/stats');
+}
+
+// =============================================================================
+// Collections
+// =============================================================================
+
+export interface Collection {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  systemKey: 'favorites' | 'want-to-read' | null;
+  iconName: string | null;
+  color: string | null;
+  sortOrder: number;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionItem {
+  id: string;
+  collectionId: string;
+  seriesId: string | null;
+  fileId: string | null;
+  position: number;
+  addedAt: string;
+  notes: string | null;
+  series?: {
+    id: string;
+    name: string;
+    coverHash: string | null;
+    startYear: number | null;
+    publisher: string | null;
+  };
+  file?: {
+    id: string;
+    filename: string;
+    relativePath: string;
+    coverHash: string | null;
+    seriesId: string | null;
+  };
+}
+
+export interface CollectionWithItems extends Collection {
+  items: CollectionItem[];
+}
+
+/**
+ * Get all collections
+ */
+export async function getCollections(): Promise<{ collections: Collection[] }> {
+  return get<{ collections: Collection[] }>('/collections');
+}
+
+/**
+ * Get a single collection with items
+ */
+export async function getCollection(id: string): Promise<CollectionWithItems> {
+  return get<CollectionWithItems>(`/collections/${id}`);
+}
+
+/**
+ * Get a system collection by key
+ */
+export async function getSystemCollection(
+  systemKey: 'favorites' | 'want-to-read'
+): Promise<Collection> {
+  return get<Collection>(`/collections/system/${systemKey}`);
+}
+
+/**
+ * Create a new collection
+ */
+export async function createCollection(
+  name: string,
+  description?: string,
+  iconName?: string,
+  color?: string
+): Promise<Collection> {
+  return post<Collection>('/collections', { name, description, iconName, color });
+}
+
+/**
+ * Update a collection
+ */
+export async function updateCollection(
+  id: string,
+  data: { name?: string; description?: string; iconName?: string; color?: string; sortOrder?: number }
+): Promise<Collection> {
+  return put<Collection>(`/collections/${id}`, data);
+}
+
+/**
+ * Delete a collection
+ */
+export async function deleteCollection(id: string): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/collections/${id}`);
+}
+
+/**
+ * Add items to a collection
+ */
+export async function addToCollection(
+  collectionId: string,
+  items: Array<{ seriesId?: string; fileId?: string; notes?: string }>
+): Promise<{ added: number; items: CollectionItem[] }> {
+  return post<{ added: number; items: CollectionItem[] }>(
+    `/collections/${collectionId}/items`,
+    { items }
+  );
+}
+
+/**
+ * Remove items from a collection
+ */
+export async function removeFromCollection(
+  collectionId: string,
+  items: Array<{ seriesId?: string; fileId?: string }>
+): Promise<{ removed: number }> {
+  const response = await fetch(`${API_BASE}/collections/${collectionId}/items`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  });
+  return handleResponse<{ removed: number }>(response);
+}
+
+/**
+ * Get all collections containing a specific series or file
+ */
+export async function getCollectionsForItem(
+  seriesId?: string,
+  fileId?: string
+): Promise<{ collections: Collection[] }> {
+  const params = new URLSearchParams();
+  if (seriesId) params.set('seriesId', seriesId);
+  if (fileId) params.set('fileId', fileId);
+  return get<{ collections: Collection[] }>(`/collections/for-item?${params}`);
+}
+
+/**
+ * Check if an item is in a collection
+ */
+export async function isInCollection(
+  collectionId: string,
+  seriesId?: string,
+  fileId?: string
+): Promise<{ inCollection: boolean }> {
+  const params = new URLSearchParams();
+  if (seriesId) params.set('seriesId', seriesId);
+  if (fileId) params.set('fileId', fileId);
+  return get<{ inCollection: boolean }>(`/collections/${collectionId}/check?${params}`);
+}
+
+/**
+ * Toggle an item in the Favorites collection
+ */
+export async function toggleFavorite(
+  seriesId?: string,
+  fileId?: string
+): Promise<{ added: boolean }> {
+  return post<{ added: boolean }>('/collections/toggle-favorite', { seriesId, fileId });
+}
+
+/**
+ * Toggle an item in the Want to Read collection
+ */
+export async function toggleWantToRead(
+  seriesId?: string,
+  fileId?: string
+): Promise<{ added: boolean }> {
+  return post<{ added: boolean }>('/collections/toggle-want-to-read', { seriesId, fileId });
 }
 

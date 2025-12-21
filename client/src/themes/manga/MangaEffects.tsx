@@ -211,33 +211,28 @@ function SparkleStars() {
  * Main MangaEffects Component
  */
 export function MangaEffects() {
-  const { themeId, getEffectEnabled } = useTheme();
-  const [isActive, setIsActive] = useState(false);
+  const { themeId, effectToggles } = useTheme();
 
-  useEffect(() => {
-    setIsActive(themeId === 'manga');
-  }, [themeId]);
-
-  if (!isActive) {
+  if (themeId !== 'manga') {
     return null;
   }
 
   return (
     <>
       {/* Background effects */}
-      {getEffectEnabled('paperTexture') && <PaperTexture />}
-      {getEffectEnabled('vignette') && <Vignette />}
+      {effectToggles.paperTexture && <PaperTexture />}
+      {effectToggles.vignette && <Vignette />}
 
       {/* Floating elements */}
-      {getEffectEnabled('sakuraPetals') && <SakuraPetals />}
-      {getEffectEnabled('sparkleStars') && <SparkleStars />}
+      {effectToggles.sakuraPetals && <SakuraPetals />}
+      {effectToggles.sparkleStars && <SparkleStars />}
 
       {/* Dynamic effects */}
-      {getEffectEnabled('speedLines') && <SpeedLines />}
+      {effectToggles.speedLines && <SpeedLines />}
 
       {/* UI elements */}
-      {getEffectEnabled('sakuraFlower') && <SakuraFlower />}
-      {getEffectEnabled('mangaExpression') && <MangaExpression />}
+      {effectToggles.sakuraFlower && <SakuraFlower />}
+      {effectToggles.mangaExpression && <MangaExpression />}
     </>
   );
 }

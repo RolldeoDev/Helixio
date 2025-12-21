@@ -34,6 +34,7 @@ export type MenuItemPreset =
   | 'read'
   | 'markRead'
   | 'markUnread'
+  | 'addToCollection'
   | 'fetchMetadata'
   | 'editMetadata'
   | 'rename'
@@ -142,8 +143,11 @@ export interface CoverCardProps {
   /** Show title and metadata below cover (default: true for grid/carousel) */
   showInfo?: boolean;
 
-  /** Show series name in info section */
+  /** Show series name in info section (below cover, if no subtitle) */
   showSeries?: boolean;
+
+  /** Show series as subtitle below the title (takes precedence over showSeries) */
+  showSeriesAsSubtitle?: boolean;
 
   /** Show issue number in info section */
   showIssueNumber?: boolean;

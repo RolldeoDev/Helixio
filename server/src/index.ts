@@ -50,6 +50,9 @@ import seriesRoutes from './routes/series.routes.js';
 import themesRoutes from './routes/themes.routes.js';
 import statsRoutes from './routes/stats.routes.js';
 import achievementsRoutes from './routes/achievements.routes.js';
+import descriptionRoutes from './routes/description.routes.js';
+import tagsRoutes from './routes/tags.routes.js';
+import collectionsRoutes from './routes/collections.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -57,6 +60,7 @@ import { cleanupOldOperationLogs } from './services/rollback.service.js';
 import { recoverInterruptedJobs } from './services/job-queue.service.js';
 import { cleanupExpiredJobs } from './services/metadata-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
+import { ensureSystemCollections } from './services/collection.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -262,6 +266,9 @@ app.use('/api/series', seriesRoutes);
 app.use('/api/themes', themesRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/achievements', achievementsRoutes);
+app.use('/api/description', descriptionRoutes);
+app.use('/api/tags', tagsRoutes);
+app.use('/api/collections', collectionsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -297,6 +304,10 @@ async function startServer(): Promise<void> {
     // Initialize database
     console.log('Connecting to database...');
     await initializeDatabase();
+
+    // Ensure system collections exist (Favorites, Want to Read)
+    console.log('Initializing system collections...');
+    await ensureSystemCollections();
 
     // Startup tasks
     console.log('Running startup tasks...');

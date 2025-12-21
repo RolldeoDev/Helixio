@@ -32,6 +32,10 @@ import { EditSeriesModal } from '../components/EditSeriesModal';
 import { SeriesSelectModal } from '../components/SeriesSelectModal';
 import { MergeSeriesModal } from '../components/MergeSeriesModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
+import { MarkdownContent } from '../components/MarkdownContent';
+import { QuickCollectionIcons } from '../components/QuickCollectionIcons';
+import { CollectionFlyout } from '../components/CollectionFlyout';
+import { CollectionPickerModal } from '../components/CollectionPickerModal';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -83,6 +87,9 @@ export function SeriesDetailPage() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [descriptionNeedsTruncation, setDescriptionNeedsTruncation] = useState(false);
   const descriptionRef = useRef<HTMLDivElement>(null);
+
+  // Collection picker modal state
+  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   // Fetch series data
   const fetchSeries = useCallback(async () => {
@@ -228,6 +235,11 @@ export function SeriesDetailPage() {
           setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
           setTimeout(() => setOperationMessage(null), 3000);
         }
+        break;
+
+      case 'addToCollection':
+        // Open collection picker modal
+        setCollectionPickerFileIds(targetIds);
         break;
 
       case 'fetchMetadata':
@@ -558,6 +570,8 @@ export function SeriesDetailPage() {
             {!nextIssue && isComplete && (
               <span className="series-complete-badge">Series Complete</span>
             )}
+            <QuickCollectionIcons seriesId={series.id} size="medium" />
+            <CollectionFlyout seriesId={series.id} size="medium" align="right" />
             <ActionMenu
               items={SERIES_ACTION_ITEMS}
               onAction={handleSeriesAction}
@@ -576,13 +590,13 @@ export function SeriesDetailPage() {
             <div className="metadata-description">
               <div
                 ref={descriptionRef}
-                className={`series-description-content ${isDescriptionExpanded ? 'expanded' : 'collapsed'}`}
+                className={`series-description-content ${isDescriptionExpanded ? 'expanded' : descriptionNeedsTruncation ? 'collapsed' : ''}`}
               >
                 {series.deck && !series.summary && (
-                  <p className="series-deck">{series.deck}</p>
+                  <MarkdownContent content={series.deck} className="series-deck" />
                 )}
                 {series.summary && (
-                  <p className="series-summary-text">{series.summary}</p>
+                  <MarkdownContent content={series.summary} className="series-summary-text" />
                 )}
               </div>
               {descriptionNeedsTruncation && (
@@ -856,6 +870,13 @@ export function SeriesDetailPage() {
           initialTargetId={seriesId}
         />
       )}
+
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={collectionPickerFileIds.length > 0}
+        onClose={() => setCollectionPickerFileIds([])}
+        fileIds={collectionPickerFileIds}
+      />
 
     </div>
   );

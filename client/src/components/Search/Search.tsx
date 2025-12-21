@@ -7,6 +7,7 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CoverCard, type CoverCardFile, type MenuItemPreset } from '../CoverCard';
+import { CollectionPickerModal } from '../CollectionPickerModal';
 import { markAsCompleted, markAsIncomplete } from '../../services/api.service';
 
 const API_BASE = '/api';
@@ -63,6 +64,7 @@ export function Search() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(true);
+  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   const performSearch = useCallback(async (searchQuery: string, searchFilters: SearchFilters, searchPage: number) => {
     if (!searchQuery.trim() && Object.keys(searchFilters).length === 0) {
@@ -141,7 +143,7 @@ export function Search() {
   };
 
   // Menu items for search results
-  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread'];
+  const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread', 'addToCollection'];
 
   // Handle context menu action
   const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
@@ -162,6 +164,9 @@ export function Search() {
         } catch (err) {
           console.error('Failed to mark as unread:', err);
         }
+        break;
+      case 'addToCollection':
+        setCollectionPickerFileIds([fileId]);
         break;
     }
   }, [navigate]);
@@ -396,6 +401,13 @@ export function Search() {
           )}
         </div>
       </div>
+
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={collectionPickerFileIds.length > 0}
+        onClose={() => setCollectionPickerFileIds([])}
+        fileIds={collectionPickerFileIds}
+      />
     </div>
   );
 }

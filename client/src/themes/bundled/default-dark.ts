@@ -70,6 +70,12 @@ export const defaultDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 2px 4px',
     colorShadowTitle: 'rgba(0, 0, 0, 0.3)',
 
+    // Issue badge - Classic comic gold
+    colorIssueBadge: '#f5c542',
+    colorIssueBadgeCompleted: '#7dcea0',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

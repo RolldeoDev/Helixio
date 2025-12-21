@@ -14,8 +14,11 @@ import {
   getFileCoverInfo,
   getApiCoverUrl,
   FileCoverInfo,
+  type TagFieldType,
 } from '../../services/api.service';
 import { IssueCoverPicker } from '../IssueCoverPicker';
+import { DescriptionGenerator } from '../DescriptionGenerator';
+import { SimpleTagInput } from './SimpleTagInput';
 
 interface MetadataEditorProps {
   fileIds: string[];
@@ -26,7 +29,14 @@ interface MetadataEditorProps {
 
 type EditableField = keyof ComicInfo;
 
-const EDITABLE_FIELDS: { key: EditableField; label: string; type: 'text' | 'number' | 'textarea' }[] = [
+interface FieldConfig {
+  key: EditableField;
+  label: string;
+  type: 'text' | 'number' | 'textarea' | 'tag';
+  autocompleteField?: TagFieldType;
+}
+
+const EDITABLE_FIELDS: FieldConfig[] = [
   { key: 'Series', label: 'Series', type: 'text' },
   { key: 'Number', label: 'Issue Number', type: 'text' },
   { key: 'Title', label: 'Title', type: 'text' },
@@ -34,22 +44,22 @@ const EDITABLE_FIELDS: { key: EditableField; label: string; type: 'text' | 'numb
   { key: 'Year', label: 'Year', type: 'number' },
   { key: 'Month', label: 'Month', type: 'number' },
   { key: 'Day', label: 'Day', type: 'number' },
-  { key: 'Writer', label: 'Writer', type: 'text' },
-  { key: 'Penciller', label: 'Penciller', type: 'text' },
-  { key: 'Inker', label: 'Inker', type: 'text' },
-  { key: 'Colorist', label: 'Colorist', type: 'text' },
-  { key: 'Letterer', label: 'Letterer', type: 'text' },
-  { key: 'CoverArtist', label: 'Cover Artist', type: 'text' },
-  { key: 'Publisher', label: 'Publisher', type: 'text' },
-  { key: 'Genre', label: 'Genre', type: 'text' },
-  { key: 'Tags', label: 'Tags', type: 'text' },
+  { key: 'Writer', label: 'Writer', type: 'tag', autocompleteField: 'writers' },
+  { key: 'Penciller', label: 'Penciller', type: 'tag', autocompleteField: 'pencillers' },
+  { key: 'Inker', label: 'Inker', type: 'tag', autocompleteField: 'inkers' },
+  { key: 'Colorist', label: 'Colorist', type: 'tag', autocompleteField: 'colorists' },
+  { key: 'Letterer', label: 'Letterer', type: 'tag', autocompleteField: 'letterers' },
+  { key: 'CoverArtist', label: 'Cover Artist', type: 'tag', autocompleteField: 'coverArtists' },
+  { key: 'Publisher', label: 'Publisher', type: 'tag', autocompleteField: 'publishers' },
+  { key: 'Genre', label: 'Genre', type: 'tag', autocompleteField: 'genres' },
+  { key: 'Tags', label: 'Tags', type: 'tag', autocompleteField: 'tags' },
   { key: 'Summary', label: 'Summary', type: 'textarea' },
   { key: 'Notes', label: 'Notes', type: 'textarea' },
   { key: 'AgeRating', label: 'Age Rating', type: 'text' },
-  { key: 'Characters', label: 'Characters', type: 'text' },
-  { key: 'Teams', label: 'Teams', type: 'text' },
-  { key: 'Locations', label: 'Locations', type: 'text' },
-  { key: 'StoryArc', label: 'Story Arc', type: 'text' },
+  { key: 'Characters', label: 'Characters', type: 'tag', autocompleteField: 'characters' },
+  { key: 'Teams', label: 'Teams', type: 'tag', autocompleteField: 'teams' },
+  { key: 'Locations', label: 'Locations', type: 'tag', autocompleteField: 'locations' },
+  { key: 'StoryArc', label: 'Story Arc', type: 'tag', autocompleteField: 'storyArcs' },
 ];
 
 export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: MetadataEditorProps) {
@@ -63,6 +73,11 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
   const [coverInfo, setCoverInfo] = useState<FileCoverInfo | null>(null);
   const [coverKey, setCoverKey] = useState(0);
   const [isEditingCover, setIsEditingCover] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    current: number;
+    total: number;
+    failed: string[];
+  } | null>(null);
 
   const isBatchMode = fileIds.length > 1;
 
@@ -135,8 +150,22 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
           (updates as Record<string, unknown>)[field] = metadata[field];
         });
 
-        for (const fileId of fileIds) {
-          await updateComicInfo(fileId, updates);
+        const failed: string[] = [];
+        for (let i = 0; i < fileIds.length; i++) {
+          const fileId = fileIds[i]!;
+          setBatchProgress({ current: i + 1, total: fileIds.length, failed: [...failed] });
+          try {
+            await updateComicInfo(fileId, updates);
+          } catch {
+            failed.push(fileId);
+          }
+        }
+        setBatchProgress(null);
+
+        if (failed.length > 0) {
+          setError(`Failed to update ${failed.length} of ${fileIds.length} files`);
+          setSaving(false);
+          return; // Don't close modal if there were failures
         }
       } else {
         // Single file update: send all changed fields
@@ -259,7 +288,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
 
         {/* Form Fields */}
         <div className="metadata-form">
-          {EDITABLE_FIELDS.map(({ key, label, type }) => (
+          {EDITABLE_FIELDS.map(({ key, label, type, autocompleteField }) => (
             <div
               key={key}
               className={`form-field ${type === 'textarea' ? 'full-width' : ''}`}
@@ -274,13 +303,28 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
               )}
               <label htmlFor={`field-${key}`}>{label}</label>
               {type === 'textarea' ? (
-                <textarea
-                  id={`field-${key}`}
-                  value={metadata[key] as string || ''}
-                  onChange={(e) => handleFieldChange(key, e.target.value)}
-                  disabled={isBatchMode && !batchFields.has(key)}
-                  rows={3}
-                />
+                <>
+                  <textarea
+                    id={`field-${key}`}
+                    value={metadata[key] as string || ''}
+                    onChange={(e) => handleFieldChange(key, e.target.value)}
+                    disabled={isBatchMode && !batchFields.has(key)}
+                    rows={3}
+                  />
+                  {/* Show Generate Description under Summary field */}
+                  {key === 'Summary' && !isBatchMode && fileIds[0] && (
+                    <DescriptionGenerator
+                      type="issue"
+                      entityId={fileIds[0]}
+                      entityName={metadata.Title || metadata.Series || filename}
+                      currentDescription={metadata.Summary}
+                      onGenerated={(result) => {
+                        handleFieldChange('Summary', result.description);
+                      }}
+                      disabled={saving}
+                    />
+                  )}
+                </>
               ) : type === 'number' ? (
                 <input
                   id={`field-${key}`}
@@ -293,6 +337,15 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
                     )
                   }
                   disabled={isBatchMode && !batchFields.has(key)}
+                />
+              ) : type === 'tag' ? (
+                <SimpleTagInput
+                  id={`field-${key}`}
+                  value={metadata[key] as string || ''}
+                  onChange={(value) => handleFieldChange(key, value || undefined)}
+                  disabled={isBatchMode && !batchFields.has(key)}
+                  autocompleteField={autocompleteField}
+                  placeholder={`Add ${label.toLowerCase()}...`}
                 />
               ) : (
                 <input
@@ -316,6 +369,20 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
         >
           Reset
         </button>
+        {batchProgress && (
+          <div className="batch-progress">
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+              />
+            </div>
+            <span className="progress-text">
+              Updating {batchProgress.current} of {batchProgress.total}...
+              {batchProgress.failed.length > 0 && ` (${batchProgress.failed.length} failed)`}
+            </span>
+          </div>
+        )}
         <div className="footer-right">
           {onClose && (
             <button

@@ -14,7 +14,7 @@ interface AchievementNotification {
   timestamp: number;
 }
 
-interface AchievementContextType {
+export interface AchievementContextType {
   notifications: AchievementNotification[];
   dismissNotification: (id: string) => void;
   dismissAll: () => void;

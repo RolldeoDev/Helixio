@@ -816,12 +816,17 @@ export async function addToArchive(
   }
 
   return new Promise((resolve) => {
-    const tempDir = dirname(filePath);
+    const fileDir = dirname(filePath);
+    const fileName = basename(filePath);
 
-    const addStream = Seven.add(archivePath, filePath, {
+    // Use $spawnOptions.cwd to set working directory so 7-Zip adds the file
+    // with just its filename (e.g., "ComicInfo.xml") instead of the full path
+    // (e.g., "tmp/update-xxx/ComicInfo.xml")
+    const addStream = Seven.add(archivePath, fileName, {
       $bin: pathTo7zip,
       $progress: false,
       archiveType: 'zip',
+      $spawnOptions: { cwd: fileDir },
     });
 
     addStream.on('end', () => {

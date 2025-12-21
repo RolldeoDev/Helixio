@@ -15,6 +15,7 @@ import { ThumbnailStrip } from './ThumbnailStrip';
 import { JumpToPageModal } from './JumpToPageModal';
 import { ReadingQueue } from './ReadingQueue';
 import { UpNextIndicator } from './UpNextIndicator';
+import { TransitionScreen } from './TransitionScreen';
 import { useKeyboardShortcuts, ShortcutAction } from './hooks/useKeyboardShortcuts';
 import { useTouchGestures } from './hooks/useTouchGestures';
 import { useReadingSession } from './hooks/useReadingSession';
@@ -22,7 +23,7 @@ import './Reader.css';
 
 interface ReaderProps {
   onClose: () => void;
-  onNavigateToFile?: (fileId: string) => void;
+  onNavigateToFile?: (fileId: string, options?: { startPage?: number }) => void;
 }
 
 export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
@@ -53,6 +54,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     goToPrevChapter,
     rotatePageCW,
     rotatePageCCW,
+    exitTransitionScreen,
   } = useReader();
 
   // Track reading session and page view times
@@ -92,10 +94,20 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       switch (action) {
         // Navigation
         case 'nextPage':
-          nextPage();
+          // If on end screen, navigate to next issue
+          if (state.transitionScreen === 'end' && state.adjacentFiles?.next && onNavigateToFile) {
+            onNavigateToFile(state.adjacentFiles.next.fileId, { startPage: 0 });
+          } else {
+            nextPage();
+          }
           break;
         case 'prevPage':
-          prevPage();
+          // If on start screen, navigate to previous issue
+          if (state.transitionScreen === 'start' && state.adjacentFiles?.previous && onNavigateToFile) {
+            onNavigateToFile(state.adjacentFiles.previous.fileId, { startPage: 0 });
+          } else {
+            prevPage();
+          }
           break;
         case 'firstPage':
           firstPage();
@@ -215,10 +227,10 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     [
       nextPage, prevPage, firstPage, lastPage, goToNextChapter, goToPrevChapter,
       onNavigateToFile, openJumpToPage, setMode, setScaling, setDirection,
-      state.direction, state.isSettingsOpen, state.currentPage,
-      toggleFullscreen, toggleUI, toggleSettings, toggleThumbnailStrip, toggleQueue,
-      closeQueue, onClose, zoomIn, zoomOut, resetZoom, isBookmarked, removeBookmark,
-      addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen,
+      state.direction, state.isSettingsOpen, state.currentPage, state.transitionScreen,
+      state.adjacentFiles, toggleFullscreen, toggleUI, toggleSettings, toggleThumbnailStrip,
+      toggleQueue, closeQueue, onClose, zoomIn, zoomOut, resetZoom, isBookmarked,
+      removeBookmark, addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen, onNavigateToFile,
     ]
   );
 
@@ -398,10 +410,24 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
   // Background color class
   const bgClass = `reader-bg-${state.background}`;
 
+  // Critical inline styles as fallback (CSS import may fail in some scenarios)
+  const readerStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 1000,
+    overflow: 'hidden',
+    backgroundColor: state.background === 'white' ? '#ffffff' : state.background === 'gray' ? '#2a2a2a' : '#000000',
+  };
+
   if (state.isLoading) {
     return (
-      <div className={`reader ${bgClass}`}>
-        <div className="reader-loading">
+      <div className={`reader ${bgClass}`} style={readerStyle}>
+        <div className="reader-loading" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff' }}>
           <div className="reader-loading-spinner" />
           <p>Loading comic...</p>
         </div>
@@ -411,8 +437,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
 
   if (state.error) {
     return (
-      <div className={`reader ${bgClass}`}>
-        <div className="reader-error">
+      <div className={`reader ${bgClass}`} style={readerStyle}>
+        <div className="reader-error" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff' }}>
           <h2>Failed to load comic</h2>
           <p>{state.error}</p>
           <button onClick={onClose} className="btn-primary">
@@ -425,8 +451,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
 
   if (state.pages.length === 0) {
     return (
-      <div className={`reader ${bgClass}`}>
-        <div className="reader-error">
+      <div className={`reader ${bgClass}`} style={readerStyle}>
+        <div className="reader-error" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#fff' }}>
           <h2>No pages found</h2>
           <p>This archive doesn't contain any readable images.</p>
           <button onClick={onClose} className="btn-primary">
@@ -442,6 +468,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       ref={containerRef}
       className={`reader ${bgClass} ${state.isFullscreen ? 'reader-fullscreen' : ''}`}
       style={{
+        ...readerStyle,
         filter: state.brightness !== 100 ? `brightness(${state.brightness}%)` : undefined,
       }}
     >
@@ -457,6 +484,17 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       {/* Main page display area */}
       <div
         className="reader-content"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
         onClick={handlePageClick}
         {...touchHandlers}
       >
@@ -518,13 +556,33 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       />
 
       {/* Up next indicator (shows when near end of comic) */}
-      {state.fileId && onNavigateToFile && (
+      {state.fileId && onNavigateToFile && state.transitionScreen === 'none' && (
         <UpNextIndicator
           currentFileId={state.fileId}
           currentPage={state.currentPage}
           totalPages={state.totalPages}
           onNavigate={onNavigateToFile}
           visible={state.isUIVisible && !isQueueOpen}
+        />
+      )}
+
+      {/* Transition screen (shows when navigating past first/last page) */}
+      {state.transitionScreen !== 'none' && (
+        <TransitionScreen
+          type={state.transitionScreen}
+          adjacentFile={
+            state.transitionScreen === 'end'
+              ? state.adjacentFiles?.next ?? null
+              : state.adjacentFiles?.previous ?? null
+          }
+          seriesInfo={{
+            seriesName: state.adjacentFiles?.seriesName ?? null,
+            currentIndex: state.adjacentFiles?.currentIndex ?? 0,
+            totalInSeries: state.adjacentFiles?.totalInSeries ?? 0,
+          }}
+          onNavigate={(fileId) => onNavigateToFile?.(fileId, { startPage: 0 })}
+          onReturn={exitTransitionScreen}
+          onClose={onClose}
         />
       )}
     </div>

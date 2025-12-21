@@ -78,6 +78,12 @@ export interface ThemeTokens {
   shadowTitleLocation: string; // Shadow offset/blur for headings (e.g., "4px 4px 0")
   colorShadowTitle: string; // Shadow color for title text shadow
 
+  // Issue badge
+  colorIssueBadge: string; // Background color for issue number badges on cover cards
+  colorIssueBadgeCompleted: string; // Background color for completed issue badges
+  colorIssueBadgeText: string; // Text color for issue badges
+  colorIssueBadgeTextCompleted: string; // Text color for completed issue badges
+
   // Border radius
   radiusSm: string;
   radiusMd: string;
@@ -265,6 +271,15 @@ export const VARIABLE_GROUPS: VariableGroup[] = [
     variables: [
       { key: 'shadowTitleLocation', label: '--shadow-title-location', type: 'shadow' },
       { key: 'colorShadowTitle', label: '--color-shadow-title', type: 'color' },
+    ],
+  },
+  {
+    name: 'Issue Badge',
+    variables: [
+      { key: 'colorIssueBadge', label: '--color-issue-badge', type: 'color' },
+      { key: 'colorIssueBadgeCompleted', label: '--color-issue-badge-completed', type: 'color' },
+      { key: 'colorIssueBadgeText', label: '--color-issue-badge-text', type: 'color' },
+      { key: 'colorIssueBadgeTextCompleted', label: '--color-issue-badge-text-completed', type: 'color' },
     ],
   },
   {

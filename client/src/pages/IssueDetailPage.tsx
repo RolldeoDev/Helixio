@@ -27,6 +27,9 @@ import {
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { MetadataEditor } from '../components/MetadataEditor';
+import { MarkdownContent } from '../components/MarkdownContent';
+import { QuickCollectionIcons } from '../components/QuickCollectionIcons';
+import { CollectionFlyout } from '../components/CollectionFlyout';
 import { formatFileSize } from '../utils/format';
 import './IssueDetailPage.css';
 
@@ -98,6 +101,7 @@ export function IssueDetailPage() {
   const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryNeedsTruncation, setSummaryNeedsTruncation] = useState(false);
+  const [isCreatorsExpanded, setIsCreatorsExpanded] = useState(false);
   const summaryRef = useRef<HTMLParagraphElement>(null);
 
   // Fetch all data
@@ -447,6 +451,8 @@ export function IssueDetailPage() {
             <button className="btn-ghost" onClick={handleFetchMetadata}>
               Fetch Metadata
             </button>
+            <QuickCollectionIcons fileId={file.id} size="medium" />
+            <CollectionFlyout fileId={file.id} size="medium" align="right" />
           </div>
         </div>
       </div>
@@ -458,9 +464,10 @@ export function IssueDetailPage() {
           {hasSummary && (
             <div className="metadata-summary">
               <div
-                className={`summary-content ${isSummaryExpanded ? 'expanded' : 'collapsed'}`}
+                ref={summaryRef}
+                className={`summary-content ${isSummaryExpanded ? 'expanded' : summaryNeedsTruncation ? 'collapsed' : ''}`}
               >
-                <p ref={summaryRef}>{summary}</p>
+                <MarkdownContent content={summary} />
               </div>
               {summaryNeedsTruncation && (
                 <button
@@ -487,14 +494,20 @@ export function IssueDetailPage() {
             {/* Creators - compact inline display */}
             {hasCreators && (
               <div className="sidebar-creators">
-                {creators.slice(0, 4).map(({ role, name }) => (
+                {(isCreatorsExpanded ? creators : creators.slice(0, 4)).map(({ role, name }) => (
                   <div key={role} className="creator-inline">
                     <span className="creator-role">{role}</span>
                     <span className="creator-name">{name}</span>
                   </div>
                 ))}
                 {creators.length > 4 && (
-                  <span className="creators-more">+{creators.length - 4} more</span>
+                  <button
+                    className="creators-toggle"
+                    onClick={() => setIsCreatorsExpanded(!isCreatorsExpanded)}
+                    aria-expanded={isCreatorsExpanded}
+                  >
+                    {isCreatorsExpanded ? 'Show less' : `+${creators.length - 4} more`}
+                  </button>
                 )}
               </div>
             )}

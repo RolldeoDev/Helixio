@@ -102,7 +102,7 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
         <button
           className="reader-nav-btn"
           onClick={firstPage}
-          disabled={state.currentPage === 0}
+          disabled={state.currentPage === 0 && state.transitionScreen === 'none'}
           title="First Page (Home)"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -114,7 +114,7 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
         <button
           className="reader-nav-btn"
           onClick={prevPage}
-          disabled={state.currentPage === 0}
+          disabled={state.currentPage === 0 && !state.adjacentFiles?.previous && state.transitionScreen === 'none'}
           title="Previous Page (Left Arrow)"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -173,7 +173,7 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
         <button
           className="reader-nav-btn"
           onClick={nextPage}
-          disabled={state.currentPage === state.totalPages - 1}
+          disabled={state.transitionScreen === 'end' && !state.adjacentFiles?.next}
           title="Next Page (Right Arrow)"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -185,7 +185,7 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
         <button
           className="reader-nav-btn"
           onClick={lastPage}
-          disabled={state.currentPage === state.totalPages - 1}
+          disabled={state.currentPage === state.totalPages - 1 && state.transitionScreen === 'none'}
           title="Last Page (End)"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

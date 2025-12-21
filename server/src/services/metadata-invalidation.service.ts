@@ -21,6 +21,7 @@ import { sendMetadataChange, sendSeriesRefresh, sendFileRefresh } from './sse.se
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { markDirtyForMetadataChange } from './stats-dirty.service.js';
 import { triggerDirtyStatsProcessing } from './stats-scheduler.service.js';
+import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 
 const logger = createServiceLogger('metadata-invalidation');
 
@@ -103,7 +104,17 @@ export async function invalidateFileMetadata(
       await markDirtyForMetadataChange(fileId);
     }
 
-    // Step 4: Notify clients via SSE
+    // Step 4: Refresh tag autocomplete values
+    if (result.fileMetadataRefreshed) {
+      try {
+        await refreshTagsFromFile(fileId);
+      } catch (error) {
+        // Non-critical: log but don't fail the operation
+        logger.warn({ fileId, error }, 'Failed to refresh tag autocomplete values');
+      }
+    }
+
+    // Step 5: Notify clients via SSE
     if (result.success) {
       sendFileRefresh([fileId]);
       sendMetadataChange('file', {

@@ -70,6 +70,12 @@ export const dcLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 1px 2px',
     colorShadowTitle: 'rgba(0, 102, 204, 0.2)',
 
+    // Issue badge - Bold gold for light background
+    colorIssueBadge: '#cc9900',
+    colorIssueBadgeCompleted: '#2d8a4e',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#ffffff',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

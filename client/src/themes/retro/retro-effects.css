@@ -583,6 +583,166 @@
 }
 
 /* =============================================================================
+   Achievement Cards - Pixel Art Style
+   ============================================================================= */
+
+:root[data-theme^="retro"] .achievement-card {
+  background: var(--retro-bg-mid);
+  border: 3px solid var(--retro-bg-light);
+  border-radius: 0;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.4);
+}
+
+:root[data-theme^="retro"] .achievement-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow:
+    8px 8px 0 rgba(0, 0, 0, 0.5),
+    0 0 0 2px var(--retro-yellow);
+  border-color: var(--retro-yellow);
+}
+
+:root[data-theme^="retro"] .achievement-card__header {
+  background: var(--retro-bg-dark);
+  border-bottom: 3px solid var(--retro-bg-light);
+}
+
+:root[data-theme^="retro"] .achievement-card__icon-wrapper {
+  width: 56px;
+  height: 56px;
+}
+
+:root[data-theme^="retro"] .achievement-card__icon-bg {
+  clip-path: none;
+  border-radius: 0;
+  border: 3px solid;
+  border-color: var(--retro-yellow-light) var(--retro-yellow-dark) var(--retro-yellow-dark) var(--retro-yellow-light);
+}
+
+:root[data-theme^="retro"] .achievement-card__icon-inner {
+  clip-path: none;
+  border-radius: 0;
+  background: var(--retro-bg-dark);
+  width: 46px;
+  height: 46px;
+}
+
+:root[data-theme^="retro"] .achievement-card__icon {
+  color: var(--retro-yellow);
+}
+
+:root[data-theme^="retro"] .achievement-card__status {
+  border-radius: 0;
+  border: 2px solid;
+}
+
+:root[data-theme^="retro"] .achievement-card__status--unlocked {
+  background: var(--retro-green);
+  border-color: var(--retro-green-light) var(--retro-green-dark) var(--retro-green-dark) var(--retro-green-light);
+  box-shadow: none;
+}
+
+:root[data-theme^="retro"] .achievement-card__status--locked {
+  background: var(--retro-bg-light);
+  border-color: var(--retro-gray) var(--retro-bg-dark) var(--retro-bg-dark) var(--retro-gray);
+}
+
+:root[data-theme^="retro"] .achievement-card__star--filled {
+  color: var(--retro-yellow);
+  filter: none;
+}
+
+:root[data-theme^="retro"] .achievement-card__name {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+:root[data-theme^="retro"] .achievement-card__description {
+  font-family: 'VT323', monospace;
+  font-size: 0.85rem;
+}
+
+:root[data-theme^="retro"] .achievement-card__progress-bar {
+  border-radius: 0;
+  border: 2px solid var(--retro-bg-light);
+  height: 8px;
+}
+
+:root[data-theme^="retro"] .achievement-card__progress-fill {
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--retro-green) 0px,
+    var(--retro-green) 6px,
+    var(--retro-green-dark) 6px,
+    var(--retro-green-dark) 8px
+  );
+}
+
+:root[data-theme^="retro"] .achievement-card__progress-text {
+  font-family: 'VT323', monospace;
+  font-size: 0.8rem;
+}
+
+:root[data-theme^="retro"] .achievement-card__progress-percent {
+  color: var(--retro-green);
+}
+
+:root[data-theme^="retro"] .achievement-card__unlocked-date {
+  font-family: 'VT323', monospace;
+  font-size: 0.8rem;
+  color: var(--retro-green);
+}
+
+/* Rarity colors for retro theme */
+:root[data-theme^="retro"] .achievement-card--stars-1 .achievement-card__icon-bg {
+  background: var(--retro-gray);
+  border-color: #aaa #666 #666 #aaa;
+}
+
+:root[data-theme^="retro"] .achievement-card--stars-2 .achievement-card__icon-bg {
+  background: var(--retro-green);
+  border-color: var(--retro-green-light) var(--retro-green-dark) var(--retro-green-dark) var(--retro-green-light);
+}
+
+:root[data-theme^="retro"] .achievement-card--stars-3 .achievement-card__icon-bg {
+  background: var(--retro-blue);
+  border-color: var(--retro-blue-light) var(--retro-blue-dark) var(--retro-blue-dark) var(--retro-blue-light);
+}
+
+:root[data-theme^="retro"] .achievement-card--stars-4 .achievement-card__icon-bg {
+  background: #a855f7;
+  border-color: #c084fc #7c3aed #7c3aed #c084fc;
+}
+
+:root[data-theme^="retro"] .achievement-card--stars-5 .achievement-card__icon-bg {
+  background: var(--retro-yellow);
+  border-color: var(--retro-yellow-light) var(--retro-yellow-dark) var(--retro-yellow-dark) var(--retro-yellow-light);
+  box-shadow: 0 0 0 2px var(--retro-yellow), 0 0 10px var(--retro-yellow);
+}
+
+/* Locked cards in retro */
+:root[data-theme^="retro"] .achievement-card--locked .achievement-card__icon-bg {
+  background: var(--retro-bg-light);
+  border-color: var(--retro-gray) var(--retro-bg-dark) var(--retro-bg-dark) var(--retro-gray);
+  box-shadow: none;
+}
+
+:root[data-theme^="retro"] .achievement-card--locked .achievement-card__icon {
+  color: var(--retro-gray);
+}
+
+/* Unlocked celebration in retro */
+:root[data-theme^="retro"] .achievement-card--unlocked {
+  border-color: var(--retro-green);
+}
+
+:root[data-theme^="retro"] .achievement-card--unlocked::before {
+  display: none;
+}
+
+/* =============================================================================
    Print Styles - Hide All Effects
    ============================================================================= */
 

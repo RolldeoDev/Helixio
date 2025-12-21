@@ -17,6 +17,7 @@ import {
   rebuildCache,
 } from '../../services/api.service';
 import { formatFileSize } from '../../utils/format';
+import { getTitleDisplay } from '../../utils/titleDisplay';
 
 import type { ComicFile } from '../../services/api.service';
 
@@ -66,6 +67,7 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
     refreshFiles,
     setOperation,
     lastSelectedFileId,
+    preferFilenameOverMetadata,
   } = useApp();
 
   // Use filtered files if provided, otherwise use context files
@@ -342,6 +344,9 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
                 >
                   Filename {getSortIcon('filename')}
                 </th>
+                <th className="col-title">
+                  Title
+                </th>
                 <th
                   className="col-size sortable"
                   onClick={() => handleSort('size')}
@@ -366,6 +371,9 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
               {files.map((file) => {
                 const isSelected = selectedFiles.has(file.id);
                 const statusBadge = getStatusBadge(file.status);
+                const { primaryTitle } = getTitleDisplay(file, {
+                  preferFilename: preferFilenameOverMetadata,
+                });
 
                 return (
                   <tr
@@ -393,6 +401,11 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
                       </span>
                       <span className="file-name" title={file.relativePath}>
                         {file.filename}
+                      </span>
+                    </td>
+                    <td className="col-title">
+                      <span className="file-title" title={primaryTitle}>
+                        {primaryTitle}
                       </span>
                     </td>
                     <td className="col-size">{formatFileSize(file.size)}</td>
@@ -438,14 +451,14 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
               Fetch Metadata{selectedFiles.size > 1 ? ` (${selectedFiles.size})` : ''}
             </button>
           )}
-          {onEditMetadata && selectedFiles.size === 1 && (
+          {onEditMetadata && selectedFiles.size > 0 && (
             <button
               onClick={() => {
                 closeContextMenu();
                 onEditMetadata(Array.from(selectedFiles));
               }}
             >
-              Edit Metadata
+              Edit Metadata{selectedFiles.size > 1 ? ` (${selectedFiles.size})` : ''}
             </button>
           )}
           {(onFetchMetadata || onEditMetadata) && (

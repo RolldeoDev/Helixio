@@ -76,6 +76,12 @@ export const synthwaveLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 8px',
     colorShadowTitle: '#cc00cc',
 
+    // Issue badge - Amber arcade style
+    colorIssueBadge: '#cc9900',
+    colorIssueBadgeCompleted: '#00aa66',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#ffffff',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

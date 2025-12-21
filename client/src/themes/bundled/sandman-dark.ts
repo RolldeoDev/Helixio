@@ -113,6 +113,12 @@ export const sandmanDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 15px',
     colorShadowTitle: '#c9a227',
 
+    // Issue badge - Dream sand gold
+    colorIssueBadge: '#c9a227',
+    colorIssueBadgeCompleted: '#70b080',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

@@ -114,10 +114,10 @@ export function SeriesMetadataSearchModal({
         clearTimeout(searchTimeoutRef.current);
       }
 
-      // Debounce search
+      // Debounce search (300ms delay)
       searchTimeoutRef.current = setTimeout(() => {
         doSearch(value);
-      }, 400);
+      }, 300);
     },
     [doSearch]
   );

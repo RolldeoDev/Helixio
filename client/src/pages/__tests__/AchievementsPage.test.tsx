@@ -352,7 +352,7 @@ describe('AchievementsPage', () => {
         .mockResolvedValue(mockAchievements); // After seed
       vi.mocked(apiService.getAchievementSummary).mockResolvedValue(mockSummary);
       vi.mocked(apiService.getAchievementCategories).mockResolvedValue(mockCategories);
-      vi.mocked(apiService.seedAchievements).mockResolvedValue({ success: true });
+      vi.mocked(apiService.seedAchievements).mockResolvedValue({ success: true, message: 'Seeded' });
 
       renderWithRouter(<AchievementsPage />);
 

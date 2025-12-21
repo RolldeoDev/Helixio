@@ -131,6 +131,12 @@ export const mangaDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '0 0 8px',
     colorShadowTitle: '#ffb7c5',
 
+    // Issue badge - Soft warm gold complementing sakura pink
+    colorIssueBadge: '#f0c674',
+    colorIssueBadgeCompleted: '#98d8aa',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius - Soft, rounded edges
     radiusSm: '6px',
     radiusMd: '10px',

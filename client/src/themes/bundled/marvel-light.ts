@@ -70,6 +70,12 @@ export const marvelLightTheme: ThemeDefinition = {
     shadowTitleLocation: '0 1px 2px',
     colorShadowTitle: 'rgba(196, 30, 36, 0.2)',
 
+    // Issue badge - Darker gold for light background
+    colorIssueBadge: '#b8860b',
+    colorIssueBadgeCompleted: '#2d8a4e',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#ffffff',
+
     // Border radius
     radiusSm: '4px',
     radiusMd: '8px',

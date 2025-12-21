@@ -76,13 +76,14 @@ function loadPreferences(): ThemePreferences {
 
       // Migration: Convert old effectsEnabled to new effectToggles format
       if ('effectsEnabled' in parsed && !('effectToggles' in parsed)) {
-        const wasEnabled = parsed.effectsEnabled as boolean;
+        // Old format had a single boolean, new format has per-theme per-effect toggles
+        // Just initialize with empty object - effects will use their defaults
         delete parsed.effectsEnabled;
-        // We'll apply the old global setting when effects are first accessed
-        // Store a migration flag to handle this
         parsed.effectToggles = {};
-        parsed._migratedFromEffectsEnabled = wasEnabled;
       }
+
+      // Clean up any old migration flags
+      delete parsed._migratedFromEffectsEnabled;
 
       return { ...defaultPreferences, ...parsed };
     }
@@ -114,6 +115,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [externalThemes, setExternalThemes] = useState<ExternalTheme[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [editingThemeId, setEditingThemeId] = useState<ThemeId | null>(null);
+
+  // Dedicated state for effect toggles - simpler reactivity model
+  // Key format: "themeId-scheme" -> { effectId: boolean }
+  const [effectToggleState, setEffectToggleState] = useState<Record<string, EffectToggleStates>>(() => {
+    // Initialize from preferences
+    return preferences.effectToggles || {};
+  });
 
   // Compute effective color scheme
   const effectiveColorScheme = useMemo((): ColorScheme => {
@@ -250,24 +258,14 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setPreferences((prev) => ({ ...prev, followSystem }));
   }, []);
 
-  // Effect toggle methods
-  const effectToggles = useMemo((): EffectToggleStates => {
-    const key = `${currentTheme.id}-${currentTheme.scheme}`;
-    const stored = preferences.effectToggles[key];
+  // Effect toggle methods - using dedicated state for proper reactivity
+  const effectToggleKey = `${currentTheme.id}-${currentTheme.scheme}`;
 
-    // Handle migration from old effectsEnabled
-    if ((preferences as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled !== undefined) {
-      const wasEnabled = (preferences as unknown as { _migratedFromEffectsEnabled: boolean })._migratedFromEffectsEnabled;
-      // Initialize all effects based on old global setting
-      const allStates: EffectToggleStates = {};
-      currentTheme.effects?.forEach((effect) => {
-        allStates[effect.id] = wasEnabled ? effect.defaultEnabled : false;
-      });
-      return allStates;
-    }
-
+  // Compute current effect toggles from dedicated state, merged with defaults
+  const effectToggles: EffectToggleStates = useMemo(() => {
+    const stored = effectToggleState[effectToggleKey];
     return mergeEffectStates(stored, currentTheme);
-  }, [currentTheme, preferences.effectToggles, preferences]);
+  }, [effectToggleState, effectToggleKey, currentTheme]);
 
   const availableEffects = useMemo((): EffectToggleDefinition[] => {
     return currentTheme.effects || [];
@@ -279,22 +277,27 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const setEffectEnabled = useCallback((effectId: string, enabled: boolean) => {
     const key = `${currentTheme.id}-${currentTheme.scheme}`;
-    setPreferences((prev) => {
-      // Clear migration flag if present
-      const newPrefs = { ...prev };
-      delete (newPrefs as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled;
 
-      return {
-        ...newPrefs,
-        effectToggles: {
-          ...newPrefs.effectToggles,
-          [key]: {
-            ...mergeEffectStates(newPrefs.effectToggles[key], currentTheme),
-            [effectId]: enabled,
-          },
+    // Update dedicated state for immediate reactivity
+    setEffectToggleState((prev) => ({
+      ...prev,
+      [key]: {
+        ...mergeEffectStates(prev[key], currentTheme),
+        [effectId]: enabled,
+      },
+    }));
+
+    // Also update preferences for persistence
+    setPreferences((prev) => ({
+      ...prev,
+      effectToggles: {
+        ...prev.effectToggles,
+        [key]: {
+          ...mergeEffectStates(prev.effectToggles[key], currentTheme),
+          [effectId]: enabled,
         },
-      };
-    });
+      },
+    }));
   }, [currentTheme]);
 
   const setAllEffectsEnabled = useCallback((enabled: boolean) => {
@@ -304,19 +307,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       allStates[effect.id] = enabled;
     });
 
-    setPreferences((prev) => {
-      // Clear migration flag if present
-      const newPrefs = { ...prev };
-      delete (newPrefs as unknown as { _migratedFromEffectsEnabled?: boolean })._migratedFromEffectsEnabled;
+    // Update dedicated state for immediate reactivity
+    setEffectToggleState((prev) => ({
+      ...prev,
+      [key]: allStates,
+    }));
 
-      return {
-        ...newPrefs,
-        effectToggles: {
-          ...newPrefs.effectToggles,
-          [key]: allStates,
-        },
-      };
-    });
+    // Also update preferences for persistence
+    setPreferences((prev) => ({
+      ...prev,
+      effectToggles: {
+        ...prev.effectToggles,
+        [key]: allStates,
+      },
+    }));
   }, [currentTheme]);
 
   const getEffectTogglesForTheme = useCallback(
@@ -324,9 +328,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const key = `${themeId}-${scheme}`;
       const theme = getTheme(themeId, scheme);
       if (!theme) return {};
-      return mergeEffectStates(preferences.effectToggles[key], theme);
+      // Read from dedicated state for immediate reactivity
+      return mergeEffectStates(effectToggleState[key], theme);
     },
-    [preferences.effectToggles]
+    [effectToggleState]
   );
 
   const setEffectEnabledForTheme = useCallback(
@@ -335,6 +340,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const theme = getTheme(themeId, scheme);
       if (!theme) return;
 
+      // Update dedicated state for immediate reactivity
+      setEffectToggleState((prev) => ({
+        ...prev,
+        [key]: {
+          ...mergeEffectStates(prev[key], theme),
+          [effectId]: enabled,
+        },
+      }));
+
+      // Also update preferences for persistence
       setPreferences((prev) => ({
         ...prev,
         effectToggles: {
@@ -360,6 +375,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         allStates[effect.id] = enabled;
       });
 
+      // Update dedicated state for immediate reactivity
+      setEffectToggleState((prev) => ({
+        ...prev,
+        [key]: allStates,
+      }));
+
+      // Also update preferences for persistence
       setPreferences((prev) => ({
         ...prev,
         effectToggles: {

@@ -57,6 +57,9 @@ interface AppState {
   // Operations
   operationInProgress: string | null;
   operationMessage: string | null;
+
+  // Display preferences
+  preferFilenameOverMetadata: boolean;
 }
 
 interface AppContextValue extends AppState {
@@ -83,6 +86,9 @@ interface AppContextValue extends AppState {
 
   // Operation feedback
   setOperation: (operation: string | null, message?: string | null) => void;
+
+  // Display preference actions
+  setPreferFilenameOverMetadata: (prefer: boolean) => void;
 }
 
 // =============================================================================
@@ -90,6 +96,7 @@ interface AppContextValue extends AppState {
 // =============================================================================
 
 const LAST_LIBRARY_KEY = 'helixio-last-library';
+const PREFER_FILENAME_KEY = 'helixio-prefer-filename';
 
 // =============================================================================
 // Context
@@ -146,6 +153,21 @@ export function AppProvider({ children }: AppProviderProps) {
   // Operations
   const [operationInProgress, setOperationInProgress] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
+
+  // Display preferences (loaded from localStorage)
+  const [preferFilenameOverMetadata, setPreferFilenameOverMetadataState] = useState<boolean>(() => {
+    const stored = localStorage.getItem(PREFER_FILENAME_KEY);
+    return stored === 'true';
+  });
+
+  // ---------------------------------------------------------------------------
+  // Display Preference Actions
+  // ---------------------------------------------------------------------------
+
+  const setPreferFilenameOverMetadata = useCallback((prefer: boolean) => {
+    setPreferFilenameOverMetadataState(prefer);
+    localStorage.setItem(PREFER_FILENAME_KEY, String(prefer));
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Library Actions
@@ -382,6 +404,7 @@ export function AppProvider({ children }: AppProviderProps) {
     sortOrder,
     operationInProgress,
     operationMessage,
+    preferFilenameOverMetadata,
 
     // Actions
     refreshLibraries,
@@ -398,6 +421,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setPage,
     setPageSize,
     setOperation,
+    setPreferFilenameOverMetadata,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -1,0 +1,1 @@
+export { QuickCollectionIcons } from './QuickCollectionIcons';

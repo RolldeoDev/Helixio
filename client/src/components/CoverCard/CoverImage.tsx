@@ -30,7 +30,6 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
       ? Math.round((progress.currentPage / progress.totalPages) * 100)
       : 0;
   const isInProgress = progress && progress.currentPage > 0 && !progress.completed;
-  const isCompleted = progress?.completed;
 
   return (
     <>
@@ -88,15 +87,6 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
             className="cover-card__progress-fill"
             style={{ width: `${progressPercent}%` }}
           />
-        </div>
-      )}
-
-      {/* Completed indicator */}
-      {isCompleted && (
-        <div className="cover-card__completed" title="Completed">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-          </svg>
         </div>
       )}
 

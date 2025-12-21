@@ -52,7 +52,7 @@ describe('Achievement Counts', () => {
       categoryCounts[a.category] = (categoryCounts[a.category] || 0) + 1;
     });
 
-    Object.entries(categoryCounts).forEach(([category, count]) => {
+    Object.entries(categoryCounts).forEach(([_, count]) => {
       expect(count).toBeGreaterThanOrEqual(5);
     });
   });
@@ -64,7 +64,7 @@ describe('Achievement Counts', () => {
 
 describe('Achievement Structure', () => {
   it('should have all required fields for each achievement', () => {
-    ALL_ACHIEVEMENTS.forEach((achievement, index) => {
+    ALL_ACHIEVEMENTS.forEach((achievement) => {
       expect(achievement).toHaveProperty('id');
       expect(achievement).toHaveProperty('key');
       expect(achievement).toHaveProperty('name');
@@ -173,7 +173,7 @@ describe('Categories', () => {
   });
 
   it('should have name and icon for each category in CATEGORY_INFO', () => {
-    Object.entries(CATEGORY_INFO).forEach(([key, info]) => {
+    Object.entries(CATEGORY_INFO).forEach(([_, info]) => {
       expect(info).toHaveProperty('name');
       expect(info).toHaveProperty('icon');
       expect(typeof info.name).toBe('string');

@@ -13,6 +13,7 @@ import { triggerCacheGenerationForNewFiles } from './cache-job.service.js';
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
+import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 
 // Supported comic file extensions
 const COMIC_EXTENSIONS = new Set(['.cbz', '.cbr']);
@@ -335,6 +336,8 @@ async function autoLinkNewFilesToSeries(fileIds: string[]): Promise<void> {
       const metadataSuccess = await refreshMetadataCache(fileId);
       if (metadataSuccess) {
         metadataCached++;
+        // Extract tags for autocomplete after metadata is cached
+        await refreshTagsFromFile(fileId);
       }
 
       // Step 2: Try to link to series using the extracted metadata
@@ -414,6 +417,8 @@ export async function processExistingFiles(libraryId?: string): Promise<{
       const metadataSuccess = await refreshMetadataCache(fileId);
       if (metadataSuccess) {
         metadataCached++;
+        // Extract tags for autocomplete after metadata is cached
+        await refreshTagsFromFile(fileId);
       }
 
       // Step 2: Try to link to series using the extracted metadata

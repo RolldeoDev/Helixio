@@ -120,6 +120,12 @@ export const retroDarkTheme: ThemeDefinition = {
     shadowTitleLocation: '4px 4px 0',
     colorShadowTitle: '#be1c31',
 
+    // Issue badge - Coin gold
+    colorIssueBadge: '#ffcc00',
+    colorIssueBadgeCompleted: '#00e436',
+    colorIssueBadgeText: '#1a1a1a',
+    colorIssueBadgeTextCompleted: '#1a1a1a',
+
     // Border radius - Pixel-perfect with no rounding
     radiusSm: '0px',
     radiusMd: '0px',

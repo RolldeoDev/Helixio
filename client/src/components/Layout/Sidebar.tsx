@@ -423,6 +423,7 @@ function FoldersView({
   refreshFiles,
   setOperation,
 }: FoldersViewProps) {
+  const navigate = useNavigate();
   const [showAddLibrary, setShowAddLibrary] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState('');
   const [newLibraryPath, setNewLibraryPath] = useState('');
@@ -440,6 +441,13 @@ function FoldersView({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle library selection with navigation to ensure files are displayed
+  const handleLibrarySelect = useCallback((library: Library) => {
+    onLibrarySelect(library);
+    // Always navigate to ensure the URL matches and files are refreshed
+    navigate(`/library/${library.id}`);
+  }, [onLibrarySelect, navigate]);
 
   const toggleFolderCollapse = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -746,7 +754,7 @@ function FoldersView({
         <LibraryDropdown
           libraries={libraries}
           selectedLibrary={selectedLibrary}
-          onSelect={onLibrarySelect}
+          onSelect={handleLibrarySelect}
           onAddClick={() => setShowAddLibrary(true)}
           loading={loadingLibraries}
           error={librariesError}
