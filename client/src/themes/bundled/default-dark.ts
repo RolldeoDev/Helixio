@@ -1,14 +1,14 @@
 import type { ThemeDefinition } from '../types';
 
 /**
- * Default Dark Theme - "Collector's Archive"
+ * Collector's Archive Dark Theme
  * Luxury dark theme inspired by fine hotels and rare book collections
  */
-export const defaultDarkTheme: ThemeDefinition = {
-  id: 'default',
+export const collectorsDarkTheme: ThemeDefinition = {
+  id: 'collectors',
   scheme: 'dark',
   meta: {
-    id: 'default',
+    id: 'collectors',
     name: "Collector's Archive",
     description: 'Luxury dark theme inspired by fine hotels and rare book collections',
     author: 'Helixio',

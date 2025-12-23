@@ -23,6 +23,7 @@ import {
   cancelMetadataJob,
   abandonMetadataJob,
   searchJobSeries,
+  loadMoreJobSeriesResults,
   approveJobSeries,
   skipJobSeries,
   navigateToJobSeriesGroup,
@@ -115,6 +116,8 @@ interface MetadataJobState {
   activeJobs: MetadataJob[];
   /** Structured apply progress for real-time display */
   applyProgress: ApplyProgress;
+  /** Timestamp when last job was completed (for triggering page refreshes) */
+  lastCompletedJobAt: number | null;
 }
 
 /** Result of expanding a series with multi-source data */
@@ -161,6 +164,8 @@ interface MetadataJobContextValue extends MetadataJobState {
    * @param source - Optional specific source to search (if not provided, searches all configured sources)
    */
   searchSeries: (query: string, source?: MetadataSource) => Promise<void>;
+  /** Load more search results for current series */
+  loadMoreSeriesResults: () => Promise<void>;
   /** Approve current series
    * @param seriesId - Series to use for series-level metadata
    * @param issueMatchingSeriesId - Series to use for issue matching (optional)
@@ -253,6 +258,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     current: 0,
     total: 0,
   });
+  const [lastCompletedJobAt, setLastCompletedJobAt] = useState<number | null>(null);
 
   const initializingRef = useRef(false);
 
@@ -557,6 +563,16 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     }
   }, [jobId]);
 
+  const loadMoreSeriesResults = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const { job } = await loadMoreJobSeriesResults(jobId);
+      setSession(normalizeSession(job.session));
+    } catch (err) {
+      console.error('Failed to load more series results:', err);
+    }
+  }, [jobId]);
+
   const approveSeries = useCallback(async (seriesId: string, issueMatchingSeriesId?: string) => {
     if (!jobId) return;
     try {
@@ -642,6 +658,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     setError(null);
     setApplyResultState(null);
     setApplyProgress({ phase: 'idle', current: 0, total: 0 });
+    setLastCompletedJobAt(Date.now()); // Signal that a job was completed (for page refreshes)
     loadActiveJobs();
     refreshFiles();
   }, [loadActiveJobs, refreshFiles]);
@@ -675,6 +692,8 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
         comicvine: null,
         metron: null,
         gcd: null,
+        anilist: null,
+        mal: null,
       };
 
       // Populate from the results
@@ -710,6 +729,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     applyResult,
     activeJobs,
     applyProgress,
+    lastCompletedJobAt,
 
     // Actions
     startJob,
@@ -729,6 +749,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     markStepCompleted,
     loadActiveJobs,
     searchSeries,
+    loadMoreSeriesResults,
     approveSeries,
     skipSeries,
     resetSeriesSelection,

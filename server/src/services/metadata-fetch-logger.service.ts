@@ -71,7 +71,7 @@ export interface MetadataFetchSession {
 }
 
 export interface APICallLog {
-  source: 'comicvine' | 'metron' | 'gcd' | 'anthropic';
+  source: 'comicvine' | 'metron' | 'gcd' | 'anthropic' | 'anilist' | 'mal' | 'jikan';
   endpoint: string;
   method: string;
   params?: Record<string, string>;
@@ -207,7 +207,7 @@ class MetadataFetchLoggerClass extends EventEmitter {
    */
   logAPICallStart(
     sessionId: string,
-    source: 'comicvine' | 'metron' | 'gcd' | 'anthropic',
+    source: 'comicvine' | 'metron' | 'gcd' | 'anthropic' | 'anilist' | 'mal' | 'jikan',
     endpoint: string,
     params?: Record<string, string>
   ): string {
@@ -251,7 +251,7 @@ class MetadataFetchLoggerClass extends EventEmitter {
    */
   logAPICallEnd(
     sessionId: string,
-    source: 'comicvine' | 'metron' | 'gcd' | 'anthropic',
+    source: 'comicvine' | 'metron' | 'gcd' | 'anthropic' | 'anilist' | 'mal' | 'jikan',
     endpoint: string,
     result: {
       success: boolean;

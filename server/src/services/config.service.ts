@@ -30,7 +30,7 @@ export interface LLMSettings {
   enableByDefault: boolean;
 }
 
-export type MetadataSource = 'comicvine' | 'metron' | 'gcd';
+export type MetadataSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 
 export interface MetadataSettings {
   /** Primary source for metadata lookups */
@@ -47,6 +47,17 @@ export interface MetadataSettings {
   autoMatchThreshold: number;
   /** Whether to automatically apply high-confidence cross-source matches */
   autoApplyHighConfidence: boolean;
+  /** Manga file classification settings */
+  mangaClassification: MangaClassificationSettings;
+}
+
+export interface MangaClassificationSettings {
+  /** Enable smart chapter/volume classification for manga files */
+  enabled: boolean;
+  /** Page count threshold: files with fewer pages are classified as chapters, more as volumes */
+  volumePageThreshold: number;
+  /** Whether filename-parsed type (e.g., "Vol 5", "Ch 12") overrides page count inference */
+  filenameOverridesPageCount: boolean;
 }
 
 export interface CacheSettings {
@@ -99,10 +110,15 @@ const DEFAULT_CONFIG: AppConfig = {
       model: 'claude-3-5-haiku-20241022',
       enableByDefault: false,
     },
-    sourcePriority: ['comicvine', 'metron'],
-    enabledSources: ['comicvine', 'metron'],
+    sourcePriority: ['comicvine', 'metron', 'anilist', 'mal'],
+    enabledSources: ['comicvine', 'metron', 'anilist', 'mal'],
     autoMatchThreshold: 0.95,
     autoApplyHighConfidence: true,
+    mangaClassification: {
+      enabled: true,
+      volumePageThreshold: 60,
+      filenameOverridesPageCount: true,
+    },
   },
   cache: {
     coverCacheSizeMb: 500,
@@ -315,6 +331,22 @@ export function getLLMModel(): string {
   return loadConfig().metadata.llm.model;
 }
 
+/**
+ * Get manga classification settings
+ */
+export function getMangaClassificationSettings(): MangaClassificationSettings {
+  return loadConfig().metadata.mangaClassification;
+}
+
+/**
+ * Update manga classification settings
+ */
+export function updateMangaClassificationSettings(settings: Partial<MangaClassificationSettings>): void {
+  const config = loadConfig();
+  config.metadata.mangaClassification = { ...config.metadata.mangaClassification, ...settings };
+  saveConfig(config);
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -337,6 +369,11 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     // Ensure new cross-source settings have defaults
     autoMatchThreshold: partial.metadata?.autoMatchThreshold ?? DEFAULT_CONFIG.metadata.autoMatchThreshold,
     autoApplyHighConfidence: partial.metadata?.autoApplyHighConfidence ?? DEFAULT_CONFIG.metadata.autoApplyHighConfidence,
+    // Manga classification settings
+    mangaClassification: {
+      ...DEFAULT_CONFIG.metadata.mangaClassification,
+      ...(partial.metadata?.mangaClassification || {}),
+    },
   };
 
   return {

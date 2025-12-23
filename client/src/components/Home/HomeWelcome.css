@@ -716,6 +716,13 @@
   opacity: 0.4;
 }
 
+.welcome-empty-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  opacity: 0.6;
+}
+
 .welcome-featured-empty span {
   font-size: 0.9rem;
   color: var(--color-text-muted);

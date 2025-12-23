@@ -185,6 +185,9 @@ export interface CoverCardProps {
   /** Double-click handler (e.g., open reader) */
   onDoubleClick?: (fileId: string) => void;
 
+  /** Read button handler (opens reader directly from hover button) */
+  onRead?: (fileId: string) => void;
+
   /** Selection change handler */
   onSelectionChange?: (fileId: string, selected: boolean) => void;
 

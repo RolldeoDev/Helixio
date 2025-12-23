@@ -217,9 +217,9 @@ describe('AchievementsPage', () => {
         // The card should have the achievement name
         const gettingHookedText = screen.getByText('Getting Hooked');
         expect(gettingHookedText).toBeInTheDocument();
-        // Check for the parent achievement card with unlocked class
+        // Check for the parent achievement card with unlocked class (uses BEM naming)
         const card = gettingHookedText.closest('.achievement-card');
-        expect(card).toHaveClass('unlocked');
+        expect(card).toHaveClass('achievement-card--unlocked');
       });
     });
   });

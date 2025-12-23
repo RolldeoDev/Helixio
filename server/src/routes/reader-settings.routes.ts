@@ -20,7 +20,14 @@ import {
   getSeriesSettings,
   updateSeriesSettings,
   deleteSeriesSettings,
+  getSeriesSettingsById,
+  updateSeriesSettingsById,
+  deleteSeriesSettingsById,
+  getIssueSettings,
+  updateIssueSettings,
+  deleteIssueSettings,
   getResolvedSettings,
+  getResolvedSettingsWithOrigin,
   getSeriesWithSettings,
   UpdateReaderSettingsInput,
   PartialReaderSettings,
@@ -260,6 +267,142 @@ router.get('/resolved/:fileId', async (req: Request, res: Response) => {
     console.error('Error getting resolved reader settings:', error);
     res.status(500).json({
       error: 'Failed to get resolved reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/reader-settings/resolved/:fileId/with-origin
+ * Get fully resolved settings with origin information (source level + preset)
+ */
+router.get('/resolved/:fileId/with-origin', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const result = await getResolvedSettingsWithOrigin(fileId!);
+    res.json(result);
+  } catch (error) {
+    console.error('Error getting resolved settings with origin:', error);
+    res.status(500).json({
+      error: 'Failed to get resolved settings with origin',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Issue Settings (4th level - most specific)
+// =============================================================================
+
+/**
+ * GET /api/reader-settings/issue/:fileId
+ * Get issue-level settings overrides
+ */
+router.get('/issue/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const settings = await getIssueSettings(fileId!);
+    res.json(settings || {});
+  } catch (error) {
+    console.error('Error getting issue reader settings:', error);
+    res.status(500).json({
+      error: 'Failed to get issue reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/reader-settings/issue/:fileId
+ * Update issue-level settings overrides
+ */
+router.put('/issue/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    const input = req.body as PartialReaderSettings;
+    const settings = await updateIssueSettings(fileId!, input);
+    res.json(settings);
+  } catch (error) {
+    console.error('Error updating issue reader settings:', error);
+    res.status(400).json({
+      error: 'Failed to update issue reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/reader-settings/issue/:fileId
+ * Delete issue-level settings (revert to series/library/global defaults)
+ */
+router.delete('/issue/:fileId', async (req: Request, res: Response) => {
+  try {
+    const { fileId } = req.params;
+    await deleteIssueSettings(fileId!);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting issue reader settings:', error);
+    res.status(500).json({
+      error: 'Failed to delete issue reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Series Settings by ID (New - for SeriesReaderSettingsNew table)
+// =============================================================================
+
+/**
+ * GET /api/reader-settings/series-by-id/:seriesId
+ * Get series-level settings overrides by series ID
+ */
+router.get('/series-by-id/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const { seriesId } = req.params;
+    const settings = await getSeriesSettingsById(seriesId!);
+    res.json(settings || {});
+  } catch (error) {
+    console.error('Error getting series reader settings:', error);
+    res.status(500).json({
+      error: 'Failed to get series reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/reader-settings/series-by-id/:seriesId
+ * Update series-level settings overrides by series ID
+ */
+router.put('/series-by-id/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const { seriesId } = req.params;
+    const input = req.body as PartialReaderSettings;
+    const settings = await updateSeriesSettingsById(seriesId!, input);
+    res.json(settings);
+  } catch (error) {
+    console.error('Error updating series reader settings:', error);
+    res.status(400).json({
+      error: 'Failed to update series reader settings',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/reader-settings/series-by-id/:seriesId
+ * Delete series-level settings by ID (revert to library/global defaults)
+ */
+router.delete('/series-by-id/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const { seriesId } = req.params;
+    await deleteSeriesSettingsById(seriesId!);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting series reader settings:', error);
+    res.status(500).json({
+      error: 'Failed to delete series reader settings',
       message: error instanceof Error ? error.message : String(error),
     });
   }

@@ -109,6 +109,17 @@ export function createMockPrismaClient() {
       upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'prog-1', ...args.create })),
       delete: vi.fn().mockResolvedValue({}),
     },
+    collectionItem: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'col-item-1', ...args.data })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
     user: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
@@ -201,6 +212,11 @@ export function createMockSeriesRecord(overrides: Partial<{
   issueCount: number | null;
   comicVineId: string | null;
   metronId: string | null;
+  summary: string | null;
+  lockedFields: string | null;
+  aliases: string | null;
+  fieldSources: string | null;
+  type: string;
   createdAt: Date;
   updatedAt: Date;
 }> = {}) {
@@ -212,6 +228,11 @@ export function createMockSeriesRecord(overrides: Partial<{
     issueCount: 52,
     comicVineId: null,
     metronId: null,
+    summary: null,
+    lockedFields: null,
+    aliases: null,
+    fieldSources: null,
+    type: 'western',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,

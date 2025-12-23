@@ -1154,6 +1154,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
         onSelect={handleSearchSelect}
         seriesId={seriesId}
         initialQuery={state.originalSeries?.name || ''}
+        libraryType={state.originalSeries?.type}
       />
 
       {/* Metadata Preview Modal */}

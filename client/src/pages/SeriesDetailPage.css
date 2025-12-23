@@ -599,7 +599,7 @@
   font-size: 0.875rem;
 }
 
-/* Issues Grid */
+/* Issues Grid (non-virtualized - kept for compatibility) */
 .series-issues-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -610,6 +610,75 @@
   .series-issues-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
+}
+
+/* =============================================================================
+   Virtualized Issues Grid (Performance Optimized)
+   ============================================================================= */
+
+.series-issues-scroll-container {
+  /* Fixed height scroll container for virtualization */
+  height: 500px;
+  min-height: 300px;
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Grid layout: content + sidebar */
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: var(--spacing-md);
+  /* Reserve space for fixed navigation sidebar - ensures scrollbar appears to its left */
+  margin-right: 10px;
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.series-issues-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.series-issues-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.series-issues-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.series-issues-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Disable smooth scroll during rapid scrolling */
+.series-issues-scroll-container.scrolling {
+  scroll-behavior: auto;
+}
+
+.series-issues-virtual {
+  /* Virtual container - items positioned absolutely within */
+  width: 100%;
+  padding:var(--spacing-sm);
+}
+
+.series-issue-item {
+  /* Positioned by useVirtualGrid */
+  display: flex;
+  flex-direction: column;
+}
+
+.series-issues-empty {
+  padding: var(--spacing-2xl);
+  text-align: center;
+  color: var(--color-text-muted);
 }
 
 /* Issue Card */

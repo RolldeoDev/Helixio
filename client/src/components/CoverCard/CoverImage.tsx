@@ -1,7 +1,13 @@
 /**
  * CoverImage Component
  *
- * Cover image with blur-up loading effect, progress bar, and status badges.
+ * Cover image with skeleton loading placeholder, progress bar, and status badges.
+ *
+ * Performance optimizations:
+ * - Skeleton placeholder instead of fetch() for blur (eliminates network requests)
+ * - IntersectionObserver-based visibility detection
+ * - 100ms fade-in transition for smooth appearance
+ * - Image only loads when in/near viewport
  */
 
 import { useCoverImage } from './useCoverImage';
@@ -17,8 +23,9 @@ interface CoverImageProps {
 export function CoverImage({ fileId, filename, progress, eager }: CoverImageProps) {
   const {
     status,
-    blurPlaceholder,
+    isInView,
     coverUrl,
+    containerRef,
     handleLoad,
     handleError,
     handleRetry,
@@ -32,22 +39,10 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
   const isInProgress = progress && progress.currentPage > 0 && !progress.completed;
 
   return (
-    <>
-      {/* Blur placeholder - shown immediately while full image loads */}
-      {blurPlaceholder && status === 'loading' && (
-        <img
-          src={blurPlaceholder}
-          alt=""
-          className="cover-card__blur-placeholder"
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Loading spinner - only show if no blur placeholder */}
-      {status === 'loading' && !blurPlaceholder && (
-        <div className="cover-card__loading">
-          <div className="cover-card__spinner" />
-        </div>
+    <div ref={containerRef} className="cover-card__image-container">
+      {/* Skeleton placeholder - shown while image loads */}
+      {status === 'loading' && (
+        <div className="cover-card__skeleton" aria-hidden="true" />
       )}
 
       {/* Error state */}
@@ -69,16 +64,18 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
         </div>
       )}
 
-      {/* Main cover image */}
-      <img
-        src={coverUrl}
-        alt={filename}
-        loading={eager ? 'eager' : 'lazy'}
-        decoding="async"
-        onLoad={handleLoad}
-        onError={handleError}
-        className={`cover-card__image ${status === 'loaded' ? 'cover-card__image--loaded' : 'cover-card__image--hidden'}`}
-      />
+      {/* Main cover image - only render src when in view */}
+      {isInView && coverUrl && (
+        <img
+          src={coverUrl}
+          alt={filename}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`cover-card__image ${status === 'loaded' ? 'cover-card__image--loaded' : 'cover-card__image--hidden'}`}
+        />
+      )}
 
       {/* Reading progress bar */}
       {isInProgress && (
@@ -96,6 +93,6 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
           Continue
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -11,15 +11,161 @@ import { SeriesCache, type CachedIssuesData } from '../series-cache.service.js';
 import * as comicVine from '../comicvine.service.js';
 import { getSession, setSession } from './session-store.js';
 import { matchFileToIssue, getIssueNumber, getIssueTitle } from './helpers.js';
-import { issueToFieldChanges, metronIssueToFieldChanges } from './field-changes.js';
+import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, type MangaChapterOptions } from './field-changes.js';
+import { classifyMangaFile, type MangaClassificationResult } from '../manga-classification.service.js';
+import { getMangaClassificationSettings } from '../config.service.js';
 import type {
   ApprovalSession,
   FileChange,
   ProgressCallback,
   MetadataSource,
+  SeriesMatch,
+  ParsedFileData,
 } from './types.js';
 
 const logger = createServiceLogger('metadata-approval-file-review');
+
+// =============================================================================
+// Manga Source Handling
+// =============================================================================
+
+/** Manga sources that don't provide per-chapter metadata */
+const MANGA_SOURCES: MetadataSource[] = ['anilist', 'mal'];
+
+/**
+ * Check if a source is a manga source (no per-chapter API data)
+ */
+function isMangaSource(source: MetadataSource): boolean {
+  return MANGA_SOURCES.includes(source);
+}
+
+/**
+ * Prepare file changes for manga sources (chapter-only mode)
+ *
+ * For AniList/MAL, we don't have per-chapter metadata from the API.
+ * Instead, we use the chapter number parsed from the filename and
+ * apply series-level metadata only.
+ *
+ * Also applies smart chapter/volume classification based on page count.
+ */
+async function prepareMangaFileChanges(
+  group: {
+    displayName: string;
+    fileIds: string[];
+    filenames: string[];
+    parsedFiles: Record<string, ParsedFileData>;
+    selectedSeries: SeriesMatch;
+  },
+  onProgress?: ProgressCallback
+): Promise<FileChange[]> {
+  const progress = onProgress || (() => {});
+  const prisma = getDatabase();
+  const fileChanges: FileChange[] = [];
+  const classificationSettings = getMangaClassificationSettings();
+
+  const metadataSource = group.selectedSeries;
+
+  progress(
+    `Processing manga: "${group.displayName}"`,
+    `Using chapter numbers from filenames (${metadataSource.source} provides series metadata only)`
+  );
+
+  // Fetch page counts for all files if classification is enabled
+  let pageCountMap: Map<string, number> = new Map();
+  if (classificationSettings.enabled) {
+    const filesWithMetadata = await prisma.comicFile.findMany({
+      where: { id: { in: group.fileIds } },
+      select: { id: true, metadata: { select: { pageCount: true } } },
+    });
+    for (const file of filesWithMetadata) {
+      if (file.metadata?.pageCount) {
+        pageCountMap.set(file.id, file.metadata.pageCount);
+      }
+    }
+  }
+
+  for (let i = 0; i < group.fileIds.length; i++) {
+    const fileId = group.fileIds[i]!;
+    const filename = group.filenames[i]!;
+    const parsedData = group.parsedFiles[fileId];
+
+    // Get chapter number from parsed data or filename
+    const chapterNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
+
+    if (chapterNumber) {
+      // Get page count for classification
+      const pageCount = pageCountMap.get(fileId) || 0;
+
+      // Pre-compute classification if enabled
+      let classification: MangaClassificationResult | undefined;
+      if (classificationSettings.enabled) {
+        classification = classifyMangaFile(filename, pageCount, classificationSettings);
+      }
+
+      // Create field changes using series-level metadata + parsed chapter number
+      const options: MangaChapterOptions = {
+        classification,
+        pageCount,
+        filename,
+      };
+
+      const fields = await mangaChapterToFieldChanges(
+        fileId,
+        chapterNumber,
+        metadataSource,
+        options
+      );
+
+      // Determine display label based on classification
+      const displayLabel = classification
+        ? classification.displayTitle
+        : `Chapter #${chapterNumber}`;
+
+      progress(
+        `Matched: "${filename.length > 40 ? filename.slice(0, 40) + '...' : filename}"`,
+        `-> ${displayLabel} (parsed from filename)`
+      );
+
+      fileChanges.push({
+        fileId,
+        filename,
+        matchedIssue: {
+          source: metadataSource.source,
+          sourceId: `chapter-${chapterNumber}`, // Virtual ID for chapter
+          number: classification?.primaryNumber || chapterNumber,
+          title: classification?.displayTitle,
+          coverDate: undefined,
+        },
+        matchConfidence: classification?.confidence || 0.9,
+        fields,
+        status: 'matched',
+      });
+    } else {
+      progress(
+        `Unmatched: "${filename.length > 40 ? filename.slice(0, 40) + '...' : filename}"`,
+        'No chapter number detected in filename'
+      );
+
+      fileChanges.push({
+        fileId,
+        filename,
+        matchedIssue: null,
+        matchConfidence: 0,
+        fields: {},
+        status: 'unmatched',
+      });
+    }
+  }
+
+  const matchedCount = fileChanges.filter((f) => f.status === 'matched').length;
+  const unmatchedCount = fileChanges.filter((f) => f.status === 'unmatched').length;
+  progress(
+    `Manga "${group.displayName}" complete`,
+    `${matchedCount} matched, ${unmatchedCount} unmatched`
+  );
+
+  return fileChanges;
+}
 
 // =============================================================================
 // File Change Preparation
@@ -81,7 +227,24 @@ export async function prepareFileChanges(
       `Series ${processedGroups}/${totalGroups} - ${group.fileIds.length} files`
     );
 
-    // Get cached issues from the issue matching series
+    // Check if this is a manga source (no per-chapter API data)
+    if (isMangaSource(metadataSource.source)) {
+      // Use manga-specific handling (chapter-only mode)
+      const mangaChanges = await prepareMangaFileChanges(
+        {
+          displayName: group.displayName,
+          fileIds: group.fileIds,
+          filenames: group.filenames,
+          parsedFiles: group.parsedFiles,
+          selectedSeries: metadataSource,
+        },
+        progress
+      );
+      fileChanges.push(...mangaChanges);
+      continue;
+    }
+
+    // Get cached issues from the issue matching series (Western comics flow)
     progress(`Fetching issues for "${issueSource.name}"`, 'Checking cache...');
     const fetchStartTime = Date.now();
     const cachedIssues = await SeriesCache.getOrFetchIssues(

@@ -22,6 +22,8 @@ import {
   isInCollection,
   toggleSystemCollection,
   getSystemCollection,
+  getUnavailableItemCount,
+  removeUnavailableItems,
 } from '../services/collection.service.js';
 
 const router = Router();
@@ -343,6 +345,46 @@ router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
     console.error('Error toggling want to read:', error);
     res.status(400).json({
       error: 'Failed to toggle want to read',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Unavailable Items Management
+// =============================================================================
+
+/**
+ * GET /api/collections/unavailable-count
+ * Get count of unavailable items across all collections.
+ * Items become unavailable when their referenced file/series is deleted.
+ */
+router.get('/unavailable-count', async (_req: Request, res: Response) => {
+  try {
+    const count = await getUnavailableItemCount();
+    res.json({ count });
+  } catch (error) {
+    console.error('Error getting unavailable count:', error);
+    res.status(500).json({
+      error: 'Failed to get unavailable count',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/collections/unavailable
+ * Remove all unavailable items from all collections.
+ * Call this to clean up orphaned collection references.
+ */
+router.delete('/unavailable', async (_req: Request, res: Response) => {
+  try {
+    const removed = await removeUnavailableItems();
+    res.json({ removed });
+  } catch (error) {
+    console.error('Error removing unavailable items:', error);
+    res.status(500).json({
+      error: 'Failed to remove unavailable items',
       message: error instanceof Error ? error.message : String(error),
     });
   }

@@ -18,7 +18,10 @@ import {
   getLibraries,
   getLibraryFiles,
   getLibraryFolders,
+  getAllLibraryFiles,
+  getAllLibraryFolders,
   GetFilesParams,
+  LibraryFolders,
 } from '../services/api.service';
 
 // =============================================================================
@@ -29,11 +32,13 @@ interface AppState {
   // Libraries
   libraries: Library[];
   selectedLibrary: Library | null;
+  isAllLibraries: boolean;
   loadingLibraries: boolean;
   librariesError: string | null;
 
-  // Folders
+  // Folders (single library mode: flat list, all libraries mode: grouped by library)
   folders: string[];
+  allLibraryFolders: LibraryFolders[];
   selectedFolder: string | null;
   loadingFolders: boolean;
 
@@ -53,6 +58,7 @@ interface AppState {
   statusFilter: string | null;
   sortField: string;
   sortOrder: 'asc' | 'desc';
+  groupField: string;
 
   // Operations
   operationInProgress: string | null;
@@ -65,7 +71,8 @@ interface AppState {
 interface AppContextValue extends AppState {
   // Library actions
   refreshLibraries: () => Promise<void>;
-  selectLibrary: (library: Library | null) => void;
+  selectLibrary: (library: Library | null | 'all') => void;
+  selectAllLibraries: () => void;
 
   // Folder actions
   selectFolder: (folder: string | null) => void;
@@ -81,6 +88,7 @@ interface AppContextValue extends AppState {
   // Filter actions
   setStatusFilter: (status: string | null) => void;
   setSort: (field: string, order: 'asc' | 'desc') => void;
+  setGroupField: (field: string) => void;
   setPage: (page: number) => void;
   setPageSize: (size: number) => void;
 
@@ -97,6 +105,7 @@ interface AppContextValue extends AppState {
 
 const LAST_LIBRARY_KEY = 'helixio-last-library';
 const PREFER_FILENAME_KEY = 'helixio-prefer-filename';
+const GROUP_FIELD_KEY = 'helixio-group-field';
 
 // =============================================================================
 // Context
@@ -124,11 +133,15 @@ export function AppProvider({ children }: AppProviderProps) {
   // Libraries
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLibrary, setSelectedLibrary] = useState<Library | null>(null);
+  const [isAllLibraries, setIsAllLibraries] = useState<boolean>(() => {
+    return localStorage.getItem(LAST_LIBRARY_KEY) === 'all';
+  });
   const [loadingLibraries, setLoadingLibraries] = useState(true);
   const [librariesError, setLibrariesError] = useState<string | null>(null);
 
   // Folders
   const [folders, setFolders] = useState<string[]>([]);
+  const [allLibraryFolders, setAllLibraryFolders] = useState<LibraryFolders[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(false);
 
@@ -149,6 +162,10 @@ export function AppProvider({ children }: AppProviderProps) {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sortField, setSortField] = useState('filename');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [groupField, setGroupFieldState] = useState<string>(() => {
+    const stored = localStorage.getItem(GROUP_FIELD_KEY);
+    return stored || 'none';
+  });
 
   // Operations
   const [operationInProgress, setOperationInProgress] = useState<string | null>(null);
@@ -210,7 +227,26 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [selectedLibrary]);
 
-  const selectLibrary = useCallback((library: Library | null) => {
+  const selectLibrary = useCallback((library: Library | null | 'all') => {
+    // Handle 'all' case
+    if (library === 'all') {
+      if (isAllLibraries) return; // Already in all-libraries mode
+      setIsAllLibraries(true);
+      setSelectedLibrary(null);
+      setSelectedFolder(null);
+      setFiles([]);
+      setSelectedFiles(new Set());
+      setPagination({ page: 1, limit: 50, total: 0, pages: 0 });
+      localStorage.setItem(LAST_LIBRARY_KEY, 'all');
+      return;
+    }
+
+    // If selecting the same library, don't reset files - just keep current state
+    if (!isAllLibraries && library?.id === selectedLibrary?.id) {
+      return;
+    }
+
+    setIsAllLibraries(false);
     setSelectedLibrary(library);
     setSelectedFolder(null);
     setFiles([]);
@@ -223,7 +259,11 @@ export function AppProvider({ children }: AppProviderProps) {
     } else {
       localStorage.removeItem(LAST_LIBRARY_KEY);
     }
-  }, []);
+  }, [selectedLibrary?.id, isAllLibraries]);
+
+  const selectAllLibraries = useCallback(() => {
+    selectLibrary('all');
+  }, [selectLibrary]);
 
   // ---------------------------------------------------------------------------
   // Folder Actions
@@ -237,24 +277,48 @@ export function AppProvider({ children }: AppProviderProps) {
 
   // Load folders when library changes
   useEffect(() => {
+    if (isAllLibraries) {
+      // Load folders from all libraries
+      setLoadingFolders(true);
+      getAllLibraryFolders()
+        .then((response) => {
+          setAllLibraryFolders(response.libraries);
+          setFolders([]); // Clear single-library folders
+        })
+        .catch(() => {
+          setAllLibraryFolders([]);
+          setFolders([]);
+        })
+        .finally(() => setLoadingFolders(false));
+      return;
+    }
+
     if (!selectedLibrary) {
       setFolders([]);
+      setAllLibraryFolders([]);
       return;
     }
 
     setLoadingFolders(true);
     getLibraryFolders(selectedLibrary.id)
-      .then((response) => setFolders(response.folders))
-      .catch(() => setFolders([]))
+      .then((response) => {
+        setFolders(response.folders);
+        setAllLibraryFolders([]); // Clear all-library folders
+      })
+      .catch(() => {
+        setFolders([]);
+        setAllLibraryFolders([]);
+      })
       .finally(() => setLoadingFolders(false));
-  }, [selectedLibrary]);
+  }, [selectedLibrary, isAllLibraries]);
 
   // ---------------------------------------------------------------------------
   // File Actions
   // ---------------------------------------------------------------------------
 
   const refreshFiles = useCallback(async () => {
-    if (!selectedLibrary) {
+    // Need either a selected library OR all-libraries mode
+    if (!selectedLibrary && !isAllLibraries) {
       setFiles([]);
       return;
     }
@@ -263,10 +327,10 @@ export function AppProvider({ children }: AppProviderProps) {
     setFilesError(null);
 
     const params: GetFilesParams = {
-      page: pagination.page,
-      limit: pagination.limit,
+      all: true, // Fetch all files for infinite scroll with navigation sidebar
       sort: sortField,
       order: sortOrder,
+      groupBy: groupField,
     };
 
     if (statusFilter) {
@@ -278,7 +342,10 @@ export function AppProvider({ children }: AppProviderProps) {
     }
 
     try {
-      const response = await getLibraryFiles(selectedLibrary.id, params);
+      // Use different API based on mode
+      const response = isAllLibraries
+        ? await getAllLibraryFiles(params)
+        : await getLibraryFiles(selectedLibrary!.id, params);
       setFiles(response.files);
       setPagination(response.pagination);
     } catch (err) {
@@ -288,10 +355,10 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [
     selectedLibrary,
-    pagination.page,
-    pagination.limit,
+    isAllLibraries,
     sortField,
     sortOrder,
+    groupField,
     statusFilter,
     selectedFolder,
   ]);
@@ -356,6 +423,12 @@ export function AppProvider({ children }: AppProviderProps) {
     setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
+  const setGroupField = useCallback((field: string) => {
+    setGroupFieldState(field);
+    localStorage.setItem(GROUP_FIELD_KEY, field);
+    setPagination((p) => ({ ...p, page: 1 }));
+  }, []);
+
   const setPage = useCallback((page: number) => {
     setPagination((p) => ({ ...p, page }));
   }, []);
@@ -389,9 +462,11 @@ export function AppProvider({ children }: AppProviderProps) {
     // State
     libraries,
     selectedLibrary,
+    isAllLibraries,
     loadingLibraries,
     librariesError,
     folders,
+    allLibraryFolders,
     selectedFolder,
     loadingFolders,
     files,
@@ -402,6 +477,7 @@ export function AppProvider({ children }: AppProviderProps) {
     statusFilter,
     sortField,
     sortOrder,
+    groupField,
     operationInProgress,
     operationMessage,
     preferFilenameOverMetadata,
@@ -409,6 +485,7 @@ export function AppProvider({ children }: AppProviderProps) {
     // Actions
     refreshLibraries,
     selectLibrary,
+    selectAllLibraries,
     selectFolder,
     refreshFiles,
     selectFile,
@@ -418,6 +495,7 @@ export function AppProvider({ children }: AppProviderProps) {
     lastSelectedFileId,
     setStatusFilter: handleSetStatusFilter,
     setSort,
+    setGroupField,
     setPage,
     setPageSize,
     setOperation,

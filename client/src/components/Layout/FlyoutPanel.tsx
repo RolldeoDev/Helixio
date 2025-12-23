@@ -28,6 +28,7 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
   const {
     libraries,
     selectedLibrary,
+    isAllLibraries,
     selectLibrary,
   } = useApp();
 
@@ -35,24 +36,37 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
   const [continueReading, setContinueReading] = useState<ContinueReadingItem[]>([]);
   const [loadingReading, setLoadingReading] = useState(true);
 
+  // Calculate total comics across all libraries
+  const totalComicsAllLibraries = libraries.reduce(
+    (sum, lib) => sum + (lib.stats?.total ?? 0),
+    0
+  );
+
   // Fetch continue reading items
   const fetchContinueReading = useCallback(async () => {
     try {
       setLoadingReading(true);
-      const response = await getContinueReading(3, selectedLibrary?.id);
+      // When all-libraries mode, don't pass libraryId to get items from all libraries
+      const response = await getContinueReading(3, isAllLibraries ? undefined : selectedLibrary?.id);
       setContinueReading(response.items);
     } catch (err) {
       console.error('Failed to fetch continue reading:', err);
     } finally {
       setLoadingReading(false);
     }
-  }, [selectedLibrary?.id]);
+  }, [selectedLibrary?.id, isAllLibraries]);
 
   useEffect(() => {
     if (isOpen) {
       fetchContinueReading();
     }
   }, [isOpen, fetchContinueReading]);
+
+  const handleAllLibrariesSelect = () => {
+    selectLibrary('all');
+    navigate('/library');
+    setIsLibraryMenuOpen(false);
+  };
 
   const handleLibrarySelect = (library: typeof selectedLibrary) => {
     if (library) {
@@ -90,7 +104,13 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
             aria-expanded={isLibraryMenuOpen}
             aria-haspopup="listbox"
           >
-            {selectedLibrary ? (
+            {isAllLibraries ? (
+              <>
+                <span className="library-icon">📖</span>
+                <span className="library-name">All Libraries</span>
+                <span className="library-count">{totalComicsAllLibraries}</span>
+              </>
+            ) : selectedLibrary ? (
               <>
                 <span className="library-icon">{getLibraryIcon(selectedLibrary.type)}</span>
                 <span className="library-name">{selectedLibrary.name}</span>
@@ -106,13 +126,27 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
 
           {isLibraryMenuOpen && (
             <div className="flyout-library-menu" role="listbox">
+              {/* All Libraries option */}
+              <button
+                className={isAllLibraries ? 'selected' : ''}
+                onClick={handleAllLibrariesSelect}
+                role="option"
+                aria-selected={isAllLibraries}
+              >
+                <span className="library-icon">📖</span>
+                <span className="library-name">All Libraries</span>
+                <span className="library-count">{totalComicsAllLibraries}</span>
+              </button>
+              {/* Divider */}
+              <div className="flyout-library-divider" />
+              {/* Individual libraries */}
               {libraries.map((library) => (
                 <button
                   key={library.id}
-                  className={library.id === selectedLibrary?.id ? 'selected' : ''}
+                  className={!isAllLibraries && library.id === selectedLibrary?.id ? 'selected' : ''}
                   onClick={() => handleLibrarySelect(library)}
                   role="option"
-                  aria-selected={library.id === selectedLibrary?.id}
+                  aria-selected={!isAllLibraries && library.id === selectedLibrary?.id}
                 >
                   <span className="library-icon">{getLibraryIcon(library.type)}</span>
                   <span className="library-name">{library.name}</span>
@@ -124,10 +158,12 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
         </div>
 
         {/* Quick Stats */}
-        {selectedLibrary && (
+        {(selectedLibrary || isAllLibraries) && (
           <div className="flyout-stats">
             <div className="flyout-stat">
-              <span className="flyout-stat-value">{selectedLibrary.stats?.total ?? 0}</span>
+              <span className="flyout-stat-value">
+                {isAllLibraries ? totalComicsAllLibraries : (selectedLibrary?.stats?.total ?? 0)}
+              </span>
               <span className="flyout-stat-label">Comics</span>
             </div>
             <div className="flyout-stat">
@@ -176,14 +212,14 @@ export function FlyoutPanel({ isOpen, width, onClose }: FlyoutPanelProps) {
         )}
 
         {/* Empty state for continue reading */}
-        {!loadingReading && continueReading.length === 0 && selectedLibrary && (
+        {!loadingReading && continueReading.length === 0 && (selectedLibrary || isAllLibraries) && (
           <div className="flyout-empty">
             <p>No comics in progress</p>
           </div>
         )}
 
         {/* No library selected */}
-        {!selectedLibrary && (
+        {!selectedLibrary && !isAllLibraries && (
           <div className="flyout-empty">
             <p>Select a library to get started</p>
           </div>

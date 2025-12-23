@@ -14,6 +14,8 @@ import {
   setApiKey,
   updateMetadataSettings,
   updateCacheSettings,
+  getMangaClassificationSettings,
+  updateMangaClassificationSettings,
 } from './services/config.service.js';
 import { checkApiAvailability as checkMetronAvailability } from './services/metron.service.js';
 import {
@@ -38,6 +40,7 @@ import metadataJobRoutes from './routes/metadata-job.routes.js';
 import cacheRoutes from './routes/cache.routes.js';
 import readingProgressRoutes from './routes/reading-progress.routes.js';
 import readerSettingsRoutes from './routes/reader-settings.routes.js';
+import readerPresetRoutes from './routes/reader-preset.routes.js';
 import readingQueueRoutes from './routes/reading-queue.routes.js';
 import readingHistoryRoutes from './routes/reading-history.routes.js';
 import authRoutes from './routes/auth.routes.js';
@@ -53,14 +56,19 @@ import achievementsRoutes from './routes/achievements.routes.js';
 import descriptionRoutes from './routes/description.routes.js';
 import tagsRoutes from './routes/tags.routes.js';
 import collectionsRoutes from './routes/collections.routes.js';
+import libraryScanRoutes from './routes/library-scan.routes.js';
+import factoryResetRoutes from './routes/factory-reset.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
 import { cleanupOldOperationLogs } from './services/rollback.service.js';
 import { recoverInterruptedJobs } from './services/job-queue.service.js';
 import { cleanupExpiredJobs } from './services/metadata-job.service.js';
+import { initializeScanQueue } from './services/library-scan-queue.service.js';
+import { cleanupOldScanJobs } from './services/library-scan-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
 import { ensureSystemCollections } from './services/collection.service.js';
+import { ensureBundledPresets } from './services/reader-preset.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -217,6 +225,76 @@ app.put('/api/config/cache', (req, res) => {
   }
 });
 
+// Update general settings (from Settings UI)
+app.put('/api/config/settings', (req, res) => {
+  try {
+    const {
+      metadataSourcePriority,
+      rateLimitAggressiveness,
+      coverCacheSizeMB,
+      autoMatchThreshold,
+      autoApplyHighConfidence,
+    } = req.body as {
+      metadataSourcePriority?: string[];
+      rateLimitAggressiveness?: number;
+      coverCacheSizeMB?: number;
+      autoMatchThreshold?: number;
+      autoApplyHighConfidence?: boolean;
+    };
+
+    // Update metadata settings
+    updateMetadataSettings({
+      ...(metadataSourcePriority && { sourcePriority: metadataSourcePriority as ('comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal')[] }),
+      ...(rateLimitAggressiveness !== undefined && { rateLimitLevel: rateLimitAggressiveness }),
+      ...(autoMatchThreshold !== undefined && { autoMatchThreshold }),
+      ...(autoApplyHighConfidence !== undefined && { autoApplyHighConfidence }),
+    });
+
+    // Update cache settings
+    if (coverCacheSizeMB !== undefined) {
+      updateCacheSettings({ coverCacheSizeMb: coverCacheSizeMB });
+    }
+
+    res.json({ success: true, message: 'Settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Get manga classification settings
+app.get('/api/config/manga-classification', (_req, res) => {
+  try {
+    const settings = getMangaClassificationSettings();
+    res.json(settings);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Update manga classification settings
+app.put('/api/config/manga-classification', (req, res) => {
+  try {
+    const { enabled, volumePageThreshold, filenameOverridesPageCount } = req.body as {
+      enabled?: boolean;
+      volumePageThreshold?: number;
+      filenameOverridesPageCount?: boolean;
+    };
+
+    updateMangaClassificationSettings({
+      ...(enabled !== undefined && { enabled }),
+      ...(volumePageThreshold !== undefined && { volumePageThreshold }),
+      ...(filenameOverridesPageCount !== undefined && { filenameOverridesPageCount }),
+    });
+
+    res.json({ success: true, message: 'Manga classification settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // Update full config
 app.put('/api/config', (req, res) => {
   try {
@@ -255,6 +333,7 @@ app.use('/api/metadata-jobs', metadataJobRoutes);
 app.use('/api/cache', cacheRoutes);
 app.use('/api/reading-progress', readingProgressRoutes);
 app.use('/api/reader-settings', readerSettingsRoutes);
+app.use('/api/reader-presets', readerPresetRoutes);
 app.use('/api/reading-queue', readingQueueRoutes);
 app.use('/api/reading-history', readingHistoryRoutes);
 app.use('/api/auth', authRoutes);
@@ -269,6 +348,8 @@ app.use('/api/achievements', achievementsRoutes);
 app.use('/api/description', descriptionRoutes);
 app.use('/api/tags', tagsRoutes);
 app.use('/api/collections', collectionsRoutes);
+app.use('/api/libraries', libraryScanRoutes);  // Library scan routes (mounted on /api/libraries for /scan/full endpoints)
+app.use('/api/factory-reset', factoryResetRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -309,6 +390,10 @@ async function startServer(): Promise<void> {
     console.log('Initializing system collections...');
     await ensureSystemCollections();
 
+    // Ensure bundled reader presets exist (Western, Manga, Webtoon)
+    console.log('Initializing reader presets...');
+    await ensureBundledPresets();
+
     // Startup tasks
     console.log('Running startup tasks...');
     const interruptedBatches = await markInterruptedBatches();
@@ -326,6 +411,10 @@ async function startServer(): Promise<void> {
 
     // Recover interrupted metadata jobs
     await recoverInterruptedJobs();
+
+    // Initialize library scan queue and recover interrupted scans
+    await initializeScanQueue();
+    await cleanupOldScanJobs();
 
     // Start stats scheduler for background stat computation
     startStatsScheduler();

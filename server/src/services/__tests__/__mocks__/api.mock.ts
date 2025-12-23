@@ -283,7 +283,7 @@ export function createMockIssueMetadata(
     characters: ['Batman', 'James Gordon', 'Dick Grayson'],
     teams: ['Bat-Family'],
     locations: ['Gotham City', 'Wayne Manor'],
-    storyArcs: ['Court of Owls'],
+    storyArc: 'Court of Owls',
     ...overrides,
   };
 }

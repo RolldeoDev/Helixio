@@ -910,7 +910,7 @@ router.get('/series-full/:source/:sourceId', async (req: Request, res: Response)
       return;
     }
 
-    const validSources: MetadataSource[] = ['comicvine', 'metron'];
+    const validSources: MetadataSource[] = ['comicvine', 'metron', 'gcd', 'anilist', 'mal'];
     if (!validSources.includes(source as MetadataSource)) {
       res.status(400).json({
         error: 'Invalid source',

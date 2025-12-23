@@ -58,6 +58,7 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
     sortOrder,
     statusFilter,
     selectedLibrary,
+    isAllLibraries,
     selectFile,
     selectRange,
     selectAllFiles,
@@ -284,7 +285,7 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
     if (contextMenu) closeContextMenu();
   };
 
-  if (!selectedLibrary) {
+  if (!selectedLibrary && !isAllLibraries) {
     return (
       <div className="file-list-empty">
         <div className="empty-state">

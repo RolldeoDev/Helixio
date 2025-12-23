@@ -1,7 +1,7 @@
 // Theme System Type Definitions
 
 export type ColorScheme = 'light' | 'dark';
-export type ThemeId = 'default' | 'dc' | 'marvel' | 'sandman' | 'synthwave' | 'retro' | 'manga' | string; // string for external themes
+export type ThemeId = 'default' | 'collectors' | 'dc' | 'marvel' | 'sandman' | 'synthwave' | 'retro' | 'manga' | string; // string for external themes
 export type ThemeKey = `${ThemeId}-${ColorScheme}`;
 
 // Effect toggle definition - declared by each theme

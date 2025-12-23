@@ -17,12 +17,16 @@ const SOURCE_LABELS: Record<MetadataSource, string> = {
   comicvine: 'ComicVine',
   metron: 'Metron',
   gcd: 'GCD',
+  anilist: 'AniList',
+  mal: 'MAL',
 };
 
 const SOURCE_COLORS: Record<MetadataSource, string> = {
   comicvine: '#f05050',
   metron: '#4a90d9',
   gcd: '#4caf50',
+  anilist: '#02a9ff',
+  mal: '#4e74c9',
 };
 
 // Field definition type
@@ -284,6 +288,7 @@ export function IssueEditDrawer({
         proposed: original?.proposed ?? null,
         approved: original?.approved ?? false,
         edited: true,
+        // Preserve null values (user cleared field) - convert null to undefined for type safety
         editedValue: pending.editedValue ?? undefined,
       };
     }

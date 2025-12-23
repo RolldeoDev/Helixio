@@ -14,6 +14,8 @@ import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
+import { checkAndSoftDeleteEmptySeries, restoreSeries } from './series.service.js';
+import { markFileItemsUnavailable } from './collection.service.js';
 
 // Supported comic file extensions
 const COMIC_EXTENSIONS = new Set(['.cbz', '.cbr']);
@@ -41,6 +43,7 @@ export interface ScanResult {
   newFiles: DiscoveredFile[];
   movedFiles: Array<{ oldPath: string; newPath: string; fileId: string }>;
   orphanedFiles: Array<{ path: string; fileId: string }>;
+  existingOrphanedCount: number; // Files already marked as orphaned that will be deleted
   unchangedFiles: number;
   errors: Array<{ path: string; error: string }>;
   scanDuration: number;
@@ -206,6 +209,11 @@ export async function scanLibrary(libraryId: string): Promise<ScanResult> {
 
   const scanDuration = Date.now() - startTime;
 
+  // Count files already marked as orphaned from previous scans (will be deleted on apply)
+  const existingOrphanedCount = await db.comicFile.count({
+    where: { libraryId, status: 'orphaned' },
+  });
+
   return {
     libraryId,
     libraryPath: library.rootPath,
@@ -213,6 +221,7 @@ export async function scanLibrary(libraryId: string): Promise<ScanResult> {
     newFiles,
     movedFiles,
     orphanedFiles,
+    existingOrphanedCount,
     unchangedFiles,
     errors,
     scanDuration,
@@ -273,15 +282,76 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
     moved++;
   }
 
-  // Mark orphaned files
+  // DELETE orphaned files and track affected series for soft-delete check
+  const affectedSeriesIds = new Set<string>();
+
   for (const orphan of scanResult.orphanedFiles) {
-    await db.comicFile.update({
+    // Get the file to find its seriesId before deletion
+    const file = await db.comicFile.findUnique({
       where: { id: orphan.fileId },
-      data: {
-        status: 'orphaned',
-      },
+      select: { seriesId: true, id: true },
     });
+
+    if (file?.seriesId) {
+      affectedSeriesIds.add(file.seriesId);
+    }
+
+    // Mark any collection items referencing this file as unavailable
+    await markFileItemsUnavailable(orphan.fileId);
+
+    // DELETE the ComicFile record (cascades to FileMetadata, ReadingProgress, etc.)
+    await db.comicFile.delete({
+      where: { id: orphan.fileId },
+    });
+
     orphaned++;
+  }
+
+  // Check affected series for soft-delete (series with 0 issues)
+  for (const seriesId of affectedSeriesIds) {
+    try {
+      const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
+      if (wasDeleted) {
+        console.log(`Soft-deleted empty series: ${seriesId}`);
+      }
+    } catch (err) {
+      console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+    }
+  }
+
+  // Also clean up any files already marked as 'orphaned' from previous scans
+  const existingOrphanedFiles = await db.comicFile.findMany({
+    where: { libraryId: scanResult.libraryId, status: 'orphaned' },
+    select: { id: true, seriesId: true },
+  });
+
+  if (existingOrphanedFiles.length > 0) {
+    console.log(`Cleaning up ${existingOrphanedFiles.length} previously orphaned files`);
+
+    for (const file of existingOrphanedFiles) {
+      if (file.seriesId) {
+        affectedSeriesIds.add(file.seriesId);
+      }
+
+      // Mark collection items as unavailable
+      await markFileItemsUnavailable(file.id);
+
+      // Delete the file record
+      await db.comicFile.delete({
+        where: { id: file.id },
+      });
+
+      orphaned++;
+    }
+
+    // Check newly affected series for soft-delete
+    for (const seriesId of affectedSeriesIds) {
+      try {
+        await checkAndSoftDeleteEmptySeries(seriesId);
+      } catch (err) {
+        console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+      }
+    }
   }
 
   // Trigger cache generation for new files (covers and thumbnails)

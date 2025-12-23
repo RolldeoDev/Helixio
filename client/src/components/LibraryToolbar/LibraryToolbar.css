@@ -220,6 +220,23 @@
   border-color: rgba(255, 255, 255, 0.15);
 }
 
+/* Group button */
+.group-btn.open {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.group-btn.active {
+  background: rgba(140, 180, 255, 0.1);
+  border-color: rgba(140, 180, 255, 0.2);
+  color: rgb(180, 210, 255);
+}
+
+.group-btn.active svg {
+  color: rgb(140, 180, 255);
+  opacity: 1;
+}
+
 /* =============================================================================
    Sort Dropdown
    ============================================================================= */

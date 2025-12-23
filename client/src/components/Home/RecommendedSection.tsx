@@ -25,6 +25,7 @@ import {
 interface RecommendedSectionProps {
   libraryId?: string;
   onItemClick?: (fileId: string) => void;
+  onItemsChange?: () => void;
 }
 
 // =============================================================================
@@ -62,6 +63,7 @@ function toCardItem(rec: ComicRecommendation): ComicCarouselItem {
 export function RecommendedSection({
   libraryId,
   onItemClick,
+  onItemsChange,
 }: RecommendedSectionProps) {
   const [recommendations, setRecommendations] = useState<RecommendationsResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -195,6 +197,7 @@ export function RecommendedSection({
           <ComicCarousel
             items={recommendations!.seriesFromHistory.map(toCardItem)}
             onItemClick={onItemClick}
+            onItemsChange={onItemsChange}
           />
         </section>
       )}
@@ -210,6 +213,7 @@ export function RecommendedSection({
           <ComicCarousel
             items={recommendations!.samePublisherGenre.map(toCardItem)}
             onItemClick={onItemClick}
+            onItemsChange={onItemsChange}
           />
         </section>
       )}
@@ -225,6 +229,7 @@ export function RecommendedSection({
           <ComicCarousel
             items={recommendations!.recentlyAdded.map(toCardItem)}
             onItemClick={onItemClick}
+            onItemsChange={onItemsChange}
           />
         </section>
       )}

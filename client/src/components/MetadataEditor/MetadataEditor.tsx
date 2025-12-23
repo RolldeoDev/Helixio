@@ -2,7 +2,7 @@
  * MetadataEditor Component
  *
  * Edit ComicInfo.xml metadata for single or multiple files.
- * Supports single file editing and batch editing mode.
+ * Uses BatchMetadataEditor for multi-file editing.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -19,6 +19,7 @@ import {
 import { IssueCoverPicker } from '../IssueCoverPicker';
 import { DescriptionGenerator } from '../DescriptionGenerator';
 import { SimpleTagInput } from './SimpleTagInput';
+import { BatchMetadataEditor } from './BatchMetadataEditor';
 
 interface MetadataEditorProps {
   fileIds: string[];
@@ -63,27 +64,23 @@ const EDITABLE_FIELDS: FieldConfig[] = [
 ];
 
 export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: MetadataEditorProps) {
+  // Use the redesigned BatchMetadataEditor for multiple files
+  if (fileIds.length > 1) {
+    return <BatchMetadataEditor fileIds={fileIds} onClose={onClose} onSave={onSave} />;
+  }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<ComicInfo>({});
   const [originalMetadata, setOriginalMetadata] = useState<ComicInfo>({});
   const [filename, setFilename] = useState<string>('');
-  const [batchFields, setBatchFields] = useState<Set<EditableField>>(new Set());
   const [coverInfo, setCoverInfo] = useState<FileCoverInfo | null>(null);
   const [coverKey, setCoverKey] = useState(0);
   const [isEditingCover, setIsEditingCover] = useState(false);
-  const [batchProgress, setBatchProgress] = useState<{
-    current: number;
-    total: number;
-    failed: string[];
-  } | null>(null);
 
-  const isBatchMode = fileIds.length > 1;
-
-  // Load metadata and cover info for single file mode
+  // Load metadata and cover info
   useEffect(() => {
-    if (!isBatchMode && fileIds[0]) {
+    if (fileIds[0]) {
       setLoading(true);
       setError(null);
 
@@ -108,7 +105,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
     } else {
       setLoading(false);
     }
-  }, [fileIds, isBatchMode]);
+  }, [fileIds]);
 
   const handleFieldChange = (field: EditableField, value: string | number | undefined) => {
     setMetadata((prev) => ({
@@ -117,22 +114,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
     }));
   };
 
-  const handleBatchFieldToggle = (field: EditableField) => {
-    setBatchFields((prev) => {
-      const next = new Set(prev);
-      if (next.has(field)) {
-        next.delete(field);
-      } else {
-        next.add(field);
-      }
-      return next;
-    });
-  };
-
   const hasChanges = () => {
-    if (isBatchMode) {
-      return batchFields.size > 0;
-    }
     return JSON.stringify(metadata) !== JSON.stringify(originalMetadata);
   };
 
@@ -143,40 +125,13 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
     setError(null);
 
     try {
-      if (isBatchMode) {
-        // Batch update: only update selected fields
-        const updates: Partial<ComicInfo> = {};
-        batchFields.forEach((field) => {
-          (updates as Record<string, unknown>)[field] = metadata[field];
-        });
-
-        const failed: string[] = [];
-        for (let i = 0; i < fileIds.length; i++) {
-          const fileId = fileIds[i]!;
-          setBatchProgress({ current: i + 1, total: fileIds.length, failed: [...failed] });
-          try {
-            await updateComicInfo(fileId, updates);
-          } catch {
-            failed.push(fileId);
-          }
+      const changes: Partial<ComicInfo> = {};
+      for (const key of Object.keys(metadata) as EditableField[]) {
+        if (metadata[key] !== originalMetadata[key]) {
+          (changes as Record<string, unknown>)[key] = metadata[key];
         }
-        setBatchProgress(null);
-
-        if (failed.length > 0) {
-          setError(`Failed to update ${failed.length} of ${fileIds.length} files`);
-          setSaving(false);
-          return; // Don't close modal if there were failures
-        }
-      } else {
-        // Single file update: send all changed fields
-        const changes: Partial<ComicInfo> = {};
-        for (const key of Object.keys(metadata) as EditableField[]) {
-          if (metadata[key] !== originalMetadata[key]) {
-            (changes as Record<string, unknown>)[key] = metadata[key];
-          }
-        }
-        await updateComicInfo(fileIds[0]!, changes);
       }
+      await updateComicInfo(fileIds[0]!, changes);
 
       onSave?.();
       onClose?.();
@@ -189,7 +144,6 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
 
   const handleReset = () => {
     setMetadata(originalMetadata);
-    setBatchFields(new Set());
   };
 
   // Handle cover change from the picker
@@ -229,11 +183,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
   return (
     <div className="metadata-editor">
       <div className="metadata-editor-header">
-        <h2>
-          {isBatchMode
-            ? `Edit ${fileIds.length} Files`
-            : 'Edit Metadata'}
-        </h2>
+        <h2>Edit Metadata</h2>
         {onClose && (
           <button className="btn-icon" onClick={onClose} title="Close">
             ✕
@@ -243,18 +193,9 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
 
       {error && <div className="error-message">{error}</div>}
 
-      {isBatchMode && (
-        <div className="batch-mode-notice">
-          <p>
-            Select the fields you want to update. Only checked fields will be
-            modified across all {fileIds.length} files.
-          </p>
-        </div>
-      )}
-
       <div className="metadata-editor-content">
-        {/* Cover Preview and Editor (single file mode) */}
-        {!isBatchMode && fileIds[0] && (
+        {/* Cover Preview and Editor */}
+        {fileIds[0] && (
           <div className="metadata-cover-section">
             <div className="metadata-cover-preview">
               <img
@@ -293,14 +234,6 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
               key={key}
               className={`form-field ${type === 'textarea' ? 'full-width' : ''}`}
             >
-              {isBatchMode && (
-                <input
-                  type="checkbox"
-                  checked={batchFields.has(key)}
-                  onChange={() => handleBatchFieldToggle(key)}
-                  className="batch-checkbox"
-                />
-              )}
               <label htmlFor={`field-${key}`}>{label}</label>
               {type === 'textarea' ? (
                 <>
@@ -308,11 +241,10 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
                     id={`field-${key}`}
                     value={metadata[key] as string || ''}
                     onChange={(e) => handleFieldChange(key, e.target.value)}
-                    disabled={isBatchMode && !batchFields.has(key)}
                     rows={3}
                   />
                   {/* Show Generate Description under Summary field */}
-                  {key === 'Summary' && !isBatchMode && fileIds[0] && (
+                  {key === 'Summary' && fileIds[0] && (
                     <DescriptionGenerator
                       type="issue"
                       entityId={fileIds[0]}
@@ -336,14 +268,12 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
                       e.target.value ? parseInt(e.target.value, 10) : undefined
                     )
                   }
-                  disabled={isBatchMode && !batchFields.has(key)}
                 />
               ) : type === 'tag' ? (
                 <SimpleTagInput
                   id={`field-${key}`}
                   value={metadata[key] as string || ''}
                   onChange={(value) => handleFieldChange(key, value || undefined)}
-                  disabled={isBatchMode && !batchFields.has(key)}
                   autocompleteField={autocompleteField}
                   placeholder={`Add ${label.toLowerCase()}...`}
                 />
@@ -353,7 +283,6 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
                   type="text"
                   value={metadata[key] as string || ''}
                   onChange={(e) => handleFieldChange(key, e.target.value)}
-                  disabled={isBatchMode && !batchFields.has(key)}
                 />
               )}
             </div>
@@ -369,20 +298,6 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
         >
           Reset
         </button>
-        {batchProgress && (
-          <div className="batch-progress">
-            <div className="progress-bar">
-              <div
-                className="progress-fill"
-                style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
-              />
-            </div>
-            <span className="progress-text">
-              Updating {batchProgress.current} of {batchProgress.total}...
-              {batchProgress.failed.length > 0 && ` (${batchProgress.failed.length} failed)`}
-            </span>
-          </div>
-        )}
         <div className="footer-right">
           {onClose && (
             <button
@@ -398,7 +313,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
             onClick={handleSave}
             disabled={saving || !hasChanges()}
           >
-            {saving ? 'Saving...' : isBatchMode ? `Update ${fileIds.length} Files` : 'Save'}
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </div>

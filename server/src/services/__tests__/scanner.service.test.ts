@@ -105,8 +105,8 @@ describe('Scanner Service', () => {
       const result = await discoverFiles('/comics');
 
       expect(result.files).toHaveLength(2);
-      expect(result.files[0].filename).toBe('Batman 001.cbz');
-      expect(result.files[1].filename).toBe('Batman 002.cbz');
+      expect(result.files[0]!.filename).toBe('Batman 001.cbz');
+      expect(result.files[1]!.filename).toBe('Batman 002.cbz');
       expect(result.errors).toHaveLength(0);
     });
 
@@ -118,7 +118,7 @@ describe('Scanner Service', () => {
       const result = await discoverFiles('/comics');
 
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].extension).toBe('cbr');
+      expect(result.files[0]!.extension).toBe('cbr');
     });
 
     it('should discover files in nested directories', async () => {
@@ -147,7 +147,7 @@ describe('Scanner Service', () => {
       const result = await discoverFiles('/comics');
 
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].filename).toBe('Batman 001.cbz');
+      expect(result.files[0]!.filename).toBe('Batman 001.cbz');
     });
 
     it('should ignore non-comic files', async () => {
@@ -161,7 +161,7 @@ describe('Scanner Service', () => {
       const result = await discoverFiles('/comics');
 
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].filename).toBe('Batman 001.cbz');
+      expect(result.files[0]!.filename).toBe('Batman 001.cbz');
     });
 
     it('should report errors for inaccessible paths', async () => {
@@ -185,7 +185,7 @@ describe('Scanner Service', () => {
 
       expect(result.files).toHaveLength(1);
       // Size comes from getFileInfo mock, not the virtual file
-      expect(result.files[0].size).toBe(50000000);
+      expect(result.files[0]!.size).toBe(50000000);
     });
 
     it('should correctly extract relative paths', async () => {
@@ -196,8 +196,8 @@ describe('Scanner Service', () => {
       const result = await discoverFiles('/library/comics');
 
       expect(result.files).toHaveLength(1);
-      expect(result.files[0].relativePath).toBe('DC/Batman/Batman 001.cbz');
-      expect(result.files[0].path).toBe('/library/comics/DC/Batman/Batman 001.cbz');
+      expect(result.files[0]!.relativePath).toBe('DC/Batman/Batman 001.cbz');
+      expect(result.files[0]!.path).toBe('/library/comics/DC/Batman/Batman 001.cbz');
     });
   });
 
@@ -249,7 +249,7 @@ describe('Scanner Service', () => {
       const result = await scanLibrary('lib-1');
 
       expect(result.orphanedFiles).toHaveLength(1);
-      expect(result.orphanedFiles[0].path).toBe('/comics/OldFile.cbz');
+      expect(result.orphanedFiles[0]!.path).toBe('/comics/OldFile.cbz');
     });
 
     it('should detect unchanged files', async () => {
@@ -311,6 +311,7 @@ describe('Scanner Service', () => {
         ],
         movedFiles: [],
         orphanedFiles: [],
+        existingOrphanedCount: 0,
         unchangedFiles: 0,
         errors: [],
         scanDuration: 100,
@@ -336,6 +337,7 @@ describe('Scanner Service', () => {
           },
         ],
         orphanedFiles: [],
+        existingOrphanedCount: 0,
         unchangedFiles: 0,
         errors: [],
         scanDuration: 100,
@@ -354,7 +356,13 @@ describe('Scanner Service', () => {
       expect(result.moved).toBe(1);
     });
 
-    it('should mark orphaned files in database', async () => {
+    it('should delete orphaned files from database', async () => {
+      // Mock the file lookup before deletion (to get seriesId)
+      mockDb.comicFile.findUnique.mockResolvedValue({
+        id: 'file-orphan',
+        seriesId: null,
+      });
+
       const scanResult = {
         libraryId: 'lib-1',
         libraryPath: '/comics',
@@ -364,6 +372,7 @@ describe('Scanner Service', () => {
         orphanedFiles: [
           { path: '/comics/Deleted.cbz', fileId: 'file-orphan' },
         ],
+        existingOrphanedCount: 0,
         unchangedFiles: 0,
         errors: [],
         scanDuration: 100,
@@ -371,12 +380,10 @@ describe('Scanner Service', () => {
 
       const result = await applyScanResults(scanResult);
 
-      expect(mockDb.comicFile.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'file-orphan' },
-          data: { status: 'orphaned' },
-        })
-      );
+      // Orphaned files should be DELETED, not just marked as orphaned
+      expect(mockDb.comicFile.delete).toHaveBeenCalledWith({
+        where: { id: 'file-orphan' },
+      });
       expect(result.orphaned).toBe(1);
     });
   });

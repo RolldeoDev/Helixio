@@ -1,11 +1,15 @@
 /**
- * useCoverImage Hook
+ * useCoverImage Hook - Chrome Performance Optimized
  *
- * Handles cover image loading with blur-up effect.
- * Fetches blur placeholder from X-Blur-Placeholder header for instant perceived load.
+ * Handles cover image loading with batched IntersectionObserver callbacks.
+ *
+ * Chrome-specific optimizations:
+ * - Batched visibility updates via requestIdleCallback/setTimeout
+ * - Single global IntersectionObserver for all images
+ * - No image loading during rapid scroll (visibility updates are debounced)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCoverUrl } from '../../services/api.service';
 import type { CoverImageStatus } from './types';
 
@@ -17,10 +21,12 @@ interface UseCoverImageOptions {
 interface UseCoverImageReturn {
   /** Current loading status */
   status: CoverImageStatus;
-  /** Tiny blur placeholder data URL */
-  blurPlaceholder: string | null;
-  /** Full cover image URL */
+  /** Whether the image is in/near viewport */
+  isInView: boolean;
+  /** Full cover image URL (empty until in view) */
   coverUrl: string;
+  /** Ref to attach to container for intersection observation */
+  containerRef: React.RefObject<HTMLDivElement>;
   /** Handle image load success */
   handleLoad: () => void;
   /** Handle image load error */
@@ -29,59 +35,120 @@ interface UseCoverImageReturn {
   handleRetry: (e?: React.MouseEvent) => void;
 }
 
+// =============================================================================
+// Batched IntersectionObserver
+// Collects visibility changes and applies them in batches during idle time
+// =============================================================================
+
+let globalObserver: IntersectionObserver | null = null;
+const pendingUpdates = new Map<Element, () => void>();
+let batchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Process pending visibility updates in a batch
+function processBatch() {
+  // Copy and clear pending updates
+  const updates = Array.from(pendingUpdates.values());
+  pendingUpdates.clear();
+  batchTimeout = null;
+
+  // Apply all updates in one go
+  updates.forEach((callback) => callback());
+}
+
+// Schedule batch processing
+function scheduleBatch() {
+  if (batchTimeout !== null) return; // Already scheduled
+
+  // Use requestIdleCallback if available, otherwise setTimeout
+  if ('requestIdleCallback' in window) {
+    (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(
+      () => processBatch(),
+      { timeout: 100 }
+    );
+    // Set a dummy timeout to track scheduling
+    batchTimeout = setTimeout(() => {}, 100);
+  } else {
+    batchTimeout = setTimeout(processBatch, 50);
+  }
+}
+
+function getGlobalObserver(): IntersectionObserver {
+  if (!globalObserver) {
+    globalObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const callback = pendingUpdates.get(entry.target);
+            if (!callback) {
+              // Store the callback for batch processing
+              const element = entry.target;
+              const storedCallback = (element as Element & { __visibilityCallback?: () => void }).__visibilityCallback;
+              if (storedCallback) {
+                pendingUpdates.set(element, storedCallback);
+                scheduleBatch();
+              }
+            }
+            // Unobserve immediately to prevent re-triggering
+            globalObserver?.unobserve(entry.target);
+          }
+        });
+      },
+      {
+        // Larger margin for smoother preloading
+        rootMargin: '300px',
+        threshold: 0,
+      }
+    );
+  }
+  return globalObserver;
+}
+
+// =============================================================================
+// Hook
+// =============================================================================
+
 export function useCoverImage(
   fileId: string,
-  _options: UseCoverImageOptions = {}
+  options: UseCoverImageOptions = {}
 ): UseCoverImageReturn {
+  const { eager = false } = options;
+
   const [status, setStatus] = useState<CoverImageStatus>('loading');
-  const [blurPlaceholder, setBlurPlaceholder] = useState<string | null>(null);
+  const [isInView, setIsInView] = useState(eager);
   const [retryCount, setRetryCount] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Build URL with retry count to bust cache on retry
-  const coverUrl = retryCount > 0
-    ? `${getCoverUrl(fileId)}?retry=${retryCount}`
-    : getCoverUrl(fileId);
-
-  // Fetch cover with blur placeholder from header
+  // Set up IntersectionObserver for visibility detection
   useEffect(() => {
-    let cancelled = false;
+    // If eager or already in view, skip observation
+    if (eager || isInView) return;
 
-    const fetchCover = async () => {
-      try {
-        const response = await fetch(coverUrl, {
-          headers: { Accept: 'image/webp,image/jpeg,*/*' },
-        });
+    const element = containerRef.current;
+    if (!element) return;
 
-        if (cancelled) return;
+    const observer = getGlobalObserver();
 
-        if (!response.ok) {
-          setStatus('error');
-          return;
-        }
-
-        // Get blur placeholder from header
-        const placeholder = response.headers.get('X-Blur-Placeholder');
-        if (placeholder && !cancelled) {
-          setBlurPlaceholder(placeholder);
-        }
-
-        // Image will load via the img tag
-      } catch {
-        if (!cancelled) {
-          setStatus('error');
-        }
-      }
+    // Store callback on element for batch processing
+    const visibilityCallback = () => {
+      setIsInView(true);
     };
+    (element as Element & { __visibilityCallback?: () => void }).__visibilityCallback = visibilityCallback;
 
-    // Only fetch for blur placeholder on initial load
-    if (retryCount === 0 && !blurPlaceholder) {
-      fetchCover();
-    }
+    observer.observe(element);
 
     return () => {
-      cancelled = true;
+      observer.unobserve(element);
+      pendingUpdates.delete(element);
+      delete (element as Element & { __visibilityCallback?: () => void }).__visibilityCallback;
     };
-  }, [coverUrl, retryCount, blurPlaceholder]);
+  }, [eager, isInView]);
+
+  // Build URL - only when in view
+  const coverUrl = isInView
+    ? retryCount > 0
+      ? `${getCoverUrl(fileId)}?retry=${retryCount}`
+      : getCoverUrl(fileId)
+    : '';
 
   const handleLoad = useCallback(() => {
     setStatus('loaded');
@@ -96,14 +163,14 @@ export function useCoverImage(
       e.stopPropagation();
     }
     setStatus('loading');
-    setBlurPlaceholder(null);
     setRetryCount((c) => c + 1);
   }, []);
 
   return {
     status,
-    blurPlaceholder,
+    isInView,
     coverUrl,
+    containerRef,
     handleLoad,
     handleError,
     handleRetry,

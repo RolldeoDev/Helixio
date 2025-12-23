@@ -13,12 +13,13 @@ import './SortGroup.css';
 // Types
 // =============================================================================
 
-// Sort fields that map to server-supported ComicFile columns
+// Sort fields that map to server-supported ComicFile columns or metadata fields
 export type SortField =
   | 'filename'
   | 'size'
-  | 'modifiedAt'
-  | 'createdAt'
+  | 'number'
+  | 'title'
+  | 'year'
   | 'status';
 
 export type SortOrder = 'asc' | 'desc';
@@ -29,6 +30,8 @@ export type GroupField =
   | 'publisher'
   | 'year'
   | 'genre'
+  | 'writer'
+  | 'penciller'
   | 'firstLetter';
 
 export interface SortConfig {
@@ -52,9 +55,10 @@ export interface SortGroupState {
 
 export const SORT_FIELDS: { value: SortField; label: string }[] = [
   { value: 'filename', label: 'Filename' },
+  { value: 'number', label: 'Issue #' },
+  { value: 'title', label: 'Title' },
+  { value: 'year', label: 'Published Date' },
   { value: 'size', label: 'File Size' },
-  { value: 'modifiedAt', label: 'Date Modified' },
-  { value: 'createdAt', label: 'Date Added' },
   { value: 'status', label: 'Status' },
 ];
 
@@ -64,6 +68,8 @@ export const GROUP_FIELDS: { value: GroupField; label: string }[] = [
   { value: 'publisher', label: 'Publisher' },
   { value: 'year', label: 'Year' },
   { value: 'genre', label: 'Genre' },
+  { value: 'writer', label: 'Writer' },
+  { value: 'penciller', label: 'Artist' },
   { value: 'firstLetter', label: 'First Letter' },
 ];
 

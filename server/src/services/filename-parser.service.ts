@@ -404,7 +404,7 @@ export async function parseFilename(
 
   if (useLLM) {
     try {
-      return await llmParseFilename(filename, folderPath, options.sessionId);
+      return await llmParseFilename(filename, folderPath, { sessionId: options.sessionId });
     } catch (err) {
       console.error('LLM parsing failed, falling back to regex:', err);
     }

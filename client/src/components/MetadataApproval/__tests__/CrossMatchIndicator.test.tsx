@@ -101,6 +101,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'no_match',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -117,6 +119,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'no_match',
           gcd: 'no_match',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -133,6 +137,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'no_match',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -151,6 +157,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'no_match',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -173,6 +181,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -195,6 +205,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -214,6 +226,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'no_match',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -233,6 +247,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'error',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -256,6 +272,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -284,6 +302,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'no_match',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -306,6 +326,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'no_match',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -342,6 +364,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -367,6 +391,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -392,6 +418,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -419,6 +447,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -438,6 +468,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'skipped',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 
@@ -459,6 +491,8 @@ describe('CrossMatchIndicator', () => {
           comicvine: 'skipped',
           metron: 'matched',
           gcd: 'no_match',
+          anilist: 'skipped',
+          mal: 'skipped',
         }
       );
 

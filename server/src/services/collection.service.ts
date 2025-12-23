@@ -35,6 +35,7 @@ export interface CollectionItem {
   position: number;
   addedAt: Date;
   notes: string | null;
+  isAvailable: boolean; // False if referenced file/series has been deleted
   // Populated fields when fetching with relations
   series?: {
     id: string;
@@ -253,6 +254,7 @@ export async function getCollection(id: string): Promise<CollectionWithItems | n
     position: item.position,
     addedAt: item.addedAt,
     notes: item.notes,
+    isAvailable: item.isAvailable,
     series: item.seriesId ? seriesMap.get(item.seriesId) ?? undefined : undefined,
     file: item.fileId ? fileMap.get(item.fileId) ?? undefined : undefined,
   }));
@@ -419,6 +421,7 @@ export async function addItemsToCollection(
       position: newItem.position,
       addedAt: newItem.addedAt,
       notes: newItem.notes,
+      isAvailable: newItem.isAvailable,
     });
   }
 
@@ -618,4 +621,76 @@ export async function toggleSystemCollection(
     await addItemsToCollection(collection.id, [{ seriesId, fileId }]);
     return { added: true };
   }
+}
+
+// =============================================================================
+// Unavailable Items Management
+// =============================================================================
+
+/**
+ * Get count of unavailable items across all collections.
+ * Items become unavailable when their referenced file/series is deleted.
+ */
+export async function getUnavailableItemCount(): Promise<number> {
+  const db = getDatabase();
+
+  return db.collectionItem.count({
+    where: { isAvailable: false },
+  });
+}
+
+/**
+ * Remove all unavailable items from all collections.
+ * Call this to clean up orphaned collection references.
+ */
+export async function removeUnavailableItems(): Promise<number> {
+  const db = getDatabase();
+
+  const result = await db.collectionItem.deleteMany({
+    where: { isAvailable: false },
+  });
+
+  return result.count;
+}
+
+/**
+ * Mark collection items as unavailable when their referenced file is deleted.
+ */
+export async function markFileItemsUnavailable(fileId: string): Promise<number> {
+  const db = getDatabase();
+
+  const result = await db.collectionItem.updateMany({
+    where: { fileId },
+    data: { isAvailable: false },
+  });
+
+  return result.count;
+}
+
+/**
+ * Mark collection items as unavailable when their referenced series is soft-deleted.
+ */
+export async function markSeriesItemsUnavailable(seriesId: string): Promise<number> {
+  const db = getDatabase();
+
+  const result = await db.collectionItem.updateMany({
+    where: { seriesId },
+    data: { isAvailable: false },
+  });
+
+  return result.count;
+}
+
+/**
+ * Restore collection items when a series is restored from soft-delete.
+ */
+export async function restoreSeriesItems(seriesId: string): Promise<number> {
+  const db = getDatabase();
+
+  const result = await db.collectionItem.updateMany({
+    where: { seriesId },
+    data: { isAvailable: true },
+  });
+
+  return result.count;
 }

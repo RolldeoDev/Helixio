@@ -4,7 +4,11 @@
 
 .series-grid-container {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   min-height: 200px;
+  overflow: hidden;
 }
 
 /* Loading State */
@@ -54,7 +58,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-sm) var(--spacing-md);
-  margin-bottom: var(--spacing-md);
+  /* Account for fixed sidebar (sidebar width ~40px + scrollbar ~12px + gap) */
+  padding-right: 48px;
 }
 
 .series-count {
@@ -62,7 +67,7 @@
   font-size: 0.875rem;
 }
 
-/* Grid Layout */
+/* Grid Layout (non-virtualized) */
 .series-grid {
   display: grid;
   /* Use --cover-size from parent for dynamic sizing, fallback to responsive defaults */
@@ -71,8 +76,66 @@
   padding: var(--spacing-md);
 }
 
-/* Grid Item */
+/* =============================================================================
+   Virtualized Grid Layout (Performance Optimized)
+   ============================================================================= */
+
+/* Wrapper for grid content and sidebar */
+.series-grid-content-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  /* Reserve space for the fixed navigation sidebar on the right */
+  margin-right: 40px;
+}
+
+.series-grid-scroll-container {
+  /* Fill available height in flex parent */
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* top, right (before nav), bottom, left */
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-lg) var(--spacing-md);
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+
+  /* Hide scrollbar aesthetically but keep functionality */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.series-grid-scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.series-grid-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.series-grid-scroll-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.series-grid-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Disable smooth scroll during rapid scrolling */
+.series-grid-scroll-container.scrolling {
+  scroll-behavior: auto;
+}
+
+.series-grid-virtual {
+  /* Virtual container - items are positioned absolutely within */
+  width: 100%;
+}
+
+/* Virtual grid item wrapper */
 .series-grid-item {
+  /* Positioned absolutely by useVirtualGrid with explicit width/height */
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -80,6 +143,12 @@
   background: var(--color-bg-card);
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
   outline: none;
+}
+
+/* Force child cards to fill the grid item's calculated width */
+.series-grid-item > * {
+  width: 100% !important;
+  max-width: 100%;
 }
 
 .series-grid-item:hover {

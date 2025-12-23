@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../themes/ThemeContext';
 import {
   createLibrary,
   deleteLibrary,
@@ -28,6 +29,11 @@ import { TrackerSettings } from './TrackerSettings';
 import { SyncSettings } from './SyncSettings';
 import { AccountSettings } from './AccountSettings';
 import { ThemeSettings } from './ThemeSettings';
+import { ReaderPresetSettings } from './ReaderPresetSettings';
+import { HelixioLoader } from '../HelixioLoader';
+import { LibraryScanModal } from '../LibraryScanModal';
+import { useLibraryScan } from '../../contexts/LibraryScanContext';
+import { FactoryResetModal, FactoryResetSection } from '../FactoryReset';
 
 const API_BASE = '/api';
 
@@ -47,11 +53,13 @@ interface AppConfig {
   };
 }
 
-type SettingsTab = 'appearance' | 'general' | 'libraries' | 'api' | 'cache' | 'trackers' | 'sync' | 'account';
+type SettingsTab = 'appearance' | 'general' | 'libraries' | 'reader' | 'api' | 'cache' | 'trackers' | 'sync' | 'account' | 'about';
 
 export function Settings() {
   const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata } = useApp();
   const { isAuthenticated } = useAuth();
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === 'dark';
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -65,6 +73,10 @@ export function Settings() {
   const [newLibrary, setNewLibrary] = useState<{ name: string; rootPath: string; type: 'western' | 'manga' }>({ name: '', rootPath: '', type: 'western' });
   const [editingLibrary, setEditingLibrary] = useState<Library | null>(null);
   const [showFolderBrowser, setShowFolderBrowser] = useState(false);
+  const [scanningLibrary, setScanningLibrary] = useState<Library | null>(null);
+
+  // Library scan context
+  const { startScan, hasActiveScan } = useLibraryScan();
 
   // API key state
   const [comicVineKey, setComicVineKey] = useState('');
@@ -81,6 +93,11 @@ export function Settings() {
   // Cross-source matching settings
   const [autoMatchThreshold, setAutoMatchThreshold] = useState(0.95);
   const [autoApplyHighConfidence, setAutoApplyHighConfidence] = useState(true);
+
+  // Manga classification settings
+  const [mangaClassificationEnabled, setMangaClassificationEnabled] = useState(true);
+  const [volumePageThreshold, setVolumePageThreshold] = useState(60);
+  const [filenameOverridesPageCount, setFilenameOverridesPageCount] = useState(true);
 
   // Series cache state
   const [seriesCacheStats, setSeriesCacheStats] = useState<SeriesCacheStats | null>(null);
@@ -101,6 +118,9 @@ export function Settings() {
   const [fileDecisions, setFileDecisions] = useState<Record<string, 'use-metadata' | 'keep-current'>>({});
   const [processingManual, setProcessingManual] = useState(false);
   const [showAllMismatched, setShowAllMismatched] = useState(false);
+
+  // Factory reset modal state
+  const [showFactoryResetModal, setShowFactoryResetModal] = useState(false);
 
   // Load configuration
   useEffect(() => {
@@ -123,6 +143,19 @@ export function Settings() {
           if (data.settings.autoApplyHighConfidence !== undefined) {
             setAutoApplyHighConfidence(data.settings.autoApplyHighConfidence);
           }
+        }
+
+        // Load manga classification settings
+        try {
+          const mangaRes = await fetch(`${API_BASE}/config/manga-classification`);
+          if (mangaRes.ok) {
+            const mangaSettings = await mangaRes.json();
+            setMangaClassificationEnabled(mangaSettings.enabled ?? true);
+            setVolumePageThreshold(mangaSettings.volumePageThreshold ?? 60);
+            setFilenameOverridesPageCount(mangaSettings.filenameOverridesPageCount ?? true);
+          }
+        } catch {
+          // Use defaults if endpoint not available
         }
 
         // Load actual API key values (this is a local app, safe to show)
@@ -210,6 +243,7 @@ export function Settings() {
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
+      // Save general settings
       const response = await fetch(`${API_BASE}/config/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -224,6 +258,21 @@ export function Settings() {
 
       if (!response.ok) {
         throw new Error('Failed to save settings');
+      }
+
+      // Save manga classification settings
+      const mangaResponse = await fetch(`${API_BASE}/config/manga-classification`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: mangaClassificationEnabled,
+          volumePageThreshold,
+          filenameOverridesPageCount,
+        }),
+      });
+
+      if (!mangaResponse.ok) {
+        throw new Error('Failed to save manga classification settings');
       }
 
       showMessage('Settings saved successfully');
@@ -287,6 +336,17 @@ export function Settings() {
       showMessage(err instanceof Error ? err.message : 'Failed to delete library', true);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Start library scan
+  const handleScanLibrary = async (library: Library) => {
+    setScanningLibrary(library);
+    try {
+      await startScan(library.id);
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Failed to start library scan', true);
+      setScanningLibrary(null);
     }
   };
 
@@ -522,8 +582,7 @@ export function Settings() {
     return (
       <div className="settings-page">
         <div className="loading-overlay">
-          <div className="spinner" />
-          Loading settings...
+          <HelixioLoader size="md" message="Loading settings..." />
         </div>
       </div>
     );
@@ -532,7 +591,11 @@ export function Settings() {
   return (
     <div className="settings-page">
       <div className="settings-header">
-        <h1>Settings</h1>
+        <img
+          src={isDark ? '/helixioNameWhiteText.png' : '/helixioNameBlackText.png'}
+          alt="Helixio"
+          className="settings-logo"
+        />
         {config && <span className="version">v{config.version}</span>}
       </div>
 
@@ -559,6 +622,12 @@ export function Settings() {
             onClick={() => setActiveTab('libraries')}
           >
             Libraries
+          </button>
+          <button
+            className={`tab ${activeTab === 'reader' ? 'active' : ''}`}
+            onClick={() => setActiveTab('reader')}
+          >
+            Reader
           </button>
           <button
             className={`tab ${activeTab === 'api' ? 'active' : ''}`}
@@ -594,6 +663,12 @@ export function Settings() {
               </button>
             </>
           )}
+          <button
+            className={`tab ${activeTab === 'about' ? 'active' : ''}`}
+            onClick={() => setActiveTab('about')}
+          >
+            About
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -703,6 +778,68 @@ export function Settings() {
                   Disable this to review all cross-source matches manually.
                 </p>
               </div>
+
+              <h3 className="settings-subheader" style={{ marginTop: '2rem' }}>Manga File Classification</h3>
+              <p className="setting-description">
+                Smart classification of manga files as chapters or volumes based on page count and filename analysis.
+                This applies during the metadata approval workflow.
+              </p>
+
+              <div className="setting-group checkbox-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={mangaClassificationEnabled}
+                    onChange={(e) => setMangaClassificationEnabled(e.target.checked)}
+                  />
+                  <span className="checkbox-text">Enable smart chapter/volume classification</span>
+                </label>
+                <p className="setting-description">
+                  Automatically classify manga files during metadata approval.
+                  Files with fewer than {volumePageThreshold} pages are classified as chapters,
+                  while files with more pages are classified as volumes.
+                </p>
+              </div>
+
+              {mangaClassificationEnabled && (
+                <>
+                  <div className="setting-group">
+                    <label htmlFor="volumeThreshold">Volume Page Threshold</label>
+                    <p className="setting-description">
+                      Page count at which files are classified as volumes instead of chapters.
+                      Files with fewer pages are chapters, files with more are volumes.
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <input
+                        id="volumeThreshold"
+                        type="range"
+                        min="30"
+                        max="200"
+                        step="10"
+                        value={volumePageThreshold}
+                        onChange={(e) => setVolumePageThreshold(parseInt(e.target.value, 10))}
+                        style={{ flex: 1 }}
+                      />
+                      <span className="range-value" style={{ minWidth: '60px' }}>{volumePageThreshold} pages</span>
+                    </div>
+                  </div>
+
+                  <div className="setting-group checkbox-group">
+                    <label className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={filenameOverridesPageCount}
+                        onChange={(e) => setFilenameOverridesPageCount(e.target.checked)}
+                      />
+                      <span className="checkbox-text">Filename type overrides page count</span>
+                    </label>
+                    <p className="setting-description">
+                      When enabled, explicit type indicators in filenames (e.g., "Vol 5", "Ch 12")
+                      take precedence over page count-based classification.
+                    </p>
+                  </div>
+                </>
+              )}
 
               <button
                 className="btn-primary"
@@ -967,6 +1104,9 @@ export function Settings() {
                   </div>
                 )}
               </div>
+
+              {/* Danger Zone - Factory Reset */}
+              <FactoryResetSection onShowModal={() => setShowFactoryResetModal(true)} />
             </div>
           )}
 
@@ -1023,6 +1163,14 @@ export function Settings() {
                             onClick={() => setEditingLibrary(library)}
                           >
                             Edit
+                          </button>
+                          <button
+                            className="btn-ghost"
+                            onClick={() => handleScanLibrary(library)}
+                            disabled={hasActiveScan(library.id)}
+                            title={hasActiveScan(library.id) ? 'Scan in progress' : 'Full library scan'}
+                          >
+                            {hasActiveScan(library.id) ? 'Scanning...' : 'Scan'}
                           </button>
                           <button
                             className="btn-ghost danger"
@@ -1102,6 +1250,22 @@ export function Settings() {
                 onSelect={(path) => setNewLibrary({ ...newLibrary, rootPath: path })}
                 initialPath={newLibrary.rootPath}
               />
+
+              {/* Library Scan Modal */}
+              {scanningLibrary && (
+                <LibraryScanModal
+                  libraryId={scanningLibrary.id}
+                  libraryName={scanningLibrary.name}
+                  onClose={() => setScanningLibrary(null)}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Reader Settings */}
+          {activeTab === 'reader' && (
+            <div className="settings-section">
+              <ReaderPresetSettings />
             </div>
           )}
 
@@ -1330,8 +1494,71 @@ export function Settings() {
           {activeTab === 'account' && (
             <AccountSettings />
           )}
+
+          {/* About Helixio */}
+          {activeTab === 'about' && (
+            <div className="settings-section about-section">
+              <div className="about-header">
+                <img
+                  src="/helixioHighFidelityLogo.png"
+                  alt="Helixio"
+                  className="about-logo"
+                />
+                <div className="about-title-group">
+                  <h2>Helixio</h2>
+                  {config && <span className="about-version">Version {config.version}</span>}
+                </div>
+              </div>
+
+              <div className="about-description">
+                <p>
+                  <strong>Helixio</strong> is a local web-based comic book collection management tool.
+                  It helps you organize, catalog, and maintain your digital comic book library.
+                </p>
+              </div>
+
+              <div className="about-features">
+                <h3>Features</h3>
+                <ul>
+                  <li>Scan and index CBR/CBZ comic archives</li>
+                  <li>Fetch metadata from ComicVine and Metron</li>
+                  <li>Auto-detect series and group issues</li>
+                  <li>Convert CBR to CBZ format</li>
+                  <li>Read and write ComicInfo.xml metadata</li>
+                  <li>Track reading progress and statistics</li>
+                  <li>Customizable themes and appearance</li>
+                </ul>
+              </div>
+
+              <div className="about-links">
+                <a
+                  href="https://github.com/your-repo/helixio"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="about-link"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                  </svg>
+                  View on GitHub
+                </a>
+              </div>
+
+              <div className="about-credits">
+                <p className="about-made-with">
+                  Made with care for comic book collectors everywhere.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Factory Reset Modal */}
+      <FactoryResetModal
+        isOpen={showFactoryResetModal}
+        onClose={() => setShowFactoryResetModal(false)}
+      />
     </div>
   );
 }

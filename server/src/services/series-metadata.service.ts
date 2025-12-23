@@ -123,8 +123,8 @@ export interface FolderMetadata {
  * Stores the essential fields needed to recreate a SeriesMatch.
  */
 export interface CachedSeriesMatch {
-  /** The data source: comicvine, metron, or gcd */
-  source: 'comicvine' | 'metron' | 'gcd';
+  /** The data source: comicvine, metron, gcd, anilist, or mal */
+  source: 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
   /** Source-specific ID */
   sourceId: string;
   /** Series name */

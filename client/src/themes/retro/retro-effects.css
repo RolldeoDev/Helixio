@@ -494,6 +494,44 @@
   color: var(--retro-bg-dark);
 }
 
+/* Navigation Sidebar - Keep compact for proper letter fitting */
+:root[data-theme="retro-dark"] .navigation-sidebar .nav-marker,
+:root[data-theme="retro-light"] .navigation-sidebar .nav-marker {
+  border: none;
+  box-shadow: none;
+  border-radius: 2px;
+  font-family: 'VT323', monospace;
+  font-size: 0.875rem;
+  padding: 2px 4px;
+}
+
+:root[data-theme="retro-dark"] .navigation-sidebar .nav-marker:hover,
+:root[data-theme="retro-light"] .navigation-sidebar .nav-marker:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--retro-bg-light);
+}
+
+:root[data-theme="retro-dark"] .navigation-sidebar .nav-marker:active,
+:root[data-theme="retro-light"] .navigation-sidebar .nav-marker:active {
+  transform: none;
+  box-shadow: none;
+}
+
+:root[data-theme="retro-dark"] .navigation-sidebar .nav-marker.active,
+:root[data-theme="retro-light"] .navigation-sidebar .nav-marker.active {
+  background: var(--retro-yellow);
+  color: var(--retro-bg-dark);
+}
+
+:root[data-theme="retro-dark"] .navigation-sidebar,
+:root[data-theme="retro-light"] .navigation-sidebar {
+  border: 3px solid var(--retro-bg-light);
+  border-right: none;
+  border-radius: 0;
+  box-shadow: -4px 0 0 rgba(0, 0, 0, 0.4);
+}
+
 /* Links */
 :root[data-theme^="retro"] a {
   color: var(--retro-blue);

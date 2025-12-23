@@ -13,6 +13,7 @@ import {
   restoreSession,
   deleteSession,
   searchSeriesCustom,
+  loadMoreSeriesResults,
   approveSeries,
   skipSeries,
   getAvailableIssuesForFile,
@@ -554,6 +555,36 @@ export async function jobSearchSeriesCustom(
 }
 
 /**
+ * Load more search results for current series (wrapper)
+ * @param jobId - The job ID
+ */
+export async function jobLoadMoreSeriesResults(
+  jobId: string
+): Promise<SeriesMatch[]> {
+  const job = await getJob(jobId);
+  if (!job?.session) throw new Error('Job session not found');
+
+  // Extend job expiration on user activity
+  await touchJob(jobId);
+
+  // Ensure session is in memory before operating
+  ensureSessionInMemory(job);
+
+  const results = await loadMoreSeriesResults(job.session.id);
+
+  // Sync session state
+  const updatedSession = getSession(job.session.id);
+  if (updatedSession) {
+    activeJobs.set(jobId, updatedSession);
+    await syncSessionToDb(jobId, updatedSession);
+  }
+
+  await addJobLog(jobId, 'series_approval', `Loaded more results`, `${results.length} additional results`);
+
+  return results;
+}
+
+/**
  * Approve series (wrapper)
  */
 export async function jobApproveSeries(
@@ -702,7 +733,7 @@ export async function jobGetAvailableIssuesForFile(
   fileId: string
 ): Promise<{
   seriesName: string;
-  source: 'comicvine' | 'metron' | 'gcd';
+  source: 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
   sourceId: string;
   issues: Awaited<ReturnType<typeof getAvailableIssuesForFile>>['issues'];
   totalCount: number;
@@ -723,7 +754,7 @@ export async function jobGetAvailableIssuesForFile(
 export async function jobManualSelectIssue(
   jobId: string,
   fileId: string,
-  issueSource: 'comicvine' | 'metron' | 'gcd',
+  issueSource: 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal',
   issueId: string
 ): Promise<FileChange> {
   const job = await getJob(jobId);

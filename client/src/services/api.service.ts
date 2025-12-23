@@ -60,6 +60,7 @@ export interface ComicFile {
   modifiedAt: string;
   createdAt: string;
   updatedAt: string;
+  seriesId?: string | null;
   metadata?: FileMetadata | null;
 }
 
@@ -80,6 +81,12 @@ export interface FileMetadata {
   teams: string | null;
   locations: string | null;
   storyArc: string | null;
+  format: string | null;
+  pageCount: number | null;
+  // Manga classification fields
+  contentType: string | null; // "chapter" | "volume" | "extra" | "omake" | "bonus"
+  parsedVolume: string | null; // Volume number from filename (e.g., "5" from v5c12)
+  parsedChapter: string | null; // Chapter number from filename (e.g., "12" from v5c12)
 }
 
 export interface ScanSummary {
@@ -251,10 +258,12 @@ export async function discardScan(
 export interface GetFilesParams {
   page?: number;
   limit?: number;
+  all?: boolean;  // When true, fetch all items without pagination
   status?: string;
   folder?: string;
   sort?: string;
   order?: 'asc' | 'desc';
+  groupBy?: string;
 }
 
 export async function getLibraryFiles(
@@ -262,12 +271,14 @@ export async function getLibraryFiles(
   params: GetFilesParams = {}
 ): Promise<PaginatedResponse<ComicFile>> {
   const searchParams = new URLSearchParams();
+  if (params.all) searchParams.set('all', 'true');
   if (params.page) searchParams.set('page', params.page.toString());
   if (params.limit) searchParams.set('limit', params.limit.toString());
   if (params.status) searchParams.set('status', params.status);
   if (params.folder) searchParams.set('folder', params.folder);
   if (params.sort) searchParams.set('sort', params.sort);
   if (params.order) searchParams.set('order', params.order);
+  if (params.groupBy && params.groupBy !== 'none') searchParams.set('groupBy', params.groupBy);
 
   const query = searchParams.toString();
   return get<PaginatedResponse<ComicFile>>(
@@ -279,6 +290,42 @@ export async function getLibraryFolders(
   libraryId: string
 ): Promise<{ folders: string[] }> {
   return get<{ folders: string[] }>(`/libraries/${libraryId}/folders`);
+}
+
+/**
+ * Get files from ALL libraries with pagination
+ */
+export async function getAllLibraryFiles(
+  params: GetFilesParams = {}
+): Promise<PaginatedResponse<ComicFile>> {
+  const searchParams = new URLSearchParams();
+  if (params.all) searchParams.set('all', 'true');
+  if (params.page) searchParams.set('page', params.page.toString());
+  if (params.limit) searchParams.set('limit', params.limit.toString());
+  if (params.status) searchParams.set('status', params.status);
+  if (params.folder) searchParams.set('folder', params.folder);
+  if (params.sort) searchParams.set('sort', params.sort);
+  if (params.order) searchParams.set('order', params.order);
+  if (params.groupBy && params.groupBy !== 'none') searchParams.set('groupBy', params.groupBy);
+
+  const query = searchParams.toString();
+  return get<PaginatedResponse<ComicFile>>(
+    `/libraries/files${query ? `?${query}` : ''}`
+  );
+}
+
+export interface LibraryFolders {
+  id: string;
+  name: string;
+  type: string;
+  folders: string[];
+}
+
+/**
+ * Get folder structure for ALL libraries
+ */
+export async function getAllLibraryFolders(): Promise<{ libraries: LibraryFolders[] }> {
+  return get<{ libraries: LibraryFolders[] }>('/libraries/folders');
 }
 
 export interface FolderRenameResult {
@@ -902,7 +949,7 @@ export async function cleanupOperationLogs(
 // Metadata Fetch Operations
 // =============================================================================
 
-export type MetadataSource = 'comicvine' | 'metron' | 'gcd';
+export type MetadataSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 
 export interface MetadataMatch {
   source: MetadataSource;
@@ -1127,6 +1174,13 @@ export interface SeriesGroup {
   filenames: string[];
   status: 'pending' | 'searching' | 'approved' | 'skipped';
   searchResults: SeriesMatch[];
+  /** Pagination info for search results */
+  searchPagination?: {
+    total: number;
+    offset: number;
+    limit: number;
+    hasMore: boolean;
+  };
   /** Series to use for series-level metadata (name, publisher, etc.) */
   selectedSeries: SeriesMatch | null;
   /** Series to use for issue matching (may differ from selectedSeries for collected editions) */
@@ -1142,7 +1196,7 @@ export interface FieldChange {
   proposed: string | number | null;
   approved: boolean;
   edited: boolean;
-  editedValue?: string | number;
+  editedValue?: string | number | null;  // null means user explicitly cleared the field
 }
 
 export interface FileChange {
@@ -1809,6 +1863,16 @@ export async function searchJobSeries(
 }
 
 /**
+ * Load more search results for current series in job
+ * @param jobId - The job ID
+ */
+export async function loadMoreJobSeriesResults(
+  jobId: string
+): Promise<{ results: SeriesMatch[]; job: MetadataJob }> {
+  return post(`/metadata-jobs/${jobId}/load-more`, {});
+}
+
+/**
  * Approve series in job
  * @param selectedSeriesId - Series to use for series-level metadata (name, publisher, etc.)
  * @param issueMatchingSeriesId - Series to use for issue matching (optional, defaults to selectedSeriesId)
@@ -2377,6 +2441,200 @@ export async function deleteSeriesReaderSettings(series: string): Promise<{ succ
 }
 
 // =============================================================================
+// Issue Reader Settings (4th level - most specific)
+// =============================================================================
+
+/**
+ * Get issue-level reader settings overrides
+ */
+export async function getIssueReaderSettings(fileId: string): Promise<PartialReaderSettings> {
+  return get<PartialReaderSettings>(`/reader-settings/issue/${fileId}`);
+}
+
+/**
+ * Update issue-level reader settings overrides
+ */
+export async function updateIssueReaderSettings(
+  fileId: string,
+  settings: PartialReaderSettings
+): Promise<PartialReaderSettings> {
+  const response = await fetch(`${API_BASE}/reader-settings/issue/${fileId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  return handleResponse<PartialReaderSettings>(response);
+}
+
+/**
+ * Delete issue-level reader settings (revert to series/library/global defaults)
+ */
+export async function deleteIssueReaderSettings(fileId: string): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/reader-settings/issue/${fileId}`);
+}
+
+// =============================================================================
+// Resolved Settings with Origin
+// =============================================================================
+
+export type SettingsSource = 'global' | 'library' | 'series' | 'issue';
+
+export interface SettingsWithOrigin {
+  settings: ReaderSettings;
+  source: SettingsSource;
+  basedOnPreset?: { id: string; name: string } | null;
+}
+
+/**
+ * Get resolved reader settings with origin information
+ */
+export async function getResolvedReaderSettingsWithOrigin(fileId: string): Promise<SettingsWithOrigin> {
+  return get<SettingsWithOrigin>(`/reader-settings/resolved/${fileId}/with-origin`);
+}
+
+// =============================================================================
+// Reader Presets
+// =============================================================================
+
+export interface ReaderPreset {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  userId: string | null;
+  isSystem: boolean;
+  isBundled: boolean;
+  mode: string;
+  direction: string;
+  scaling: string;
+  customWidth: number | null;
+  splitting: string;
+  background: string;
+  brightness: number;
+  colorCorrection: ColorCorrection;
+  showPageShadow: boolean;
+  autoHideUI: boolean;
+  preloadCount: number;
+  webtoonGap: number;
+  webtoonMaxWidth: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePresetInput {
+  name: string;
+  description?: string;
+  icon?: string;
+  isSystem?: boolean;
+  mode?: string;
+  direction?: string;
+  scaling?: string;
+  customWidth?: number | null;
+  splitting?: string;
+  background?: string;
+  brightness?: number;
+  colorCorrection?: ColorCorrection;
+  showPageShadow?: boolean;
+  autoHideUI?: boolean;
+  preloadCount?: number;
+  webtoonGap?: number;
+  webtoonMaxWidth?: number;
+}
+
+export interface UpdatePresetInput {
+  name?: string;
+  description?: string;
+  icon?: string;
+  mode?: string;
+  direction?: string;
+  scaling?: string;
+  customWidth?: number | null;
+  splitting?: string;
+  background?: string;
+  brightness?: number;
+  colorCorrection?: ColorCorrection;
+  showPageShadow?: boolean;
+  autoHideUI?: boolean;
+  preloadCount?: number;
+  webtoonGap?: number;
+  webtoonMaxWidth?: number;
+}
+
+export interface PresetsGrouped {
+  bundled: ReaderPreset[];
+  system: ReaderPreset[];
+  user: ReaderPreset[];
+}
+
+/**
+ * Get all reader presets
+ */
+export async function getReaderPresets(): Promise<ReaderPreset[]> {
+  return get<ReaderPreset[]>('/reader-presets');
+}
+
+/**
+ * Get reader presets grouped by type (bundled, system, user)
+ */
+export async function getReaderPresetsGrouped(): Promise<PresetsGrouped> {
+  return get<PresetsGrouped>('/reader-presets?grouped=true');
+}
+
+/**
+ * Get a single reader preset by ID
+ */
+export async function getReaderPreset(id: string): Promise<ReaderPreset> {
+  return get<ReaderPreset>(`/reader-presets/${id}`);
+}
+
+/**
+ * Create a new reader preset
+ */
+export async function createReaderPreset(input: CreatePresetInput): Promise<ReaderPreset> {
+  return post<ReaderPreset>('/reader-presets', input);
+}
+
+/**
+ * Update an existing reader preset
+ */
+export async function updateReaderPreset(id: string, input: UpdatePresetInput): Promise<ReaderPreset> {
+  const response = await fetch(`${API_BASE}/reader-presets/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  return handleResponse<ReaderPreset>(response);
+}
+
+/**
+ * Delete a reader preset
+ */
+export async function deleteReaderPreset(id: string): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/reader-presets/${id}`);
+}
+
+/**
+ * Apply a preset to a library
+ */
+export async function applyPresetToLibrary(presetId: string, libraryId: string): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>(`/reader-presets/${presetId}/apply/library/${libraryId}`, {});
+}
+
+/**
+ * Apply a preset to a series
+ */
+export async function applyPresetToSeries(presetId: string, seriesId: string): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>(`/reader-presets/${presetId}/apply/series/${seriesId}`, {});
+}
+
+/**
+ * Apply a preset to an issue (file)
+ */
+export async function applyPresetToIssue(presetId: string, fileId: string): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>(`/reader-presets/${presetId}/apply/issue/${fileId}`, {});
+}
+
+// =============================================================================
 // Reading Queue
 // =============================================================================
 
@@ -2770,6 +3028,7 @@ export interface SeriesProgress {
 export interface SeriesListOptions {
   page?: number;
   limit?: number;
+  all?: boolean;  // When true, fetch all items without pagination
   sortBy?: 'name' | 'startYear' | 'updatedAt' | 'createdAt' | 'issueCount';
   sortOrder?: 'asc' | 'desc';
   search?: string;
@@ -2777,6 +3036,7 @@ export interface SeriesListOptions {
   type?: 'western' | 'manga';
   genres?: string[];
   hasUnread?: boolean;
+  libraryId?: string;
 }
 
 export interface SeriesListResult {
@@ -2811,6 +3071,7 @@ export async function getSeriesList(
   options: SeriesListOptions = {}
 ): Promise<SeriesListResult> {
   const params = new URLSearchParams();
+  if (options.all) params.set('all', 'true');
   if (options.page) params.set('page', options.page.toString());
   if (options.limit) params.set('limit', options.limit.toString());
   if (options.sortBy) params.set('sortBy', options.sortBy);
@@ -2820,6 +3081,7 @@ export async function getSeriesList(
   if (options.type) params.set('type', options.type);
   if (options.genres) params.set('genres', options.genres.join(','));
   if (options.hasUnread !== undefined) params.set('hasUnread', options.hasUnread.toString());
+  if (options.libraryId) params.set('libraryId', options.libraryId);
   return get<SeriesListResult>(`/series?${params}`);
 }
 
@@ -2848,9 +3110,10 @@ export async function getSeries(seriesId: string): Promise<{ series: Series }> {
  */
 export async function getSeriesIssues(
   seriesId: string,
-  options: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
+  options: { page?: number; limit?: number; all?: boolean; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
 ): Promise<{ issues: SeriesIssue[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
   const params = new URLSearchParams();
+  if (options.all) params.set('all', 'true');
   if (options.page) params.set('page', options.page.toString());
   if (options.limit) params.set('limit', options.limit.toString());
   if (options.sortBy) params.set('sortBy', options.sortBy);
@@ -3091,25 +3354,42 @@ export async function unlinkSeriesExternalId(
   return del(`/series/${seriesId}/external-link?source=${source}`);
 }
 
+/** Pagination metadata for series search results */
+export interface SearchPagination {
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 /**
- * Search external APIs (ComicVine, Metron, GCD) for series
+ * Search external APIs for series
  * @param query - Search query string
  * @param limit - Maximum number of results
  * @param source - Optional source to limit search to a specific provider
+ * @param offset - Offset for pagination (default: 0)
+ * @param libraryType - Optional library type to prioritize sources (manga prioritizes AniList/MAL)
  */
 export async function searchExternalSeries(
   query: string,
   limit = 10,
-  source?: MetadataSource
+  source?: MetadataSource,
+  offset = 0,
+  libraryType?: 'western' | 'manga'
 ): Promise<{
   series: SeriesMatch[];
   sources: MetadataSource[];
+  pagination?: SearchPagination;
 }> {
   const params = new URLSearchParams();
   params.set('q', query);
   params.set('limit', limit.toString());
+  params.set('offset', offset.toString());
   if (source) {
     params.set('source', source);
+  }
+  if (libraryType) {
+    params.set('libraryType', libraryType);
   }
   return get(`/series/search-external?${params}`);
 }
@@ -4123,5 +4403,146 @@ export async function toggleWantToRead(
   fileId?: string
 ): Promise<{ added: boolean }> {
   return post<{ added: boolean }>('/collections/toggle-want-to-read', { seriesId, fileId });
+}
+
+// =============================================================================
+// Library Scan Jobs
+// =============================================================================
+
+export type ScanJobStatus =
+  | 'queued'
+  | 'discovering'
+  | 'cleaning'
+  | 'indexing'
+  | 'linking'
+  | 'covers'
+  | 'complete'
+  | 'error'
+  | 'cancelled';
+
+export interface ScanJobLogEntry {
+  id: string;
+  stage: string;
+  message: string;
+  detail?: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: string;
+}
+
+export interface LibraryScanJob {
+  id: string;
+  libraryId: string;
+  status: ScanJobStatus;
+  currentStage: string;
+  currentMessage: string | null;
+  currentDetail: string | null;
+
+  // Progress counters
+  discoveredFiles: number;
+  orphanedFiles: number;
+  indexedFiles: number;
+  linkedFiles: number;
+  seriesCreated: number;
+  coversExtracted: number;
+  totalFiles: number;
+
+  // Error tracking
+  error: string | null;
+  errorCount: number;
+
+  // Timing
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  // Logs organized by stage
+  logs: Record<string, ScanJobLogEntry[]>;
+}
+
+export interface ScanQueueStatus {
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  queuedAt: string;
+  startedAt?: string;
+}
+
+/**
+ * Start a full library scan
+ */
+export async function startLibraryScan(
+  libraryId: string
+): Promise<{ job: LibraryScanJob; message: string; existing: boolean }> {
+  return post<{ job: LibraryScanJob; message: string; existing: boolean }>(
+    `/libraries/${libraryId}/scan/full`,
+    {}
+  );
+}
+
+/**
+ * Get scan job status
+ */
+export async function getScanJobStatus(
+  libraryId: string,
+  jobId: string
+): Promise<{ job: LibraryScanJob; queueStatus: ScanQueueStatus | null }> {
+  return get<{ job: LibraryScanJob; queueStatus: ScanQueueStatus | null }>(
+    `/libraries/${libraryId}/scan/${jobId}`
+  );
+}
+
+/**
+ * Get active scan for a library
+ */
+export async function getActiveScanForLibrary(
+  libraryId: string
+): Promise<{ job: LibraryScanJob | null; hasActiveScan: boolean }> {
+  return get<{ job: LibraryScanJob | null; hasActiveScan: boolean }>(
+    `/libraries/${libraryId}/scan/active`
+  );
+}
+
+/**
+ * Get scan history for a library
+ */
+export async function getScanHistory(
+  libraryId: string,
+  limit?: number
+): Promise<{ jobs: LibraryScanJob[] }> {
+  const params = limit ? `?limit=${limit}` : '';
+  return get<{ jobs: LibraryScanJob[] }>(`/libraries/${libraryId}/scan/history${params}`);
+}
+
+/**
+ * Cancel a scan job
+ */
+export async function cancelScanJob(
+  libraryId: string,
+  jobId: string
+): Promise<{ success: boolean; message: string }> {
+  return post<{ success: boolean; message: string }>(
+    `/libraries/${libraryId}/scan/${jobId}/cancel`,
+    {}
+  );
+}
+
+/**
+ * Delete a scan job
+ */
+export async function deleteScanJob(
+  libraryId: string,
+  jobId: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`${API_BASE}/libraries/${libraryId}/scan/${jobId}`, {
+    method: 'DELETE',
+  });
+  return handleResponse<{ success: boolean; message: string }>(response);
+}
+
+/**
+ * Get all active scans across all libraries
+ */
+export async function getAllActiveScans(): Promise<{ jobs: LibraryScanJob[] }> {
+  return get<{ jobs: LibraryScanJob[] }>('/libraries/scans/active');
 }
 

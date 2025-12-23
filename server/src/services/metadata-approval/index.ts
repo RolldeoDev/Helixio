@@ -51,6 +51,7 @@ export { createSession, createSessionWithProgress } from './session-create.js';
 
 export {
   searchSeriesCustom,
+  loadMoreSeriesResults,
   approveSeries,
   skipSeries,
   navigateToSeriesGroup,
@@ -84,6 +85,7 @@ import { createSession, createSessionWithProgress } from './session-create.js';
 import { getSession, restoreSession, deleteSession } from './session-store.js';
 import {
   searchSeriesCustom,
+  loadMoreSeriesResults,
   approveSeries,
   skipSeries,
   navigateToSeriesGroup,
@@ -106,6 +108,7 @@ export const MetadataApproval = {
   restoreSession,
   deleteSession,
   searchSeriesCustom,
+  loadMoreSeriesResults,
   approveSeries,
   skipSeries,
   navigateToSeriesGroup,

@@ -20,6 +20,8 @@ export type ImageScaling = 'fitHeight' | 'fitWidth' | 'fitScreen' | 'original' |
 export type ImageSplitting = 'none' | 'ltr' | 'rtl';
 export type BackgroundColor = 'white' | 'gray' | 'black';
 
+export type ColorCorrection = 'none' | 'sepia-correct' | 'contrast-boost' | 'desaturate' | 'invert';
+
 export interface ReaderSettings {
   id: string;
   mode: ReadingMode;
@@ -29,9 +31,12 @@ export interface ReaderSettings {
   splitting: ImageSplitting;
   background: BackgroundColor;
   brightness: number;
+  colorCorrection: ColorCorrection;
   showPageShadow: boolean;
   autoHideUI: boolean;
   preloadCount: number;
+  webtoonGap: number;
+  webtoonMaxWidth: number;
   updatedAt: Date;
 }
 
@@ -43,9 +48,12 @@ export interface UpdateReaderSettingsInput {
   splitting?: ImageSplitting;
   background?: BackgroundColor;
   brightness?: number;
+  colorCorrection?: ColorCorrection;
   showPageShadow?: boolean;
   autoHideUI?: boolean;
   preloadCount?: number;
+  webtoonGap?: number;
+  webtoonMaxWidth?: number;
 }
 
 // =============================================================================
@@ -60,9 +68,12 @@ const DEFAULT_SETTINGS: Omit<ReaderSettings, 'id' | 'updatedAt'> = {
   splitting: 'none',
   background: 'black',
   brightness: 100,
+  colorCorrection: 'none',
   showPageShadow: true,
   autoHideUI: true,
   preloadCount: 3,
+  webtoonGap: 8,
+  webtoonMaxWidth: 800,
 };
 
 // =============================================================================
@@ -189,9 +200,14 @@ export interface PartialReaderSettings {
   splitting?: ImageSplitting | null;
   background?: BackgroundColor | null;
   brightness?: number | null;
+  colorCorrection?: ColorCorrection | null;
   showPageShadow?: boolean | null;
   autoHideUI?: boolean | null;
   preloadCount?: number | null;
+  webtoonGap?: number | null;
+  webtoonMaxWidth?: number | null;
+  basedOnPresetId?: string | null;
+  basedOnPresetName?: string | null;
 }
 
 /**
@@ -214,9 +230,14 @@ export async function getLibrarySettings(libraryId: string): Promise<PartialRead
     splitting: settings.splitting as ImageSplitting | null,
     background: settings.background as BackgroundColor | null,
     brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
     showPageShadow: settings.showPageShadow,
     autoHideUI: settings.autoHideUI,
     preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
   };
 }
 
@@ -249,9 +270,14 @@ export async function updateLibrarySettings(
       splitting: input.splitting,
       background: input.background,
       brightness: input.brightness,
+      colorCorrection: input.colorCorrection,
       showPageShadow: input.showPageShadow,
       autoHideUI: input.autoHideUI,
       preloadCount: input.preloadCount,
+      webtoonGap: input.webtoonGap,
+      webtoonMaxWidth: input.webtoonMaxWidth,
+      basedOnPresetId: input.basedOnPresetId,
+      basedOnPresetName: input.basedOnPresetName,
     },
     update: input,
   });
@@ -264,9 +290,14 @@ export async function updateLibrarySettings(
     splitting: settings.splitting as ImageSplitting | null,
     background: settings.background as BackgroundColor | null,
     brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
     showPageShadow: settings.showPageShadow,
     autoHideUI: settings.autoHideUI,
     preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
   };
 }
 
@@ -284,7 +315,38 @@ export async function deleteLibrarySettings(libraryId: string): Promise<void> {
 }
 
 /**
- * Get series-level reader settings overrides
+ * Get series-level reader settings overrides (by series ID)
+ */
+export async function getSeriesSettingsById(seriesId: string): Promise<PartialReaderSettings | null> {
+  const db = getDatabase();
+
+  const settings = await db.seriesReaderSettingsNew.findUnique({
+    where: { seriesId },
+  });
+
+  if (!settings) return null;
+
+  return {
+    mode: settings.mode as ReadingMode | null,
+    direction: settings.direction as ReadingDirection | null,
+    scaling: settings.scaling as ImageScaling | null,
+    customWidth: settings.customWidth,
+    splitting: settings.splitting as ImageSplitting | null,
+    background: settings.background as BackgroundColor | null,
+    brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
+    showPageShadow: settings.showPageShadow,
+    autoHideUI: settings.autoHideUI,
+    preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
+  };
+}
+
+/**
+ * Get series-level reader settings overrides (legacy - by series name)
  */
 export async function getSeriesSettings(series: string): Promise<PartialReaderSettings | null> {
   const db = getDatabase();
@@ -303,6 +365,7 @@ export async function getSeriesSettings(series: string): Promise<PartialReaderSe
     splitting: settings.splitting as ImageSplitting | null,
     background: settings.background as BackgroundColor | null,
     brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
     showPageShadow: settings.showPageShadow,
     autoHideUI: settings.autoHideUI,
     preloadCount: settings.preloadCount,
@@ -310,7 +373,67 @@ export async function getSeriesSettings(series: string): Promise<PartialReaderSe
 }
 
 /**
- * Update series-level reader settings overrides
+ * Update series-level reader settings overrides (by series ID)
+ */
+export async function updateSeriesSettingsById(
+  seriesId: string,
+  input: PartialReaderSettings
+): Promise<PartialReaderSettings> {
+  const db = getDatabase();
+
+  // Verify series exists
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    throw new Error(`Series not found: ${seriesId}`);
+  }
+
+  const settings = await db.seriesReaderSettingsNew.upsert({
+    where: { seriesId },
+    create: {
+      seriesId,
+      mode: input.mode,
+      direction: input.direction,
+      scaling: input.scaling,
+      customWidth: input.customWidth,
+      splitting: input.splitting,
+      background: input.background,
+      brightness: input.brightness,
+      colorCorrection: input.colorCorrection,
+      showPageShadow: input.showPageShadow,
+      autoHideUI: input.autoHideUI,
+      preloadCount: input.preloadCount,
+      webtoonGap: input.webtoonGap,
+      webtoonMaxWidth: input.webtoonMaxWidth,
+      basedOnPresetId: input.basedOnPresetId,
+      basedOnPresetName: input.basedOnPresetName,
+    },
+    update: input,
+  });
+
+  return {
+    mode: settings.mode as ReadingMode | null,
+    direction: settings.direction as ReadingDirection | null,
+    scaling: settings.scaling as ImageScaling | null,
+    customWidth: settings.customWidth,
+    splitting: settings.splitting as ImageSplitting | null,
+    background: settings.background as BackgroundColor | null,
+    brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
+    showPageShadow: settings.showPageShadow,
+    autoHideUI: settings.autoHideUI,
+    preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
+  };
+}
+
+/**
+ * Update series-level reader settings overrides (legacy - by series name)
  */
 export async function updateSeriesSettings(
   series: string,
@@ -329,6 +452,7 @@ export async function updateSeriesSettings(
       splitting: input.splitting,
       background: input.background,
       brightness: input.brightness,
+      colorCorrection: input.colorCorrection,
       showPageShadow: input.showPageShadow,
       autoHideUI: input.autoHideUI,
       preloadCount: input.preloadCount,
@@ -344,6 +468,7 @@ export async function updateSeriesSettings(
     splitting: settings.splitting as ImageSplitting | null,
     background: settings.background as BackgroundColor | null,
     brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
     showPageShadow: settings.showPageShadow,
     autoHideUI: settings.autoHideUI,
     preloadCount: settings.preloadCount,
@@ -351,7 +476,20 @@ export async function updateSeriesSettings(
 }
 
 /**
- * Delete series-level settings (revert to library/global defaults)
+ * Delete series-level settings by ID (revert to library/global defaults)
+ */
+export async function deleteSeriesSettingsById(seriesId: string): Promise<void> {
+  const db = getDatabase();
+
+  await db.seriesReaderSettingsNew.delete({
+    where: { seriesId },
+  }).catch(() => {
+    // Ignore if not found
+  });
+}
+
+/**
+ * Delete series-level settings (legacy - by series name)
  */
 export async function deleteSeriesSettings(series: string): Promise<void> {
   const db = getDatabase();
@@ -363,109 +501,242 @@ export async function deleteSeriesSettings(series: string): Promise<void> {
   });
 }
 
+// =============================================================================
+// Issue-Level Reader Settings
+// =============================================================================
+
 /**
- * Get resolved settings for a specific file
- * Applies hierarchy: Global -> Library -> Series
+ * Get issue-level reader settings overrides
  */
-export async function getResolvedSettings(fileId: string): Promise<ReaderSettings> {
+export async function getIssueSettings(fileId: string): Promise<PartialReaderSettings | null> {
   const db = getDatabase();
 
-  // Get global settings
+  const settings = await db.issueReaderSettings.findUnique({
+    where: { fileId },
+  });
+
+  if (!settings) return null;
+
+  return {
+    mode: settings.mode as ReadingMode | null,
+    direction: settings.direction as ReadingDirection | null,
+    scaling: settings.scaling as ImageScaling | null,
+    customWidth: settings.customWidth,
+    splitting: settings.splitting as ImageSplitting | null,
+    background: settings.background as BackgroundColor | null,
+    brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
+    showPageShadow: settings.showPageShadow,
+    autoHideUI: settings.autoHideUI,
+    preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
+  };
+}
+
+/**
+ * Update issue-level reader settings overrides
+ */
+export async function updateIssueSettings(
+  fileId: string,
+  input: PartialReaderSettings
+): Promise<PartialReaderSettings> {
+  const db = getDatabase();
+
+  // Verify file exists
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+  });
+
+  if (!file) {
+    throw new Error(`File not found: ${fileId}`);
+  }
+
+  const settings = await db.issueReaderSettings.upsert({
+    where: { fileId },
+    create: {
+      fileId,
+      mode: input.mode,
+      direction: input.direction,
+      scaling: input.scaling,
+      customWidth: input.customWidth,
+      splitting: input.splitting,
+      background: input.background,
+      brightness: input.brightness,
+      colorCorrection: input.colorCorrection,
+      showPageShadow: input.showPageShadow,
+      autoHideUI: input.autoHideUI,
+      preloadCount: input.preloadCount,
+      webtoonGap: input.webtoonGap,
+      webtoonMaxWidth: input.webtoonMaxWidth,
+      basedOnPresetId: input.basedOnPresetId,
+      basedOnPresetName: input.basedOnPresetName,
+    },
+    update: input,
+  });
+
+  return {
+    mode: settings.mode as ReadingMode | null,
+    direction: settings.direction as ReadingDirection | null,
+    scaling: settings.scaling as ImageScaling | null,
+    customWidth: settings.customWidth,
+    splitting: settings.splitting as ImageSplitting | null,
+    background: settings.background as BackgroundColor | null,
+    brightness: settings.brightness,
+    colorCorrection: settings.colorCorrection as ColorCorrection | null,
+    showPageShadow: settings.showPageShadow,
+    autoHideUI: settings.autoHideUI,
+    preloadCount: settings.preloadCount,
+    webtoonGap: settings.webtoonGap,
+    webtoonMaxWidth: settings.webtoonMaxWidth,
+    basedOnPresetId: settings.basedOnPresetId,
+    basedOnPresetName: settings.basedOnPresetName,
+  };
+}
+
+/**
+ * Delete issue-level settings (revert to series/library/global defaults)
+ */
+export async function deleteIssueSettings(fileId: string): Promise<void> {
+  const db = getDatabase();
+
+  await db.issueReaderSettings.delete({
+    where: { fileId },
+  }).catch(() => {
+    // Ignore if not found
+  });
+}
+
+// =============================================================================
+// Settings Resolution (4-Level Hierarchy with FULL OVERRIDE)
+// =============================================================================
+
+export type SettingsSource = 'global' | 'library' | 'series' | 'issue';
+
+export interface SettingsWithOrigin {
+  settings: ReaderSettings;
+  source: SettingsSource;
+  basedOnPreset?: { id: string; name: string } | null;
+}
+
+/**
+ * Convert PartialReaderSettings to full ReaderSettings using defaults
+ */
+function partialToFull(partial: PartialReaderSettings, defaults: ReaderSettings): ReaderSettings {
+  return {
+    id: defaults.id,
+    mode: partial.mode ?? defaults.mode,
+    direction: partial.direction ?? defaults.direction,
+    scaling: partial.scaling ?? defaults.scaling,
+    customWidth: partial.customWidth ?? defaults.customWidth,
+    splitting: partial.splitting ?? defaults.splitting,
+    background: partial.background ?? defaults.background,
+    brightness: partial.brightness ?? defaults.brightness,
+    colorCorrection: partial.colorCorrection ?? defaults.colorCorrection,
+    showPageShadow: partial.showPageShadow ?? defaults.showPageShadow,
+    autoHideUI: partial.autoHideUI ?? defaults.autoHideUI,
+    preloadCount: partial.preloadCount ?? defaults.preloadCount,
+    webtoonGap: partial.webtoonGap ?? defaults.webtoonGap,
+    webtoonMaxWidth: partial.webtoonMaxWidth ?? defaults.webtoonMaxWidth,
+    updatedAt: defaults.updatedAt,
+  };
+}
+
+/**
+ * Check if partial settings has any non-null values
+ */
+function hasAnySettings(partial: PartialReaderSettings | null): boolean {
+  if (!partial) return false;
+  return Object.entries(partial).some(([key, value]) => {
+    if (key === 'basedOnPresetId' || key === 'basedOnPresetName') return false;
+    return value !== null && value !== undefined;
+  });
+}
+
+/**
+ * Get resolved settings for a specific file
+ * Applies FULL OVERRIDE hierarchy: Global -> Library -> Series -> Issue
+ * When a more specific level has settings, it COMPLETELY REPLACES the parent settings
+ */
+export async function getResolvedSettings(fileId: string): Promise<ReaderSettings> {
+  const result = await getResolvedSettingsWithOrigin(fileId);
+  return result.settings;
+}
+
+/**
+ * Get resolved settings with origin information
+ * Returns settings + which level they came from + preset origin if applicable
+ */
+export async function getResolvedSettingsWithOrigin(fileId: string): Promise<SettingsWithOrigin> {
+  const db = getDatabase();
+
+  // Get global settings (always exists)
   const globalSettings = await getSettings();
 
   // Get file info
   const file = await db.comicFile.findUnique({
     where: { id: fileId },
-    include: {
-      metadata: {
-        select: { series: true },
-      },
+    select: {
+      id: true,
+      libraryId: true,
+      seriesId: true,
     },
   });
 
   if (!file) {
-    return globalSettings;
+    return {
+      settings: globalSettings,
+      source: 'global',
+      basedOnPreset: null,
+    };
   }
 
-  // Get library settings
+  // Check issue-level settings first (most specific)
+  const issueSettings = await getIssueSettings(fileId);
+  if (hasAnySettings(issueSettings)) {
+    return {
+      settings: partialToFull(issueSettings!, globalSettings),
+      source: 'issue',
+      basedOnPreset: issueSettings?.basedOnPresetId && issueSettings?.basedOnPresetName
+        ? { id: issueSettings.basedOnPresetId, name: issueSettings.basedOnPresetName }
+        : null,
+    };
+  }
+
+  // Check series-level settings (use new ID-based if file has seriesId)
+  if (file.seriesId) {
+    const seriesSettings = await getSeriesSettingsById(file.seriesId);
+    if (hasAnySettings(seriesSettings)) {
+      return {
+        settings: partialToFull(seriesSettings!, globalSettings),
+        source: 'series',
+        basedOnPreset: seriesSettings?.basedOnPresetId && seriesSettings?.basedOnPresetName
+          ? { id: seriesSettings.basedOnPresetId, name: seriesSettings.basedOnPresetName }
+          : null,
+      };
+    }
+  }
+
+  // Check library-level settings
   const librarySettings = await getLibrarySettings(file.libraryId);
-
-  // Get series settings (if file has series metadata)
-  const seriesName = file.metadata?.series;
-  const seriesSettings = seriesName ? await getSeriesSettings(seriesName) : null;
-
-  // Merge settings (later values override earlier)
-  const resolved: ReaderSettings = { ...globalSettings };
-
-  // Apply library overrides
-  if (librarySettings) {
-    if (librarySettings.mode !== null && librarySettings.mode !== undefined) {
-      resolved.mode = librarySettings.mode;
-    }
-    if (librarySettings.direction !== null && librarySettings.direction !== undefined) {
-      resolved.direction = librarySettings.direction;
-    }
-    if (librarySettings.scaling !== null && librarySettings.scaling !== undefined) {
-      resolved.scaling = librarySettings.scaling;
-    }
-    if (librarySettings.customWidth !== undefined) {
-      resolved.customWidth = librarySettings.customWidth;
-    }
-    if (librarySettings.splitting !== null && librarySettings.splitting !== undefined) {
-      resolved.splitting = librarySettings.splitting;
-    }
-    if (librarySettings.background !== null && librarySettings.background !== undefined) {
-      resolved.background = librarySettings.background;
-    }
-    if (librarySettings.brightness !== null && librarySettings.brightness !== undefined) {
-      resolved.brightness = librarySettings.brightness;
-    }
-    if (librarySettings.showPageShadow !== null && librarySettings.showPageShadow !== undefined) {
-      resolved.showPageShadow = librarySettings.showPageShadow;
-    }
-    if (librarySettings.autoHideUI !== null && librarySettings.autoHideUI !== undefined) {
-      resolved.autoHideUI = librarySettings.autoHideUI;
-    }
-    if (librarySettings.preloadCount !== null && librarySettings.preloadCount !== undefined) {
-      resolved.preloadCount = librarySettings.preloadCount;
-    }
+  if (hasAnySettings(librarySettings)) {
+    return {
+      settings: partialToFull(librarySettings!, globalSettings),
+      source: 'library',
+      basedOnPreset: librarySettings?.basedOnPresetId && librarySettings?.basedOnPresetName
+        ? { id: librarySettings.basedOnPresetId, name: librarySettings.basedOnPresetName }
+        : null,
+    };
   }
 
-  // Apply series overrides
-  if (seriesSettings) {
-    if (seriesSettings.mode !== null && seriesSettings.mode !== undefined) {
-      resolved.mode = seriesSettings.mode;
-    }
-    if (seriesSettings.direction !== null && seriesSettings.direction !== undefined) {
-      resolved.direction = seriesSettings.direction;
-    }
-    if (seriesSettings.scaling !== null && seriesSettings.scaling !== undefined) {
-      resolved.scaling = seriesSettings.scaling;
-    }
-    if (seriesSettings.customWidth !== undefined) {
-      resolved.customWidth = seriesSettings.customWidth;
-    }
-    if (seriesSettings.splitting !== null && seriesSettings.splitting !== undefined) {
-      resolved.splitting = seriesSettings.splitting;
-    }
-    if (seriesSettings.background !== null && seriesSettings.background !== undefined) {
-      resolved.background = seriesSettings.background;
-    }
-    if (seriesSettings.brightness !== null && seriesSettings.brightness !== undefined) {
-      resolved.brightness = seriesSettings.brightness;
-    }
-    if (seriesSettings.showPageShadow !== null && seriesSettings.showPageShadow !== undefined) {
-      resolved.showPageShadow = seriesSettings.showPageShadow;
-    }
-    if (seriesSettings.autoHideUI !== null && seriesSettings.autoHideUI !== undefined) {
-      resolved.autoHideUI = seriesSettings.autoHideUI;
-    }
-    if (seriesSettings.preloadCount !== null && seriesSettings.preloadCount !== undefined) {
-      resolved.preloadCount = seriesSettings.preloadCount;
-    }
-  }
-
-  return resolved;
+  // Fall back to global settings
+  return {
+    settings: globalSettings,
+    source: 'global',
+    basedOnPreset: null,
+  };
 }
 
 /**
@@ -480,4 +751,56 @@ export async function getSeriesWithSettings(): Promise<string[]> {
   });
 
   return settings.map((s) => s.series);
+}
+
+// =============================================================================
+// Preset Application
+// =============================================================================
+
+/**
+ * Apply a preset to a library (copies values, tracks origin)
+ */
+export async function applyPresetToLibrary(
+  libraryId: string,
+  presetId: string,
+  presetName: string,
+  presetSettings: PartialReaderSettings
+): Promise<void> {
+  await updateLibrarySettings(libraryId, {
+    ...presetSettings,
+    basedOnPresetId: presetId,
+    basedOnPresetName: presetName,
+  });
+}
+
+/**
+ * Apply a preset to a series (copies values, tracks origin)
+ */
+export async function applyPresetToSeries(
+  seriesId: string,
+  presetId: string,
+  presetName: string,
+  presetSettings: PartialReaderSettings
+): Promise<void> {
+  await updateSeriesSettingsById(seriesId, {
+    ...presetSettings,
+    basedOnPresetId: presetId,
+    basedOnPresetName: presetName,
+  });
+}
+
+/**
+ * Apply a preset to an issue (copies values, tracks origin)
+ */
+export async function applyPresetToIssue(
+  fileId: string,
+  presetId: string,
+  presetName: string,
+  presetSettings: PartialReaderSettings
+): Promise<void> {
+  await updateIssueSettings(fileId, {
+    ...presetSettings,
+    basedOnPresetId: presetId,
+    basedOnPresetName: presetName,
+  });
 }

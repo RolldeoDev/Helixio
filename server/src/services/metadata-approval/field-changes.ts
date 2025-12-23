@@ -9,6 +9,12 @@ import { readComicInfo } from '../comicinfo.service.js';
 import type { ComicVineIssue } from '../comicvine.service.js';
 import type { MetronIssue } from '../metron.service.js';
 import type { SeriesMatch, FieldChange } from './types.js';
+import {
+  classifyMangaFile,
+  generateDisplayTitle,
+  type MangaClassificationResult,
+} from '../manga-classification.service.js';
+import { getMangaClassificationSettings } from '../config.service.js';
 
 // =============================================================================
 // Current Metadata Extraction
@@ -294,6 +300,101 @@ export async function metronIssueToFieldChanges(
     count: seriesMatch.issueCount ?? null,
     gtin: issue.upc || issue.isbn || null,
     web: issue.resource_url ?? null,
+  };
+
+  return buildFieldChanges(currentMetadata, proposedMetadata);
+}
+
+// =============================================================================
+// Manga Field Changes (Chapter-Only Mode)
+// =============================================================================
+
+/**
+ * Options for manga chapter field changes
+ */
+export interface MangaChapterOptions {
+  /** Pre-computed classification result (to avoid re-parsing) */
+  classification?: MangaClassificationResult;
+  /** Page count for classification (if not pre-computed) */
+  pageCount?: number;
+  /** Filename for classification (if not pre-computed) */
+  filename?: string;
+}
+
+/**
+ * Convert manga series metadata + parsed chapter number to field changes.
+ *
+ * Used for AniList and MAL sources which don't provide per-chapter metadata.
+ * Applies series-level metadata with the chapter number parsed from the filename.
+ * Includes smart chapter/volume classification based on page count.
+ */
+export async function mangaChapterToFieldChanges(
+  fileId: string,
+  chapterNumber: string,
+  seriesMatch: SeriesMatch,
+  options: MangaChapterOptions = {}
+): Promise<Record<string, FieldChange>> {
+  const currentMetadata = await getCurrentMetadata(fileId);
+  const settings = getMangaClassificationSettings();
+
+  // Get or compute classification
+  let classification = options.classification;
+  if (!classification && settings.enabled && options.filename && options.pageCount !== undefined) {
+    classification = classifyMangaFile(options.filename, options.pageCount, settings);
+  }
+
+  // Get all creators from the series match
+  // Note: SeriesCredit interface doesn't have role info, so we get all creators
+  // For manga, typically all creators are author/artist anyway
+  const getAllCreators = (): string | null => {
+    if (!seriesMatch.creators) return null;
+    const creators = seriesMatch.creators.map((c) => c.name);
+    return creators.length > 0 ? creators.join(', ') : null;
+  };
+
+  // Determine display title based on classification
+  let displayTitle: string | null = null;
+  if (classification && settings.enabled) {
+    displayTitle = classification.displayTitle;
+  }
+
+  // Determine the primary number to use
+  const primaryNumber = classification?.primaryNumber || chapterNumber;
+
+  const proposedMetadata: Record<string, string | number | null> = {
+    // Basic Info
+    series: seriesMatch.name,
+    number: primaryNumber,
+    title: displayTitle, // Use generated display title
+    summary: seriesMatch.description ?? null,
+
+    // Dates - use series start year for manga
+    year: seriesMatch.startYear ?? null,
+    month: null,
+    day: null,
+
+    // Credits - apply series-level creators (inheritance)
+    // For manga, we apply all creators to both writer and penciller
+    // since manga typically has author/artist doing both
+    writer: getAllCreators(),
+    penciller: getAllCreators(),
+
+    // Content - from series level
+    characters: seriesMatch.characters?.map((c) => c.name).join(', ') ?? null,
+
+    // Publishing Info
+    publisher: seriesMatch.publisher ?? null,
+    count: seriesMatch.issueCount ?? null,
+    web: seriesMatch.url ?? null,
+
+    // Manga-specific
+    manga: 'Yes', // Mark as manga format
+    format: classification?.contentType === 'volume' ? 'Volume' : 'Chapter',
+
+    // Manga classification fields (new)
+    contentType: classification?.contentType ?? null,
+    parsedVolume: classification?.volume ?? null,
+    parsedChapter: classification?.chapter ?? null,
   };
 
   return buildFieldChanges(currentMetadata, proposedMetadata);

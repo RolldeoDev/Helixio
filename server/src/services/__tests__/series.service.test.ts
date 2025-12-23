@@ -171,6 +171,7 @@ describe('Series Service', () => {
         where: {
           name: 'Batman',
           publisher: 'DC Comics',
+          deletedAt: null,
         },
       });
     });
@@ -186,6 +187,7 @@ describe('Series Service', () => {
         where: {
           name: 'Batman',
           publisher: 'DC Comics',
+          deletedAt: null,
         },
       });
     });
@@ -266,6 +268,7 @@ describe('Series Service', () => {
 
       expect(mockDb.series.findMany).toHaveBeenCalledWith({
         where: {
+          deletedAt: null,
           OR: [{ name: { contains: 'Bat' } }, { aliases: { contains: 'Bat' } }],
         },
         take: 10,
@@ -382,8 +385,8 @@ describe('Series Service', () => {
 
       const sources = await getFieldSources('series-1');
 
-      expect(sources.summary.source).toBe('api');
-      expect(sources.publisher.source).toBe('manual');
+      expect(sources.summary!.source).toBe('api');
+      expect(sources.publisher!.source).toBe('manual');
     });
 
     it('should return empty object if no field sources', async () => {
@@ -481,7 +484,7 @@ describe('Series Service', () => {
 
       expect(series).not.toBeNull();
       expect(mockDb.series.findFirst).toHaveBeenCalledWith({
-        where: { aliases: { contains: 'The Dark Knight' } },
+        where: { aliases: { contains: 'The Dark Knight' }, deletedAt: null },
       });
     });
   });

@@ -36,13 +36,16 @@ const logger = createServiceLogger('metadata-approval-session');
 // LLM Parsing
 // =============================================================================
 
+import type { LibraryType } from '../metadata-search.service.js';
+
 /**
  * Parse files using LLM for intelligent name cleanup
  */
 async function parseFilesWithLLM(
   files: Array<{ id: string; filename: string; folderPath?: string }>,
-  onProgress?: ProgressCallback
+  options: { onProgress?: ProgressCallback; libraryType?: LibraryType } = {}
 ): Promise<Map<string, ParsedFileMetadata>> {
+  const { onProgress, libraryType } = options;
   const progress = onProgress || (() => {});
   const parsedMap = new Map<string, ParsedFileMetadata>();
 
@@ -51,14 +54,15 @@ async function parseFilesWithLLM(
     return parsedMap;
   }
 
-  progress('Using LLM to parse filenames', `Processing ${files.length} files with Claude`);
+  const typeLabel = libraryType === 'manga' ? 'manga' : 'comic';
+  progress('Using LLM to parse filenames', `Processing ${files.length} ${typeLabel} files with Claude`);
 
   const filesToParse = files.map((f) => ({
     filename: f.filename,
     folderPath: f.folderPath,
   }));
 
-  const result = await parseFilenamesBatch(filesToParse);
+  const result = await parseFilenamesBatch(filesToParse, { libraryType });
 
   if (!result.success) {
     progress('LLM parsing failed', result.error || 'Unknown error');
@@ -137,7 +141,7 @@ export async function createSessionWithProgress(
 
   progress('Starting metadata approval session', `Processing ${filteredFileIds.length} files`);
 
-  // Fetch file info with series relationship
+  // Fetch file info with series and library relationship
   progress('Loading file information from database');
   const files = await prisma.comicFile.findMany({
     where: { id: { in: filteredFileIds } },
@@ -146,6 +150,13 @@ export async function createSessionWithProgress(
       filename: true,
       path: true,
       seriesId: true,
+      libraryId: true,
+      library: {
+        select: {
+          id: true,
+          type: true,
+        },
+      },
       series: {
         select: {
           id: true,
@@ -163,6 +174,15 @@ export async function createSessionWithProgress(
     },
   });
   progress(`Loaded ${files.length} files`, 'Ready to parse filenames');
+
+  // Determine library type from files (all files should belong to the same library typically)
+  const firstFile = files[0];
+  const libraryId = firstFile?.libraryId;
+  const libraryType = (firstFile?.library?.type as 'western' | 'manga') || 'western';
+
+  if (libraryType === 'manga') {
+    progress('Library type: Manga', 'AniList and MAL will be prioritized for metadata search');
+  }
 
   // Build a map of series with external IDs for quick lookup
   const seriesWithExternalIds = new Map<
@@ -201,7 +221,11 @@ export async function createSessionWithProgress(
       filename: f.filename,
       folderPath: f.path.split('/').slice(0, -1).join('/'),
     }));
-    llmParsedFiles = await parseFilesWithLLM(filesWithFolders, progress);
+    // Pass library type to LLM for manga-specific parsing
+    llmParsedFiles = await parseFilesWithLLM(filesWithFolders, {
+      onProgress: progress,
+      libraryType: libraryType === 'manga' ? 'manga' : 'western',
+    });
   }
 
   // ==========================================================================
@@ -297,6 +321,10 @@ export async function createSessionWithProgress(
         series: llmParsed.series,
         number: llmParsed.number?.toString(),
         year: llmParsed.year,
+        // Include manga-specific fields from LLM parsing
+        volume: llmParsed.volume,
+        chapter: llmParsed.chapter,
+        contentType: llmParsed.contentType,
       };
     } else {
       const query = parseFilenameToQuery(file.filename);
@@ -565,6 +593,8 @@ export async function createSessionWithProgress(
     id: randomUUID(),
     status: allPreApproved ? 'file_review' : 'series_approval',
     fileIds: filteredFileIds,
+    libraryId,
+    libraryType,
     useLLMCleanup,
     seriesGroups,
     currentSeriesIndex: allPreApproved ? seriesGroups.length : firstPendingIndex,

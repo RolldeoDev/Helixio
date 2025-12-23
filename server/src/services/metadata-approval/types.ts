@@ -4,10 +4,10 @@
  * Shared type definitions for the metadata approval workflow.
  */
 
-import type { MetadataSource, SeriesMatch } from '../metadata-search.service.js';
+import type { MetadataSource, SeriesMatch, LibraryType } from '../metadata-search.service.js';
 
 // Re-export for convenience
-export type { SeriesMatch, MetadataSource };
+export type { SeriesMatch, MetadataSource, LibraryType };
 
 // =============================================================================
 // Session Types
@@ -27,6 +27,10 @@ export interface ParsedFileData {
   series?: string;
   number?: string;
   year?: number;
+  // Manga-specific fields
+  volume?: string;
+  chapter?: string;
+  contentType?: 'chapter' | 'volume' | 'omake' | 'extra' | 'bonus' | 'oneshot';
 }
 
 export interface SeriesGroup {
@@ -42,6 +46,13 @@ export interface SeriesGroup {
   parsedFiles: Record<string, ParsedFileData>;
   /** Search results from API */
   searchResults: SeriesMatch[];
+  /** Pagination info for search results */
+  searchPagination?: {
+    total: number;
+    offset: number;
+    limit: number;
+    hasMore: boolean;
+  };
   /** User-selected series for series-level metadata (name, publisher, etc.) */
   selectedSeries: SeriesMatch | null;
   /** User-selected series for issue matching (may differ from selectedSeries for collected editions) */
@@ -104,6 +115,10 @@ export interface ApprovalSession {
   id: string;
   status: ApprovalSessionStatus;
   fileIds: string[];
+
+  // Library context (used for source prioritization)
+  libraryId?: string;
+  libraryType?: LibraryType;
 
   // Options
   useLLMCleanup: boolean;

@@ -13,12 +13,16 @@ const SOURCE_LABELS: Record<MetadataSource, string> = {
   comicvine: 'ComicVine',
   metron: 'Metron',
   gcd: 'GCD',
+  anilist: 'AniList',
+  mal: 'MAL',
 };
 
 const SOURCE_COLORS: Record<MetadataSource, string> = {
   comicvine: '#f05050',
   metron: '#4a90d9',
   gcd: '#4caf50',
+  anilist: '#02a9ff',
+  mal: '#4e74c9',
 };
 
 interface CrossMatchIndicatorProps {

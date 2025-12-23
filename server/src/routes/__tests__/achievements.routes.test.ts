@@ -25,7 +25,7 @@ import achievementsRoutes from '../achievements.routes.js';
 import * as achievementsService from '../../services/achievements.service.js';
 
 // Create typed mock reference
-const mockService = achievementsService as {
+const mockService = achievementsService as unknown as {
   getAllAchievementsWithProgress: ReturnType<typeof vi.fn>;
   getAchievementSummary: ReturnType<typeof vi.fn>;
   getCategoriesWithCounts: ReturnType<typeof vi.fn>;

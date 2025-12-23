@@ -13,10 +13,12 @@ import {
   getSeriesGenres,
   SeriesListOptions,
 } from '../services/api.service';
+import { useApp } from '../contexts/AppContext';
 import './SeriesPage.css';
 
 export function SeriesPage() {
   const navigate = useNavigate();
+  const { libraries } = useApp();
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -24,6 +26,7 @@ export function SeriesPage() {
   const [type, setType] = useState<'western' | 'manga' | ''>('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [hasUnread, setHasUnread] = useState<boolean | undefined>(undefined);
+  const [libraryId, setLibraryId] = useState<string>('');
   const [sortBy, setSortBy] = useState<SeriesListOptions['sortBy']>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -57,6 +60,7 @@ export function SeriesPage() {
     ...(type && { type }),
     ...(selectedGenres.length > 0 && { genres: selectedGenres }),
     ...(hasUnread !== undefined && { hasUnread }),
+    ...(libraryId && { libraryId }),
   };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,9 +79,10 @@ export function SeriesPage() {
     setType('');
     setSelectedGenres([]);
     setHasUnread(undefined);
+    setLibraryId('');
   };
 
-  const hasActiveFilters = search || publisher || type || selectedGenres.length > 0 || hasUnread !== undefined;
+  const hasActiveFilters = search || publisher || type || selectedGenres.length > 0 || hasUnread !== undefined || libraryId;
 
   return (
     <div className="series-page">
@@ -130,6 +135,22 @@ export function SeriesPage() {
             <option value="updatedAt-desc">Recently Updated</option>
             <option value="issueCount-desc">Most Issues</option>
             <option value="issueCount-asc">Fewest Issues</option>
+          </select>
+        </div>
+
+        <div className="filter-group">
+          <label htmlFor="library-select">Library</label>
+          <select
+            id="library-select"
+            value={libraryId}
+            onChange={(e) => setLibraryId(e.target.value)}
+          >
+            <option value="">All Libraries</option>
+            {libraries.map((lib) => (
+              <option key={lib.id} value={lib.id}>
+                {lib.name}
+              </option>
+            ))}
           </select>
         </div>
 

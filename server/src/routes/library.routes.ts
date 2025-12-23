@@ -19,6 +19,8 @@ import {
 } from '../services/scanner.service.js';
 import { getLibraryCoverDir } from '../services/app-paths.service.js';
 import { renameFolder } from '../services/file-operations.service.js';
+import { createScanJob } from '../services/library-scan-job.service.js';
+import { enqueueScanJob } from '../services/library-scan-queue.service.js';
 import { mkdir } from 'fs/promises';
 import { createServiceLogger, logError } from '../services/logger.service.js';
 import { validateBody, validateQuery } from '../middleware/validation.middleware.js';
@@ -74,6 +76,169 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
   logger.info({ count: librariesWithStats.length }, 'Listed libraries');
   sendSuccess(res, { libraries: librariesWithStats });
+}));
+
+// =============================================================================
+// All-Libraries Endpoints (must be before /:id routes)
+// =============================================================================
+
+/**
+ * GET /api/libraries/files
+ * List files from ALL libraries with pagination
+ */
+router.get('/files',
+  validateQuery(ListFilesQuerySchema),
+  asyncHandler(async (req: Request, res: Response) => {
+    const fetchAll = req.query.all === 'true';
+    const { page: rawPage, limit: rawLimit, status, folder, sort, order, groupBy } = req.query as unknown as {
+      page: number;
+      limit: number;
+      status?: string;
+      folder?: string;
+      sort: 'filename' | 'size' | 'number' | 'title' | 'year' | 'status';
+      order: 'asc' | 'desc';
+      groupBy?: 'series' | 'publisher' | 'year' | 'genre' | 'writer' | 'penciller' | 'firstLetter';
+    };
+
+    const page = fetchAll ? 1 : rawPage;
+    const limit = fetchAll ? undefined : rawLimit;
+    const skip = fetchAll ? undefined : (page - 1) * limit!;
+    const db = getDatabase();
+
+    // Build filter (no libraryId filter - gets files from all libraries)
+    const where: {
+      status?: string;
+      relativePath?: { startsWith: string };
+    } = {};
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (folder) {
+      where.relativePath = { startsWith: folder };
+    }
+
+    // Build orderBy
+    type OrderByItem = { [key: string]: 'asc' | 'desc' | { sort: 'asc' | 'desc'; nulls: 'last' } } | { metadata: { [key: string]: 'asc' | 'desc' } };
+    let orderBy: OrderByItem[];
+
+    const metadataSortFields = ['number', 'title', 'year'];
+    const isMetadataSort = metadataSortFields.includes(sort);
+    const sortOrderBy: OrderByItem = isMetadataSort
+      ? { metadata: { [sort]: order } }
+      : { [sort]: order };
+
+    if (groupBy) {
+      const groupOrderBy: OrderByItem = groupBy === 'firstLetter'
+        ? { filename: 'asc' }
+        : { metadata: { [groupBy]: 'asc' } };
+      orderBy = [groupOrderBy, sortOrderBy];
+    } else {
+      orderBy = [sortOrderBy];
+    }
+
+    const [files, total] = await Promise.all([
+      db.comicFile.findMany({
+        where,
+        ...(fetchAll ? {} : { skip, take: limit }),
+        orderBy,
+        select: {
+          id: true,
+          libraryId: true,
+          path: true,
+          relativePath: true,
+          filename: true,
+          size: true,
+          hash: true,
+          status: true,
+          modifiedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          seriesId: true,
+          metadata: {
+            select: {
+              series: true,
+              number: true,
+              title: true,
+              volume: true,
+              year: true,
+              publisher: true,
+              writer: true,
+              penciller: true,
+              genre: true,
+              characters: true,
+              teams: true,
+              locations: true,
+              storyArc: true,
+            },
+          },
+        },
+      }),
+      db.comicFile.count({ where }),
+    ]);
+
+    const returnLimit = fetchAll ? total : limit!;
+    logger.info({ total, fetchAll }, 'Listed files from all libraries');
+    sendSuccess(res, { files }, {
+      pagination: {
+        page,
+        limit: returnLimit,
+        total,
+        pages: fetchAll ? 1 : Math.ceil(total / limit!),
+      },
+    });
+  })
+);
+
+/**
+ * GET /api/libraries/folders
+ * Get folder structure for ALL libraries
+ */
+router.get('/folders', asyncHandler(async (_req: Request, res: Response) => {
+  const db = getDatabase();
+
+  // Get all libraries with their files' folder paths
+  const libraries = await db.library.findMany({
+    orderBy: { name: 'asc' },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+    },
+  });
+
+  // Get folders for each library
+  const librariesWithFolders = await Promise.all(
+    libraries.map(async (library) => {
+      const files = await db.comicFile.findMany({
+        where: { libraryId: library.id },
+        select: { relativePath: true },
+      });
+
+      // Extract unique folders
+      const folders = new Set<string>();
+      for (const file of files) {
+        const parts = file.relativePath.split('/');
+        let folderPath = '';
+        for (let i = 0; i < parts.length - 1; i++) {
+          const part = parts[i]!;
+          folderPath = folderPath ? `${folderPath}/${part}` : part;
+          folders.add(folderPath);
+        }
+      }
+
+      return {
+        id: library.id,
+        name: library.name,
+        type: library.type,
+        folders: Array.from(folders).sort(),
+      };
+    })
+  );
+
+  logger.info({ libraryCount: librariesWithFolders.length }, 'Listed folders from all libraries');
+  sendSuccess(res, { libraries: librariesWithFolders });
 }));
 
 /**
@@ -146,9 +311,21 @@ router.post('/',
       // Ignore if already exists
     }
 
+    // Auto-start a full scan for the new library
+    let scanJobId: string | null = null;
+    try {
+      scanJobId = await createScanJob(library.id);
+      enqueueScanJob(scanJobId);
+      logger.info({ libraryId: library.id, scanJobId }, 'Auto-started scan for new library');
+    } catch (scanError) {
+      // Log but don't fail library creation if scan fails to start
+      logger.warn({ libraryId: library.id, err: scanError }, 'Failed to auto-start scan for new library');
+    }
+
     logger.info({ libraryId: library.id, name, rootPath, type }, 'Created library');
     sendSuccess(res, {
       ...library,
+      scanJobId,
       stats: {
         total: 0,
         pending: 0,
@@ -276,6 +453,12 @@ router.post('/:id/scan', asyncHandler(async (req: Request, res: Response) => {
     duration: scanResult.scanDuration,
   }, 'Library scan completed');
 
+  // Check if there are any changes including existing orphaned files that need cleanup
+  const hasChanges = scanResult.newFiles.length > 0 ||
+                     scanResult.movedFiles.length > 0 ||
+                     scanResult.orphanedFiles.length > 0 ||
+                     scanResult.existingOrphanedCount > 0;
+
   sendSuccess(res, {
     scanId,
     libraryId: scanResult.libraryId,
@@ -286,6 +469,7 @@ router.post('/:id/scan', asyncHandler(async (req: Request, res: Response) => {
       newFiles: scanResult.newFiles.length,
       movedFiles: scanResult.movedFiles.length,
       orphanedFiles: scanResult.orphanedFiles.length,
+      existingOrphanedFiles: scanResult.existingOrphanedCount, // Files already marked orphaned, will be deleted
       unchangedFiles: scanResult.unchangedFiles,
       errors: scanResult.errors.length,
     },
@@ -304,9 +488,7 @@ router.post('/:id/scan', asyncHandler(async (req: Request, res: Response) => {
       })),
     },
     errors: scanResult.errors,
-    autoApplied: scanResult.newFiles.length === 0 &&
-                 scanResult.movedFiles.length === 0 &&
-                 scanResult.orphanedFiles.length === 0,
+    autoApplied: !hasChanges,
   });
 }));
 
@@ -369,16 +551,20 @@ router.delete('/:id/scan/:scanId', asyncHandler(async (req: Request, res: Respon
 router.get('/:id/files',
   validateQuery(ListFilesQuerySchema),
   asyncHandler(async (req: Request, res: Response) => {
-    const { page, limit, status, folder, sort, order } = req.query as unknown as {
+    const fetchAll = req.query.all === 'true';
+    const { page: rawPage, limit: rawLimit, status, folder, sort, order, groupBy } = req.query as unknown as {
       page: number;
       limit: number;
       status?: string;
       folder?: string;
-      sort: string;
+      sort: 'filename' | 'size' | 'number' | 'title' | 'year' | 'status';
       order: 'asc' | 'desc';
+      groupBy?: 'series' | 'publisher' | 'year' | 'genre' | 'writer' | 'penciller' | 'firstLetter';
     };
 
-    const skip = (page - 1) * limit;
+    const page = fetchAll ? 1 : rawPage;
+    const limit = fetchAll ? undefined : rawLimit;
+    const skip = fetchAll ? undefined : (page - 1) * limit!;
     const db = getDatabase();
 
     // Build filter
@@ -398,13 +584,47 @@ router.get('/:id/files',
       where.relativePath = { startsWith: folder };
     }
 
+    // Build orderBy - when groupBy is active, sort by group field first, then by user's sort field
+    // This ensures all items from one group appear together before pagination moves to the next
+    type OrderByItem = { [key: string]: 'asc' | 'desc' | { sort: 'asc' | 'desc'; nulls: 'last' } } | { metadata: { [key: string]: 'asc' | 'desc' } };
+    let orderBy: OrderByItem[];
+
+    // Metadata fields need nested orderBy
+    const metadataSortFields = ['number', 'title', 'year'];
+    const isMetadataSort = metadataSortFields.includes(sort);
+    const sortOrderBy: OrderByItem = isMetadataSort
+      ? { metadata: { [sort]: order } }
+      : { [sort]: order };
+
+    if (groupBy) {
+      // Map groupBy to the appropriate field for sorting
+      const groupOrderBy: OrderByItem = groupBy === 'firstLetter'
+        ? { filename: 'asc' } // Sort by filename for first letter grouping
+        : { metadata: { [groupBy]: 'asc' } }; // Sort by metadata field
+
+      orderBy = [groupOrderBy, sortOrderBy];
+    } else {
+      orderBy = [sortOrderBy];
+    }
+
     const [files, total] = await Promise.all([
       db.comicFile.findMany({
         where,
-        skip,
-        take: limit,
-        orderBy: { [sort]: order },
-        include: {
+        ...(fetchAll ? {} : { skip, take: limit }),
+        orderBy,
+        select: {
+          id: true,
+          libraryId: true,
+          path: true,
+          relativePath: true,
+          filename: true,
+          size: true,
+          hash: true,
+          status: true,
+          modifiedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          seriesId: true,
           metadata: {
             select: {
               series: true,
@@ -427,12 +647,13 @@ router.get('/:id/files',
       db.comicFile.count({ where }),
     ]);
 
+    const returnLimit = fetchAll ? total : limit!;
     sendSuccess(res, { files }, {
       pagination: {
         page,
-        limit,
+        limit: returnLimit,
         total,
-        pages: Math.ceil(total / limit),
+        pages: fetchAll ? 1 : Math.ceil(total / limit!),
       },
     });
   })

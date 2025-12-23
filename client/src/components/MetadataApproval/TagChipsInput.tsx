@@ -43,7 +43,10 @@ export function TagChipsInput({
   // Get the current chips from the field change
   const getChips = (): string[] => {
     if (!fieldChange) return [];
-    if (fieldChange.edited && fieldChange.editedValue !== undefined) {
+    // Check if user has edited the field (edited flag is true)
+    // editedValue can be null (user cleared all chips), undefined, or a value
+    if (fieldChange.edited) {
+      // User has made an edit - use editedValue (null means empty)
       return parseChips(fieldChange.editedValue);
     }
     if (fieldChange.proposed !== null && fieldChange.proposed !== undefined) {

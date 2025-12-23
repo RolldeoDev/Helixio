@@ -1,14 +1,14 @@
 import type { ThemeDefinition } from '../types';
 
 /**
- * Default Light Theme - "Collector's Archive Light"
+ * Collector's Archive Light Theme
  * Elegant light theme with warm paper-like tones
  */
-export const defaultLightTheme: ThemeDefinition = {
-  id: 'default',
+export const collectorsLightTheme: ThemeDefinition = {
+  id: 'collectors',
   scheme: 'light',
   meta: {
-    id: 'default',
+    id: 'collectors',
     name: "Collector's Archive",
     description: 'Elegant light theme with warm paper-like tones',
     author: 'Helixio',

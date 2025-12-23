@@ -10,13 +10,51 @@ import { getMetadataSettings } from './config.service.js';
 import * as comicVine from './comicvine.service.js';
 import * as metron from './metron.service.js';
 import { isMetronAvailable, getSeriesName } from './metron.service.js';
+import * as anilist from './anilist.service.js';
+import * as jikan from './jikan.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type MetadataSource = 'comicvine' | 'metron' | 'gcd';
+export type MetadataSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
+
+/** Library content type */
+export type LibraryType = 'western' | 'manga';
+
+/**
+ * Get prioritized sources based on library type.
+ * Manga libraries prioritize AniList/MAL, Western libraries prioritize ComicVine/Metron.
+ */
+export function getSourcesForLibraryType(libraryType: LibraryType): MetadataSource[] {
+  const settings = getMetadataSettings();
+  const enabledSources = settings.enabledSources || ['comicvine', 'metron', 'anilist', 'mal'];
+
+  if (libraryType === 'manga') {
+    // For manga libraries, ALWAYS include AniList/MAL (they're free public APIs)
+    // regardless of enabledSources config, plus any other enabled sources
+    const mangaSources: MetadataSource[] = ['anilist', 'mal'];
+    const otherSources = enabledSources.filter((s): s is MetadataSource =>
+      !mangaSources.includes(s as MetadataSource)
+    );
+    // Always include manga sources first, then other enabled sources
+    return [
+      ...mangaSources,
+      ...otherSources,
+    ];
+  }
+
+  // For western comics, prioritize ComicVine/Metron
+  const westernSources: MetadataSource[] = ['comicvine', 'metron', 'gcd'];
+  const otherSources = enabledSources.filter((s): s is MetadataSource =>
+    !westernSources.includes(s as MetadataSource)
+  );
+  return [
+    ...westernSources.filter((s) => enabledSources.includes(s)),
+    ...otherSources,
+  ];
+}
 
 export interface SearchQuery {
   /** Series/volume name */
@@ -92,6 +130,15 @@ export interface SearchResults {
   sources: {
     comicVine: { searched: boolean; available: boolean; error?: string };
     metron: { searched: boolean; available: boolean; error?: string };
+    anilist: { searched: boolean; available: boolean; error?: string };
+    mal: { searched: boolean; available: boolean; error?: string };
+  };
+  /** Pagination metadata (only populated for ComicVine searches) */
+  pagination?: {
+    total: number;
+    offset: number;
+    limit: number;
+    hasMore: boolean;
   };
 }
 
@@ -258,20 +305,29 @@ function calculateIssueConfidence(
 /**
  * Search for series across all sources
  *
- * Searches ComicVine and Metron in parallel for faster results.
+ * Searches sources in parallel for faster results.
+ * When libraryType is provided, sources are automatically prioritized.
  */
 export async function searchSeries(
   query: SearchQuery,
-  options: { limit?: number; sources?: MetadataSource[]; sessionId?: string } = {}
+  options: { limit?: number; offset?: number; sources?: MetadataSource[]; sessionId?: string; libraryType?: LibraryType } = {}
 ): Promise<SearchResults> {
   const settings = getMetadataSettings();
   const limit = options.limit || 10;
+  const offset = options.offset || 0;
   const sessionId = options.sessionId;
 
   // Determine which sources to search
-  const sources = options.sources || [settings.primarySource, settings.primarySource === 'comicvine' ? 'metron' : 'comicvine'];
+  // If libraryType is provided, use type-aware source selection
+  let sources: MetadataSource[];
+  if (options.sources) {
+    sources = options.sources;
+  } else if (options.libraryType) {
+    sources = getSourcesForLibraryType(options.libraryType);
+  } else {
+    sources = [settings.primarySource as MetadataSource, settings.primarySource === 'comicvine' ? 'metron' : 'comicvine'];
+  }
   const uniqueSources = Array.from(new Set(sources));
-
 
   const results: SearchResults = {
     series: [],
@@ -280,6 +336,8 @@ export async function searchSeries(
     sources: {
       comicVine: { searched: false, available: false },
       metron: { searched: false, available: false },
+      anilist: { searched: false, available: false },
+      mal: { searched: false, available: false },
     },
   };
 
@@ -303,8 +361,16 @@ export async function searchSeries(
       (async () => {
         try {
           results.sources.comicVine.searched = true;
-          const cvResults = await comicVine.searchVolumes(query.series!, { limit, sessionId });
+          const cvResults = await comicVine.searchVolumes(query.series!, { limit, offset, sessionId });
           results.sources.comicVine.available = true;
+
+          // Store pagination info from ComicVine
+          results.pagination = {
+            total: cvResults.total,
+            offset: cvResults.offset,
+            limit: cvResults.limit,
+            hasMore: cvResults.offset + cvResults.results.length < cvResults.total,
+          };
 
           for (const vol of cvResults.results) {
             const match: SeriesMatch = {
@@ -400,6 +466,126 @@ export async function searchSeries(
     );
   }
 
+  if (uniqueSources.includes('anilist')) {
+    searchPromises.push(
+      (async () => {
+        try {
+          results.sources.anilist.searched = true;
+          const anilistResults = await anilist.searchManga(query.series!, {
+            limit,
+            page: Math.floor(offset / limit) + 1,
+            sessionId,
+          });
+          results.sources.anilist.available = true;
+
+          for (const manga of anilistResults.results) {
+            // Build aliases from all title variants
+            const aliases: string[] = [];
+            const preferredTitle = anilist.getPreferredTitle(manga);
+            if (manga.title.romaji && manga.title.romaji !== preferredTitle) {
+              aliases.push(manga.title.romaji);
+            }
+            if (manga.title.english && manga.title.english !== preferredTitle) {
+              aliases.push(manga.title.english);
+            }
+            if (manga.title.native) {
+              aliases.push(manga.title.native);
+            }
+            if (manga.synonyms) {
+              aliases.push(...manga.synonyms);
+            }
+
+            const match: SeriesMatch = {
+              source: 'anilist',
+              sourceId: String(manga.id),
+              name: preferredTitle,
+              startYear: anilist.fuzzyDateToYear(manga.startDate) ?? undefined,
+              endYear: anilist.fuzzyDateToYear(manga.endDate) ?? undefined,
+              publisher: undefined, // AniList doesn't have publisher
+              issueCount: manga.chapters || manga.volumes || undefined,
+              description: manga.description?.replace(/<[^>]*>/g, '').substring(0, 500),
+              coverUrl: manga.coverImage.large || manga.coverImage.medium,
+              confidence: 0,
+              url: manga.siteUrl,
+              aliases: aliases.length > 0 ? aliases : undefined,
+              seriesType: anilist.formatToSeriesType(manga.format),
+              imageUrls: {
+                thumb: manga.coverImage.medium,
+                small: manga.coverImage.medium,
+                medium: manga.coverImage.large,
+              },
+            };
+            match.confidence = calculateSeriesConfidence(query, match);
+            results.series.push(match);
+          }
+        } catch (err) {
+          console.error(`[searchSeries] AniList error:`, err);
+          results.sources.anilist.error = err instanceof Error ? err.message : String(err);
+        }
+      })()
+    );
+  }
+
+  if (uniqueSources.includes('mal')) {
+    searchPromises.push(
+      (async () => {
+        try {
+          results.sources.mal.searched = true;
+          const malResults = await jikan.searchManga(query.series!, {
+            limit,
+            page: Math.floor(offset / limit) + 1,
+            sessionId,
+          });
+          results.sources.mal.available = true;
+
+          for (const manga of malResults.results) {
+            // Build aliases from all title variants
+            const aliases: string[] = [];
+            const preferredTitle = jikan.getPreferredTitle(manga);
+            if (manga.title && manga.title !== preferredTitle) {
+              aliases.push(manga.title);
+            }
+            if (manga.title_english && manga.title_english !== preferredTitle) {
+              aliases.push(manga.title_english);
+            }
+            if (manga.title_japanese) {
+              aliases.push(manga.title_japanese);
+            }
+            if (manga.title_synonyms) {
+              aliases.push(...manga.title_synonyms);
+            }
+
+            const match: SeriesMatch = {
+              source: 'mal',
+              sourceId: String(manga.mal_id),
+              name: preferredTitle,
+              startYear: jikan.getStartYear(manga) ?? undefined,
+              endYear: jikan.getEndYear(manga) ?? undefined,
+              publisher: manga.serializations?.[0]?.name, // Use first serialization as publisher
+              issueCount: manga.chapters || manga.volumes || undefined,
+              description: manga.synopsis?.substring(0, 500),
+              coverUrl: manga.images.jpg.large_image_url || manga.images.jpg.image_url,
+              confidence: 0,
+              url: manga.url,
+              aliases: aliases.length > 0 ? aliases : undefined,
+              seriesType: jikan.typeToSeriesType(manga.type),
+              imageUrls: {
+                thumb: manga.images.jpg.small_image_url,
+                small: manga.images.jpg.image_url,
+                medium: manga.images.jpg.large_image_url,
+              },
+            };
+            match.confidence = calculateSeriesConfidence(query, match);
+            results.series.push(match);
+          }
+        } catch (err) {
+          console.error(`[searchSeries] MAL (Jikan) error:`, err);
+          results.sources.mal.error = err instanceof Error ? err.message : String(err);
+        }
+      })()
+    );
+  }
+
   // Wait for all searches to complete in parallel
   await Promise.all(searchPromises);
 
@@ -409,8 +595,19 @@ export async function searchSeries(
     MetadataFetchLogger.logScoring(sessionId, results.series.length, topMatch.confidence, topMatch.source);
   }
 
-  // Sort by confidence (highest first)
-  results.series.sort((a, b) => b.confidence - a.confidence);
+  // Sort results - for manga libraries, prioritize manga sources (AniList/MAL) first
+  const mangaSources: MetadataSource[] = ['anilist', 'mal'];
+  if (options.libraryType === 'manga') {
+    // For manga: sort manga sources first (by confidence), then other sources (by confidence)
+    const mangaResults = results.series.filter(s => mangaSources.includes(s.source));
+    const otherResults = results.series.filter(s => !mangaSources.includes(s.source));
+    mangaResults.sort((a, b) => b.confidence - a.confidence);
+    otherResults.sort((a, b) => b.confidence - a.confidence);
+    results.series = [...mangaResults, ...otherResults];
+  } else {
+    // For western: sort by confidence (highest first)
+    results.series.sort((a, b) => b.confidence - a.confidence);
+  }
 
   // Limit results
   results.series = results.series.slice(0, limit);
@@ -445,8 +642,13 @@ export async function searchIssues(
     sources: {
       comicVine: { searched: false, available: false },
       metron: { searched: false, available: false },
+      anilist: { searched: false, available: false },
+      mal: { searched: false, available: false },
     },
   };
+
+  // Note: AniList and MAL don't provide per-chapter/issue metadata.
+  // For manga, chapters are parsed from filenames instead.
 
   // Log searching step
   if (sessionId) {
@@ -625,6 +827,16 @@ export async function search(
         available: seriesResults.sources.metron.available || issueResults.sources.metron.available,
         error: seriesResults.sources.metron.error || issueResults.sources.metron.error,
       },
+      anilist: {
+        searched: seriesResults.sources.anilist.searched || issueResults.sources.anilist.searched,
+        available: seriesResults.sources.anilist.available || issueResults.sources.anilist.available,
+        error: seriesResults.sources.anilist.error || issueResults.sources.anilist.error,
+      },
+      mal: {
+        searched: seriesResults.sources.mal.searched || issueResults.sources.mal.searched,
+        available: seriesResults.sources.mal.available || issueResults.sources.mal.available,
+        error: seriesResults.sources.mal.error || issueResults.sources.mal.error,
+      },
     },
   };
 }
@@ -658,6 +870,43 @@ export async function getSeriesMetadata(
     const series = await metron.getSeries(id, sessionId);
     if (!series) return null;
     return metron.seriesToSeriesMetadata(series);
+  }
+
+  if (source === 'anilist') {
+    const manga = await anilist.getMangaById(id, sessionId);
+    if (!manga) return null;
+    // Convert AniList manga to metadata format
+    return {
+      name: anilist.getPreferredTitle(manga),
+      aliases: anilist.getAllTitles(manga),
+      description: manga.description,
+      startYear: manga.startDate?.year,
+      endYear: manga.endDate?.year,
+      issueCount: manga.chapters || manga.volumes,
+      coverUrl: manga.coverImage?.large || manga.coverImage?.medium,
+      genres: manga.genres,
+      characters: manga.characters?.edges?.map((e) => e.node.name.full) || [],
+      status: manga.status,
+    };
+  }
+
+  if (source === 'mal') {
+    const manga = await jikan.getMangaById(id, sessionId);
+    if (!manga) return null;
+    // Convert MAL manga to metadata format
+    return {
+      name: manga.title_english || manga.title,
+      aliases: [manga.title, manga.title_english, manga.title_japanese].filter(Boolean),
+      description: manga.synopsis,
+      startYear: manga.published?.from ? new Date(manga.published.from).getFullYear() : undefined,
+      endYear: manga.published?.to ? new Date(manga.published.to).getFullYear() : undefined,
+      issueCount: manga.chapters || manga.volumes,
+      coverUrl: manga.images?.jpg?.large_image_url || manga.images?.jpg?.image_url,
+      genres: manga.genres?.map((g: { name: string }) => g.name) || [],
+      characters: [], // Would require additional API call
+      status: manga.status,
+      publisher: manga.serializations?.[0]?.name,
+    };
   }
 
   return null;

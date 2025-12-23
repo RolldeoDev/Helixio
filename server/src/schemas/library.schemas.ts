@@ -30,10 +30,12 @@ export const UpdateLibrarySchema = z.object({
 export const ListFilesQuerySchema = z.object({
   page: z.string().optional().transform((val) => (val ? Math.max(1, parseInt(val, 10) || 1) : 1)),
   limit: z.string().optional().transform((val) => (val ? Math.min(100, Math.max(1, parseInt(val, 10) || 50)) : 50)),
+  all: z.string().optional(), // When 'true', fetch all items without pagination
   status: z.enum(['pending', 'indexed', 'orphaned', 'quarantined']).optional(),
   folder: z.string().optional(),
-  sort: z.enum(['filename', 'size', 'modifiedAt', 'status', 'createdAt']).default('filename'),
+  sort: z.enum(['filename', 'size', 'number', 'title', 'year', 'status']).default('filename'),
   order: z.enum(['asc', 'desc']).default('asc'),
+  groupBy: z.enum(['series', 'publisher', 'year', 'genre', 'writer', 'penciller', 'firstLetter']).optional(),
 });
 
 // =============================================================================

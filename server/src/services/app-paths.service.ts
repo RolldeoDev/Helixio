@@ -105,24 +105,30 @@ export function getSeriesCacheDir(): string {
   return join(getCacheDir(), 'series');
 }
 
+/** All supported metadata sources for caching */
+type CacheableSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
+
+/** List of all cacheable sources */
+const ALL_CACHEABLE_SOURCES: CacheableSource[] = ['comicvine', 'metron', 'gcd', 'anilist', 'mal'];
+
 /**
- * Get the path to a source's series cache directory (comicvine/metron)
+ * Get the path to a source's series cache directory
  */
-export function getSourceSeriesCacheDir(source: 'comicvine' | 'metron'): string {
+export function getSourceSeriesCacheDir(source: CacheableSource): string {
   return join(getSeriesCacheDir(), source);
 }
 
 /**
  * Get the path to a cached series JSON file
  */
-export function getSeriesFilePath(source: 'comicvine' | 'metron', seriesId: string): string {
+export function getSeriesFilePath(source: CacheableSource, seriesId: string): string {
   return join(getSourceSeriesCacheDir(source), `${seriesId}.json`);
 }
 
 /**
  * Get the path to a cached series issues JSON file
  */
-export function getSeriesIssuesFilePath(source: 'comicvine' | 'metron', seriesId: string): string {
+export function getSeriesIssuesFilePath(source: CacheableSource, seriesId: string): string {
   return join(getSourceSeriesCacheDir(source), `${seriesId}_issues.json`);
 }
 
@@ -139,8 +145,7 @@ export function ensureAppDirectories(): void {
     getSeriesCoversDir(),
     getThumbnailsDir(),
     getSeriesCacheDir(),
-    getSourceSeriesCacheDir('comicvine'),
-    getSourceSeriesCacheDir('metron'),
+    ...ALL_CACHEABLE_SOURCES.map(getSourceSeriesCacheDir),
   ];
 
   for (const dir of directories) {

@@ -4,17 +4,18 @@
  * Main application component with routing and layout.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { MetadataJobProvider, useMetadataJob } from './contexts/MetadataJobContext';
+import { LibraryScanProvider } from './contexts/LibraryScanContext';
 import { SmartFilterProvider, useSmartFilter } from './contexts/SmartFilterContext';
 import { CollectionsProvider } from './contexts/CollectionsContext';
 import { WantToReadProvider } from './contexts/WantToReadContext';
 import { AnnotationsProvider } from './contexts/AnnotationsContext';
 import { ThemeProvider } from './themes/ThemeContext';
-import { SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects } from './themes';
+import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects } from './themes';
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { SidebarNew, StatusBar } from './components/Layout';
@@ -45,15 +46,19 @@ import { CollectionsPage } from './pages/CollectionsPage';
 import { StatsPage } from './pages/StatsPage';
 import { EntityStatsPage } from './pages/EntityStatsPage';
 import { AchievementsPage } from './pages/AchievementsPage';
+import { FoldersPage } from './pages/FoldersPage';
 import { SharedLists } from './components/SharedLists';
 import { UserManagement } from './components/Admin';
+import { HelixioLoader } from './components/HelixioLoader';
+import { NavigationSidebar } from './components/NavigationSidebar';
+import { groupFiles } from './utils/file-grouping';
+import type { ComicFile } from './services/api.service';
 
 type ViewMode = 'list' | 'grid' | 'compact';
 
-const GROUP_STORAGE_KEY = 'helixio-group-field';
-
 function LibraryView() {
-  const { files, selectedFiles, pagination, refreshFiles } = useApp();
+  const { files, selectedFiles, pagination, refreshFiles, groupField: groupFieldRaw, setGroupField, sortField, sortOrder } = useApp();
+  const groupField = groupFieldRaw as GroupField;
   const { startJob } = useMetadataJob();
   const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useSmartFilter();
   const navigate = useNavigate();
@@ -61,23 +66,138 @@ function LibraryView() {
   const [editingFileIds, setEditingFileIds] = useState<string[] | null>(null);
   const [editingPages, setEditingPages] = useState<{ fileId: string; filename: string } | null>(null);
 
-  // Group field state with localStorage persistence
-  const [groupField, setGroupField] = useState<GroupField>(() => {
-    try {
-      const stored = localStorage.getItem(GROUP_STORAGE_KEY);
-      return (stored as GroupField) || 'none';
-    } catch {
-      return 'none';
-    }
-  });
-
-  // Persist group field to localStorage
-  useEffect(() => {
-    localStorage.setItem(GROUP_STORAGE_KEY, groupField);
-  }, [groupField]);
+  // Navigation sidebar state
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 });
 
   // Apply smart filter to files
   const filteredFiles = applyFilterToFiles(files);
+
+  // Get files in display order (flattened from groups when grouping is active)
+  // This ensures NavigationSidebar markers match the actual display order
+  const displayOrderedFiles = useMemo(() => {
+    if (groupField === 'none') {
+      return filteredFiles;
+    }
+    // Flatten the grouped files into display order
+    const groups = groupFiles(filteredFiles, groupField);
+    const flattened: ComicFile[] = [];
+    for (const [, groupedFiles] of groups) {
+      flattened.push(...groupedFiles);
+    }
+    return flattened;
+  }, [filteredFiles, groupField]);
+
+  // Determine the effective sort field for the sidebar
+  // When grouping is active, navigate by group (e.g., series name, writer name)
+  // When no grouping, navigate by the actual sort field
+  const sidebarSortField = useMemo(() => {
+    if (groupField === 'none') {
+      return sortField;
+    }
+    // Map group fields to the corresponding sort field for the sidebar
+    switch (groupField) {
+      case 'series':
+        return 'series';
+      case 'publisher':
+        return 'publisher';
+      case 'year':
+        return 'year';
+      case 'genre':
+        return 'genre';
+      case 'writer':
+        return 'writer';
+      case 'penciller':
+        return 'penciller';
+      case 'firstLetter':
+        return 'filename'; // First letter of filename/series
+      default:
+        return sortField;
+    }
+  }, [groupField, sortField]);
+
+  // Track visible range for navigation sidebar
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container || filteredFiles.length === 0) return;
+
+    const updateVisibleRange = () => {
+      const gridItems = container.querySelectorAll('[data-file-index]');
+      const containerRect = container.getBoundingClientRect();
+
+      let minIndex = Infinity;
+      let maxIndex = -1;
+
+      gridItems.forEach((item) => {
+        const rect = item.getBoundingClientRect();
+        const isVisible = rect.bottom > containerRect.top && rect.top < containerRect.bottom;
+
+        if (isVisible) {
+          // Read the actual data-file-index attribute, not the forEach index
+          const fileIndex = parseInt(item.getAttribute('data-file-index') || '0', 10);
+          if (fileIndex < minIndex) minIndex = fileIndex;
+          if (fileIndex > maxIndex) maxIndex = fileIndex;
+        }
+      });
+
+      if (maxIndex >= 0) {
+        setVisibleRange({ start: minIndex, end: maxIndex });
+      }
+    };
+
+    container.addEventListener('scroll', updateVisibleRange, { passive: true });
+    // Also listen to window scroll since the container might not be the scroll parent
+    window.addEventListener('scroll', updateVisibleRange, { passive: true });
+    updateVisibleRange();
+
+    return () => {
+      container.removeEventListener('scroll', updateVisibleRange);
+      window.removeEventListener('scroll', updateVisibleRange);
+    };
+  }, [filteredFiles.length]);
+
+  // Scroll to index for navigation sidebar
+  const scrollToIndex = useCallback((index: number) => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const gridItems = container.querySelectorAll('[data-file-index]');
+    const targetItem = gridItems[index] as HTMLElement;
+
+    if (targetItem) {
+      targetItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  // Get item value for navigation sidebar based on the effective sort field
+  const getItemValue = useCallback((item: ComicFile) => {
+    switch (sidebarSortField) {
+      case 'filename':
+        return item.filename;
+      case 'series':
+        return item.metadata?.series || 'Unknown Series';
+      case 'title':
+        return item.metadata?.title || item.filename;
+      case 'publisher':
+        return item.metadata?.publisher;
+      case 'year':
+        return item.metadata?.year;
+      case 'number':
+        return item.metadata?.number;
+      case 'createdAt':
+        return item.createdAt;
+      case 'updatedAt':
+        return item.updatedAt;
+      case 'writer':
+        return item.metadata?.writer;
+      case 'penciller':
+        return item.metadata?.penciller;
+      case 'genre':
+        return item.metadata?.genre;
+      default:
+        return item.filename;
+    }
+  }, [sidebarSortField]);
 
   const handleFileDoubleClick = (fileId: string) => {
     // Open reader on double-click
@@ -135,26 +255,41 @@ function LibraryView() {
         </div>
       )}
 
-      {/* View Content */}
-      {viewMode === 'list' ? (
-        <ListView
-          onFileDoubleClick={handleFileDoubleClick}
-          onFetchMetadata={handleFetchMetadata}
-          onEditMetadata={handleEditMetadata}
-          filteredFiles={filteredFiles}
-          groupField={groupField}
-        />
-      ) : viewMode === 'compact' ? (
-        <FileList onFetchMetadata={handleFetchMetadata} onEditMetadata={handleEditMetadata} filteredFiles={filteredFiles} compact />
-      ) : (
-        <GridView
-          onFileDoubleClick={handleFileDoubleClick}
-          onFetchMetadata={handleFetchMetadata}
-          onEditMetadata={handleEditMetadata}
-          filteredFiles={filteredFiles}
-          groupField={groupField}
-        />
-      )}
+      {/* Scrollable content area with view and sidebar */}
+      <div className="library-view-content" ref={contentRef}>
+        {/* View Content */}
+        {viewMode === 'list' ? (
+          <ListView
+            onFileDoubleClick={handleFileDoubleClick}
+            onFetchMetadata={handleFetchMetadata}
+            onEditMetadata={handleEditMetadata}
+            filteredFiles={filteredFiles}
+            groupField={groupField}
+          />
+        ) : viewMode === 'compact' ? (
+          <FileList onFetchMetadata={handleFetchMetadata} onEditMetadata={handleEditMetadata} filteredFiles={filteredFiles} compact />
+        ) : (
+          <GridView
+            onFileDoubleClick={handleFileDoubleClick}
+            onFetchMetadata={handleFetchMetadata}
+            onEditMetadata={handleEditMetadata}
+            filteredFiles={filteredFiles}
+            groupField={groupField}
+          />
+        )}
+
+        {/* Navigation Sidebar - inside scroll container for proper sticky behavior */}
+        {displayOrderedFiles.length >= 10 && (
+          <NavigationSidebar
+            items={displayOrderedFiles}
+            sortField={sidebarSortField}
+            sortOrder={sortOrder}
+            onNavigate={scrollToIndex}
+            visibleRange={visibleRange}
+            getItemValue={getItemValue}
+          />
+        )}
+      </div>
 
       {/* Metadata Editor Modal */}
       {editingFileIds && (
@@ -197,12 +332,7 @@ function AppContent() {
   // Note: We allow unauthenticated access to library browsing for now
   // Auth is required for trackers, sync, lists, and admin
   if (authLoading) {
-    return (
-      <div className="app-loading">
-        <div className="spinner" />
-        <span>Loading...</span>
-      </div>
-    );
+    return <HelixioLoader fullPage message="Loading..." />;
   }
 
   // Show setup/login page if required
@@ -234,6 +364,7 @@ function AppContent() {
           <Route path="/" element={<HomePage />} />
           <Route path="/library" element={<LibraryView />} />
           <Route path="/library/:libraryId" element={<LibraryView />} />
+          <Route path="/folders" element={<FoldersPage />} />
           <Route path="/series" element={<SeriesPage />} />
           <Route path="/series/duplicates" element={<DuplicatesPage />} />
           <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
@@ -263,6 +394,7 @@ function AppContent() {
       {/* Theme-specific effects - not shown in reader (would be distracting and cover content) */}
       {!isReaderRoute && (
         <>
+          <HelixEffects />
           <SandmanEffects />
           <SynthwaveEffects />
           <RetroEffects />
@@ -278,21 +410,23 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
-          <SmartFilterProvider>
-            <CollectionsProvider>
-              <WantToReadProvider>
-                <AnnotationsProvider>
-                  <MetadataJobProvider>
-                    <AchievementProvider>
-                      <AppContent />
-                      {/* Achievement notifications */}
-                      <AchievementToast />
-                    </AchievementProvider>
-                  </MetadataJobProvider>
-                </AnnotationsProvider>
-              </WantToReadProvider>
-            </CollectionsProvider>
-          </SmartFilterProvider>
+          <LibraryScanProvider>
+            <SmartFilterProvider>
+              <CollectionsProvider>
+                <WantToReadProvider>
+                  <AnnotationsProvider>
+                    <MetadataJobProvider>
+                      <AchievementProvider>
+                        <AppContent />
+                        {/* Achievement notifications */}
+                        <AchievementToast />
+                      </AchievementProvider>
+                    </MetadataJobProvider>
+                  </AnnotationsProvider>
+                </WantToReadProvider>
+              </CollectionsProvider>
+            </SmartFilterProvider>
+          </LibraryScanProvider>
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>

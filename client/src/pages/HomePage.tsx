@@ -133,6 +133,7 @@ export function HomePage() {
           items={remainingItems}
           isLoading={isLoading}
           onItemClick={handleComicClick}
+          onItemsChange={fetchData}
         />
       )}
 
@@ -141,6 +142,7 @@ export function HomePage() {
         <RecommendedSection
           libraryId={effectiveLibraryId}
           onItemClick={handleComicClick}
+          onItemsChange={fetchData}
         />
       )}
 
@@ -149,6 +151,7 @@ export function HomePage() {
         <DiscoverSection
           libraryId={effectiveLibraryId}
           onItemClick={handleComicClick}
+          onItemsChange={fetchData}
         />
       )}
 

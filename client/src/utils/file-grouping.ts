@@ -25,6 +25,10 @@ export function getGroupKey(file: ComicFile, groupField: GroupField): string {
       return file.metadata?.year?.toString() || 'Unknown Year';
     case 'genre':
       return file.metadata?.genre || 'Unknown Genre';
+    case 'writer':
+      return file.metadata?.writer || 'Unknown Writer';
+    case 'penciller':
+      return file.metadata?.penciller || 'Unknown Artist';
     case 'firstLetter': {
       const name = file.metadata?.series || file.filename;
       const firstChar = name.charAt(0).toUpperCase();
@@ -58,10 +62,22 @@ export function groupFiles(files: ComicFile[], groupField: GroupField): Map<stri
     }
   }
 
-  // Sort groups alphabetically (with # at the end for firstLetter)
+  // Sort groups (with # and Unknown at the end)
   const sortedEntries = Array.from(groups.entries()).sort((a, b) => {
+    // Special characters/unknown values go to the end
     if (a[0] === '#') return 1;
     if (b[0] === '#') return -1;
+
+    // For year grouping, sort numerically (Unknown Year at end)
+    if (groupField === 'year') {
+      const yearA = parseInt(a[0], 10);
+      const yearB = parseInt(b[0], 10);
+      if (isNaN(yearA)) return 1; // Unknown Year at end
+      if (isNaN(yearB)) return -1;
+      return yearA - yearB;
+    }
+
+    // Default: alphabetical sorting
     return a[0].localeCompare(b[0]);
   });
 

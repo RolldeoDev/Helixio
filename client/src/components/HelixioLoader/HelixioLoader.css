@@ -1,0 +1,74 @@
+/**
+ * HelixioLoader Styles
+ */
+
+.helixio-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+}
+
+.helixio-loader__spinner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.helixio-loader__logo {
+  animation: helixio-pulse 1.5s ease-in-out infinite;
+}
+
+/* Size variants */
+.helixio-loader--sm .helixio-loader__logo {
+  width: 32px;
+  height: 32px;
+}
+
+.helixio-loader--md .helixio-loader__logo {
+  width: 48px;
+  height: 48px;
+}
+
+.helixio-loader--lg .helixio-loader__logo {
+  width: 64px;
+  height: 64px;
+}
+
+.helixio-loader__message {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* Full-page overlay */
+.helixio-loader__overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  z-index: 9999;
+}
+
+/* Pulse animation */
+@keyframes helixio-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .helixio-loader__logo {
+    animation: none;
+  }
+}

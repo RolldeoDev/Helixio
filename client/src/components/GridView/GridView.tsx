@@ -10,9 +10,10 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { renameFile, rebuildCache, getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
-import { CoverSizeSlider, getCoverWidth } from '../CoverSizeSlider';
+import { CoverSizeSlider } from '../CoverSizeSlider';
 import { CollectionPickerModal } from '../CollectionPickerModal';
 import { groupFiles } from '../../utils/file-grouping';
+import { useOptimalGridSize } from '../../hooks/useOptimalGridSize';
 
 import type { ComicFile } from '../../services/api.service';
 import type { GroupField } from '../SortGroup/SortGroupPanel';
@@ -34,6 +35,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     loadingFiles,
     filesError,
     selectedLibrary,
+    isAllLibraries,
     selectFile,
     selectRange,
     selectAllFiles,
@@ -61,6 +63,14 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     setCoverSize(size);
     localStorage.setItem('helixio-cover-size', String(size));
   }, []);
+
+  // Get optimal grid sizing based on slider value and container width
+  const { containerRef: gridSizeRef, columns, gap } = useOptimalGridSize({
+    sliderValue: coverSize,
+    gap: 16,
+    minCoverWidth: 80,
+    maxCoverWidth: 350,
+  });
 
   // Reading progress state
   const [readingProgress, setReadingProgress] = useState<Record<string, { currentPage: number; totalPages: number; completed: boolean }>>({});
@@ -297,7 +307,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     'rebuildCache',
   ];
 
-  if (!selectedLibrary) {
+  if (!selectedLibrary && !isAllLibraries) {
     return (
       <div className="grid-view-empty">
         <div className="empty-state">
@@ -358,49 +368,94 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
       )}
 
       {/* Grid */}
-      {files.length > 0 && (
-        <div
-          className="grid-container"
-          ref={gridRef}
-          style={{ '--cover-size': `${getCoverWidth(coverSize)}px` } as React.CSSProperties}
-        >
-          {Array.from(groupFiles(files, groupField).entries()).map(([groupName, groupedFiles]) => (
-            <div key={groupName || 'all'} className="grid-group">
-              {groupField !== 'none' && groupName && (
-                <div className="grid-group-header">
-                  <h3 className="grid-group-title">{groupName}</h3>
-                  <span className="grid-group-count">{groupedFiles.length}</span>
+      {files.length > 0 && (() => {
+        // Track global index across all groups for navigation sidebar
+        let globalIndex = 0;
+        const groups = Array.from(groupFiles(files, groupField).entries());
+
+        // CSS grid style that fills available width with calculated columns
+        // Use calculated columns if available, otherwise fall back to auto-fill
+        const gridStyle = columns > 1
+          ? {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${columns}, 1fr)`,
+              gap: `${gap}px`,
+            }
+          : {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+              gap: `${gap}px`,
+            };
+
+        return (
+          <div
+            className="grid-container"
+            ref={(el) => {
+              // Merge refs - assign to both gridRef and gridSizeRef
+              (gridRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+              (gridSizeRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            }}
+          >
+            {groups.map(([groupName, groupedFiles]) => {
+              // Get seriesId from first file for linking (only when grouping by series)
+              const seriesId = groupField === 'series' ? groupedFiles[0]?.seriesId : null;
+
+              return (
+                <div key={groupName || 'all'} className="grid-group">
+                  {groupField !== 'none' && groupName && (
+                    <div className="grid-group-header">
+                      {groupField === 'series' && seriesId ? (
+                        <h3
+                          className="grid-group-title grid-group-title--link"
+                          onClick={() => navigate(`/series/${seriesId}`)}
+                          role="link"
+                          tabIndex={0}
+                          onKeyDown={(e) => e.key === 'Enter' && navigate(`/series/${seriesId}`)}
+                        >
+                          {groupName}
+                        </h3>
+                      ) : (
+                        <h3 className="grid-group-title">{groupName}</h3>
+                      )}
+                      <span className="grid-group-count">{groupedFiles.length}</span>
+                    </div>
+                  )}
+                  <div className="grid" style={gridStyle as React.CSSProperties}>
+                    {groupedFiles.map((file, localIndex) => {
+                      const currentGlobalIndex = globalIndex++;
+                      return (
+                        <div key={file.id} data-file-index={currentGlobalIndex} data-file-id={file.id}>
+                          <CoverCard
+                            file={file}
+                            progress={readingProgress[file.id]}
+                            variant="grid"
+                            size="medium"
+                            selectable={true}
+                            isSelected={selectedFiles.has(file.id)}
+                            checkboxVisibility="hover"
+                            contextMenuEnabled={true}
+                            menuItems={menuItems}
+                            selectedCount={selectedFiles.size}
+                            showInfo={true}
+                            showSeries={true}
+                            showIssueNumber={true}
+                            onClick={handleCardClick}
+                            onDoubleClick={handleCardDoubleClick}
+                            onRead={handleRead}
+                            onSelectionChange={handleSelectionChange}
+                            onMenuAction={handleMenuAction}
+                            animationIndex={localIndex}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              )}
-              <div className="grid">
-                {groupedFiles.map((file, index) => (
-                  <CoverCard
-                    key={file.id}
-                    file={file}
-                    progress={readingProgress[file.id]}
-                    variant="grid"
-                    size="medium"
-                    selectable={true}
-                    isSelected={selectedFiles.has(file.id)}
-                    checkboxVisibility="hover"
-                    contextMenuEnabled={true}
-                    menuItems={menuItems}
-                    selectedCount={selectedFiles.size}
-                    showInfo={true}
-                    showSeries={true}
-                    showIssueNumber={true}
-                    onClick={handleCardClick}
-                    onDoubleClick={handleCardDoubleClick}
-                    onSelectionChange={handleSelectionChange}
-                    onMenuAction={handleMenuAction}
-                    animationIndex={index}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Rename Dialog */}
       {renameDialog && (

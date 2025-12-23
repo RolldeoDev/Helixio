@@ -247,6 +247,7 @@ export function VirtualGridView({
                 showIssueNumber={true}
                 onClick={handleItemClick}
                 onDoubleClick={handleItemDoubleClick}
+                onRead={handleItemDoubleClick}
                 onSelectionChange={handleSelectionChange}
                 onMenuAction={handleMenuAction}
               />

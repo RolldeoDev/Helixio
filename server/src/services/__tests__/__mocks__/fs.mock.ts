@@ -118,7 +118,7 @@ export function createMockFsPromises(vfs: VirtualFS) {
       for (const [filePath, file] of vfs.files) {
         if (filePath.startsWith(normalizedPath + '/')) {
           const relativePath = filePath.slice(normalizedPath.length + 1);
-          const name = relativePath.split('/')[0];
+          const name = relativePath.split('/')[0]!;
 
           // Skip if we've already added this directory/file
           if (entries.some((e) => e.name === name)) continue;

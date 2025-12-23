@@ -13,8 +13,13 @@ import type {
 } from './types';
 
 // Import bundled themes
-import { defaultDarkTheme } from './bundled/default-dark';
-import { defaultLightTheme } from './bundled/default-light';
+// New default theme - Helix (DNA Nexus)
+import { helixDarkTheme } from './bundled/helix-dark';
+import { helixLightTheme } from './bundled/helix-light';
+// Legacy Collector's Archive theme (renamed from default)
+import { collectorsDarkTheme } from './bundled/default-dark';
+import { collectorsLightTheme } from './bundled/default-light';
+// Other themes
 import { dcDarkTheme } from './bundled/dc-dark';
 import { dcLightTheme } from './bundled/dc-light';
 import { marvelDarkTheme } from './bundled/marvel-dark';
@@ -32,6 +37,7 @@ import { mangaLightTheme } from './bundled/manga-light';
 export * from './types';
 
 // Re-export theme effects components
+export { HelixEffects } from './helix';
 export { SandmanEffects } from './sandman';
 export { SynthwaveEffects } from './synthwave';
 export { RetroEffects } from './retro';
@@ -39,8 +45,13 @@ export { MangaEffects } from './manga';
 
 // All bundled themes
 export const bundledThemes: Record<ThemeKey, ThemeDefinition> = {
-  'default-dark': defaultDarkTheme,
-  'default-light': defaultLightTheme,
+  // Default theme - Helix (DNA Nexus)
+  'default-dark': helixDarkTheme,
+  'default-light': helixLightTheme,
+  // Collector's Archive (legacy default)
+  'collectors-dark': collectorsDarkTheme,
+  'collectors-light': collectorsLightTheme,
+  // Other themes
   'dc-dark': dcDarkTheme,
   'dc-light': dcLightTheme,
   'marvel-dark': marvelDarkTheme,
@@ -79,7 +90,7 @@ export function getAvailableThemes(): ThemeMeta[] {
 
 // Get the default theme
 export function getDefaultTheme(scheme: ColorScheme = 'dark'): ThemeDefinition {
-  return getTheme('default', scheme) || defaultDarkTheme;
+  return getTheme('default', scheme) || helixDarkTheme;
 }
 
 // Convert theme tokens to CSS variables
@@ -177,7 +188,7 @@ export function removeThemeFromDOM(): void {
   root.removeAttribute('data-color-scheme');
 
   // Remove all inline style properties
-  const cssVars = tokensToCSSVariables(defaultDarkTheme.tokens);
+  const cssVars = tokensToCSSVariables(helixDarkTheme.tokens);
   Object.keys(cssVars).forEach((variable) => {
     root.style.removeProperty(variable);
   });

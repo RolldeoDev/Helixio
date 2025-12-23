@@ -35,6 +35,7 @@ export function SeriesApprovalStep({
   // Get job context methods for persistent operations
   const {
     searchSeries: searchSeriesJob,
+    loadMoreSeriesResults: loadMoreSeriesResultsJob,
     approveSeries: approveSeriesJob,
     skipSeries: skipSeriesJob,
     resetSeriesSelection,
@@ -95,6 +96,8 @@ export function SeriesApprovalStep({
   const [expandingSeriesId, setExpandingSeriesId] = useState<string | null>(null);
   // Source selector state
   const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>('all');
+  // Load more state
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Track the last processed series index to avoid resetting user selections on polls
   const lastProcessedIndexRef = useRef<number | null>(null);
@@ -149,6 +152,19 @@ export function SeriesApprovalStep({
       setIsSearching(false);
     }
   }, [searchQuery, searchSeriesJob, selectedSource]);
+
+  const handleLoadMore = useCallback(async () => {
+    setIsLoadingMore(true);
+    setError(null);
+
+    try {
+      await loadMoreSeriesResultsJob();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load more results');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [loadMoreSeriesResultsJob]);
 
   const handleApprove = useCallback(async () => {
     if (!selectedSeriesId) return;
@@ -364,6 +380,8 @@ export function SeriesApprovalStep({
           <option value="comicvine">ComicVine</option>
           <option value="metron">Metron</option>
           <option value="gcd">GCD</option>
+          <option value="anilist">AniList</option>
+          <option value="mal">MAL</option>
         </select>
         <input
           type="text"
@@ -599,6 +617,26 @@ export function SeriesApprovalStep({
                 </div>
               );
             })}
+
+            {/* Load More button for pagination */}
+            {currentGroup.searchPagination?.hasMore && (
+              <div className="load-more-container">
+                <button
+                  className="btn-secondary load-more-btn"
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore || isSearching || isApproving}
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <span className="spinner-tiny" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>Load More ({currentGroup.searchPagination.total - currentGroup.searchResults.length} remaining)</>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

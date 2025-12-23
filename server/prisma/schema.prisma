@@ -28,6 +28,7 @@ model Library {
   readerSettings  LibraryReaderSettings?
   entityStats     EntityStat[]
   libraryStat     LibraryStat?
+  scanJobs        LibraryScanJob[]
 
   @@index([name])
 }
@@ -73,7 +74,8 @@ model Series {
   // External IDs
   comicVineId   String?
   metronId      String?
-  anilistId     String?                   // Future: Anilist support
+  anilistId     String?                   // AniList series ID
+  malId         String?                   // MyAnimeList ID (auto-linked from AniList idMal)
 
   // File system reference
   primaryFolder String?                   // Primary folder path for series.json sync
@@ -98,6 +100,9 @@ model Series {
   updatedAt     DateTime @updatedAt
   lastSyncedAt  DateTime?
 
+  // Soft delete support
+  deletedAt     DateTime?  // Null = active, timestamp = soft-deleted
+
   // Relations
   issues        ComicFile[]
   progress      SeriesProgress?
@@ -109,6 +114,8 @@ model Series {
   @@index([startYear])
   @@index([comicVineId])
   @@index([metronId])
+  @@index([anilistId])
+  @@index([malId])
 }
 
 // =============================================================================
@@ -160,6 +167,12 @@ model SeriesReaderSettingsNew {
   showPageShadow  Boolean?
   autoHideUI      Boolean?
   preloadCount    Int?
+  webtoonGap      Int?
+  webtoonMaxWidth Int?
+
+  // Origin tracking (informational - tracks which preset these settings came from)
+  basedOnPresetId   String?
+  basedOnPresetName String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -201,6 +214,7 @@ model ComicFile {
   readingProgress ReadingProgress?
   readingQueue    ReadingQueue?
   readingHistory  ReadingHistory[]
+  readerSettings  IssueReaderSettings?
 
   @@index([libraryId])
   @@index([hash])
@@ -261,6 +275,11 @@ model FileMetadata {
   // External IDs for API matching
   comicVineId   String?
   metronId      String?
+
+  // Manga classification (smart chapter/volume detection)
+  contentType     String?   // "chapter" | "volume" | "extra" | "omake" | "bonus"
+  parsedVolume    String?   // Volume number parsed from filename (e.g., "5" from v5c12)
+  parsedChapter   String?   // Chapter number parsed from filename (e.g., "12" from v5c12)
 
   // Series inheritance tracking (Series-Centric Architecture)
   seriesInherited Boolean  @default(false)  // True if metadata was inherited from Series
@@ -515,6 +534,64 @@ model MetadataJobLog {
 }
 
 // =============================================================================
+// Library Scan Jobs (Full Library Scan)
+// =============================================================================
+
+model LibraryScanJob {
+  id                 String   @id @default(cuid())
+  libraryId          String
+  library            Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  // Job state: queued -> discovering -> cleaning -> indexing -> linking -> covers -> complete
+  status             String   @default("queued")  // queued|discovering|cleaning|indexing|linking|covers|complete|error|cancelled
+  currentStage       String   @default("queued")
+  currentMessage     String?
+  currentDetail      String?
+
+  // Progress counters
+  discoveredFiles    Int      @default(0)
+  orphanedFiles      Int      @default(0)
+  indexedFiles       Int      @default(0)
+  linkedFiles        Int      @default(0)
+  seriesCreated      Int      @default(0)
+  coversExtracted    Int      @default(0)
+  totalFiles         Int      @default(0)
+
+  // Error tracking
+  error              String?
+  errorCount         Int      @default(0)
+
+  // Timing
+  queuedAt           DateTime @default(now())
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  logs               LibraryScanJobLog[]
+
+  @@index([libraryId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model LibraryScanJobLog {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       LibraryScanJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  stage     String
+  message   String
+  detail    String?
+  type      String   @default("info")  // info|success|warning|error
+  timestamp DateTime @default(now())
+
+  @@index([jobId])
+  @@index([stage])
+}
+
+// =============================================================================
 // Reading Progress (Comic Reader)
 // =============================================================================
 
@@ -574,6 +651,12 @@ model LibraryReaderSettings {
   showPageShadow  Boolean?
   autoHideUI      Boolean?
   preloadCount    Int?
+  webtoonGap      Int?
+  webtoonMaxWidth Int?
+
+  // Origin tracking (informational - tracks which preset these settings came from)
+  basedOnPresetId   String?
+  basedOnPresetName String?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -687,6 +770,7 @@ model User {
   sharedLists     SharedReadingList[]
   trackerTokens   TrackerToken[]
   syncTokens      SyncToken[]
+  readerPresets   ReaderPreset[]
 
   @@index([username])
   @@index([email])
@@ -1074,10 +1158,90 @@ model CollectionItem {
   addedAt      DateTime   @default(now())
   notes        String?    // Optional user notes about this item
 
+  // Availability tracking (false if referenced file/series is deleted)
+  isAvailable  Boolean    @default(true)
+
   @@unique([collectionId, seriesId])
   @@unique([collectionId, fileId])
   @@index([collectionId])
   @@index([seriesId])
   @@index([fileId])
   @@index([position])
+}
+
+// =============================================================================
+// Reader Presets (Named Settings Configurations)
+// =============================================================================
+
+model ReaderPreset {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  icon            String?  // Emoji or icon name (e.g., "book", "scroll", "smartphone")
+
+  // Ownership & Type
+  userId          String?  // Null = system preset, non-null = user preset
+  isSystem        Boolean  @default(false)  // Shared system preset (admin only)
+  isBundled       Boolean  @default(false)  // Bundled preset (undeletable)
+
+  // All settings fields (full copy)
+  mode            String   @default("single")     // "single" | "double" | "doubleManga" | "continuous"
+  direction       String   @default("ltr")        // "ltr" | "rtl" | "vertical"
+  scaling         String   @default("fitHeight")  // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth     Int?
+  splitting       String   @default("none")       // "none" | "ltr" | "rtl"
+  background      String   @default("black")      // "white" | "gray" | "black"
+  brightness      Int      @default(100)          // 0-200, 100 is normal
+  colorCorrection String   @default("none")       // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow  Boolean  @default(true)
+  autoHideUI      Boolean  @default(true)
+  preloadCount    Int      @default(3)            // Number of pages to preload
+  webtoonGap      Int      @default(8)            // Gap between pages in webtoon mode (px)
+  webtoonMaxWidth Int      @default(800)          // Max width for webtoon images (px)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([name, userId])  // Unique name per user (or per system if userId is null)
+  @@index([userId])
+  @@index([isSystem])
+  @@index([isBundled])
+}
+
+// =============================================================================
+// Issue-Level Reader Settings (4th level of hierarchy)
+// =============================================================================
+
+model IssueReaderSettings {
+  id               String    @id @default(cuid())
+  fileId           String    @unique
+  file             ComicFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  // All fields optional - only set values override parent (series/library/global)
+  mode             String?   // "single" | "double" | "doubleManga" | "continuous"
+  direction        String?   // "ltr" | "rtl" | "vertical"
+  scaling          String?   // "fitHeight" | "fitWidth" | "fitScreen" | "original" | "custom"
+  customWidth      Int?
+  splitting        String?   // "none" | "ltr" | "rtl"
+  background       String?   // "white" | "gray" | "black"
+  brightness       Int?
+  colorCorrection  String?   // "none" | "sepia-correct" | "contrast-boost" | "desaturate" | "invert"
+  showPageShadow   Boolean?
+  autoHideUI       Boolean?
+  preloadCount     Int?
+  webtoonGap       Int?
+  webtoonMaxWidth  Int?
+
+  // Origin tracking (informational - tracks which preset these settings came from)
+  basedOnPresetId   String?
+  basedOnPresetName String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([fileId])
 }

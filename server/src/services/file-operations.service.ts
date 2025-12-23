@@ -9,6 +9,8 @@ import { rename, unlink, copyFile, mkdir, access, stat } from 'fs/promises';
 import { dirname, join, basename, relative } from 'path';
 import { getDatabase } from './database.service.js';
 import { generatePartialHash } from './hash.service.js';
+import { checkAndSoftDeleteEmptySeries } from './series.service.js';
+import { markFileItemsUnavailable } from './collection.service.js';
 
 // =============================================================================
 // Types
@@ -551,12 +553,42 @@ export async function restoreFromQuarantine(
 export async function removeOrphanedRecords(libraryId: string): Promise<number> {
   const db = getDatabase();
 
-  const result = await db.comicFile.deleteMany({
-    where: {
-      libraryId,
-      status: 'orphaned',
-    },
+  // Get orphaned files with their seriesIds before deleting
+  const orphanedFiles = await db.comicFile.findMany({
+    where: { libraryId, status: 'orphaned' },
+    select: { id: true, seriesId: true },
   });
+
+  if (orphanedFiles.length === 0) {
+    return 0;
+  }
+
+  const orphanedFileIds = orphanedFiles.map((f) => f.id);
+  const affectedSeriesIds = new Set(
+    orphanedFiles.filter((f) => f.seriesId).map((f) => f.seriesId!)
+  );
+
+  // Mark collection items referencing these files as unavailable
+  for (const fileId of orphanedFileIds) {
+    await markFileItemsUnavailable(fileId);
+  }
+
+  // Delete orphaned records
+  const result = await db.comicFile.deleteMany({
+    where: { libraryId, status: 'orphaned' },
+  });
+
+  // Check affected series for soft-delete (series with 0 remaining issues)
+  for (const seriesId of affectedSeriesIds) {
+    try {
+      const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
+      if (wasDeleted) {
+        console.log(`Soft-deleted empty series: ${seriesId}`);
+      }
+    } catch (err) {
+      console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+    }
+  }
 
   return result.count;
 }

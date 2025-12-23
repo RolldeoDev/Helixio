@@ -145,11 +145,18 @@ export function Search() {
   // Menu items for search results
   const menuItems: MenuItemPreset[] = ['read', 'markRead', 'markUnread', 'addToCollection'];
 
+  // Handle read action
+  const handleRead = useCallback((fileId: string) => {
+    const result = results.find(r => r.id === fileId);
+    const filename = result?.filename || 'Comic';
+    navigate(`/read/${fileId}?filename=${encodeURIComponent(filename)}`);
+  }, [results, navigate]);
+
   // Handle context menu action
   const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
     switch (action) {
       case 'read':
-        navigate(`/read/${fileId}`);
+        handleRead(fileId);
         break;
       case 'markRead':
         try {
@@ -169,7 +176,7 @@ export function Search() {
         setCollectionPickerFileIds([fileId]);
         break;
     }
-  }, [navigate]);
+  }, [handleRead]);
 
   const activeFilterCount = Object.keys(filters).filter(
     (k) => filters[k as keyof SearchFilters] !== undefined
@@ -370,6 +377,7 @@ export function Search() {
                     showSeries={true}
                     showIssueNumber={true}
                     onClick={() => handleResultClick(result)}
+                    onRead={handleRead}
                     onMenuAction={handleMenuAction}
                   />
                 );

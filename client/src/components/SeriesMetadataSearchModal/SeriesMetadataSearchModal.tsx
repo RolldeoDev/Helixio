@@ -11,6 +11,7 @@ import type {
   MetadataSource,
   SeriesMetadataPayload,
   MergedSeriesMetadata,
+  SearchPagination,
 } from '../../services/api.service';
 import {
   searchExternalSeries,
@@ -27,6 +28,7 @@ interface SeriesMetadataSearchModalProps {
   onSelect: (source: MetadataSource, externalId: string, metadata: SeriesMetadataPayload) => void;
   seriesId: string;
   initialQuery: string;
+  libraryType?: 'western' | 'manga';
 }
 
 export function SeriesMetadataSearchModal({
@@ -35,6 +37,7 @@ export function SeriesMetadataSearchModal({
   onSelect,
   seriesId,
   initialQuery,
+  libraryType,
 }: SeriesMetadataSearchModalProps) {
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SeriesMatch[]>([]);
@@ -58,28 +61,58 @@ export function SeriesMetadataSearchModal({
   } | null>(null);
   const [isExpandModalOpen, setIsExpandModalOpen] = useState(false);
 
+  // Pagination state
+  const [pagination, setPagination] = useState<SearchPagination | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Search function
   const doSearch = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
       setResults([]);
+      setPagination(null);
       return;
     }
 
     setIsSearching(true);
     setError(null);
+    setPagination(null);
 
     try {
       const source = selectedSource === 'all' ? undefined : selectedSource;
-      const response = await searchExternalSeries(searchQuery, 15, source);
+      const response = await searchExternalSeries(searchQuery, 15, source, 0, libraryType);
       setResults(response.series || []);
+      setPagination(response.pagination || null);
       setHasSearched(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);
+      setPagination(null);
     } finally {
       setIsSearching(false);
     }
-  }, [selectedSource]);
+  }, [selectedSource, libraryType]);
+
+  // Load more results (pagination)
+  const handleLoadMore = useCallback(async () => {
+    if (!pagination || !pagination.hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    setError(null);
+
+    try {
+      const source = selectedSource === 'all' ? undefined : selectedSource;
+      const newOffset = pagination.offset + pagination.limit;
+      const response = await searchExternalSeries(query, pagination.limit, source, newOffset, libraryType);
+
+      // Append new results to existing
+      setResults(prev => [...prev, ...(response.series || [])]);
+      setPagination(response.pagination || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load more results');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [pagination, isLoadingMore, selectedSource, query, libraryType]);
 
   // Focus input when modal opens and trigger search if we have an initial query
   useEffect(() => {
@@ -89,6 +122,7 @@ export function SeriesMetadataSearchModal({
       setResults([]);
       setError(null);
       setHasSearched(false);
+      setPagination(null);
 
       // Focus input after a brief delay for animation
       setTimeout(() => {
@@ -237,6 +271,8 @@ export function SeriesMetadataSearchModal({
       comicvine: 'ComicVine',
       metron: 'Metron',
       gcd: 'GCD',
+      anilist: 'AniList',
+      mal: 'MAL',
     };
     return labels[source] || source;
   };
@@ -309,6 +345,8 @@ export function SeriesMetadataSearchModal({
               <option value="comicvine">ComicVine</option>
               <option value="metron">Metron</option>
               <option value="gcd">GCD</option>
+              <option value="anilist">AniList</option>
+              <option value="mal">MAL</option>
             </select>
           </div>
           {/* Search options - toggle for searching all sources */}
@@ -349,7 +387,7 @@ export function SeriesMetadataSearchModal({
             <div className="search-hint">
               <p>
                 Search for &quot;{initialQuery}&quot; or enter a different series name to find
-                matching entries in ComicVine and Metron.
+                matching entries.{libraryType === 'manga' ? ' AniList and MAL results will be prioritized.' : ''}
               </p>
             </div>
           )}
@@ -468,6 +506,26 @@ export function SeriesMetadataSearchModal({
                   </div>
                 </div>
               ))}
+
+              {/* Load More button for pagination */}
+              {pagination && pagination.hasMore && (
+                <div className="load-more-container">
+                  <button
+                    className="btn btn-secondary load-more-btn"
+                    onClick={handleLoadMore}
+                    disabled={isLoadingMore}
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <span className="spinner-tiny" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>Load More ({pagination.total - results.length} remaining)</>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

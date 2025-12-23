@@ -62,6 +62,7 @@ export const metadataLogger = createServiceLogger('metadata');
 export const comicvineLogger = createServiceLogger('comicvine');
 export const batchLogger = createServiceLogger('batch');
 export const jobQueueLogger = createServiceLogger('job-queue');
+export const scanQueueLogger = createServiceLogger('scan-queue');
 export const readerLogger = createServiceLogger('reader');
 export const configLogger = createServiceLogger('config');
 export const databaseLogger = createServiceLogger('database');

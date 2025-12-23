@@ -13,6 +13,7 @@ import {
   listAllJobs,
   updateJobOptions,
   jobSearchSeriesCustom,
+  jobLoadMoreSeriesResults,
   jobApproveSeries,
   jobSkipSeries,
   jobNavigateToSeriesGroup,
@@ -257,14 +258,14 @@ router.post('/:id/search', async (req: Request, res: Response) => {
       return;
     }
 
-    // Validate source if provided
-    const validSources = ['comicvine', 'metron', 'gcd'];
+    // Validate source if provided - include all metadata sources
+    const validSources = ['comicvine', 'metron', 'gcd', 'anilist', 'mal'];
     if (source && !validSources.includes(source)) {
       res.status(400).json({ error: `Invalid source. Must be one of: ${validSources.join(', ')}` });
       return;
     }
 
-    const results = await jobSearchSeriesCustom(id, query, source as 'comicvine' | 'metron' | 'gcd' | undefined);
+    const results = await jobSearchSeriesCustom(id, query, source as 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal' | undefined);
     const job = await getJob(id);
 
     res.json({ results, job });
@@ -272,6 +273,26 @@ router.post('/:id/search', async (req: Request, res: Response) => {
     console.error('Failed to search:', error);
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to search',
+    });
+  }
+});
+
+/**
+ * POST /api/metadata-jobs/:id/load-more
+ * Load more search results for current series
+ */
+router.post('/:id/load-more', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id!;
+
+    const results = await jobLoadMoreSeriesResults(id);
+    const job = await getJob(id);
+
+    res.json({ results, job });
+  } catch (error) {
+    console.error('Failed to load more results:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to load more results',
     });
   }
 });

@@ -9,7 +9,7 @@
 // Core Types
 // =============================================================================
 
-export type MetadataSource = 'comicvine' | 'metron' | 'gcd';
+export type MetadataSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 
 export interface AvailabilityResult {
   available: boolean;

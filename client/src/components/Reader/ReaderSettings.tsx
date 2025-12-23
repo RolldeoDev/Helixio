@@ -2,9 +2,18 @@
  * Reader Settings Panel
  *
  * Side panel for adjusting reader preferences.
+ * Includes preset picker for quick preset application and
+ * save preset functionality.
  */
 
+import { useState, useEffect } from 'react';
 import { useReader } from './ReaderContext';
+import { PresetPicker } from './PresetPicker';
+import { SavePresetModal } from './SavePresetModal';
+import {
+  getResolvedReaderSettingsWithOrigin,
+  ReaderPreset,
+} from '../../services/api.service';
 
 export function ReaderSettings() {
   const {
@@ -32,7 +41,41 @@ export function ReaderSettings() {
     resetZoom,
   } = useReader();
 
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [basedOnPresetName, setBasedOnPresetName] = useState<string | null>(null);
+
+  // Load current preset origin info
+  useEffect(() => {
+    async function loadPresetOrigin() {
+      try {
+        const result = await getResolvedReaderSettingsWithOrigin(state.fileId);
+        setBasedOnPresetName(result.basedOnPreset?.name || null);
+      } catch (err) {
+        console.error('Failed to load preset origin:', err);
+      }
+    }
+    loadPresetOrigin();
+  }, [state.fileId]);
+
   const currentRotation = getPageRotation(state.currentPage);
+
+  const handlePresetApplied = (preset: ReaderPreset) => {
+    // Update local state with the preset settings
+    setMode(preset.mode as 'single' | 'double' | 'doubleManga' | 'continuous');
+    setDirection(preset.direction as 'ltr' | 'rtl' | 'vertical');
+    setScaling(preset.scaling as 'fitHeight' | 'fitWidth' | 'fitScreen' | 'original' | 'custom');
+    setCustomWidth(preset.customWidth);
+    setSplitting(preset.splitting as 'none' | 'ltr' | 'rtl');
+    setBackground(preset.background as 'white' | 'gray' | 'black');
+    setBrightness(preset.brightness);
+    setColorCorrection(preset.colorCorrection as 'none' | 'sepia-correct' | 'contrast-boost' | 'desaturate' | 'invert');
+    if (preset.showPageShadow !== state.showPageShadow) togglePageShadow();
+    if (preset.autoHideUI !== state.autoHideUI) toggleAutoHideUI();
+    setWebtoonGap(preset.webtoonGap ?? 8);
+    setWebtoonMaxWidth(preset.webtoonMaxWidth ?? 800);
+    // Update the preset origin name
+    setBasedOnPresetName(preset.name);
+  };
 
   const handleSaveAsDefault = async () => {
     await saveSettings();
@@ -59,6 +102,13 @@ export function ReaderSettings() {
         </div>
 
         <div className="reader-settings-content">
+          {/* Preset Picker */}
+          <PresetPicker
+            fileId={state.fileId}
+            onPresetApplied={handlePresetApplied}
+            basedOnPresetName={basedOnPresetName}
+          />
+
           {/* Reading Mode */}
           <div className="reader-settings-section">
             <h4>Reading Mode</h4>
@@ -458,14 +508,41 @@ export function ReaderSettings() {
         </div>
 
         <div className="reader-settings-footer">
+          <button className="btn-secondary" onClick={() => setShowSaveModal(true)}>
+            Save as Preset
+          </button>
           <button className="btn-primary" onClick={handleSaveAsDefault}>
             Save as Default
           </button>
-          <button className="btn-secondary" onClick={closeSettings}>
+          <button className="btn-ghost" onClick={closeSettings}>
             Close
           </button>
         </div>
       </div>
+
+      {/* Save Preset Modal */}
+      <SavePresetModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSaved={() => {
+          // Optionally refresh or show a success message
+        }}
+        currentSettings={{
+          mode: state.mode,
+          direction: state.direction,
+          scaling: state.scaling,
+          customWidth: state.customWidth,
+          splitting: state.splitting,
+          background: state.background,
+          brightness: state.brightness,
+          colorCorrection: state.colorCorrection,
+          showPageShadow: state.showPageShadow,
+          autoHideUI: state.autoHideUI,
+          preloadCount: state.preloadCount,
+          webtoonGap: state.webtoonGap,
+          webtoonMaxWidth: state.webtoonMaxWidth,
+        }}
+      />
     </div>
   );
 }

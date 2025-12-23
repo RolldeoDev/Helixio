@@ -26,12 +26,15 @@ export function FolderDrawer() {
   const {
     libraries,
     selectedLibrary,
+    isAllLibraries,
     loadingLibraries,
     librariesError,
     folders,
+    allLibraryFolders,
     selectedFolder,
     loadingFolders,
     selectLibrary,
+    selectAllLibraries,
     selectFolder,
     refreshLibraries,
     refreshFiles,
@@ -436,7 +439,9 @@ export function FolderDrawer() {
         <LibraryDropdown
           libraries={libraries}
           selectedLibrary={selectedLibrary}
+          isAllLibraries={isAllLibraries}
           onSelect={selectLibrary}
+          onSelectAll={selectAllLibraries}
           onAddClick={() => setShowAddLibrary(true)}
           loading={loadingLibraries}
           error={librariesError}
@@ -500,7 +505,75 @@ export function FolderDrawer() {
 
       {/* Folder Tree */}
       <div className="folder-drawer-content">
-        {selectedLibrary ? (
+        {isAllLibraries ? (
+          <>
+            {/* All Libraries Mode - Show libraries as root folders */}
+            <div className="folders-header">
+              <span className="folder-count">
+                {allLibraryFolders.reduce((sum, lib) => sum + lib.folders.length, 0)} folders across {allLibraryFolders.length} libraries
+              </span>
+            </div>
+
+            {loadingFolders && <div className="loading">Loading folders...</div>}
+
+            <div className="folder-tree-scroll">
+              <button
+                className={`folder-item root ${selectedFolder === null ? 'selected' : ''}`}
+                onClick={() => handleFolderSelect(null)}
+              >
+                <span className="folder-icon">📁</span>
+                <span className="folder-name">All Files</span>
+              </button>
+
+              {/* Render each library as a root-level folder */}
+              {allLibraryFolders.map((lib) => {
+                const libFolderTree = buildFolderTree(lib.folders);
+                const isLibraryCollapsed = collapsedFolders.has(`lib:${lib.id}`);
+                const libraryIcon = lib.type === 'manga' ? '📚' : '🗃️';
+
+                return (
+                  <div key={lib.id}>
+                    <button
+                      className="folder-item library-root"
+                      onClick={() => {
+                        // Clicking library in all-libraries mode selects that library
+                        selectLibrary(libraries.find(l => l.id === lib.id) || null);
+                        navigate(`/library/${lib.id}`);
+                      }}
+                    >
+                      {lib.folders.length > 0 ? (
+                        <span
+                          className={`folder-chevron ${isLibraryCollapsed ? '' : 'expanded'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCollapsedFolders(prev => {
+                              const next = new Set(prev);
+                              if (next.has(`lib:${lib.id}`)) {
+                                next.delete(`lib:${lib.id}`);
+                              } else {
+                                next.add(`lib:${lib.id}`);
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span className="folder-chevron-spacer" />
+                      )}
+                      <span className="folder-icon">{libraryIcon}</span>
+                      <span className="folder-name">{lib.name}</span>
+                    </button>
+                    {!isLibraryCollapsed && (libFolderTree[''] || []).map((path) => renderFolderItem(path, 1))}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : selectedLibrary ? (
           <>
             <div className="folders-header">
               <span className="folder-count">

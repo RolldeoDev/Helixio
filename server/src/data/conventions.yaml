@@ -259,3 +259,105 @@ number_patterns:
     - '\((\d{4})\)'
     - '\[(\d{4})\]'
     - '(\d{4})\.cb[rz7t]$'
+
+# =============================================================================
+# Manga-Specific Patterns
+# =============================================================================
+# Patterns for parsing manga filenames
+
+manga_patterns:
+  # Volume + Chapter (most specific, check first)
+  volume_chapter:
+    - 'v(\d+(?:\.\d+)?)\s*c(\d+(?:\.\d+)?)'
+    - 'Vol\.?\s*(\d+(?:\.\d+)?)\s*Ch\.?\s*(\d+(?:\.\d+)?)'
+    - 'Volume\s*(\d+(?:\.\d+)?)\s*Chapter\s*(\d+(?:\.\d+)?)'
+    - 'Vol\.?\s*(\d+)\s*[-–—]\s*Ch\.?\s*(\d+)'
+
+  # Chapter-only patterns
+  chapter:
+    - 'c(\d+(?:\.\d+)?)'
+    - 'Ch\.?\s*#?(\d+(?:\.\d+)?)'
+    - 'Chapter\s*#?(\d+(?:\.\d+)?)'
+    - '[-–—\s](\d{2,4})(?:\s*(?:\(|\[|$))'
+
+  # Volume-only patterns
+  volume:
+    - 'v(\d+(?:\.\d+)?)'
+    - 'Vol\.?\s*#?(\d+(?:\.\d+)?)'
+    - 'Volume\s*#?(\d+(?:\.\d+)?)'
+
+  # Special content types
+  special_content:
+    - 'omake'
+    - 'おまけ'
+    - 'extra'
+    - 'bonus'
+    - 'side\s*story'
+    - 'gaiden'
+    - '外伝'
+    - 'one[-\s]?shot'
+    - 'oneshot'
+
+# Manga noise tokens
+manga_noise_tokens:
+  # Digital sources
+  - "[Digital]"
+  - "[Viz]"
+  - "[Seven Seas]"
+  - "[J-Novel Club]"
+  - "[Yen Press]"
+  - "[Kodansha]"
+  - "[Shueisha]"
+  - "[Kadokawa]"
+  - "[MangaPlus]"
+  - "[Official]"
+
+  # Quality indicators
+  - "[HQ]"
+  - "[LQ]"
+  - "[HD]"
+  - "[x2048]"
+  - "[1920x]"
+  - "[4K]"
+
+  # Language tags
+  - "[English]"
+  - "[EN]"
+  - "[ENG]"
+  - "[Translated]"
+  - "[RAW]"
+  - "[Japanese]"
+  - "[JP]"
+
+  # Format tags
+  - "[Comicvine]"
+  - "[Anilist]"
+  - "[MAL]"
+  - "[CBZ]"
+  - "[CBR]"
+
+# Manga type indicators
+manga_type_indicators:
+  chapter:
+    - "Chapter"
+    - "Ch."
+    - "Ch"
+    - "c"
+
+  volume:
+    - "Volume"
+    - "Vol."
+    - "Vol"
+    - "v"
+    - "Omnibus"
+    - "Box Set"
+
+  special:
+    - "Omake"
+    - "Extra"
+    - "Bonus"
+    - "Side Story"
+    - "Gaiden"
+    - "One-Shot"
+    - "Oneshot"
+    - "Special"

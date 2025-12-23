@@ -13,18 +13,24 @@ const SOURCE_LABELS: Record<MetadataSource, string> = {
   comicvine: 'ComicVine',
   metron: 'Metron',
   gcd: 'GCD',
+  anilist: 'AniList',
+  mal: 'MAL',
 };
 
 const SOURCE_COLORS: Record<MetadataSource, string> = {
   comicvine: '#f05050',
   metron: '#4a90d9',
   gcd: '#4caf50',
+  anilist: '#02a9ff',
+  mal: '#4e74c9',
 };
 
 const SOURCE_ABBREVIATIONS: Record<MetadataSource, string> = {
   comicvine: 'CV',
   metron: 'MT',
   gcd: 'GCD',
+  anilist: 'AL',
+  mal: 'MAL',
 };
 
 interface FieldSourceSelectorProps {
@@ -93,8 +99,8 @@ export function FieldSourceSelector({
   const sourcesWithValues = (Object.entries(allValues) as [MetadataSource, unknown][])
     .filter(([, value]) => value !== null && value !== undefined && value !== '')
     .sort((a, b) => {
-      // Sort by source priority (comicvine first, then metron, then gcd)
-      const order: MetadataSource[] = ['comicvine', 'metron', 'gcd'];
+      // Sort by source priority (all sources)
+      const order: MetadataSource[] = ['comicvine', 'metron', 'gcd', 'anilist', 'mal'];
       return order.indexOf(a[0]) - order.indexOf(b[0]);
     });
 

@@ -20,7 +20,7 @@ const logger = createServiceLogger('api-cache');
 // Types
 // =============================================================================
 
-export type CacheSource = 'comicvine' | 'metron' | 'gcd';
+export type CacheSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 
 export interface CacheOptions {
   /** Time-to-live in milliseconds */
@@ -72,6 +72,13 @@ const DEFAULT_TTL: Record<string, number> = {
   // Individual resource lookups - 7 days (rarely change)
   '/volume/': 7 * 24 * 60 * 60 * 1000,
   '/issue/4000-': 7 * 24 * 60 * 60 * 1000,
+
+  // AniList GraphQL - 7 days (manga data changes slowly)
+  '/graphql': 7 * 24 * 60 * 60 * 1000,
+
+  // Jikan (MAL) API - 24 hours (unofficial, may have delays)
+  '/manga': 24 * 60 * 60 * 1000,
+  '/manga/': 24 * 60 * 60 * 1000,
 
   // Default fallback
   default: 24 * 60 * 60 * 1000, // 24 hours

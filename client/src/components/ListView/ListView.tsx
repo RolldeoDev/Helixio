@@ -97,6 +97,7 @@ export function ListView({
     loadingFiles,
     filesError,
     selectedLibrary,
+    isAllLibraries,
     selectFile,
     selectRange,
     selectAllFiles,
@@ -370,7 +371,7 @@ export function ListView({
     return true;
   });
 
-  if (!selectedLibrary) {
+  if (!selectedLibrary && !isAllLibraries) {
     return (
       <div className="list-view-empty">
         <div className="empty-state">
@@ -428,11 +429,27 @@ export function ListView({
       {/* List Items */}
       {files.length > 0 && (
         <div className="list-container">
-          {Array.from(groupFiles(files, groupField).entries()).map(([groupName, groupedFiles]) => (
+          {Array.from(groupFiles(files, groupField).entries()).map(([groupName, groupedFiles]) => {
+            // Get seriesId from first file for linking (only when grouping by series)
+            const seriesId = groupField === 'series' ? groupedFiles[0]?.seriesId : null;
+
+            return (
             <div key={groupName || 'all'} className="list-group">
               {groupField !== 'none' && groupName && (
                 <div className="list-group-header">
-                  <h3 className="list-group-title">{groupName}</h3>
+                  {groupField === 'series' && seriesId ? (
+                    <h3
+                      className="list-group-title list-group-title--link"
+                      onClick={() => navigate(`/series/${seriesId}`)}
+                      role="link"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && navigate(`/series/${seriesId}`)}
+                    >
+                      {groupName}
+                    </h3>
+                  ) : (
+                    <h3 className="list-group-title">{groupName}</h3>
+                  )}
                   <span className="list-group-count">{groupedFiles.length}</span>
                 </div>
               )}
@@ -535,7 +552,8 @@ export function ListView({
                 );
               })}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

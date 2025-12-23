@@ -25,6 +25,7 @@ import {
 interface DiscoverSectionProps {
   libraryId?: string;
   onItemClick?: (fileId: string) => void;
+  onItemsChange?: () => void;
 }
 
 type CategoryFilter = 'all' | string;
@@ -61,6 +62,7 @@ function toCardItem(comic: DiscoverComic): ComicCarouselItem {
 export function DiscoverSection({
   libraryId,
   onItemClick,
+  onItemsChange,
 }: DiscoverSectionProps) {
   const [comics, setComics] = useState<DiscoverComic[]>([]);
   const [filteredComics, setFilteredComics] = useState<DiscoverComic[]>([]);
@@ -225,6 +227,7 @@ export function DiscoverSection({
       <ComicCarousel
         items={filteredComics.map(toCardItem)}
         onItemClick={onItemClick}
+        onItemsChange={onItemsChange}
         cardSize="small"
       />
 

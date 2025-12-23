@@ -6,10 +6,13 @@
 
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../themes/ThemeContext';
 import './LoginPage.css';
 
 export function LoginPage() {
   const { login, setup, setupRequired, isLoading, error, clearError } = useAuth();
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === 'dark';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -49,7 +52,11 @@ export function LoginPage() {
     <div className="login-page">
       <div className="login-container">
         <div className="login-header">
-          <h1 className="login-logo">Helixio</h1>
+          <img
+            src={isDark ? '/helixioNameWhiteText.png' : '/helixioNameBlackText.png'}
+            alt="Helixio"
+            className="login-logo-img"
+          />
           <p className="login-subtitle">
             {isSetup ? 'Create your admin account' : 'Sign in to continue'}
           </p>

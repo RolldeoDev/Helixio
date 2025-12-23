@@ -20,7 +20,9 @@ import {
   getSeriesByIdentity,
   updateSeriesProgress,
   findSeriesByAlias,
+  restoreSeries,
 } from './series.service.js';
+import { restoreSeriesItems } from './collection.service.js';
 
 // =============================================================================
 // Types
@@ -326,6 +328,18 @@ export async function linkFileToSeries(
 ): Promise<void> {
   const db = getDatabase();
 
+  // Check if the series is soft-deleted and restore it
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+    select: { deletedAt: true },
+  });
+
+  if (series?.deletedAt) {
+    await restoreSeries(seriesId);
+    await restoreSeriesItems(seriesId);
+    console.log(`Restored soft-deleted series: ${seriesId}`);
+  }
+
   await db.comicFile.update({
     where: { id: fileId },
     data: { seriesId },
@@ -563,4 +577,154 @@ export async function confirmNotDuplicate(
   // For now, this is a no-op. Could be extended to store
   // in a separate table to remember user decisions.
   console.log(`Confirmed ${seriesId1} and ${seriesId2} are not duplicates`);
+}
+
+// =============================================================================
+// Folder Fallback Linking
+// =============================================================================
+
+export interface LinkWithFolderFallbackResult {
+  linked: boolean;
+  seriesId?: string;
+  seriesCreated: boolean;
+  source: 'metadata' | 'folder' | 'filename' | 'none';
+  seriesName?: string;
+}
+
+/**
+ * Get series info for a file, using metadata first, then folder name as fallback.
+ * Returns the series name, source, and any parsed metadata from the folder name.
+ */
+async function getSeriesInfoForFile(fileId: string): Promise<{
+  name: string | null;
+  source: 'metadata' | 'folder' | 'filename';
+  year?: number | null;
+  publisher?: string | null;
+}> {
+  const db = getDatabase();
+
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    include: { metadata: true },
+  });
+
+  if (!file) {
+    return { name: null, source: 'metadata' };
+  }
+
+  // 1. Try ComicInfo.xml metadata first
+  if (file.metadata?.series) {
+    return {
+      name: file.metadata.series,
+      source: 'metadata',
+      year: file.metadata.year,
+      publisher: file.metadata.publisher,
+    };
+  }
+
+  // 2. Fallback to parent folder name
+  const folderName = getFolderNameFromPath(file.relativePath);
+  if (folderName) {
+    // Import parseSeriesFolderName dynamically to avoid circular dependencies
+    const { parseSeriesFolderName } = await import('./series-metadata.service.js');
+    const parsed = parseSeriesFolderName(folderName);
+
+    return {
+      name: parsed.seriesName || folderName,
+      source: 'folder',
+      year: parsed.startYear,
+      publisher: undefined, // Folder names don't typically contain publisher
+    };
+  }
+
+  // 3. Last resort: use filename without extension
+  const filenameWithoutExt = file.filename.replace(/\.[^.]+$/, '');
+  // Try to extract series name from filename (basic parsing)
+  // e.g., "Batman 001.cbz" -> "Batman"
+  const nameMatch = filenameWithoutExt.match(/^(.+?)\s*(?:#?\d+|issue|vol)/i);
+  const extractedName = nameMatch ? nameMatch[1]!.trim() : filenameWithoutExt;
+
+  return {
+    name: extractedName,
+    source: 'filename',
+    year: file.metadata?.year,
+    publisher: file.metadata?.publisher,
+  };
+}
+
+/**
+ * Link a file to a series with folder fallback.
+ * Uses metadata first, then folder name, then filename.
+ * Creates a new series if no match is found.
+ *
+ * This is the primary function used by the full library scan.
+ */
+export async function linkFileToSeriesWithFolderFallback(
+  fileId: string
+): Promise<LinkWithFolderFallbackResult> {
+  const db = getDatabase();
+
+  // Check if file already has a series
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: { seriesId: true, relativePath: true },
+  });
+
+  if (!file) {
+    return { linked: false, seriesCreated: false, source: 'none' };
+  }
+
+  if (file.seriesId) {
+    // Already linked
+    return {
+      linked: true,
+      seriesId: file.seriesId,
+      seriesCreated: false,
+      source: 'metadata',
+    };
+  }
+
+  // Get series info using metadata-first, folder-fallback approach
+  const seriesInfo = await getSeriesInfoForFile(fileId);
+
+  if (!seriesInfo.name) {
+    return { linked: false, seriesCreated: false, source: 'none' };
+  }
+
+  // Try to find existing series
+  const match = await findMatchingSeries(
+    seriesInfo.name,
+    seriesInfo.year,
+    seriesInfo.publisher
+  );
+
+  // High confidence match - link to existing series
+  if (match.series && match.confidence >= 0.9) {
+    await linkFileToSeries(fileId, match.series.id);
+    return {
+      linked: true,
+      seriesId: match.series.id,
+      seriesCreated: false,
+      source: seriesInfo.source,
+      seriesName: match.series.name,
+    };
+  }
+
+  // No confident match - create new series
+  const newSeries = await createSeries({
+    name: seriesInfo.name,
+    startYear: seriesInfo.year ?? null,
+    publisher: seriesInfo.publisher ?? null,
+    primaryFolder: getFolderPathFromRelativePath(file.relativePath),
+  });
+
+  await linkFileToSeries(fileId, newSeries.id);
+
+  return {
+    linked: true,
+    seriesId: newSeries.id,
+    seriesCreated: true,
+    source: seriesInfo.source,
+    seriesName: newSeries.name,
+  };
 }

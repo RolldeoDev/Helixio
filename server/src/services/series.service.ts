@@ -51,6 +51,7 @@ export interface SeriesListOptions {
   type?: 'western' | 'manga';
   genres?: string[];
   hasUnread?: boolean;
+  libraryId?: string;
 }
 
 export interface SeriesListResult {
@@ -162,13 +163,15 @@ export async function createSeries(input: CreateSeriesInput): Promise<Series> {
 
 /**
  * Get a Series by ID with issue count and progress.
+ * Excludes soft-deleted series by default.
  */
 export async function getSeries(
-  seriesId: string
+  seriesId: string,
+  includeDeleted = false
 ): Promise<SeriesWithCounts | null> {
   const db = getDatabase();
 
-  return db.series.findUnique({
+  const series = await db.series.findUnique({
     where: { id: seriesId },
     include: {
       _count: {
@@ -177,16 +180,25 @@ export async function getSeries(
       progress: true,
     },
   });
+
+  // Filter out soft-deleted unless explicitly requested
+  if (series && series.deletedAt && !includeDeleted) {
+    return null;
+  }
+
+  return series;
 }
 
 /**
  * Get a Series by its unique identity (name + publisher only).
  * Year is not part of the identity to avoid splitting multi-year runs.
+ * Excludes soft-deleted series by default.
  */
 export async function getSeriesByIdentity(
   name: string,
   _startYear: number | null | undefined, // Kept for API compatibility, but not used in lookup
-  publisher: string | null | undefined
+  publisher: string | null | undefined,
+  includeDeleted = false
 ): Promise<Series | null> {
   const db = getDatabase();
 
@@ -194,6 +206,7 @@ export async function getSeriesByIdentity(
     where: {
       name,
       publisher: publisher ?? null,
+      deletedAt: includeDeleted ? undefined : null,
     },
   });
 }
@@ -207,7 +220,7 @@ export async function getSeriesList(
   const db = getDatabase();
   const {
     page = 1,
-    limit = 50,
+    limit,
     sortBy = 'name',
     sortOrder = 'asc',
     search,
@@ -215,10 +228,17 @@ export async function getSeriesList(
     type,
     genres,
     hasUnread,
+    libraryId,
   } = options;
 
-  // Build where clause
-  const where: Prisma.SeriesWhereInput = {};
+  // Use limit if provided, otherwise default to 50 (unless explicitly undefined for fetch all)
+  const effectiveLimit = limit === undefined ? undefined : (limit || 50);
+  const fetchAll = effectiveLimit === undefined;
+
+  // Build where clause - exclude soft-deleted by default
+  const where: Prisma.SeriesWhereInput = {
+    deletedAt: null,
+  };
 
   if (search) {
     where.OR = [
@@ -241,6 +261,15 @@ export async function getSeriesList(
     }));
   }
 
+  // Filter by library - only include series that have at least one issue in this library
+  if (libraryId) {
+    where.issues = {
+      some: {
+        libraryId,
+      },
+    };
+  }
+
   // Build orderBy
   const orderBy: Prisma.SeriesOrderByWithRelationInput = {};
   if (sortBy === 'issueCount') {
@@ -252,12 +281,11 @@ export async function getSeriesList(
   // Get total count
   const total = await db.series.count({ where });
 
-  // Get paginated series
+  // Get series (all or paginated)
   let seriesRecords = await db.series.findMany({
     where,
     orderBy,
-    skip: (page - 1) * limit,
-    take: limit,
+    ...(fetchAll ? {} : { skip: (page - 1) * effectiveLimit!, take: effectiveLimit! }),
     include: {
       _count: {
         select: { issues: true },
@@ -285,12 +313,13 @@ export async function getSeriesList(
     });
   }
 
+  const returnLimit = fetchAll ? total : effectiveLimit!;
   return {
     series: seriesRecords,
     total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
+    page: fetchAll ? 1 : page,
+    limit: returnLimit,
+    totalPages: fetchAll ? 1 : Math.ceil(total / effectiveLimit!),
   };
 }
 
@@ -368,16 +397,19 @@ export async function deleteSeries(seriesId: string): Promise<void> {
 
 /**
  * Search series by name with fuzzy matching.
+ * Excludes soft-deleted series by default.
  */
 export async function searchSeries(
   query: string,
-  limit = 10
+  limit = 10,
+  includeDeleted = false
 ): Promise<Series[]> {
   const db = getDatabase();
 
-  // Search in name and aliases
+  // Search in name and aliases, exclude soft-deleted by default
   return db.series.findMany({
     where: {
+      deletedAt: includeDeleted ? undefined : null,
       OR: [{ name: { contains: query } }, { aliases: { contains: query } }],
     },
     take: limit,
@@ -684,13 +716,18 @@ export async function removeAlias(
 
 /**
  * Find a series by alias.
+ * Excludes soft-deleted series by default.
  */
-export async function findSeriesByAlias(alias: string): Promise<Series | null> {
+export async function findSeriesByAlias(
+  alias: string,
+  includeDeleted = false
+): Promise<Series | null> {
   const db = getDatabase();
 
   return db.series.findFirst({
     where: {
       aliases: { contains: alias },
+      deletedAt: includeDeleted ? undefined : null,
     },
   });
 }
@@ -949,14 +986,16 @@ export async function syncSeriesFromSeriesJson(
 
 /**
  * Get potential duplicate series for review.
+ * Excludes soft-deleted series.
  */
 export async function findPotentialDuplicates(): Promise<
   Array<{ series: Series[]; reason: string }>
 > {
   const db = getDatabase();
 
-  // Find series with same name
+  // Find series with same name (exclude soft-deleted)
   const allSeries = await db.series.findMany({
+    where: { deletedAt: null },
     orderBy: { name: 'asc' },
   });
 
@@ -1046,6 +1085,7 @@ export async function bulkRelinkFiles(
 
 /**
  * Get all unique publishers for filtering.
+ * Excludes soft-deleted series.
  */
 export async function getAllPublishers(): Promise<string[]> {
   const db = getDatabase();
@@ -1053,6 +1093,7 @@ export async function getAllPublishers(): Promise<string[]> {
   const series = await db.series.findMany({
     where: {
       publisher: { not: null },
+      deletedAt: null,
     },
     select: { publisher: true },
     distinct: ['publisher'],
@@ -1066,6 +1107,7 @@ export async function getAllPublishers(): Promise<string[]> {
 
 /**
  * Get all unique genres for filtering.
+ * Excludes soft-deleted series.
  */
 export async function getAllGenres(): Promise<string[]> {
   const db = getDatabase();
@@ -1073,6 +1115,7 @@ export async function getAllGenres(): Promise<string[]> {
   const series = await db.series.findMany({
     where: {
       genres: { not: null },
+      deletedAt: null,
     },
     select: { genres: true },
   });
@@ -1200,6 +1243,7 @@ async function seriesToMergeFormat(series: Series): Promise<SeriesForMerge> {
  * Uses multiple detection strategies:
  * - HIGH: Same normalized name, same external IDs
  * - MEDIUM: Fuzzy name match, same publisher + similar name
+ * Excludes soft-deleted series.
  */
 export async function findPotentialDuplicatesEnhanced(): Promise<
   DuplicateGroup[]
@@ -1207,6 +1251,7 @@ export async function findPotentialDuplicatesEnhanced(): Promise<
   const db = getDatabase();
 
   const allSeries = await db.series.findMany({
+    where: { deletedAt: null },
     orderBy: { name: 'asc' },
   });
 
@@ -1703,4 +1748,121 @@ export async function mergeSeriesEnhanced(
     issuesMoved: totalIssuesMoved,
     aliasesAdded,
   };
+}
+
+// =============================================================================
+// Soft Delete Management
+// =============================================================================
+
+/**
+ * Soft-delete a series (set deletedAt timestamp).
+ * The series will be hidden from UI/API but can be restored.
+ */
+export async function softDeleteSeries(seriesId: string): Promise<Series> {
+  const db = getDatabase();
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    throw new Error(`Series ${seriesId} not found`);
+  }
+
+  if (series.deletedAt) {
+    return series; // Already soft-deleted
+  }
+
+  const updated = await db.series.update({
+    where: { id: seriesId },
+    data: { deletedAt: new Date() },
+  });
+
+  // Mark collection items referencing this series as unavailable
+  await db.collectionItem.updateMany({
+    where: { seriesId },
+    data: { isAvailable: false },
+  });
+
+  return updated;
+}
+
+/**
+ * Restore a soft-deleted series (clear deletedAt timestamp).
+ * Also restores collection items referencing this series.
+ */
+export async function restoreSeries(seriesId: string): Promise<Series> {
+  const db = getDatabase();
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    throw new Error(`Series ${seriesId} not found`);
+  }
+
+  if (!series.deletedAt) {
+    return series; // Already active
+  }
+
+  const updated = await db.series.update({
+    where: { id: seriesId },
+    data: { deletedAt: null },
+  });
+
+  // Restore collection items referencing this series
+  await db.collectionItem.updateMany({
+    where: { seriesId },
+    data: { isAvailable: true },
+  });
+
+  return updated;
+}
+
+/**
+ * Get all soft-deleted series for admin management.
+ */
+export async function getDeletedSeries(): Promise<Series[]> {
+  const db = getDatabase();
+
+  return db.series.findMany({
+    where: {
+      deletedAt: { not: null },
+    },
+    orderBy: { deletedAt: 'desc' },
+  });
+}
+
+/**
+ * Check if a series has no remaining issues and soft-delete it if empty.
+ * Returns true if the series was soft-deleted.
+ */
+export async function checkAndSoftDeleteEmptySeries(
+  seriesId: string
+): Promise<boolean> {
+  const db = getDatabase();
+
+  // Count remaining issues
+  const issueCount = await db.comicFile.count({
+    where: { seriesId },
+  });
+
+  if (issueCount === 0) {
+    // Soft-delete the series
+    await db.series.update({
+      where: { id: seriesId },
+      data: { deletedAt: new Date() },
+    });
+
+    // Mark collection items referencing this series as unavailable
+    await db.collectionItem.updateMany({
+      where: { seriesId },
+      data: { isAvailable: false },
+    });
+
+    return true;
+  }
+
+  return false;
 }

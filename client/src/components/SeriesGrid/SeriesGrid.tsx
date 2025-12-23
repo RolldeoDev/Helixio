@@ -3,9 +3,14 @@
  *
  * Grid view of series with covers, progress indicators, and filtering.
  * Part of the Series-Centric Architecture UI.
+ *
+ * Performance optimizations:
+ * - Virtualized grid rendering (only renders visible items)
+ * - Scroll state detection (disables animations during rapid scroll)
+ * - CSS containment on individual cards
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getSeriesList,
@@ -17,10 +22,12 @@ import {
   SeriesForMerge,
 } from '../../services/api.service';
 import { SeriesCoverCard, type SeriesMenuItemPreset } from '../SeriesCoverCard';
-import { CoverSizeSlider, getCoverWidth } from '../CoverSizeSlider';
+import { CoverSizeSlider } from '../CoverSizeSlider';
 import { SeriesSelectModal } from '../SeriesSelectModal';
 import { MergeSeriesModal } from '../MergeSeriesModal';
+import { NavigationSidebar } from '../NavigationSidebar';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
+import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import './SeriesGrid.css';
 
 interface SeriesGridProps {
@@ -28,14 +35,134 @@ interface SeriesGridProps {
   onSeriesSelect?: (seriesId: string) => void;
 }
 
+// =============================================================================
+// SeriesGridContent - Virtualized grid rendering with scroll optimization
+// =============================================================================
+
+interface SeriesGridContentProps {
+  series: Series[];
+  total: number;
+  coverSize: number;
+  onCoverSizeChange: (size: number) => void;
+  operationMessage: string | null;
+  onSeriesClick: (seriesId: string) => void;
+  onMenuAction: (action: SeriesMenuItemPreset | string, seriesId: string) => void;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+function SeriesGridContent({
+  series,
+  total,
+  coverSize,
+  onCoverSizeChange,
+  operationMessage,
+  onSeriesClick,
+  onMenuAction,
+  sortBy = 'name',
+  sortOrder = 'asc',
+}: SeriesGridContentProps) {
+  const gap = 16;
+
+  // Virtualization with dynamic sizing that maximizes cover space
+  // Uses sliderValue to calculate optimal columns and item width based on container width
+  const { virtualItems, totalHeight, containerRef, isScrolling, scrollTo, visibleRange } = useVirtualGrid(series, {
+    sliderValue: coverSize,
+    gap,
+    overscan: 3, // Render 3 extra rows for smooth scrolling
+    aspectRatio: 1.5,
+    infoHeight: 60,
+    minCoverWidth: 80,
+    maxCoverWidth: 350,
+  });
+
+  // Create value extractor for navigation sidebar based on sort field
+  const getItemValue = useMemo(() => {
+    return (item: Series) => {
+      switch (sortBy) {
+        case 'name':
+          return item.name;
+        case 'publisher':
+          return item.publisher;
+        case 'startYear':
+          return item.startYear;
+        case 'updatedAt':
+          return item.updatedAt;
+        case 'createdAt':
+          return item.createdAt;
+        case 'issueCount':
+          return item._count?.issues ?? item.issueCount;
+        default:
+          return item.name;
+      }
+    };
+  }, [sortBy]);
+
+  return (
+    <>
+      <div className="series-grid-header">
+        <span className="series-count">{total} series</span>
+        <CoverSizeSlider value={coverSize} onChange={onCoverSizeChange} />
+      </div>
+
+      {/* Operation message */}
+      {operationMessage && (
+        <div className="series-operation-message">
+          {operationMessage}
+        </div>
+      )}
+
+      {/* Grid content wrapper with sidebar */}
+      <div className="series-grid-content-wrapper">
+        {/* Virtualized Series Grid */}
+        <div
+          ref={containerRef}
+          className={`series-grid-scroll-container ${isScrolling ? 'scrolling' : ''}`}
+        >
+          <div
+            className="series-grid-virtual"
+            style={{ height: totalHeight, position: 'relative' }}
+          >
+            {virtualItems.map(({ item, style }) => (
+              <div key={item.id} style={style} className="series-grid-item">
+                <SeriesCoverCard
+                  series={item}
+                  size="medium"
+                  showYear={true}
+                  showPublisher={true}
+                  onClick={onSeriesClick}
+                  onMenuAction={onMenuAction}
+                  contextMenuEnabled={true}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Navigation Sidebar - positioned fixed to right edge */}
+        <NavigationSidebar
+          items={series}
+          sortField={sortBy}
+          sortOrder={sortOrder}
+          onNavigate={scrollTo}
+          visibleRange={visibleRange}
+          getItemValue={getItemValue}
+        />
+      </div>
+    </>
+  );
+}
+
+// =============================================================================
+// Main SeriesGrid Component
+// =============================================================================
+
 export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
   const navigate = useNavigate();
   const { startJob } = useMetadataJob();
   const [series, setSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
@@ -57,7 +184,7 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
     localStorage.setItem('helixio-cover-size', String(size));
   }, []);
 
-  // Fetch series
+  // Fetch all series (no pagination - infinite scroll with navigation sidebar)
   const fetchSeries = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -65,28 +192,21 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
     try {
       const result = await getSeriesList({
         ...options,
-        page,
-        limit: options.limit ?? 50,
+        all: true,  // Fetch all series for infinite scroll
       });
 
       setSeries(result.series);
-      setTotalPages(result.pagination.pages);
       setTotal(result.pagination.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load series');
     } finally {
       setLoading(false);
     }
-  }, [options, page]);
+  }, [options]);
 
   useEffect(() => {
     fetchSeries();
   }, [fetchSeries]);
-
-  // Reset page when options change
-  useEffect(() => {
-    setPage(1);
-  }, [options.search, options.publisher, options.type, options.genres, options.hasUnread]);
 
   const handleSeriesClick = useCallback((seriesId: string) => {
     if (onSeriesSelect) {
@@ -234,61 +354,17 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
 
       {/* Series Grid */}
       {series.length > 0 && (
-        <>
-          <div className="series-grid-header">
-            <span className="series-count">{total} series</span>
-            <CoverSizeSlider value={coverSize} onChange={handleCoverSizeChange} />
-          </div>
-
-          {/* Operation message */}
-          {operationMessage && (
-            <div className="series-operation-message">
-              {operationMessage}
-            </div>
-          )}
-
-          <div
-            className="series-grid"
-            style={{ '--cover-size': `${getCoverWidth(coverSize)}px` } as React.CSSProperties}
-          >
-            {series.map((s, index) => (
-              <SeriesCoverCard
-                key={s.id}
-                series={s}
-                size="medium"
-                showYear={true}
-                showPublisher={true}
-                onClick={handleSeriesClick}
-                onMenuAction={handleMenuAction}
-                contextMenuEnabled={true}
-                animationIndex={index}
-              />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="series-grid-pagination">
-              <button
-                className="pagination-btn"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </button>
-              <span className="pagination-info">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                className="pagination-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
+        <SeriesGridContent
+          series={series}
+          total={total}
+          coverSize={coverSize}
+          onCoverSizeChange={handleCoverSizeChange}
+          operationMessage={operationMessage}
+          onSeriesClick={handleSeriesClick}
+          onMenuAction={handleMenuAction}
+          sortBy={options.sortBy}
+          sortOrder={options.sortOrder}
+        />
       )}
 
       {/* Series Select Modal for Merge */}

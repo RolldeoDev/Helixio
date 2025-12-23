@@ -171,6 +171,6 @@
 /* Series Grid Container */
 .series-page > .series-grid-container {
   flex: 1;
-  overflow: auto;
-  padding: var(--spacing-md);
+  /* Let the inner scroll container handle scrolling, not this one */
+  overflow: hidden;
 }

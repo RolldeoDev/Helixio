@@ -20,6 +20,7 @@ interface ContinueReadingSectionProps {
   items: ContinueReadingItem[];
   isLoading?: boolean;
   onItemClick?: (fileId: string) => void;
+  onItemsChange?: () => void;
 }
 
 // =============================================================================
@@ -30,6 +31,7 @@ export function ContinueReadingSection({
   items,
   isLoading,
   onItemClick,
+  onItemsChange,
 }: ContinueReadingSectionProps) {
   // Convert ContinueReadingItem to ComicCarouselItem
   const cardItems: ComicCarouselItem[] = items.map((item) => ({
@@ -81,7 +83,7 @@ export function ContinueReadingSection({
         subtitle={`${items.length} in progress`}
         seeAllLink="/library?status=reading"
       />
-      <ComicCarousel items={cardItems} onItemClick={onItemClick} />
+      <ComicCarousel items={cardItems} onItemClick={onItemClick} onItemsChange={onItemsChange} />
     </section>
   );
 }

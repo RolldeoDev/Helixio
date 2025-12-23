@@ -37,7 +37,7 @@ import {
 // Types
 // =============================================================================
 
-export type CacheSource = 'comicvine' | 'metron' | 'gcd';
+export type CacheSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 
 export interface SeriesCacheOptions {
   /** Override default TTL (in days) */
@@ -573,8 +573,8 @@ export async function cleanOrphanedFiles(): Promise<{ deleted: number; freedByte
   let deleted = 0;
   let freedBytes = 0;
 
-  // Check both source directories
-  for (const source of ['comicvine', 'metron'] as const) {
+  // Check all source directories
+  for (const source of ['comicvine', 'metron', 'gcd', 'anilist', 'mal'] as const) {
     const sourceDir = getSourceSeriesCacheDir(source);
     if (!existsSync(sourceDir)) continue;
 
@@ -678,7 +678,7 @@ export async function clearAll(): Promise<{ deleted: number; freedBytes: number 
   const stats = await getCacheStats();
 
   // Delete all files
-  for (const source of ['comicvine', 'metron'] as const) {
+  for (const source of ['comicvine', 'metron', 'gcd', 'anilist', 'mal'] as const) {
     const sourceDir = getSourceSeriesCacheDir(source);
     if (!existsSync(sourceDir)) continue;
 

@@ -3,6 +3,11 @@
  *
  * Detailed view of a single series with issues, metadata, and actions.
  * Part of the Series-Centric Architecture UI.
+ *
+ * Performance optimizations:
+ * - Virtualized issues grid (only renders visible items)
+ * - Scroll state detection (disables animations during rapid scroll)
+ * - CSS containment on individual cards
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -36,6 +41,7 @@ import { MarkdownContent } from '../components/MarkdownContent';
 import { QuickCollectionIcons } from '../components/QuickCollectionIcons';
 import { CollectionFlyout } from '../components/CollectionFlyout';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
+import { useVirtualGrid } from '../hooks/useVirtualGrid';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -61,17 +67,103 @@ const ISSUE_BULK_ACTION_ITEMS: ActionMenuItem[] = [
   { id: 'rebuildCache', label: 'Rebuild Cover Cache', dividerBefore: true },
 ];
 
+// =============================================================================
+// VirtualizedIssuesGrid - Performance optimized issues grid
+// =============================================================================
+
+interface VirtualizedIssuesGridProps {
+  issues: SeriesIssue[];
+  selectedFiles: Set<string>;
+  onIssueClick: (fileId: string, event: React.MouseEvent) => void;
+  onReadIssue: (fileId: string) => void;
+  onSelectionChange: (fileId: string, selected: boolean) => void;
+  onMenuAction: (action: MenuItemPreset | string, fileId: string) => void;
+}
+
+function VirtualizedIssuesGrid({
+  issues,
+  selectedFiles,
+  onIssueClick,
+  onReadIssue,
+  onSelectionChange,
+  onMenuAction,
+}: VirtualizedIssuesGridProps) {
+  // Grid item dimensions (medium size cards)
+  const itemWidth = 180;
+  const itemHeight = 280;
+  const gap = 16;
+
+  // Virtualization with built-in scroll state detection
+  const { virtualItems, totalHeight, containerRef, isScrolling } = useVirtualGrid(issues, {
+    itemWidth,
+    itemHeight,
+    gap,
+    overscan: 3,
+  });
+
+  if (issues.length === 0) {
+    return (
+      <div className="series-issues-empty">
+        <p>No issues found in this series.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`series-issues-scroll-container ${isScrolling ? 'scrolling' : ''}`}
+    >
+      <div
+        className="series-issues-virtual"
+        style={{ height: totalHeight, position: 'relative' }}
+      >
+        {virtualItems.map(({ item: issue, style }) => (
+          <div key={issue.id} style={style} className="series-issue-item">
+            <CoverCard
+              file={issue}
+              progress={issue.readingProgress ? {
+                currentPage: issue.readingProgress.currentPage,
+                totalPages: issue.readingProgress.totalPages,
+                completed: issue.readingProgress.completed,
+              } : undefined}
+              variant="grid"
+              size="medium"
+              selectable={true}
+              isSelected={selectedFiles.has(issue.id)}
+              checkboxVisibility="hover"
+              contextMenuEnabled={true}
+              menuItems={SERIES_ISSUE_MENU_ITEMS}
+              selectedCount={selectedFiles.size || 1}
+              showInfo={true}
+              showSeries={false}
+              showIssueNumber={true}
+              onClick={onIssueClick}
+              onDoubleClick={onReadIssue}
+              onRead={onReadIssue}
+              onSelectionChange={onSelectionChange}
+              onMenuAction={onMenuAction}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Main SeriesDetailPage Component
+// =============================================================================
+
 export function SeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const navigate = useNavigate();
-  const { startJob } = useMetadataJob();
+  const { startJob, lastCompletedJobAt } = useMetadataJob();
 
   const [series, setSeries] = useState<Series | null>(null);
   const [issues, setIssues] = useState<SeriesIssue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [nextIssue, setNextIssue] = useState<{ id: string; filename: string } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
@@ -91,7 +183,7 @@ export function SeriesDetailPage() {
   // Collection picker modal state
   const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
-  // Fetch series data
+  // Fetch series data (all issues at once for infinite scroll)
   const fetchSeries = useCallback(async () => {
     if (!seriesId) return;
 
@@ -101,13 +193,12 @@ export function SeriesDetailPage() {
     try {
       const [seriesResult, issuesResult, nextResult] = await Promise.all([
         getSeries(seriesId),
-        getSeriesIssues(seriesId, { page, limit: 100, sortBy: 'number', sortOrder: 'asc' }),
+        getSeriesIssues(seriesId, { all: true, sortBy: 'number', sortOrder: 'asc' }),
         getNextSeriesIssue(seriesId),
       ]);
 
       setSeries(seriesResult.series);
       setIssues(issuesResult.issues);
-      setTotalPages(issuesResult.pagination.pages);
 
       if (nextResult.nextIssue) {
         setNextIssue({
@@ -122,11 +213,18 @@ export function SeriesDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [seriesId, page]);
+  }, [seriesId]);
 
   useEffect(() => {
     fetchSeries();
   }, [fetchSeries]);
+
+  // Refresh series data when a metadata job completes
+  useEffect(() => {
+    if (lastCompletedJobAt) {
+      fetchSeries();
+    }
+  }, [lastCompletedJobAt, fetchSeries]);
 
   // Check if description needs truncation
   useEffect(() => {
@@ -704,58 +802,15 @@ export function SeriesDetailPage() {
           </div>
         )}
 
-        <div className="series-issues-grid">
-          {issues.map((issue, index) => (
-            <CoverCard
-              key={issue.id}
-              file={issue}
-              progress={issue.readingProgress ? {
-                currentPage: issue.readingProgress.currentPage,
-                totalPages: issue.readingProgress.totalPages,
-                completed: issue.readingProgress.completed,
-              } : undefined}
-              variant="grid"
-              size="medium"
-              selectable={true}
-              isSelected={selectedFiles.has(issue.id)}
-              checkboxVisibility="hover"
-              contextMenuEnabled={true}
-              menuItems={SERIES_ISSUE_MENU_ITEMS}
-              selectedCount={selectedFiles.size || 1}
-              showInfo={true}
-              showSeries={false}
-              showIssueNumber={true}
-              onClick={handleIssueClick}
-              onDoubleClick={handleReadIssue}
-              onSelectionChange={handleSelectionChange}
-              onMenuAction={handleMenuAction}
-              animationIndex={index}
-            />
-          ))}
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="series-issues-pagination">
-            <button
-              className="pagination-btn"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Previous
-            </button>
-            <span className="pagination-info">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              className="pagination-btn"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next
-            </button>
-          </div>
-        )}
+        {/* Virtualized Issues Grid with Navigation Sidebar */}
+        <VirtualizedIssuesGrid
+          issues={issues}
+          selectedFiles={selectedFiles}
+          onIssueClick={handleIssueClick}
+          onReadIssue={handleReadIssue}
+          onSelectionChange={handleSelectionChange}
+          onMenuAction={handleMenuAction}
+        />
       </div>
 
       {/* Characters/Teams and Locations/Story Arcs - Two column layout */}

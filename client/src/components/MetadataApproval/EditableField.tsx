@@ -38,8 +38,11 @@ export function EditableField({
   // Get the display value: edited > proposed > current > empty
   const getDisplayValue = (): string | number => {
     if (!fieldChange) return '';
-    if (fieldChange.edited && fieldChange.editedValue !== undefined) {
-      return fieldChange.editedValue;
+    // Check if user has edited the field (edited flag is true)
+    // editedValue can be null (user cleared field), undefined (not edited), or a value
+    if (fieldChange.edited) {
+      // User has made an edit - use editedValue, treating null as empty string
+      return fieldChange.editedValue ?? '';
     }
     if (fieldChange.proposed !== null && fieldChange.proposed !== undefined) {
       return fieldChange.proposed;
@@ -52,17 +55,27 @@ export function EditableField({
 
   const [localValue, setLocalValue] = useState<string | number>(getDisplayValue());
 
-  // Update local value when fieldChange changes
+  // Only sync from props when the edited flag or editedValue actually changes
+  // Use stable values for dependency instead of object reference
+  const isEdited = fieldChange?.edited ?? false;
+  const proposedValue = fieldChange?.proposed;
+  const currentValue = fieldChange?.current;
+
   useEffect(() => {
-    setLocalValue(getDisplayValue());
-  }, [fieldChange]);
+    // Only update local value from props if not currently edited by user
+    // or if external values have changed (e.g., new file selected)
+    if (!isEdited) {
+      // No pending edits, sync with proposed/current
+      setLocalValue(getDisplayValue());
+    }
+    // When isEdited is true, the local state drives the display
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdited, proposedValue, currentValue, fieldKey]);
 
   const hasChange = fieldChange && (
     fieldChange.proposed !== fieldChange.current ||
     fieldChange.edited
   );
-
-  const currentValue = fieldChange?.current;
   const showCurrentValue = currentValue !== null &&
     currentValue !== undefined &&
     currentValue !== '' &&

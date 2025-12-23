@@ -517,11 +517,15 @@ describe('Metadata Merge Service', () => {
           comicvine: 'DC Comics',
           metron: 'DC',
           gcd: null,
+          anilist: null,
+          mal: null,
         },
         description: {
           comicvine: 'ComicVine desc',
           metron: 'Metron desc',
           gcd: null,
+          anilist: null,
+          mal: null,
         },
       };
 
@@ -555,6 +559,8 @@ describe('Metadata Merge Service', () => {
           comicvine: 'DC Comics',
           metron: '', // Empty value
           gcd: null,
+          anilist: null,
+          mal: null,
         },
       };
 

@@ -801,6 +801,8 @@ export async function createCbzArchive(
 
 /**
  * Add a file to an existing CBZ archive.
+ * Note: 7zip automatically stores files with just their filename (not the full path),
+ * so passing the full path works correctly.
  */
 export async function addToArchive(
   archivePath: string,
@@ -815,26 +817,56 @@ export async function addToArchive(
     };
   }
 
-  return new Promise((resolve) => {
-    const fileDir = dirname(filePath);
-    const fileName = basename(filePath);
+  const fileName = basename(filePath);
+  const expectedEntryName = archiveEntryPath || fileName;
 
-    // Use $spawnOptions.cwd to set working directory so 7-Zip adds the file
-    // with just its filename (e.g., "ComicInfo.xml") instead of the full path
-    // (e.g., "tmp/update-xxx/ComicInfo.xml")
-    const addStream = Seven.add(archivePath, fileName, {
+  return new Promise((resolve) => {
+    let errorMessage: string | null = null;
+
+    // Pass the full file path - 7zip will store it with just the filename
+    const addStream = Seven.add(archivePath, filePath, {
       $bin: pathTo7zip,
       $progress: false,
       archiveType: 'zip',
-      $spawnOptions: { cwd: fileDir },
-    });
-
-    addStream.on('end', () => {
-      resolve({ success: true });
     });
 
     addStream.on('error', (err: Error) => {
-      resolve({ success: false, error: err.message });
+      // 7zip emits warnings (like "No more files") as errors through node-7z
+      // Check if this is a WARNING vs an actual ERROR
+      const errStr = err.message || '';
+      const isWarning = errStr.includes('WARNING:') ||
+                        (err as Error & { level?: string }).level === 'WARNING';
+
+      if (!isWarning) {
+        errorMessage = err.message;
+      }
+    });
+
+    addStream.on('end', async () => {
+      // If there was a real error, fail immediately
+      if (errorMessage) {
+        resolve({ success: false, error: errorMessage });
+        return;
+      }
+
+      // Verify the file was actually added by listing archive contents
+      // This is more reliable than tracking 'data' events which can be inconsistent
+      try {
+        const info = await listArchiveContents(archivePath);
+        const fileExists = info.entries.some(
+          (e) => basename(e.path).toLowerCase() === expectedEntryName.toLowerCase()
+        );
+
+        if (fileExists) {
+          resolve({ success: true });
+        } else {
+          resolve({ success: false, error: `File '${expectedEntryName}' was not found in archive after add operation` });
+        }
+      } catch (verifyErr) {
+        // If we can't verify, assume success since 7zip didn't report an error
+        logger.warn({ error: verifyErr }, 'Could not verify file addition, assuming success');
+        resolve({ success: true });
+      }
     });
   });
 }

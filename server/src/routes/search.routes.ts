@@ -56,7 +56,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
-          ['comicvine', 'metron'].includes(s)
+          ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
         )
       : undefined;
 
@@ -98,7 +98,7 @@ router.get('/series', async (req: Request, res: Response): Promise<void> => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
-          ['comicvine', 'metron'].includes(s)
+          ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
         )
       : undefined;
 
@@ -131,7 +131,7 @@ router.get('/issues', async (req: Request, res: Response): Promise<void> => {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
-          ['comicvine', 'metron'].includes(s)
+          ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
         )
       : undefined;
 
@@ -232,10 +232,10 @@ router.get('/series/:source/:id', async (req: Request, res: Response): Promise<v
   try {
     const { source, id } = req.params;
 
-    if (!['comicvine', 'metron'].includes(source!)) {
+    if (!['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(source!)) {
       res.status(400).json({
         error: 'Invalid source',
-        message: 'source must be comicvine or metron',
+        message: 'source must be comicvine, metron, gcd, anilist, or mal',
       });
       return;
     }
@@ -273,10 +273,10 @@ router.get('/series/:source/:id/issues', async (req: Request, res: Response): Pr
   try {
     const { source, id } = req.params;
 
-    if (!['comicvine', 'metron'].includes(source!)) {
+    if (!['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(source!)) {
       res.status(400).json({
         error: 'Invalid source',
-        message: 'source must be comicvine or metron',
+        message: 'source must be comicvine, metron, gcd, anilist, or mal',
       });
       return;
     }
@@ -308,10 +308,10 @@ router.get('/issue/:source/:id', async (req: Request, res: Response): Promise<vo
   try {
     const { source, id } = req.params;
 
-    if (!['comicvine', 'metron'].includes(source!)) {
+    if (!['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(source!)) {
       res.status(400).json({
         error: 'Invalid source',
-        message: 'source must be comicvine or metron',
+        message: 'source must be comicvine, metron, gcd, anilist, or mal',
       });
       return;
     }
@@ -362,10 +362,10 @@ router.post('/apply/:fileId', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (!['comicvine', 'metron'].includes(source)) {
+    if (!['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(source)) {
       res.status(400).json({
         error: 'Invalid source',
-        message: 'source must be comicvine or metron',
+        message: 'source must be comicvine, metron, gcd, anilist, or mal',
       });
       return;
     }
@@ -521,7 +521,7 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
           continue;
         }
 
-        if (!['comicvine', 'metron'].includes(source)) {
+        if (!['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(source)) {
           results.push({ fileId, success: false, error: 'Invalid source' });
           continue;
         }

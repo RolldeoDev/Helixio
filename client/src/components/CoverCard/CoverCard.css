@@ -69,31 +69,25 @@
   border-radius: var(--cover-card-radius);
   border: var(--cover-card-border-width) solid transparent;
   cursor: pointer;
-  /* Slower transition for hover-off (easing out) */
+  /* Shorter transitions for better Chrome performance */
   transition:
-    transform var(--cover-card-transition-out),
-    box-shadow var(--cover-card-transition-out),
-    border-color var(--cover-card-transition-out),
-    background var(--cover-card-transition-out);
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out,
+    border-color 150ms ease-out;
   outline: none;
   box-shadow: var(--cover-card-shadow);
   /* Prevent border-radius clipping issues during transform */
   overflow: hidden;
-  will-change: transform;
+  /* Use GPU layer promotion only when hovered (not all cards) */
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
 .cover-card:hover {
-  transform: translateY(var(--cover-card-hover-lift)) scale(var(--cover-card-hover-scale));
-  box-shadow: var(--cover-card-shadow-hover), var(--cover-card-hover-glow);
-  background: var(--cover-card-bg-hover);
-  /* Faster transition for hover-on */
-  transition:
-    transform var(--cover-card-transition),
-    box-shadow var(--cover-card-transition),
-    border-color var(--cover-card-transition),
-    background var(--cover-card-transition);
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: var(--cover-card-shadow-hover);
+  /* Promote to GPU layer only on hover */
+  will-change: transform;
 }
 
 .cover-card:focus-visible {
@@ -210,6 +204,14 @@
   border-radius: var(--cover-card-radius);
 }
 
+/* Image container - fills the cover area */
+.cover-card__image-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 /* =============================================================================
    Cover Image States
    ============================================================================= */
@@ -220,18 +222,8 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Slower transition for hover-off */
-  transition:
-    opacity var(--cover-card-transition),
-    transform var(--cover-card-transition-out);
-}
-
-.cover-card:hover .cover-card__image {
-  transform: scale(var(--cover-card-image-hover-scale));
-  /* Faster transition for hover-on */
-  transition:
-    opacity var(--cover-card-transition),
-    transform var(--cover-card-transition);
+  /* Start hidden - animation handles fade-in */
+  opacity: 0;
 }
 
 .cover-card__image--hidden {
@@ -239,20 +231,53 @@
 }
 
 .cover-card__image--loaded {
-  opacity: 1;
+  animation: cover-image-fade-in 300ms ease-out forwards;
 }
 
-.cover-card__blur-placeholder {
+@keyframes cover-image-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* =============================================================================
+   Skeleton Loading Placeholder (Performance Optimization)
+   ============================================================================= */
+
+.cover-card__skeleton {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  filter: blur(10px);
-  transform: scale(1.1);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-card, #1a1a2e) 25%,
+    var(--color-surface-hover, #252542) 50%,
+    var(--color-surface-card, #1a1a2e) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
-/* Loading spinner */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Disable skeleton animation during rapid scroll for performance */
+.scrolling .cover-card__skeleton {
+  animation: none;
+  background: var(--color-surface-card, #1a1a2e);
+}
+
+/* Loading spinner (legacy - kept for compatibility) */
 .cover-card__loading {
   position: absolute;
   inset: 0;
@@ -324,29 +349,13 @@
 
   /* Comic book corner box aesthetic - uses theme color */
   background: var(--color-issue-badge, #f5c542);
+  border-radius: 3px;
 
-  /* Angular cut on bottom-left corner for dynamic feel */
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-
-  /* Border via drop-shadow (follows clip-path, unlike border property) */
-  /* 2px solid black outline on all 8 directions for hard edge, plus depth shadow */
-  filter:
-    drop-shadow(2px 0 0 black)
-    drop-shadow(-2px 0 0 black)
-    drop-shadow(0 2px 0 black)
-    drop-shadow(0 -2px 0 black)
-    drop-shadow(2px 2px 0 black)
-    drop-shadow(-2px -2px 0 black)
-    drop-shadow(2px -2px 0 black)
-    drop-shadow(-2px 2px 0 black)
-    drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.5));
-
-  /* Inner highlight for depth */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
-
-  /* Subtle rotation for dynamism */
-  transform: rotate(2deg);
-  transform-origin: top right;
+  /* Simplified shadow for better Chrome performance */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 
   /* Typography */
   font-family: 'Impact', 'Haettenschweiler', 'Franklin Gothic Bold', 'Charcoal', 'Helvetica Inserat', 'Bitstream Vera Sans Bold', 'Arial Black', sans-serif;
@@ -357,26 +366,6 @@
   /* Text color with slight shadow for readability - uses theme variable */
   color: var(--color-issue-badge-text, #1a1a1a);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
-
-  transition:
-    transform var(--cover-card-transition),
-    box-shadow var(--cover-card-transition),
-    filter var(--cover-card-transition);
-}
-
-.cover-card:hover .cover-card__issue-badge {
-  transform: rotate(0deg) scale(1.05);
-  filter:
-    drop-shadow(2px 0 0 black)
-    drop-shadow(-2px 0 0 black)
-    drop-shadow(0 2px 0 black)
-    drop-shadow(0 -2px 0 black)
-    drop-shadow(2px 2px 0 black)
-    drop-shadow(-2px -2px 0 black)
-    drop-shadow(2px -2px 0 black)
-    drop-shadow(-2px 2px 0 black)
-    drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.6));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .cover-card__issue-badge-hash {
@@ -518,6 +507,73 @@
 }
 
 /* =============================================================================
+   Read Button Overlay
+   ============================================================================= */
+
+.cover-card__read-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.cover-card:hover .cover-card__read-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cover-card__read-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary, #8b5cf6);
+  color: white;
+  cursor: pointer;
+  transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.cover-card__read-button:hover {
+  transform: scale(1.1);
+  background: var(--color-primary-hover, #7c3aed);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.cover-card__read-button:active {
+  transform: scale(0.95);
+}
+
+.cover-card__read-icon {
+  width: 32px;
+  height: 32px;
+}
+
+/* Scale read button based on card size */
+.cover-card--small .cover-card__read-button {
+  width: 48px;
+  height: 48px;
+}
+
+.cover-card--small .cover-card__read-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.cover-card--compact .cover-card__read-overlay {
+  display: none;
+}
+
+/* =============================================================================
    Selection Checkbox
    ============================================================================= */
 
@@ -525,7 +581,7 @@
   position: absolute;
   top: 8px;
   left: 8px;
-  z-index: 5;
+  z-index: 10;
   opacity: 0;
   transition: opacity var(--cover-card-transition);
 }
@@ -650,26 +706,9 @@
 }
 
 /* =============================================================================
-   Animations
+   Animations - Disabled for performance
+   Cards appear instantly, no staggered entrance
    ============================================================================= */
-
-/* Staggered entrance animation */
-@keyframes cover-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(1);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.cover-card {
-  /* Use 'backwards' fill mode so animation doesn't override hover transforms after completion */
-  animation: cover-card-enter 0.3s ease backwards;
-  animation-delay: calc(var(--animation-index, 0) * 30ms);
-}
 
 /* =============================================================================
    Reduced Motion
@@ -688,4 +727,43 @@
   .cover-card__spinner {
     animation: none;
   }
+}
+
+/* =============================================================================
+   Scroll Performance Optimization
+   When .scrolling class is on parent, disable ALL expensive effects
+   ============================================================================= */
+
+.scrolling .cover-card {
+  /* Kill card-level transitions during scroll (hover effects) */
+  transition: none !important;
+}
+
+.scrolling .cover-card::before,
+.scrolling .cover-card::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Disable transitions on most children, but PRESERVE image fade-in */
+.scrolling .cover-card *:not(.cover-card__image) {
+  transition: none !important;
+  animation: none !important;
+}
+
+.scrolling .cover-card:hover {
+  /* Disable all hover effects during scroll */
+  transform: none !important;
+  box-shadow: var(--cover-card-shadow) !important;
+  will-change: auto !important;
+}
+
+/* Hide read overlay during scroll for performance */
+.scrolling .cover-card__read-overlay {
+  display: none !important;
+}
+
+/* Disable skeleton shimmer during scroll */
+.scrolling .cover-card__skeleton {
+  background: var(--color-surface-card, #1a1a2e) !important;
 }

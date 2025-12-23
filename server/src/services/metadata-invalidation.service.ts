@@ -159,6 +159,11 @@ async function updateFileSeriesLinkage(
   const metadataPublisher = file.metadata.publisher;
   const oldSeriesId = file.seriesId;
 
+  // If file has no series metadata, nothing to link to
+  if (!metadataSeriesName) {
+    return;
+  }
+
   // If file has a series assigned, check if it still matches
   if (file.seriesId && file.series) {
     const seriesMatches =
@@ -166,81 +171,103 @@ async function updateFileSeriesLinkage(
       (file.series.publisher === metadataPublisher ||
         (!file.series.publisher && !metadataPublisher));
 
-    if (!seriesMatches) {
-      logger.info(
-        {
-          fileId,
-          oldSeries: file.series.name,
-          oldPublisher: file.series.publisher,
-          newSeries: metadataSeriesName,
-          newPublisher: metadataPublisher,
-        },
-        'File metadata series changed, unlinking from current series'
-      );
-
-      // Unlink from current series
-      await prisma.comicFile.update({
-        where: { id: fileId },
-        data: { seriesId: null },
-      });
-
-      result.seriesUpdated = true;
+    if (seriesMatches) {
+      // Series already matches, nothing to do
+      return;
     }
-  }
 
-  // Check if file needs to be linked to a series
-  const currentFile = await prisma.comicFile.findUnique({
-    where: { id: fileId },
-    select: { seriesId: true },
-  });
+    // Series doesn't match - try to find/create a new series FIRST before unlinking
+    // This prevents orphaning files when auto-link needs confirmation
+    logger.info(
+      {
+        fileId,
+        oldSeries: file.series.name,
+        oldPublisher: file.series.publisher,
+        newSeries: metadataSeriesName,
+        newPublisher: metadataPublisher,
+      },
+      'File metadata series changed, attempting to find matching series'
+    );
 
-  // If file is now unlinked and has series metadata, find or create a series
-  if (!currentFile?.seriesId && metadataSeriesName) {
-    // Use autoLinkFileToSeries which handles:
-    // - Finding existing matching series
-    // - Creating new series if no match found
+    // Temporarily unlink to allow autoLinkFileToSeries to work
+    await prisma.comicFile.update({
+      where: { id: fileId },
+      data: { seriesId: null },
+    });
+
     const linkResult = await autoLinkFileToSeries(fileId);
 
     if (linkResult.success && linkResult.seriesId) {
+      // Successfully linked to a new series
       logger.info(
         {
           fileId,
-          seriesId: linkResult.seriesId,
+          oldSeriesId,
+          newSeriesId: linkResult.seriesId,
           matchType: linkResult.matchType,
         },
         linkResult.matchType === 'created'
-          ? 'Created new series and linked file'
-          : 'Linked file to existing series'
+          ? 'Created new series and relinked file'
+          : 'Relinked file to different series'
       );
       result.seriesUpdated = true;
+
+      // Update progress for the old series
+      if (oldSeriesId) {
+        await updateSeriesProgress(oldSeriesId);
+        sendSeriesRefresh([oldSeriesId]);
+      }
     } else if (linkResult.needsConfirmation) {
+      // Auto-link needs confirmation - restore the original link to prevent orphaning
       logger.info(
         { fileId, suggestions: linkResult.suggestions?.length },
-        'File needs manual series confirmation'
+        'Auto-link needs confirmation, keeping file linked to original series'
       );
+      await prisma.comicFile.update({
+        where: { id: fileId },
+        data: { seriesId: oldSeriesId },
+      });
+      // Don't set result.seriesUpdated since we restored the link
     } else {
+      // Auto-link failed - restore the original link to prevent orphaning
       logger.warn(
         { fileId, error: linkResult.error },
-        'Failed to auto-link file to series'
+        'Failed to auto-link file, keeping file linked to original series'
       );
+      await prisma.comicFile.update({
+        where: { id: fileId },
+        data: { seriesId: oldSeriesId },
+      });
+      // Don't set result.seriesUpdated since we restored the link
     }
+    return;
   }
 
-  // Update progress for the old series if it changed
-  if (oldSeriesId && result.seriesUpdated) {
-    const newFile = await prisma.comicFile.findUnique({
-      where: { id: fileId },
-      select: { seriesId: true },
-    });
+  // File is not linked to any series but has metadata - try to link it
+  const linkResult = await autoLinkFileToSeries(fileId);
 
-    // If file moved to a different series, update the old series progress
-    if (newFile?.seriesId !== oldSeriesId) {
-      await updateSeriesProgress(oldSeriesId);
-      logger.debug({ seriesId: oldSeriesId }, 'Updated old series progress');
-
-      // Also notify clients about the old series being updated
-      sendSeriesRefresh([oldSeriesId]);
-    }
+  if (linkResult.success && linkResult.seriesId) {
+    logger.info(
+      {
+        fileId,
+        seriesId: linkResult.seriesId,
+        matchType: linkResult.matchType,
+      },
+      linkResult.matchType === 'created'
+        ? 'Created new series and linked file'
+        : 'Linked file to existing series'
+    );
+    result.seriesUpdated = true;
+  } else if (linkResult.needsConfirmation) {
+    logger.info(
+      { fileId, suggestions: linkResult.suggestions?.length },
+      'File needs manual series confirmation'
+    );
+  } else {
+    logger.warn(
+      { fileId, error: linkResult.error },
+      'Failed to auto-link file to series'
+    );
   }
 }
 

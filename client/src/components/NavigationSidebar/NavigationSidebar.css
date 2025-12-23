@@ -1,0 +1,230 @@
+/* =============================================================================
+   Navigation Sidebar
+   Quick navigation for infinite scroll pages
+   ============================================================================= */
+
+.navigation-sidebar {
+  position: fixed;
+  /* Position at far right edge - scrollbar will be to the left */
+  top: var(--nav-sidebar-top, 120px);
+  right: 0;
+  bottom: var(--nav-sidebar-bottom, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 100;
+  padding: 8px 4px;
+  background: var(--color-bg-card, rgba(20, 20, 25, 0.95));
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-left: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-right: none;
+  border-radius: var(--radius-md, 8px) 0 0 var(--radius-md, 8px);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  user-select: none;
+  touch-action: none;
+  min-width: 28px;
+}
+
+.nav-markers-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Evenly distribute markers across full height */
+  justify-content: space-between;
+  flex: 1;
+  width: 100%;
+  padding: 4px 0;
+}
+
+/* =============================================================================
+   Marker Buttons
+   ============================================================================= */
+
+.nav-marker {
+  width: 24px;
+  min-height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted, #999);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px;
+}
+
+.nav-marker:hover {
+  color: var(--color-text, #fff);
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+}
+
+.nav-marker.active {
+  color: var(--color-primary, #d4a574);
+  background: var(--color-primary-muted, rgba(212, 165, 116, 0.25));
+  font-weight: 700;
+}
+
+.nav-marker.empty {
+  color: var(--color-text-subtle, #444);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.nav-marker.empty:hover {
+  background: transparent;
+  color: var(--color-text-subtle, #444);
+}
+
+/* =============================================================================
+   Year Mode (Wider markers for years)
+   ============================================================================= */
+
+.navigation-sidebar.year-mode .nav-marker {
+  width: 40px;
+  font-size: 0.5625rem;
+}
+
+/* Year mode spectrum track */
+.navigation-sidebar.year-mode {
+  padding-right: 8px;
+  cursor: ns-resize;
+}
+
+.spectrum-track {
+  position: absolute;
+  right: 2px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 2px;
+}
+
+.spectrum-thumb {
+  position: absolute;
+  left: -2px;
+  width: 7px;
+  height: 14px;
+  background: var(--color-primary, #3b82f6);
+  border-radius: 3px;
+  transform: translateY(-50%);
+  transition: top 0.1s ease-out;
+}
+
+.navigation-sidebar.is-dragging .spectrum-thumb {
+  transition: none;
+  background: var(--color-primary-hover, #2563eb);
+}
+
+/* =============================================================================
+   Numeric Mode (Issue numbers/ranges)
+   ============================================================================= */
+
+.navigation-sidebar.numeric-mode .nav-marker {
+  width: auto;
+  min-width: 24px;
+  max-width: 50px;
+  font-size: 0.5625rem;
+  padding: 0 4px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   Mobile Styles
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .navigation-sidebar {
+    right: 0;
+    padding: 6px 3px;
+    top: var(--nav-sidebar-top, 160px);
+    bottom: var(--nav-sidebar-bottom, 50px);
+  }
+
+  .nav-marker {
+    width: 20px;
+    font-size: 0.5rem;
+  }
+
+  .navigation-sidebar.year-mode .nav-marker {
+    width: 32px;
+    font-size: 0.5rem;
+  }
+
+  .navigation-sidebar.numeric-mode .nav-marker {
+    max-width: 40px;
+    font-size: 0.5rem;
+  }
+
+  .spectrum-track {
+    width: 2px;
+  }
+
+  .spectrum-thumb {
+    width: 6px;
+    height: 12px;
+    left: -2px;
+  }
+}
+
+/* Very small screens */
+@media (max-width: 480px) {
+  .navigation-sidebar {
+    right: 0;
+    padding: 4px 2px;
+    top: var(--nav-sidebar-top, 140px);
+    bottom: var(--nav-sidebar-bottom, 40px);
+  }
+
+  .nav-marker {
+    width: 18px;
+    font-size: 0.4375rem;
+  }
+
+  .navigation-sidebar.year-mode .nav-marker {
+    width: 28px;
+  }
+}
+
+/* =============================================================================
+   Accessibility
+   ============================================================================= */
+
+/* Remove focus ring on click - only show active indicator */
+.nav-marker:focus {
+  outline: none;
+}
+
+/* Only show focus ring for keyboard navigation (accessibility) */
+.nav-marker:focus-visible {
+  outline: 2px solid var(--color-primary, #3b82f6);
+  outline-offset: 1px;
+}
+
+/* =============================================================================
+   Animation
+   ============================================================================= */
+
+@keyframes sidebar-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.navigation-sidebar {
+  animation: sidebar-fade-in 0.2s ease-out;
+}

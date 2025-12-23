@@ -613,18 +613,30 @@ async function updateSeriesFromApprovedMetadata(
     const selectedSeries = group.selectedSeries;
 
     try {
-      // Find the database Series record by name and publisher
-      const dbSeries = await prisma.series.findFirst({
-        where: {
-          name: selectedSeries.name,
-          publisher: selectedSeries.publisher ?? null,
-        },
+      // Find the database Series record from the files in this group
+      // This is more reliable than searching by name/publisher since the API result's
+      // name may differ from the database series name (which was parsed from filenames)
+      const fileWithSeries = await prisma.comicFile.findFirst({
+        where: { id: { in: group.fileIds } },
+        select: { seriesId: true },
+      });
+
+      if (!fileWithSeries?.seriesId) {
+        logger.debug(
+          { seriesName: selectedSeries.name, fileIds: group.fileIds.slice(0, 3) },
+          'No files in group have a series assigned'
+        );
+        continue;
+      }
+
+      const dbSeries = await prisma.series.findUnique({
+        where: { id: fileWithSeries.seriesId },
       });
 
       if (!dbSeries) {
         logger.debug(
-          { seriesName: selectedSeries.name, publisher: selectedSeries.publisher },
-          'No database series found to update'
+          { seriesId: fileWithSeries.seriesId, seriesName: selectedSeries.name },
+          'Database series not found for files in group'
         );
         continue;
       }
@@ -664,11 +676,15 @@ async function updateSeriesFromApprovedMetadata(
         coverUrl: rawMetadata.coverUrl as string | undefined,
       };
 
-      // Add external ID
+      // Add external ID based on source
       if (selectedSeries.source === 'comicvine') {
         metadata.comicVineSeriesId = selectedSeries.sourceId;
-      } else {
+      } else if (selectedSeries.source === 'metron') {
         metadata.metronSeriesId = selectedSeries.sourceId;
+      } else if (selectedSeries.source === 'anilist') {
+        metadata.anilistId = selectedSeries.sourceId;
+      } else if (selectedSeries.source === 'mal') {
+        metadata.malId = selectedSeries.sourceId;
       }
 
       // Extract array fields if present
@@ -695,7 +711,7 @@ async function updateSeriesFromApprovedMetadata(
       const allFields = [
         'name', 'publisher', 'startYear', 'endYear', 'issueCount',
         'summary', 'deck', 'coverUrl', 'comicVineId', 'metronId',
-        'characters', 'locations', 'genres', 'aliases'
+        'anilistId', 'malId', 'characters', 'locations', 'genres', 'aliases'
       ];
       const fieldsToApply = allFields.filter((f) => !lockedFields.includes(f));
 

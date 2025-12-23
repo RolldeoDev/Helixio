@@ -1,0 +1,522 @@
+/**
+ * FoldersPage Styles
+ *
+ * Resizable split view with folder tree on left and cover gallery on right.
+ */
+
+.folders-page {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* Left Panel - Folder Tree */
+.folders-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+  border-right: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.folders-panel-library {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.folders-panel-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.folders-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.folder-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scan-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.scan-btn:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.scan-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading-folders {
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Breadcrumb Navigation */
+.folder-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border-subtle);
+  min-height: 36px;
+}
+
+.breadcrumb-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--color-hover);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.breadcrumb-back:hover {
+  background: var(--color-primary-muted, rgba(212, 165, 116, 0.2));
+  color: var(--color-primary);
+}
+
+.breadcrumb-path {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.breadcrumb-segment {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.breadcrumb-separator {
+  color: var(--color-text-muted);
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 2px 6px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+.breadcrumb-item:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.breadcrumb-item.current {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* Drill-down indicator */
+.folder-chevron.drill-indicator {
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast);
+}
+
+.folder-item:hover .folder-chevron.drill-indicator {
+  color: var(--color-primary);
+}
+
+/* Folder child count badge */
+.folder-child-count {
+  flex-shrink: 0;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  border-radius: 10px;
+  margin-left: auto;
+}
+
+.folder-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm) 0;
+}
+
+/* Library folder group (for All Libraries mode) */
+.library-folder-group {
+  margin-bottom: var(--spacing-sm);
+}
+
+.library-folder-header {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-bg-tertiary);
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Folder item styles */
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  text-align: left;
+}
+
+.folder-item:hover {
+  background: var(--color-hover);
+}
+
+.folder-item.selected {
+  background: var(--color-primary-muted, rgba(212, 165, 116, 0.15));
+  color: var(--color-primary);
+}
+
+.folder-item.root {
+  font-weight: 500;
+  padding-left: var(--spacing-md);
+}
+
+.folder-item.quarantine {
+  color: var(--color-warning);
+}
+
+.folder-item.renaming {
+  background: var(--color-hover);
+}
+
+.folder-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+  transform: rotate(0deg);
+}
+
+.folder-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.folder-chevron-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.folder-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.folder-item.selected .folder-icon {
+  color: var(--color-primary);
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quarantine-badge {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--color-warning);
+  color: var(--color-bg);
+  border-radius: 50%;
+}
+
+/* Folder rename */
+.folder-rename-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-rename-input {
+  flex: 1;
+  padding: 2px 6px;
+  font-size: 0.875rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  outline: none;
+}
+
+.folder-rename-input.error {
+  border-color: var(--color-error);
+}
+
+.folder-rename-error {
+  font-size: 0.75rem;
+  color: var(--color-error);
+}
+
+/* Empty state */
+.folders-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xl);
+  text-align: center;
+}
+
+.folders-empty p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* Resize Handle */
+.folders-resize-handle {
+  width: 4px;
+  background: transparent;
+  cursor: col-resize;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.folders-resize-handle:hover,
+.folders-resize-handle.resizing {
+  background: var(--color-primary);
+}
+
+/* Right Panel - Cover Gallery */
+.folders-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  position: relative;
+  /* Reserve space for navigation sidebar */
+  margin-right: 40px;
+}
+
+/* Context menu */
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+}
+
+.folder-context-menu {
+  position: fixed;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  padding: var(--spacing-xs);
+  z-index: 1001;
+  min-width: 160px;
+}
+
+.folder-context-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.folder-context-menu button:hover {
+  background: var(--color-hover);
+}
+
+/* Add library form */
+.add-library-form {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.add-library-form input,
+.add-library-form select {
+  padding: var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+.add-library-form input:focus,
+.add-library-form select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.path-input-group {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.path-input-group input {
+  flex: 1;
+}
+
+.btn-browse {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.btn-browse:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.btn-primary {
+  flex: 1;
+  padding: var(--spacing-sm);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-bg);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  flex: 1;
+  padding: var(--spacing-sm);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.btn-secondary:hover {
+  background: var(--color-hover);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .folders-page {
+    flex-direction: column;
+  }
+
+  .folders-panel {
+    width: 100% !important;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .folders-resize-handle {
+    display: none;
+  }
+}

@@ -295,6 +295,8 @@
   gap: 8px;
   font-size: 11px;
   color: var(--series-card-text-secondary);
+  /* Ensure consistent card height even when year/publisher is missing */
+  min-height: 1em;
 }
 
 .series-cover-card__year,

@@ -5,7 +5,7 @@
  */
 
 import { createServiceLogger } from '../logger.service.js';
-import { searchSeries, type SeriesMatch } from '../metadata-search.service.js';
+import { searchSeries, type SeriesMatch, type LibraryType } from '../metadata-search.service.js';
 import { getSession, setSession } from './session-store.js';
 import { prepareFileChanges } from './file-review.js';
 import type { ApprovalSession, ProgressCallback } from './types.js';
@@ -33,7 +33,7 @@ export async function searchForCurrentSeries(
 
   try {
     progress(`Querying metadata sources for "${group.displayName}"`);
-    const results = await searchSeries(group.query, { limit: 10 });
+    const results = await searchSeries(group.query, { limit: 10, libraryType: session.libraryType });
     group.searchResults = results.series;
 
     // Log each result found
@@ -87,14 +87,69 @@ export async function searchSeriesCustom(
   session.updatedAt = new Date();
 
   try {
-    const searchOptions: { limit: number; sources?: MetadataSource[] } = { limit: 10 };
+    const searchOptions: { limit: number; offset?: number; sources?: MetadataSource[]; libraryType?: LibraryType } = { limit: 15 };
     if (source) {
       searchOptions.sources = [source];
     }
+    // Use library type for source prioritization (unless a specific source was requested)
+    if (!source && session.libraryType) {
+      searchOptions.libraryType = session.libraryType;
+    }
     const results = await searchSeries({ series: query }, searchOptions);
     group.searchResults = results.series;
+    group.searchPagination = results.pagination;
     group.query.series = query;
     group.displayName = query;
+    group.status = 'pending';
+    session.updatedAt = new Date();
+    setSession(session);
+    return results.series;
+  } catch (error) {
+    group.status = 'pending';
+    session.updatedAt = new Date();
+    setSession(session);
+    throw error;
+  }
+}
+
+/**
+ * Load more search results for the current series group
+ * @param sessionId - The session ID
+ */
+export async function loadMoreSeriesResults(
+  sessionId: string
+): Promise<SeriesMatch[]> {
+  const session = getSession(sessionId);
+  if (!session) throw new Error('Session not found');
+
+  const group = session.seriesGroups[session.currentSeriesIndex];
+  if (!group) throw new Error('No current series group');
+
+  const pagination = group.searchPagination;
+  if (!pagination || !pagination.hasMore) {
+    return []; // No more results to load
+  }
+
+  group.status = 'searching';
+  session.updatedAt = new Date();
+
+  try {
+    const newOffset = pagination.offset + pagination.limit;
+    const searchOptions: { limit: number; offset: number; sources?: MetadataSource[]; libraryType?: LibraryType } = {
+      limit: pagination.limit,
+      offset: newOffset,
+    };
+
+    // Use library type for source prioritization
+    if (session.libraryType) {
+      searchOptions.libraryType = session.libraryType;
+    }
+
+    const results = await searchSeries({ series: group.query.series || '' }, searchOptions);
+
+    // Append new results to existing
+    group.searchResults = [...group.searchResults, ...results.series];
+    group.searchPagination = results.pagination;
     group.status = 'pending';
     session.updatedAt = new Date();
     setSession(session);

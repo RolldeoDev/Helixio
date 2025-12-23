@@ -43,6 +43,8 @@ import {
   bulkRelinkFiles,
   getAllPublishers,
   getAllGenres,
+  getDeletedSeries,
+  restoreSeries,
   SeriesListOptions,
   type DuplicateConfidence,
 } from '../services/series.service.js';
@@ -66,7 +68,7 @@ import {
   unlinkExternalId,
   type SeriesMetadataPayload,
 } from '../services/series-metadata-fetch.service.js';
-import { searchSeries as searchExternalSeries, type MetadataSource } from '../services/metadata-search.service.js';
+import { searchSeries as searchExternalSeries, type MetadataSource, type LibraryType } from '../services/metadata-search.service.js';
 import {
   invalidateSeriesData,
   findMismatchedSeriesFiles,
@@ -114,9 +116,10 @@ const coverUpload = multer({
  * List series with pagination, filtering, and sorting
  */
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  const fetchAll = req.query.all === 'true';
   const options: SeriesListOptions = {
-    page: parseInt(req.query.page as string) || 1,
-    limit: parseInt(req.query.limit as string) || 50,
+    page: fetchAll ? 1 : (parseInt(req.query.page as string) || 1),
+    limit: fetchAll ? undefined : (parseInt(req.query.limit as string) || 50),
     sortBy: (req.query.sortBy as SeriesListOptions['sortBy']) || 'name',
     sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'asc',
     search: req.query.search as string | undefined,
@@ -124,6 +127,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     type: req.query.type as 'western' | 'manga' | undefined,
     genres: req.query.genres ? (req.query.genres as string).split(',') : undefined,
     hasUnread: req.query.hasUnread ? req.query.hasUnread === 'true' : undefined,
+    libraryId: req.query.libraryId as string | undefined,
   };
 
   const result = await getSeriesList(options);
@@ -132,6 +136,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     page: options.page,
     limit: options.limit,
     total: result.total,
+    fetchAll,
   }, 'Listed series');
 
   sendSuccess(res, { series: result.series }, {
@@ -288,35 +293,42 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 /**
  * GET /api/series/search-external
- * Search external metadata sources (ComicVine, Metron, GCD) for series
+ * Search external metadata sources for series
  * Optional source param to limit search to a specific source
+ * Optional libraryType param to prioritize sources (manga prioritizes AniList/MAL)
  */
 router.get('/search-external', asyncHandler(async (req: Request, res: Response) => {
   const query = req.query.q as string;
   const limit = parseInt(req.query.limit as string) || 10;
+  const offset = parseInt(req.query.offset as string) || 0;
   const source = req.query.source as string | undefined;
+  const libraryType = req.query.libraryType as LibraryType | undefined;
 
   if (!query || query.length < 2) {
     sendBadRequest(res, 'Query must be at least 2 characters');
     return;
   }
 
-  // Validate source if provided
-  const validSources: MetadataSource[] = ['comicvine', 'metron', 'gcd'];
+  // Validate source if provided - includes all metadata sources
+  const validSources: MetadataSource[] = ['comicvine', 'metron', 'gcd', 'anilist', 'mal'];
   if (source && !validSources.includes(source as MetadataSource)) {
     sendBadRequest(res, `Invalid source. Must be one of: ${validSources.join(', ')}`);
     return;
   }
 
-  const searchOptions: { limit: number; sources?: MetadataSource[] } = { limit };
+  const searchOptions: { limit: number; offset: number; sources?: MetadataSource[]; libraryType?: LibraryType } = { limit, offset };
   if (source) {
     searchOptions.sources = [source as MetadataSource];
+  }
+  if (libraryType) {
+    searchOptions.libraryType = libraryType;
   }
 
   const results = await searchExternalSeries({ series: query }, searchOptions);
   sendSuccess(res, {
     series: results.series,
     sources: results.sources,
+    pagination: results.pagination,
   });
 }));
 
@@ -421,8 +433,9 @@ function parseIssueNumber(numberStr: string | null | undefined): { numericValue:
  */
 router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
   const db = getDatabase();
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 100;
+  const fetchAll = req.query.all === 'true';
+  const page = fetchAll ? 1 : (parseInt(req.query.page as string) || 1);
+  const limit = fetchAll ? undefined : (parseInt(req.query.limit as string) || 100);
   const sortBy = (req.query.sortBy as string) || 'number';
   const sortOrder = (req.query.sortOrder as 'asc' | 'desc') || 'asc';
 
@@ -475,16 +488,18 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
       return sortOrder === 'asc' ? cmp : -cmp;
     });
 
-    // Apply pagination
+    // Apply pagination (or return all if fetchAll)
     const total = sortedIssues.length;
-    const paginatedIssues = sortedIssues.slice((page - 1) * limit, page * limit);
+    const paginatedIssues = limit
+      ? sortedIssues.slice((page - 1) * limit, page * limit)
+      : sortedIssues;
 
     sendSuccess(res, { issues: paginatedIssues }, {
       pagination: {
         page,
-        limit,
+        limit: limit || total,
         total,
-        pages: Math.ceil(total / limit),
+        pages: limit ? Math.ceil(total / limit) : 1,
       },
     });
     return;
@@ -493,11 +508,43 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
   // For other sort fields, use Prisma's ordering
   const orderBy = { [sortBy]: sortOrder };
 
+  // If fetchAll, get all issues; otherwise paginate
+  if (fetchAll) {
+    const [issues, total] = await Promise.all([
+      db.comicFile.findMany({
+        where: { seriesId: req.params.id },
+        orderBy,
+        include: {
+          metadata: true,
+          readingProgress: {
+            select: {
+              currentPage: true,
+              totalPages: true,
+              completed: true,
+              lastReadAt: true,
+            },
+          },
+        },
+      }),
+      db.comicFile.count({ where: { seriesId: req.params.id } }),
+    ]);
+
+    sendSuccess(res, { issues }, {
+      pagination: {
+        page: 1,
+        limit: total,
+        total,
+        pages: 1,
+      },
+    });
+    return;
+  }
+
   const [issues, total] = await Promise.all([
     db.comicFile.findMany({
       where: { seriesId: req.params.id },
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: (page - 1) * (limit || 100),
+      take: limit || 100,
       orderBy,
       include: {
         metadata: true,
@@ -517,9 +564,9 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, { issues }, {
     pagination: {
       page,
-      limit,
+      limit: limit || 100,
       total,
-      pages: Math.ceil(total / limit),
+      pages: Math.ceil(total / (limit || 100)),
     },
   });
 }));
@@ -1375,6 +1422,42 @@ router.post('/admin/sync-metadata-batch', asyncHandler(async (req: Request, res:
     'Batch metadata sync complete'
   );
   sendSuccess(res, result);
+}));
+
+// =============================================================================
+// Soft-Deleted Series Management
+// =============================================================================
+
+/**
+ * GET /api/series/admin/deleted
+ * Get all soft-deleted series.
+ */
+router.get('/admin/deleted', asyncHandler(async (_req: Request, res: Response) => {
+  const deleted = await getDeletedSeries();
+  sendSuccess(res, { series: deleted, count: deleted.length });
+}));
+
+/**
+ * POST /api/series/:id/restore
+ * Restore a soft-deleted series.
+ */
+router.post('/:id/restore', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return sendBadRequest(res, 'Series ID is required');
+  }
+
+  try {
+    const series = await restoreSeries(id);
+    logger.info({ seriesId: id }, 'Restored soft-deleted series');
+    sendSuccess(res, { series });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      return sendNotFound(res, error.message);
+    }
+    throw error;
+  }
 }));
 
 export default router;

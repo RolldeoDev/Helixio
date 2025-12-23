@@ -30,31 +30,11 @@ export function useContextMenu(): UseContextMenuReturn {
   });
 
   const openMenu = useCallback((position: MenuPosition, fileId: string) => {
-    // Adjust position to keep menu within viewport
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const menuWidth = 200; // Approximate menu width
-    const menuHeight = 300; // Approximate max menu height
-
-    let { x, y } = position;
-
-    // Prevent menu from going off right edge
-    if (x + menuWidth > viewportWidth) {
-      x = viewportWidth - menuWidth - 8;
-    }
-
-    // Prevent menu from going off bottom edge
-    if (y + menuHeight > viewportHeight) {
-      y = viewportHeight - menuHeight - 8;
-    }
-
-    // Ensure menu doesn't go off left or top edge
-    x = Math.max(8, x);
-    y = Math.max(8, y);
-
+    // Position adjustment is now handled in ContextMenu component
+    // using actual measured dimensions after render
     setMenuState({
       isOpen: true,
-      position: { x, y },
+      position,
       fileId,
     });
   }, []);

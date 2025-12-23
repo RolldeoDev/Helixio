@@ -36,6 +36,8 @@ export interface SeriesMetadataPayload {
   seriesType?: string;
   comicVineSeriesId?: string;
   metronSeriesId?: string;
+  anilistId?: string;
+  malId?: string;
   characters?: string[];
   locations?: string[];
   storyArcs?: string[];
@@ -374,6 +376,18 @@ export async function applyMetadataToSeries(
       fieldSources.metronId = { source: 'api' };
       if (!fieldsUpdated.includes('metronId')) {
         fieldsUpdated.push('metronId');
+      }
+    } else if (source === 'anilist' && !lockedFields.includes('anilistId')) {
+      updateData.anilistId = externalId;
+      fieldSources.anilistId = { source: 'api' };
+      if (!fieldsUpdated.includes('anilistId')) {
+        fieldsUpdated.push('anilistId');
+      }
+    } else if (source === 'mal' && !lockedFields.includes('malId')) {
+      updateData.malId = externalId;
+      fieldSources.malId = { source: 'api' };
+      if (!fieldsUpdated.includes('malId')) {
+        fieldsUpdated.push('malId');
       }
     }
   }

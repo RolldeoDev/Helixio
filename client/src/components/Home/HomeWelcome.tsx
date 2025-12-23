@@ -422,10 +422,11 @@ export function HomeWelcome({
           ) : (
             <div className="welcome-featured-empty">
               <div className="welcome-featured-empty-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                </svg>
+                <img
+                  src="/helixioLogoSquareTransparent.png"
+                  alt="Helixio"
+                  className="welcome-empty-logo"
+                />
               </div>
               <span>Start reading to see your current comic here</span>
               <Link to="/library" className="welcome-featured-browse">
