@@ -300,13 +300,14 @@ router.post('/:id/load-more', async (req: Request, res: Response) => {
 /**
  * POST /api/metadata-jobs/:id/approve-series
  * Approve selected series
- * Body: { selectedSeriesId: string, issueMatchingSeriesId?: string }
+ * Body: { selectedSeriesId: string, issueMatchingSeriesId?: string, applyToRemaining?: boolean }
  */
 router.post('/:id/approve-series', async (req: Request, res: Response) => {
   try {
-    const { selectedSeriesId, issueMatchingSeriesId } = req.body as {
+    const { selectedSeriesId, issueMatchingSeriesId, applyToRemaining } = req.body as {
       selectedSeriesId: string;
       issueMatchingSeriesId?: string;
+      applyToRemaining?: boolean;
     };
     const id = req.params.id!;
 
@@ -315,7 +316,7 @@ router.post('/:id/approve-series', async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await jobApproveSeries(id, selectedSeriesId, issueMatchingSeriesId);
+    const result = await jobApproveSeries(id, selectedSeriesId, issueMatchingSeriesId, applyToRemaining);
     const job = await getJob(id);
 
     res.json({ ...result, job });

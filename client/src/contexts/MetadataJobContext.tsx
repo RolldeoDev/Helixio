@@ -169,8 +169,9 @@ interface MetadataJobContextValue extends MetadataJobState {
   /** Approve current series
    * @param seriesId - Series to use for series-level metadata
    * @param issueMatchingSeriesId - Series to use for issue matching (optional)
+   * @param applyToRemaining - If true, auto-approve remaining series with top matches
    */
-  approveSeries: (seriesId: string, issueMatchingSeriesId?: string) => Promise<void>;
+  approveSeries: (seriesId: string, issueMatchingSeriesId?: string, applyToRemaining?: boolean) => Promise<void>;
   /** Skip current series */
   skipSeries: () => Promise<void>;
   /** Reset a series group to allow re-selection (go back to series approval) */
@@ -573,15 +574,18 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     }
   }, [jobId]);
 
-  const approveSeries = useCallback(async (seriesId: string, issueMatchingSeriesId?: string) => {
+  const approveSeries = useCallback(async (seriesId: string, issueMatchingSeriesId?: string, applyToRemaining?: boolean) => {
     if (!jobId) return;
     try {
-      const { job } = await approveJobSeries(jobId, seriesId, issueMatchingSeriesId);
+      const { job } = await approveJobSeries(jobId, seriesId, issueMatchingSeriesId, applyToRemaining);
       setSession(normalizeSession(job.session));
       updateStepFromStatus(job.status);
-      const logMessage = issueMatchingSeriesId && issueMatchingSeriesId !== seriesId
+      let logMessage = issueMatchingSeriesId && issueMatchingSeriesId !== seriesId
         ? 'Series approved (using different series for issue matching)'
         : 'Series approved';
+      if (applyToRemaining) {
+        logMessage += ' (applied to remaining series)';
+      }
       addStepLog('series_approval', { message: logMessage, type: 'success' });
     } catch (err) {
       console.error('Failed to approve series:', err);

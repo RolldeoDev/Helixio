@@ -590,7 +590,8 @@ export async function jobLoadMoreSeriesResults(
 export async function jobApproveSeries(
   jobId: string,
   selectedSeriesId: string,
-  issueMatchingSeriesId?: string
+  issueMatchingSeriesId?: string,
+  applyToRemaining?: boolean
 ): Promise<{ hasMore: boolean; nextIndex: number }> {
   const job = await getJob(jobId);
   if (!job?.session) throw new Error('Job session not found');
@@ -606,18 +607,21 @@ export async function jobApproveSeries(
     await addJobLog(jobId, 'fetching_issues', message, detail, 'info');
   };
 
-  const result = await approveSeries(job.session.id, selectedSeriesId, issueMatchingSeriesId, onProgress);
+  const result = await approveSeries(job.session.id, selectedSeriesId, issueMatchingSeriesId, applyToRemaining, onProgress);
 
   // Sync session state
   const updatedSession = getSession(job.session.id);
   if (updatedSession) {
     activeJobs.set(jobId, updatedSession);
     await syncSessionToDb(jobId, updatedSession);
+    const logDetail = applyToRemaining
+      ? 'Auto-approved remaining series'
+      : `Moving to ${result.hasMore ? 'next series' : 'file review'}`;
     await addJobLog(
       jobId,
       'series_approval',
       `Series approved`,
-      `Moving to ${result.hasMore ? 'next series' : 'file review'}`,
+      logDetail,
       'success'
     );
   }

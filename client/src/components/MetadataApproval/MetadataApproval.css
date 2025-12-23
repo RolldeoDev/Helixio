@@ -1406,10 +1406,71 @@
 }
 
 /* ==========================================================================
-   Dual Selection Mode (Series Info vs Issue Matching)
+   Selection Options Row (Dual Mode + Apply to Remaining)
    ========================================================================== */
 
-/* Toggle to enable dual selection - Compact inline */
+/* Row container for selection option checkboxes */
+.selection-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.selection-options-row:empty {
+  display: none;
+}
+
+.selection-options-row .toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--color-text);
+}
+
+.selection-options-row .toggle-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-primary);
+}
+
+.selection-options-row .apply-remaining-toggle {
+  padding-left: var(--spacing-md);
+  border-left: 1px solid var(--color-border);
+}
+
+/* Hints container for enabled options */
+.selection-hints {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  margin-top: -1px;
+}
+
+.selection-hints .toggle-hint {
+  margin: 0;
+  padding: var(--spacing-xs) 0;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.selection-hints .toggle-hint:not(:last-child) {
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+}
+
+/* Legacy dual-selection-toggle - keeping for backward compatibility */
 .dual-selection-toggle {
   padding: var(--spacing-xs) var(--spacing-sm);
   background: var(--color-bg-secondary);

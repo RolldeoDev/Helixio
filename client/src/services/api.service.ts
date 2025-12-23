@@ -1876,15 +1876,18 @@ export async function loadMoreJobSeriesResults(
  * Approve series in job
  * @param selectedSeriesId - Series to use for series-level metadata (name, publisher, etc.)
  * @param issueMatchingSeriesId - Series to use for issue matching (optional, defaults to selectedSeriesId)
+ * @param applyToRemaining - If true, auto-approve remaining series with top matches
  */
 export async function approveJobSeries(
   jobId: string,
   selectedSeriesId: string,
-  issueMatchingSeriesId?: string
+  issueMatchingSeriesId?: string,
+  applyToRemaining?: boolean
 ): Promise<{ hasMore: boolean; nextIndex: number; job: MetadataJob }> {
   return post(`/metadata-jobs/${jobId}/approve-series`, {
     selectedSeriesId,
     issueMatchingSeriesId,
+    applyToRemaining,
   });
 }
 

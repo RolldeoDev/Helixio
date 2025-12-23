@@ -168,11 +168,13 @@ export async function loadMoreSeriesResults(
 
 /**
  * Approve the selected series and advance to the next
+ * @param applyToRemaining - If true, auto-approve remaining series with their top matches
  */
 export async function approveSeries(
   sessionId: string,
   selectedSeriesId: string,
   issueMatchingSeriesId?: string,
+  applyToRemaining?: boolean,
   onProgress?: ProgressCallback
 ): Promise<{ hasMore: boolean; nextIndex: number }> {
   const session = getSession(sessionId);
@@ -208,6 +210,11 @@ export async function approveSeries(
   // Move to next series
   session.currentSeriesIndex++;
 
+  // If applyToRemaining is true, auto-approve all remaining series
+  if (applyToRemaining) {
+    await autoApproveRemainingSeries(session, onProgress);
+  }
+
   // Check if there are more series to approve
   const hasMore = session.currentSeriesIndex < session.seriesGroups.length;
 
@@ -228,6 +235,57 @@ export async function approveSeries(
     hasMore,
     nextIndex: session.currentSeriesIndex,
   };
+}
+
+/**
+ * Auto-approve all remaining series using their top search results.
+ * Series without high-confidence matches will be skipped.
+ */
+async function autoApproveRemainingSeries(
+  session: ApprovalSession,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  const progress = onProgress || (() => {});
+  const totalRemaining = session.seriesGroups.length - session.currentSeriesIndex;
+
+  progress(`Auto-approving ${totalRemaining} remaining series...`);
+
+  while (session.currentSeriesIndex < session.seriesGroups.length) {
+    const currentGroup = session.seriesGroups[session.currentSeriesIndex];
+    if (!currentGroup) break;
+
+    // Search for the current series if no results yet
+    if (currentGroup.searchResults.length === 0) {
+      await searchForCurrentSeries(session, onProgress);
+    }
+
+    // Check if there's a high-confidence match
+    const topResult = currentGroup.searchResults[0];
+    if (topResult && topResult.confidence >= 0.6) {
+      // Approve with top result
+      currentGroup.selectedSeries = topResult;
+      currentGroup.issueMatchingSeries = null;
+      currentGroup.status = 'approved';
+      progress(
+        `Auto-approved: "${currentGroup.displayName}"`,
+        `Matched to "${topResult.name}" (${Math.round(topResult.confidence * 100)}%)`
+      );
+    } else {
+      // Skip series without good match
+      currentGroup.status = 'skipped';
+      progress(
+        `Skipped: "${currentGroup.displayName}"`,
+        topResult
+          ? `Best match only ${Math.round(topResult.confidence * 100)}% confidence`
+          : 'No search results found'
+      );
+    }
+
+    session.currentSeriesIndex++;
+    session.updatedAt = new Date();
+  }
+
+  progress(`Finished auto-approval of ${totalRemaining} series`);
 }
 
 /**

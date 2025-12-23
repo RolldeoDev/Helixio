@@ -408,6 +408,23 @@ export function ReaderPage() {
     };
   }, []);
 
+  // Reset scroll to top when page changes in single/double mode while zoomed
+  // This ensures the user starts at the top of each new page
+  useEffect(() => {
+    if (state.mode === 'continuous' || state.mode === 'webtoon') return;
+    if (state.zoom <= 1) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Scroll to top-left when navigating to a new page while zoomed
+    container.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'instant',
+    });
+  }, [state.currentPage, state.mode, state.zoom]);
+
   // Scroll to page in continuous/webtoon mode when currentPage changes externally
   // (e.g., from thumbnail click, scrubber, keyboard shortcut - NOT from user scrolling)
   useEffect(() => {

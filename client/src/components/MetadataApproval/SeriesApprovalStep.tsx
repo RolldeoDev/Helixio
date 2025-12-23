@@ -80,6 +80,8 @@ export function SeriesApprovalStep({
   // For dual selection mode: allows using different series for issue matching
   const [useDifferentForIssues, setUseDifferentForIssues] = useState(false);
   const [issueMatchingSeriesId, setIssueMatchingSeriesId] = useState<string | null>(null);
+  // For applying selection to all remaining series
+  const [applyToRemaining, setApplyToRemaining] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState(
     currentGroup?.query.series ?? ''
@@ -115,6 +117,7 @@ export function SeriesApprovalStep({
         setSelectedSeriesId(currentGroup.selectedSeries?.sourceId ?? null);
         setIssueMatchingSeriesId(currentGroup.issueMatchingSeries?.sourceId ?? null);
         setUseDifferentForIssues(false);
+        setApplyToRemaining(false);
 
         // Update search query from group
         const newQuery = currentGroup.query?.series || currentGroup.displayName || '';
@@ -182,20 +185,21 @@ export function SeriesApprovalStep({
       // Use job context method for persistent approval
       // Pass issueMatchingSeriesId only if different from selectedSeriesId
       const issueSeriesId = useDifferentForIssues ? issueMatchingSeriesId : undefined;
-      await approveSeriesJob(selectedSeriesId, issueSeriesId ?? undefined);
+      await approveSeriesJob(selectedSeriesId, issueSeriesId ?? undefined, applyToRemaining);
 
       // The context will update the session and step state via polling
       // Reset selection for potential next series
       setSelectedSeriesId(null);
       setIssueMatchingSeriesId(null);
       setUseDifferentForIssues(false);
+      setApplyToRemaining(false);
       setSearchQuery('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to approve series');
     } finally {
       setIsApproving(false);
     }
-  }, [selectedSeriesId, issueMatchingSeriesId, useDifferentForIssues, approveSeriesJob]);
+  }, [selectedSeriesId, issueMatchingSeriesId, useDifferentForIssues, applyToRemaining, approveSeriesJob]);
 
   const handleSkip = useCallback(async () => {
     setIsApproving(true);
@@ -423,9 +427,10 @@ export function SeriesApprovalStep({
 
       {error && <div className="error-message">{error}</div>}
 
-      {/* Toggle for dual selection mode */}
-      {currentGroup.searchResults.length > 1 && (
-        <div className="dual-selection-toggle">
+      {/* Toggle options row */}
+      <div className="selection-options-row">
+        {/* Toggle for dual selection mode */}
+        {currentGroup.searchResults.length > 1 && (
           <label className="toggle-label">
             <input
               type="checkbox"
@@ -440,10 +445,34 @@ export function SeriesApprovalStep({
             />
             <span>Use different series for issue matching</span>
           </label>
+        )}
+        {/* Toggle for applying to remaining series */}
+        {session.seriesGroups && session.seriesGroups.length > (session.currentSeriesIndex ?? 0) + 1 && (
+          <label className="toggle-label apply-remaining-toggle">
+            <input
+              type="checkbox"
+              checked={applyToRemaining}
+              onChange={(e) => setApplyToRemaining(e.target.checked)}
+              disabled={isApproving}
+            />
+            <span>
+              Apply to remaining ({session.seriesGroups.length - (session.currentSeriesIndex ?? 0) - 1} series)
+            </span>
+          </label>
+        )}
+      </div>
+      {/* Hints for enabled options */}
+      {(useDifferentForIssues || applyToRemaining) && (
+        <div className="selection-hints">
           {useDifferentForIssues && (
             <p className="toggle-hint">
               Select one series for metadata (name, publisher, characters) and another for matching issues.
               Useful when TPB/Omnibus series have less metadata than the main issue run.
+            </p>
+          )}
+          {applyToRemaining && (
+            <p className="toggle-hint">
+              Auto-approve remaining series using their top search results. Series without high-confidence matches will be skipped.
             </p>
           )}
         </div>
