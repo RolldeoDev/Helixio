@@ -21,6 +21,7 @@ import {
   setSeriesCover,
   uploadSeriesCover,
   getApiCoverUrl,
+  aggregateSeriesCreators,
   // Metadata fetch imports
   MetadataSource,
   SeriesMetadataPayload,
@@ -35,7 +36,7 @@ import { TagInput } from './TagInput';
 import { CoverPicker } from './CoverPicker';
 import { MetadataPreviewModal } from '../MetadataPreviewModal';
 import { SeriesMetadataSearchModal } from '../SeriesMetadataSearchModal';
-import { DescriptionGenerator } from '../DescriptionGenerator';
+import { MetadataGenerator } from '../MetadataGenerator';
 import './EditSeriesModal.css';
 
 // =============================================================================
@@ -390,6 +391,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
   // State for uploaded cover preview
   const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(null);
 
+  // State for fetching creator roles
+  const [fetchingCreators, setFetchingCreators] = useState(false);
+
   const handleCoverChange = useCallback(
     (source: 'api' | 'user' | 'auto', fileId: string | null, url: string | null) => {
       dispatch({ type: 'UPDATE_FIELD', field: 'coverSource', value: source });
@@ -423,6 +427,51 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
 
   // Get uploaded preview URL
   const uploadedPreviewUrl = uploadedCoverHash ? getApiCoverUrl(uploadedCoverHash) : null;
+
+  // =============================================================================
+  // Creator Aggregation Handler
+  // =============================================================================
+
+  const handleFetchCreatorRoles = useCallback(async () => {
+    const comicVineId = state.editedSeries.comicVineId;
+    if (!seriesId || !comicVineId) return;
+
+    setFetchingCreators(true);
+    try {
+      const result = await aggregateSeriesCreators(seriesId);
+
+      // Update the individual role fields from the aggregated data
+      const { creatorsWithRoles } = result;
+      if (creatorsWithRoles.writer?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'writer', value: creatorsWithRoles.writer.join(', ') });
+      }
+      if (creatorsWithRoles.penciller?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'penciller', value: creatorsWithRoles.penciller.join(', ') });
+      }
+      if (creatorsWithRoles.inker?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'inker', value: creatorsWithRoles.inker.join(', ') });
+      }
+      if (creatorsWithRoles.colorist?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'colorist', value: creatorsWithRoles.colorist.join(', ') });
+      }
+      if (creatorsWithRoles.letterer?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'letterer', value: creatorsWithRoles.letterer.join(', ') });
+      }
+      if (creatorsWithRoles.coverArtist?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'coverArtist', value: creatorsWithRoles.coverArtist.join(', ') });
+      }
+      if (creatorsWithRoles.editor?.length) {
+        dispatch({ type: 'UPDATE_FIELD', field: 'editor', value: creatorsWithRoles.editor.join(', ') });
+      }
+    } catch (err) {
+      dispatch({
+        type: 'SET_ERROR',
+        error: err instanceof Error ? err.message : 'Failed to fetch creator roles',
+      });
+    } finally {
+      setFetchingCreators(false);
+    }
+  }, [seriesId, state.editedSeries.comicVineId]);
 
   // =============================================================================
   // Validation
@@ -782,6 +831,26 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                 </>
               )}
             </button>
+            <MetadataGenerator
+              seriesId={seriesId}
+              seriesName={series.name || ''}
+              currentValues={{
+                summary: series.summary ?? null,
+                deck: series.deck ?? null,
+                ageRating: series.ageRating ?? null,
+                genres: series.genres ?? null,
+                tags: series.tags ?? null,
+                startYear: series.startYear ?? null,
+                endYear: series.endYear ?? null,
+              }}
+              onApply={(updates) => {
+                Object.entries(updates).forEach(([field, value]) => {
+                  dispatch({ type: 'UPDATE_FIELD', field: field as keyof typeof series, value });
+                });
+              }}
+              disabled={state.saving || state.loading}
+              compact
+            />
             <button className="btn-icon btn-close" onClick={handleClose} title="Close (Esc)">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -880,20 +949,6 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               {/* Description Section */}
               <CollapsibleSection title="Description" defaultExpanded={false}>
                 <div className="section-fields">
-                  <DescriptionGenerator
-                    type="series"
-                    entityId={seriesId}
-                    entityName={series.name || ''}
-                    currentDescription={series.summary}
-                    currentDeck={series.deck}
-                    onGenerated={(result) => {
-                      dispatch({ type: 'UPDATE_FIELD', field: 'summary', value: result.description });
-                      if (result.deck) {
-                        dispatch({ type: 'UPDATE_FIELD', field: 'deck', value: result.deck });
-                      }
-                    }}
-                    disabled={state.saving || state.loading}
-                  />
                   <FieldWithLock
                     fieldName="summary"
                     label="Summary"
@@ -1041,6 +1096,117 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     fieldSource={getFieldSource('storyArcs')}
                     placeholder="Add story arcs..."
                     autocompleteField="storyArcs"
+                  />
+                </div>
+              </CollapsibleSection>
+
+              {/* Creators Section */}
+              <CollapsibleSection title="Creators" defaultExpanded={false}>
+                {/* Fetch Creator Roles Button */}
+                {series.comicVineId && (
+                  <div className="section-action-row">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleFetchCreatorRoles}
+                      disabled={fetchingCreators}
+                    >
+                      {fetchingCreators ? 'Fetching...' : 'Fetch Creator Roles from ComicVine'}
+                    </button>
+                    <span className="section-action-hint">
+                      Aggregates roles from issue-level data
+                    </span>
+                  </div>
+                )}
+                <div className="section-fields two-column">
+                  <TagInput
+                    fieldName="creators"
+                    label="Creators (General)"
+                    value={series.creators}
+                    onChange={handleFieldChange('creators')}
+                    isLocked={isLocked('creators')}
+                    onToggleLock={() => handleToggleLock('creators')}
+                    fieldSource={getFieldSource('creators')}
+                    placeholder="Add creators..."
+                    autocompleteField="creators"
+                    fullWidth
+                  />
+                  <TagInput
+                    fieldName="writer"
+                    label="Writers"
+                    value={series.writer}
+                    onChange={handleFieldChange('writer')}
+                    isLocked={isLocked('writer')}
+                    onToggleLock={() => handleToggleLock('writer')}
+                    fieldSource={getFieldSource('writer')}
+                    placeholder="Add writers..."
+                    autocompleteField="writers"
+                  />
+                  <TagInput
+                    fieldName="penciller"
+                    label="Pencillers"
+                    value={series.penciller}
+                    onChange={handleFieldChange('penciller')}
+                    isLocked={isLocked('penciller')}
+                    onToggleLock={() => handleToggleLock('penciller')}
+                    fieldSource={getFieldSource('penciller')}
+                    placeholder="Add pencillers..."
+                    autocompleteField="pencillers"
+                  />
+                  <TagInput
+                    fieldName="inker"
+                    label="Inkers"
+                    value={series.inker}
+                    onChange={handleFieldChange('inker')}
+                    isLocked={isLocked('inker')}
+                    onToggleLock={() => handleToggleLock('inker')}
+                    fieldSource={getFieldSource('inker')}
+                    placeholder="Add inkers..."
+                    autocompleteField="inkers"
+                  />
+                  <TagInput
+                    fieldName="colorist"
+                    label="Colorists"
+                    value={series.colorist}
+                    onChange={handleFieldChange('colorist')}
+                    isLocked={isLocked('colorist')}
+                    onToggleLock={() => handleToggleLock('colorist')}
+                    fieldSource={getFieldSource('colorist')}
+                    placeholder="Add colorists..."
+                    autocompleteField="colorists"
+                  />
+                  <TagInput
+                    fieldName="letterer"
+                    label="Letterers"
+                    value={series.letterer}
+                    onChange={handleFieldChange('letterer')}
+                    isLocked={isLocked('letterer')}
+                    onToggleLock={() => handleToggleLock('letterer')}
+                    fieldSource={getFieldSource('letterer')}
+                    placeholder="Add letterers..."
+                    autocompleteField="letterers"
+                  />
+                  <TagInput
+                    fieldName="coverArtist"
+                    label="Cover Artists"
+                    value={series.coverArtist}
+                    onChange={handleFieldChange('coverArtist')}
+                    isLocked={isLocked('coverArtist')}
+                    onToggleLock={() => handleToggleLock('coverArtist')}
+                    fieldSource={getFieldSource('coverArtist')}
+                    placeholder="Add cover artists..."
+                    autocompleteField="coverArtists"
+                  />
+                  <TagInput
+                    fieldName="editor"
+                    label="Editors"
+                    value={series.editor}
+                    onChange={handleFieldChange('editor')}
+                    isLocked={isLocked('editor')}
+                    onToggleLock={() => handleToggleLock('editor')}
+                    fieldSource={getFieldSource('editor')}
+                    placeholder="Add editors..."
+                    autocompleteField="editors"
                   />
                 </div>
               </CollapsibleSection>

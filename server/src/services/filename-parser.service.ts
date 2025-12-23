@@ -56,6 +56,49 @@ export type { ParsedFileMetadata, BatchProgress };
 // =============================================================================
 
 /**
+ * Normalize delimiters in filename to use consistent spacing.
+ * Converts underscores, dots (except before extension), and various dashes
+ * to spaces for easier parsing.
+ *
+ * Examples:
+ *   - Tom_Strong_023_(2004) -> Tom Strong 023 (2004)
+ *   - Batman.2016.001 -> Batman 2016 001
+ *   - Spider-Man - 001 -> Spider-Man - 001 (preserves hyphens in words)
+ */
+function normalizeDelimiters(str: string): string {
+  // First, protect dates in parentheses from underscore/dot-to-space conversion
+  // e.g., (2004-09-21) should stay intact
+  // Use a placeholder without underscores or dots to avoid being normalized
+  const datePattern = /\((\d{4}(?:-\d{2}(?:-\d{2})?)?)\)/g;
+  const protectedDates: string[] = [];
+  let normalized = str.replace(datePattern, (match) => {
+    protectedDates.push(match);
+    return `\x00DATE${protectedDates.length - 1}\x00`;
+  });
+
+  // Convert underscores to spaces
+  normalized = normalized.replace(/_/g, ' ');
+
+  // Convert dots to spaces, but not before common extensions
+  // and not in version numbers like "v2.0"
+  normalized = normalized.replace(/\.(?!cb[rz7t]$|pdf$|\d)/gi, ' ');
+
+  // Normalize various dash types to standard hyphen with spaces around them
+  // But preserve hyphens within words (Spider-Man, X-Men)
+  normalized = normalized.replace(/\s*[–—]\s*/g, ' - ');
+
+  // Restore protected dates
+  protectedDates.forEach((date, i) => {
+    normalized = normalized.replace(`\x00DATE${i}\x00`, date);
+  });
+
+  // Collapse multiple spaces
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  return normalized;
+}
+
+/**
  * Remove noise tokens from a string
  */
 function removeNoiseTokens(str: string): { cleaned: string; removed: string[] } {
@@ -86,22 +129,29 @@ function removeNoiseTokens(str: string): { cleaned: string; removed: string[] } 
  * Extract year from string
  */
 function extractYear(str: string): { year: number | undefined; remaining: string } {
-  // Match year in parentheses at the end: (2011) or (2011-09-21)
-  const yearMatch = str.match(/\((\d{4})(?:-\d{2}(?:-\d{2})?)?\)$/);
+  // Match year in parentheses anywhere in string: (2011) or (2011-09-21)
+  // Look for 4-digit years between 1900-2099 to avoid false positives
+  const yearMatch = str.match(/\((\d{4})(?:-\d{2}(?:-\d{2})?)?\)/);
   if (yearMatch) {
-    return {
-      year: parseInt(yearMatch[1]!, 10),
-      remaining: str.replace(/\(\d{4}(?:-\d{2}(?:-\d{2})?)?\)$/, '').trim(),
-    };
+    const year = parseInt(yearMatch[1]!, 10);
+    if (year >= 1900 && year <= 2099) {
+      return {
+        year,
+        remaining: str.replace(/\(\d{4}(?:-\d{2}(?:-\d{2})?)?\)/, '').trim(),
+      };
+    }
   }
 
   // Match year at end: 2011.cbz
   const endYearMatch = str.match(/(\d{4})\.cb[rz7t]$/i);
   if (endYearMatch) {
-    return {
-      year: parseInt(endYearMatch[1]!, 10),
-      remaining: str.replace(/\d{4}\.cb[rz7t]$/i, '').trim(),
-    };
+    const year = parseInt(endYearMatch[1]!, 10);
+    if (year >= 1900 && year <= 2099) {
+      return {
+        year,
+        remaining: str.replace(/\d{4}\.cb[rz7t]$/i, '').trim(),
+      };
+    }
   }
 
   return { year: undefined, remaining: str };
@@ -185,6 +235,31 @@ function extractIssueNumber(str: string): {
     return {
       number: parseInt(dashMatch[1]!, 10),
       remaining: str.replace(/^\d{1,4}\s*[-–—]/, '').trim(),
+    };
+  }
+
+  // Match standalone number at end of string (common after delimiter normalization)
+  // e.g., "Tom Strong 023 (2004)" or "Batman 2016 001"
+  // Look for 2-4 digit numbers that appear to be issue numbers (not years)
+  const trailingNumberMatch = str.match(/\s(\d{2,3})(?:\s*\(|$)/);
+  if (trailingNumberMatch) {
+    const num = parseInt(trailingNumberMatch[1]!, 10);
+    // Avoid matching years (1900-2099)
+    if (num < 1900 || num > 2099) {
+      return {
+        number: num,
+        remaining: str.replace(/\s\d{2,3}(?=\s*\(|$)/, '').trim(),
+      };
+    }
+  }
+
+  // Match standalone 3-digit number anywhere (likely issue number)
+  // e.g., "Series Name 023" - only 3 digits to avoid matching years
+  const standaloneMatch = str.match(/\s(\d{3})(?:\s|$)/);
+  if (standaloneMatch) {
+    return {
+      number: parseInt(standaloneMatch[1]!, 10),
+      remaining: str.replace(/\s\d{3}(?=\s|$)/, '').trim(),
     };
   }
 
@@ -276,8 +351,11 @@ function extractSeriesFromFolder(folderPath: string): {
 } {
   const folderName = basename(folderPath);
 
+  // Normalize delimiters in folder name (underscores to spaces, etc.)
+  const normalizedFolder = normalizeDelimiters(folderName);
+
   // Match "Series Name (2011-2016)"
-  const rangeMatch = folderName.match(/^(.+?)\s*\((\d{4})-(\d{4})\)$/);
+  const rangeMatch = normalizedFolder.match(/^(.+?)\s*\((\d{4})-(\d{4})\)$/);
   if (rangeMatch) {
     const seriesPart = rangeMatch[1]!.trim();
     const startYear = parseInt(rangeMatch[2]!, 10);
@@ -298,7 +376,7 @@ function extractSeriesFromFolder(folderPath: string): {
   }
 
   // Match "Series Name (2011)"
-  const yearMatch = folderName.match(/^(.+?)\s*\((\d{4})\)$/);
+  const yearMatch = normalizedFolder.match(/^(.+?)\s*\((\d{4})\)$/);
   if (yearMatch) {
     const seriesPart = yearMatch[1]!.trim();
     const year = parseInt(yearMatch[2]!, 10);
@@ -315,8 +393,8 @@ function extractSeriesFromFolder(folderPath: string): {
     return { series: seriesPart, year };
   }
 
-  // Just the folder name
-  return { series: folderName };
+  // Just the folder name (normalized)
+  return { series: normalizedFolder };
 }
 
 /**
@@ -334,8 +412,11 @@ export function parseFilenameRegex(
   // Remove extension
   const nameWithoutExt = filename.replace(/\.cb[rz7t]$/i, '');
 
+  // Normalize delimiters (underscores, dots, dashes) to spaces
+  const normalized = normalizeDelimiters(nameWithoutExt);
+
   // Remove noise tokens
-  const { cleaned, removed } = removeNoiseTokens(nameWithoutExt);
+  const { cleaned, removed } = removeNoiseTokens(normalized);
   if (removed.length > 0) {
     result.ignoredTokens = removed;
   }

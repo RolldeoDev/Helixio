@@ -36,9 +36,14 @@ export const helixEffects: EffectToggleDefinition[] = [
  * Helix Dark Theme - "DNA Nexus"
  *
  * The signature Helixio theme inspired by the DNA helix logo.
- * Deep navy backgrounds with vibrant cyan, magenta, and yellow accents
- * create a modern, tech-forward aesthetic perfect for managing
+ * Deep navy backgrounds with a balanced triad of cyan, magenta, and yellow
+ * accents create a modern, tech-forward aesthetic perfect for managing
  * your comic collection.
+ *
+ * Color Philosophy:
+ * - Cyan (#22D3EE): Primary interactions, links, focus states
+ * - Magenta (#E91E8C): Special accents, featured highlights
+ * - Yellow (#FACC15): Warm accents, achievements, discovery moments
  *
  * "Where every issue finds its place in the sequence."
  */
@@ -48,11 +53,11 @@ export const helixDarkTheme: ThemeDefinition = {
   meta: {
     id: 'default',
     name: 'DNA Nexus',
-    description: 'Modern dark theme with vibrant accent colors inspired by the Helixio logo',
+    description: 'Modern dark theme with balanced cyan, magenta & yellow accents from the Helixio logo',
     author: 'Helixio',
     previewColors: {
       primary: '#22D3EE',
-      secondary: '#1E293B',
+      secondary: '#FACC15',
       accent: '#E91E8C',
       background: '#0F172A',
     },
@@ -64,14 +69,14 @@ export const helixDarkTheme: ThemeDefinition = {
     colorBgTertiary: '#0A0F1C',
     colorBgElevated: '#1E293B',
     colorBgCard: '#162032',
-    colorSurfaceCardHover: 'rgba(34, 211, 238, 0.08)',
+    colorSurfaceCardHover: 'rgba(250, 204, 21, 0.06)',
 
-    // Primary & Accent - Vibrant logo colors
+    // Primary & Accent - Balanced CMY triad from logo
     colorPrimary: '#22D3EE',           // Cyan - main interactive color
     colorPrimaryHover: '#67E8F9',      // Lighter cyan on hover
     colorPrimaryMuted: 'rgba(34, 211, 238, 0.15)',
-    colorSecondary: '#1E293B',         // Slate for secondary surfaces
-    colorAccent: '#E91E8C',            // Magenta - highlights and special elements
+    colorSecondary: '#FACC15',         // Yellow - warm secondary accent
+    colorAccent: '#E91E8C',            // Magenta - special highlights
 
     // Text colors - Clean, high contrast
     colorText: '#F1F5F9',              // Bright slate-white
@@ -85,11 +90,11 @@ export const helixDarkTheme: ThemeDefinition = {
     colorDanger: '#EF4444',            // Red-500
     colorInfo: '#22D3EE',              // Cyan (matches primary)
 
-    // Borders & interactions
+    // Borders & interactions - Triadic color hints
     colorBorder: '#334155',            // Slate-700
     colorBorderSubtle: '#1E293B',      // Slate-800
-    colorDivider: 'linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.3) 20%, rgba(233, 30, 140, 0.3) 80%, transparent)',
-    colorHover: 'rgba(34, 211, 238, 0.08)',
+    colorDivider: 'linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.25) 15%, rgba(250, 204, 21, 0.2) 50%, rgba(233, 30, 140, 0.25) 85%, transparent)',
+    colorHover: 'rgba(250, 204, 21, 0.08)',
     colorSelected: 'rgba(34, 211, 238, 0.15)',
     colorFocusRing: 'rgba(34, 211, 238, 0.5)',
 
@@ -97,16 +102,16 @@ export const helixDarkTheme: ThemeDefinition = {
     fontDisplay: "'Inter', 'SF Pro Display', system-ui, sans-serif",
     fontBody: "'Inter', 'SF Pro Text', system-ui, sans-serif",
 
-    // Shadows - Subtle with brand color accents
+    // Shadows - Triadic glow accents
     shadowSm: '0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15)',
     shadowMd: '0 4px 6px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15)',
     shadowLg: '0 10px 15px rgba(0, 0, 0, 0.3), 0 4px 6px rgba(0, 0, 0, 0.2)',
-    shadowGlow: '0 0 20px rgba(34, 211, 238, 0.15), 0 0 40px rgba(34, 211, 238, 0.05)',
-    shadowHoverGlow: '0 0 25px rgba(34, 211, 238, 0.25), 0 0 50px rgba(233, 30, 140, 0.1)',
+    shadowGlow: '0 0 20px rgba(34, 211, 238, 0.12), 0 0 40px rgba(250, 204, 21, 0.06)',
+    shadowHoverGlow: '0 0 25px rgba(34, 211, 238, 0.2), 0 0 35px rgba(250, 204, 21, 0.12), 0 0 50px rgba(233, 30, 140, 0.08)',
 
-    // Title effects - Subtle cyan glow
+    // Title effects - Warm yellow-cyan accent
     shadowTitleLocation: '0 2px 4px',
-    colorShadowTitle: 'rgba(34, 211, 238, 0.3)',
+    colorShadowTitle: 'rgba(250, 204, 21, 0.25)',
 
     // Issue badge - Yellow from logo (high visibility)
     colorIssueBadge: '#FACC15',

@@ -594,33 +594,27 @@ function FoldersView({
     try {
       const result = await renameFolder(selectedLibrary.id, renamingFolder, trimmedName);
 
-      if (result.success) {
-        setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
-        setTimeout(() => setOperation(null), 3000);
+      // Success - API returns data directly (errors throw exceptions)
+      setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
+      setTimeout(() => setOperation(null), 3000);
 
-        if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
-          const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
-          onFolderSelect(newSelectedFolder);
-        }
-
-        await refreshFiles();
-      } else {
-        setRenameError(result.error || 'Rename failed');
-        setOperation(null, `Rename failed: ${result.error}`);
-        setTimeout(() => setOperation(null), 3000);
-        return;
+      if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
+        const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
+        onFolderSelect(newSelectedFolder);
       }
+
+      await refreshFiles();
+
+      // Clear rename state on success
+      setRenamingFolder(null);
+      setRenameValue('');
+      setRenameError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setRenameError(message);
       setOperation(null, `Rename failed: ${message}`);
       setTimeout(() => setOperation(null), 3000);
-      return;
     }
-
-    setRenamingFolder(null);
-    setRenameValue('');
-    setRenameError(null);
   };
 
   const handleCancelRename = () => {
@@ -632,9 +626,11 @@ function FoldersView({
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       handleConfirmRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       handleCancelRename();
     }
   };

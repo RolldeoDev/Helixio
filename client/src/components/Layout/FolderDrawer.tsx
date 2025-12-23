@@ -220,7 +220,9 @@ export function FolderDrawer() {
 
   // Confirm folder rename
   const handleConfirmRename = async () => {
-    if (!renamingFolder || !selectedLibrary || !renameValue.trim()) return;
+    if (!renamingFolder || !selectedLibrary || !renameValue.trim()) {
+      return;
+    }
 
     const trimmedName = renameValue.trim();
     const currentName = renamingFolder.split('/').pop() || renamingFolder;
@@ -242,35 +244,29 @@ export function FolderDrawer() {
     try {
       const result = await renameFolder(selectedLibrary.id, renamingFolder, trimmedName);
 
-      if (result.success) {
-        setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
-        setTimeout(() => setOperation(null), 3000);
+      // Success - API returns data directly (errors throw exceptions)
+      setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
+      setTimeout(() => setOperation(null), 3000);
 
-        // If the renamed folder was selected, update selection to new path
-        if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
-          const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
-          selectFolder(newSelectedFolder);
-        }
-
-        // Refresh files to get updated paths
-        await refreshFiles();
-      } else {
-        setRenameError(result.error || 'Rename failed');
-        setOperation(null, `Rename failed: ${result.error}`);
-        setTimeout(() => setOperation(null), 3000);
-        return; // Don't close rename mode on error
+      // If the renamed folder was selected, update selection to new path
+      if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
+        const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
+        selectFolder(newSelectedFolder);
       }
+
+      // Refresh files to get updated paths
+      await refreshFiles();
+
+      // Clear rename state on success
+      setRenamingFolder(null);
+      setRenameValue('');
+      setRenameError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setRenameError(message);
       setOperation(null, `Rename failed: ${message}`);
       setTimeout(() => setOperation(null), 3000);
-      return; // Don't close rename mode on error
     }
-
-    setRenamingFolder(null);
-    setRenameValue('');
-    setRenameError(null);
   };
 
   // Cancel folder rename
@@ -284,9 +280,11 @@ export function FolderDrawer() {
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       handleConfirmRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       handleCancelRename();
     }
   };

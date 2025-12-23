@@ -361,3 +361,66 @@ manga_type_indicators:
     - "One-Shot"
     - "Oneshot"
     - "Special"
+
+# =============================================================================
+# Delimiter Normalization
+# =============================================================================
+# Various delimiter characters that should be treated as word separators.
+# When parsing filenames, these should be normalized to spaces.
+
+delimiter_normalization:
+  # Characters to convert to spaces
+  to_space:
+    - "_"        # Underscore: Tom_Strong_023
+    - "."        # Dot: Batman.2016.001 (but not before extension)
+
+  # Dash variants to normalize (keep as dashes but add spacing)
+  dash_variants:
+    - "-"        # Standard hyphen
+    - "–"        # En dash
+    - "—"        # Em dash
+
+  # Examples of normalized filenames:
+  examples:
+    "Tom_Strong_023_(2004)_(digital-Empire).cbr": "Tom Strong 023 (2004) (digital Empire)"
+    "Batman.2016.001.cbz": "Batman 2016 001"
+    "Spider-Man_-_001_-_Title.cbz": "Spider-Man - 001 - Title"
+
+# =============================================================================
+# Format Classification (Page-Based)
+# =============================================================================
+# Settings for classifying comics by format based on page count.
+# Used to populate the ComicInfo.xml Format field.
+
+format_classification:
+  # Enable page-based format classification
+  enabled: true
+
+  # Page count thresholds
+  thresholds:
+    # Below this number of pages = Single Issue
+    issue_max: 50
+    # Above this number of pages = Omnibus (between = TPB)
+    omnibus_min: 200
+
+  # Whether filename indicators (like "Omnibus", "TPB") override page count
+  filename_overrides_pagecount: true
+
+  # ComicInfo.xml Format field values
+  format_labels:
+    issue: "Single Issue"
+    tpb: "TPB"
+    omnibus: "Omnibus"
+
+  # Keywords that indicate format type in filenames
+  format_indicators:
+    omnibus:
+      - "Omnibus"
+      - "Complete Collection"
+      - "Compendium"
+    tpb:
+      - "TPB"
+      - "Trade Paperback"
+      - "Collected Edition"
+      - "Collection"
+    # Note: "Volume" with a number typically indicates TPB but with lower confidence

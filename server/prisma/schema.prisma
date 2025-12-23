@@ -64,6 +64,19 @@ model Series {
   teams         String?
   locations     String?
   storyArcs     String?
+  creators      String?                   // Volume-level creators (no roles, from ComicVine volume.people)
+
+  // Role-specific creators (comma-separated, for more granular tracking)
+  writer        String?                   // Writers
+  penciller     String?                   // Pencil artists
+  inker         String?                   // Inkers
+  colorist      String?                   // Colorists
+  letterer      String?                   // Letterers
+  coverArtist   String?                   // Cover artists
+  editor        String?                   // Editors
+
+  // Structured creator data aggregated from issues (JSON: { writer: ["Name"], penciller: ["Name"], ... })
+  creatorsJson  String?
 
   // Cover management (Smart Fallback: API > User > First Issue)
   coverSource   String  @default("auto")  // "api" | "user" | "auto"
@@ -252,6 +265,7 @@ model FileMetadata {
   letterer    String?
   coverArtist String?
   editor      String?
+  creator     String?   // Generic creator (inherited from series when role-specific creators are empty)
 
   // Content info
   summary     String?

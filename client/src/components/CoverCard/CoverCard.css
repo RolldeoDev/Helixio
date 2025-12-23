@@ -76,11 +76,34 @@
     border-color 150ms ease-out;
   outline: none;
   box-shadow: var(--cover-card-shadow);
-  /* Prevent border-radius clipping issues during transform */
-  overflow: hidden;
+  /* Note: overflow:hidden moved to child containers to allow hover buffer */
   /* Use GPU layer promotion only when hovered (not all cards) */
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+}
+
+/*
+ * Invisible hover buffer zone to prevent flickering.
+ * When the card transforms on hover (translateY + scale), edges can move
+ * out from under the cursor at card boundaries, causing rapid hover toggling.
+ * This pseudo-element extends beyond the card to maintain stable hover state.
+ * Hovering over ::before triggers :hover on the parent .cover-card.
+ *
+ * Buffer sizes based on transform: translateY(-3px) scale(1.03)
+ * - Top edge moves up ~7px (scale + translate combined)
+ * - Side edges expand ~3px each (scale only)
+ * - Bottom edge moves down ~1px (scale - translate nearly cancel)
+ */
+.cover-card::before {
+  content: '';
+  position: absolute;
+  /* Top needs most buffer for the combined upward movement */
+  top: -10px;
+  /* Sides/bottom need smaller buffer; kept under half of typical grid gap */
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  z-index: -1;
 }
 
 .cover-card:hover {

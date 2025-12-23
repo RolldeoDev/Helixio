@@ -7,6 +7,12 @@
 
 import { getDatabase } from './database.service.js';
 import { ComicInfo, readComicInfo } from './comicinfo.service.js';
+import { listArchiveContents } from './archive.service.js';
+import {
+  classifyComicFormat,
+  getFormatLabel,
+  type ComicFormat,
+} from './comic-classification.service.js';
 
 // =============================================================================
 // Types
@@ -27,15 +33,61 @@ export interface BatchCacheResult {
 }
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Get page count from archive by counting image files.
+ */
+async function getPageCountFromArchive(archivePath: string): Promise<number> {
+  try {
+    const archiveInfo = await listArchiveContents(archivePath);
+    const imageExtensions = /\.(jpe?g|png|gif|webp|bmp|tiff?)$/i;
+
+    return archiveInfo.entries.filter(
+      (e) => !e.isDirectory && imageExtensions.test(e.path)
+    ).length;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Classify format and get the label for ComicInfo.xml Format field.
+ * Only classifies if format is not already set and page count is available.
+ */
+function classifyAndGetFormatLabel(
+  filename: string,
+  pageCount: number | null,
+  existingFormat: string | null | undefined
+): string | null {
+  // Don't override existing format
+  if (existingFormat) {
+    return existingFormat;
+  }
+
+  // Need page count to classify
+  if (!pageCount || pageCount <= 0) {
+    return null;
+  }
+
+  // Classify based on filename and page count
+  const result = classifyComicFormat(filename, pageCount);
+  return result.formatLabel;
+}
+
+// =============================================================================
 // Cache Operations
 // =============================================================================
 
 /**
  * Cache ComicInfo metadata for a file to the database.
+ * Optionally applies format classification based on page count.
  */
 export async function cacheFileMetadata(
   fileId: string,
-  comicInfo: ComicInfo
+  comicInfo: ComicInfo,
+  options?: { filename?: string; archivePath?: string }
 ): Promise<MetadataCacheResult> {
   try {
     const prisma = getDatabase();
@@ -52,6 +104,16 @@ export async function cacheFileMetadata(
         error: 'File not found',
       };
     }
+
+    // Determine page count - use ComicInfo if available, otherwise get from archive
+    let pageCount = comicInfo.PageCount || null;
+    if (!pageCount && options?.archivePath) {
+      pageCount = await getPageCountFromArchive(options.archivePath);
+    }
+
+    // Determine format - use ComicInfo if set, otherwise classify based on page count
+    const filename = options?.filename || file.filename;
+    const format = classifyAndGetFormatLabel(filename, pageCount, comicInfo.Format);
 
     // Prepare metadata record
     const metadataData = {
@@ -80,9 +142,9 @@ export async function cacheFileMetadata(
       count: comicInfo.Count || null,
       storyArc: comicInfo.StoryArc || null,
       seriesGroup: comicInfo.SeriesGroup || null,
-      pageCount: comicInfo.PageCount || null,
+      pageCount: pageCount,
       languageISO: comicInfo.LanguageISO || null,
-      format: comicInfo.Format || null,
+      format: format,
       ageRating: comicInfo.AgeRating || null,
       lastScanned: new Date(),
     };
@@ -122,15 +184,16 @@ export async function getCachedMetadata(fileId: string) {
 
 /**
  * Refresh metadata cache from archive for a file.
+ * Also applies format classification based on page count.
  */
 export async function refreshMetadataCache(fileId: string): Promise<boolean> {
   try {
     const prisma = getDatabase();
 
-    // Get file path
+    // Get file path and filename
     const file = await prisma.comicFile.findUnique({
       where: { id: fileId },
-      select: { path: true },
+      select: { path: true, filename: true },
     });
 
     if (!file) {
@@ -141,15 +204,36 @@ export async function refreshMetadataCache(fileId: string): Promise<boolean> {
     const result = await readComicInfo(file.path);
 
     if (!result.success || !result.comicInfo) {
-      // No ComicInfo.xml in archive - delete cached metadata if exists
-      await prisma.fileMetadata.deleteMany({
-        where: { comicId: fileId },
-      });
-      return true; // Successfully refreshed (no metadata)
+      // No ComicInfo.xml in archive - still try to create basic metadata with format
+      // Get page count from archive
+      const pageCount = await getPageCountFromArchive(file.path);
+      if (pageCount > 0) {
+        // Create minimal metadata with format classification
+        const format = classifyAndGetFormatLabel(file.filename, pageCount, null);
+        await prisma.fileMetadata.upsert({
+          where: { comicId: fileId },
+          update: { pageCount, format, lastScanned: new Date() },
+          create: {
+            comicId: fileId,
+            pageCount,
+            format,
+            lastScanned: new Date(),
+          },
+        });
+      } else {
+        // No metadata and no page count - delete cached metadata if exists
+        await prisma.fileMetadata.deleteMany({
+          where: { comicId: fileId },
+        });
+      }
+      return true; // Successfully refreshed
     }
 
-    // Cache the metadata
-    const cacheResult = await cacheFileMetadata(fileId, result.comicInfo);
+    // Cache the metadata with format classification
+    const cacheResult = await cacheFileMetadata(fileId, result.comicInfo, {
+      filename: file.filename,
+      archivePath: file.path,
+    });
     return cacheResult.success;
   } catch {
     return false;
@@ -173,6 +257,7 @@ export async function deleteCachedMetadata(fileId: string): Promise<boolean> {
 
 /**
  * Batch cache metadata for multiple files.
+ * Also applies format classification based on page count.
  */
 export async function batchCacheMetadata(
   fileIds: string[],
@@ -189,10 +274,10 @@ export async function batchCacheMetadata(
     onProgress?.(i + 1, fileIds.length, fileId);
 
     try {
-      // Get file path
+      // Get file path and filename
       const file = await prisma.comicFile.findUnique({
         where: { id: fileId },
-        select: { path: true },
+        select: { path: true, filename: true },
       });
 
       if (!file) {
@@ -205,12 +290,27 @@ export async function batchCacheMetadata(
       const result = await readComicInfo(file.path);
 
       if (!result.success || !result.comicInfo) {
-        skipped++; // No metadata to cache
+        // Still try to cache basic metadata with format classification
+        const pageCount = await getPageCountFromArchive(file.path);
+        if (pageCount > 0) {
+          const format = classifyAndGetFormatLabel(file.filename, pageCount, null);
+          await prisma.fileMetadata.upsert({
+            where: { comicId: fileId },
+            update: { pageCount, format, lastScanned: new Date() },
+            create: { comicId: fileId, pageCount, format, lastScanned: new Date() },
+          });
+          cached++;
+        } else {
+          skipped++; // No metadata and no page count
+        }
         continue;
       }
 
-      // Cache the metadata
-      const cacheResult = await cacheFileMetadata(fileId, result.comicInfo);
+      // Cache the metadata with format classification
+      const cacheResult = await cacheFileMetadata(fileId, result.comicInfo, {
+        filename: file.filename,
+        archivePath: file.path,
+      });
 
       if (cacheResult.success) {
         cached++;

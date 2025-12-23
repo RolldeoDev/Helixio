@@ -397,8 +397,8 @@ export async function searchSeries(
                   }
                 : undefined,
               // Rich series data from ComicVine
-              characters: vol.characters?.slice(0, 20), // Limit to top 20
-              creators: vol.creators?.slice(0, 20),
+              characters: vol.characters?.slice(0, 20),
+              creators: vol.people?.slice(0, 20),
               locations: vol.locations?.slice(0, 10),
               objects: vol.objects?.slice(0, 10),
             };

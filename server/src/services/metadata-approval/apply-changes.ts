@@ -23,6 +23,12 @@ import { SeriesCache } from '../series-cache.service.js';
 import * as comicVine from '../comicvine.service.js';
 import { getSeriesMetadata } from '../metadata-search.service.js';
 import { applyMetadataToSeries, type SeriesMetadataPayload } from '../series-metadata-fetch.service.js';
+import {
+  aggregateCreatorRolesFromIssues,
+  creatorsToJson,
+  creatorsToRoleFields,
+  hasAnyCreators,
+} from '../creator-aggregation.service.js';
 import { getSession, setSession, deleteSessionFromStore } from './session-store.js';
 import { invalidateAfterApplyChanges } from '../metadata-invalidation.service.js';
 import { markDirtyForMetadataChange } from '../stats-dirty.service.js';
@@ -698,6 +704,11 @@ async function updateSeriesFromApprovedMetadata(
           typeof l === 'object' && l !== null && 'name' in l ? l.name : String(l)
         );
       }
+      if (Array.isArray(rawMetadata.creators)) {
+        metadata.creators = (rawMetadata.creators as Array<{name: string} | string>).map((c) =>
+          typeof c === 'object' && c !== null && 'name' in c ? c.name : String(c)
+        );
+      }
       if (Array.isArray(rawMetadata.aliases)) {
         metadata.aliases = (rawMetadata.aliases as string[]).map((a) => String(a));
       }
@@ -711,7 +722,7 @@ async function updateSeriesFromApprovedMetadata(
       const allFields = [
         'name', 'publisher', 'startYear', 'endYear', 'issueCount',
         'summary', 'deck', 'coverUrl', 'comicVineId', 'metronId',
-        'anilistId', 'malId', 'characters', 'locations', 'genres', 'aliases'
+        'anilistId', 'malId', 'characters', 'locations', 'creators', 'genres', 'aliases'
       ];
       const fieldsToApply = allFields.filter((f) => !lockedFields.includes(f));
 
@@ -730,6 +741,54 @@ async function updateSeriesFromApprovedMetadata(
           { seriesId: dbSeries.id, fieldsUpdated: result.fieldsUpdated },
           'Updated series with API metadata'
         );
+
+        // =======================================================================
+        // Aggregate creator roles from issues (ComicVine only)
+        // =======================================================================
+        if (selectedSeries.source === 'comicvine') {
+          try {
+            const volumeId = parseInt(selectedSeries.sourceId, 10);
+            progress(`Aggregating creator roles`, `${selectedSeries.name}`);
+
+            const creatorsWithRoles = await aggregateCreatorRolesFromIssues(volumeId, {
+              sessionId: session.id,
+            });
+
+            if (hasAnyCreators(creatorsWithRoles)) {
+              // Update series with aggregated creator data
+              const roleFields = creatorsToRoleFields(creatorsWithRoles);
+              await prisma.series.update({
+                where: { id: dbSeries.id },
+                data: {
+                  creatorsJson: creatorsToJson(creatorsWithRoles),
+                  // Also sync individual role fields for backward compatibility
+                  ...(roleFields.writer && { writer: roleFields.writer }),
+                  ...(roleFields.penciller && { penciller: roleFields.penciller }),
+                  ...(roleFields.inker && { inker: roleFields.inker }),
+                  ...(roleFields.colorist && { colorist: roleFields.colorist }),
+                  ...(roleFields.letterer && { letterer: roleFields.letterer }),
+                  ...(roleFields.coverArtist && { coverArtist: roleFields.coverArtist }),
+                  ...(roleFields.editor && { editor: roleFields.editor }),
+                },
+              });
+
+              logger.info(
+                {
+                  seriesId: dbSeries.id,
+                  writers: creatorsWithRoles.writer.length,
+                  pencillers: creatorsWithRoles.penciller.length,
+                },
+                'Aggregated creator roles from issues'
+              );
+            }
+          } catch (aggregateError) {
+            // Don't fail the whole operation if aggregation fails
+            logger.warn(
+              { seriesId: dbSeries.id, error: aggregateError },
+              'Failed to aggregate creator roles (non-fatal)'
+            );
+          }
+        }
       } else {
         failed++;
         logger.warn(

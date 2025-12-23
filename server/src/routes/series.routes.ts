@@ -76,6 +76,12 @@ import {
   syncFileMetadataToSeries,
   batchSyncFileMetadataToSeries,
 } from '../services/metadata-invalidation.service.js';
+import {
+  aggregateCreatorRolesFromIssues,
+  creatorsToJson,
+  creatorsToRoleFields,
+  hasAnyCreators,
+} from '../services/creator-aggregation.service.js';
 import { processExistingFiles } from '../services/scanner.service.js';
 import { createServiceLogger } from '../services/logger.service.js';
 import {
@@ -783,6 +789,69 @@ router.post('/:id/sync', asyncHandler(async (req: Request, res: Response) => {
   await syncSeriesToSeriesJson(req.params.id!);
   logger.info({ seriesId: req.params.id }, 'Synced series to series.json');
   sendSuccess(res, { message: 'Series synced to series.json' });
+}));
+
+/**
+ * POST /api/series/:id/aggregate-creators
+ * Aggregate creator roles from issue-level ComicVine data
+ */
+router.post('/:id/aggregate-creators', asyncHandler(async (req: Request, res: Response) => {
+  const prisma = getDatabase();
+  const series = await getSeries(req.params.id!);
+
+  if (!series) {
+    sendNotFound(res, 'Series not found');
+    return;
+  }
+
+  if (!series.comicVineId) {
+    sendBadRequest(res, 'Series has no ComicVine ID. Link to ComicVine first.');
+    return;
+  }
+
+  const volumeId = parseInt(series.comicVineId, 10);
+  if (isNaN(volumeId)) {
+    sendBadRequest(res, 'Invalid ComicVine ID');
+    return;
+  }
+
+  // Aggregate creator roles from issues
+  const creatorsWithRoles = await aggregateCreatorRolesFromIssues(volumeId);
+
+  if (!hasAnyCreators(creatorsWithRoles)) {
+    sendSuccess(res, {
+      message: 'No creator data found in issues',
+      creatorsWithRoles,
+    });
+    return;
+  }
+
+  // Update series with aggregated creator data
+  const roleFields = creatorsToRoleFields(creatorsWithRoles);
+  await prisma.series.update({
+    where: { id: req.params.id! },
+    data: {
+      creatorsJson: creatorsToJson(creatorsWithRoles),
+      // Also sync individual role fields for backward compatibility
+      ...(roleFields.writer && { writer: roleFields.writer }),
+      ...(roleFields.penciller && { penciller: roleFields.penciller }),
+      ...(roleFields.inker && { inker: roleFields.inker }),
+      ...(roleFields.colorist && { colorist: roleFields.colorist }),
+      ...(roleFields.letterer && { letterer: roleFields.letterer }),
+      ...(roleFields.coverArtist && { coverArtist: roleFields.coverArtist }),
+      ...(roleFields.editor && { editor: roleFields.editor }),
+    },
+  });
+
+  logger.info(
+    { seriesId: req.params.id, writers: creatorsWithRoles.writer.length },
+    'Aggregated creator roles from issues'
+  );
+
+  sendSuccess(res, {
+    message: 'Creator roles aggregated successfully',
+    creatorsWithRoles,
+  });
 }));
 
 /**

@@ -66,6 +66,7 @@ async function getCurrentMetadata(
         coverArtist: comicInfo.CoverArtist ?? null,
         editor: comicInfo.Editor ?? null,
         translator: comicInfo.Translator ?? null,
+        creator: null, // Generic creator field (not in ComicInfo.xml standard)
         // Content
         characters: comicInfo.Characters ?? null,
         teams: comicInfo.Teams ?? null,
@@ -204,6 +205,24 @@ export async function issueToFieldChanges(
       .map((p) => p.name)
       .join(', ');
 
+  // Extract role-specific creators
+  const writer = getCreators('writer') || null;
+  const penciller = getCreators('pencil') || null;
+  const inker = getCreators('ink') || null;
+  const colorist = getCreators('color') || null;
+  const letterer = getCreators('letter') || null;
+  const coverArtist = getCreators('cover') || null;
+  const editor = getCreators('editor') || null;
+
+  // Check if issue has any role-specific creators
+  const hasRoleCreators = writer || penciller || inker || colorist || letterer || coverArtist || editor;
+
+  // If no role-specific creators, inherit from series (volume-level creators without roles)
+  let inheritedCreator: string | null = null;
+  if (!hasRoleCreators && seriesMatch.creators && seriesMatch.creators.length > 0) {
+    inheritedCreator = seriesMatch.creators.map((c) => c.name).join(', ');
+  }
+
   const { year, month, day } = parseCoverDate(issue.cover_date);
 
   // Parse volume aliases for alternate series
@@ -224,14 +243,16 @@ export async function issueToFieldChanges(
     year,
     month,
     day,
-    // Credits
-    writer: getCreators('writer') || null,
-    penciller: getCreators('pencil') || null,
-    inker: getCreators('ink') || null,
-    colorist: getCreators('color') || null,
-    letterer: getCreators('letter') || null,
-    coverArtist: getCreators('cover') || null,
-    editor: getCreators('editor') || null,
+    // Credits (use extracted variables)
+    writer,
+    penciller,
+    inker,
+    colorist,
+    letterer,
+    coverArtist,
+    editor,
+    // Generic creator (inherited from series when no role-specific creators)
+    creator: inheritedCreator,
     // Content
     characters: issue.character_credits?.map((c) => c.name).join(', ') ?? null,
     teams: issue.team_credits?.map((t) => t.name).join(', ') ?? null,
@@ -270,6 +291,24 @@ export async function metronIssueToFieldChanges(
     return creators.map((c) => c.creator).join(', ');
   };
 
+  // Extract role-specific creators
+  const writer = getCreatorsByRole('writer');
+  const penciller = getCreatorsByRole('pencil') || getCreatorsByRole('artist');
+  const inker = getCreatorsByRole('ink');
+  const colorist = getCreatorsByRole('color');
+  const letterer = getCreatorsByRole('letter');
+  const coverArtist = getCreatorsByRole('cover');
+  const editor = getCreatorsByRole('editor');
+
+  // Check if issue has any role-specific creators
+  const hasRoleCreators = writer || penciller || inker || colorist || letterer || coverArtist || editor;
+
+  // If no role-specific creators, inherit from series (volume-level creators without roles)
+  let inheritedCreator: string | null = null;
+  if (!hasRoleCreators && seriesMatch.creators && seriesMatch.creators.length > 0) {
+    inheritedCreator = seriesMatch.creators.map((c) => c.name).join(', ');
+  }
+
   const { year, month, day } = parseCoverDate(issue.cover_date);
 
   const proposedMetadata: Record<string, string | number | null> = {
@@ -282,14 +321,16 @@ export async function metronIssueToFieldChanges(
     year,
     month,
     day,
-    // Credits
-    writer: getCreatorsByRole('writer'),
-    penciller: getCreatorsByRole('pencil') || getCreatorsByRole('artist'),
-    inker: getCreatorsByRole('ink'),
-    colorist: getCreatorsByRole('color'),
-    letterer: getCreatorsByRole('letter'),
-    coverArtist: getCreatorsByRole('cover'),
-    editor: getCreatorsByRole('editor'),
+    // Credits (use extracted variables)
+    writer,
+    penciller,
+    inker,
+    colorist,
+    letterer,
+    coverArtist,
+    editor,
+    // Generic creator (inherited from series when no role-specific creators)
+    creator: inheritedCreator,
     // Content
     characters: issue.characters?.map((c) => c.name).join(', ') ?? null,
     teams: issue.teams?.map((t) => t.name).join(', ') ?? null,

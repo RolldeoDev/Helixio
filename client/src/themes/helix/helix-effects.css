@@ -41,6 +41,19 @@
 }
 
 :root[data-theme="default-light"] {
+  /* Darker versions for light background contrast */
+  --helix-cyan: #0891B2;
+  --helix-cyan-dark: #0E7490;
+  --helix-cyan-light: #22D3EE;
+
+  --helix-magenta: #DB2777;
+  --helix-magenta-dark: #BE185D;
+  --helix-magenta-light: #EC4899;
+
+  --helix-yellow: #B45309;
+  --helix-yellow-dark: #92400E;
+  --helix-yellow-light: #D97706;
+
   --helix-effect-opacity: 0.05;
   --helix-glow-intensity: 0.1;
 }
@@ -136,7 +149,7 @@
 }
 
 /* =============================================================================
-   Gradient Mesh Background
+   Gradient Mesh Background - Balanced CMY Triad
    ============================================================================= */
 
 .helix-gradient-mesh {
@@ -144,23 +157,39 @@
   inset: 0;
   pointer-events: none;
   z-index: 0;
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .helix-gradient-mesh--dark {
   background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(233, 30, 140, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 70% 60% at 60% 80%, rgba(250, 204, 21, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 100% at 50% 100%, rgba(15, 23, 42, 0.8) 0%, transparent 70%);
+    /* Cyan - top left anchor */
+    radial-gradient(ellipse 70% 50% at 15% 30%, rgba(34, 211, 238, 0.1) 0%, transparent 50%),
+    /* Yellow - center warm glow */
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(250, 204, 21, 0.07) 0%, transparent 45%),
+    /* Magenta - bottom right accent */
+    radial-gradient(ellipse 60% 45% at 85% 70%, rgba(233, 30, 140, 0.08) 0%, transparent 50%),
+    /* Yellow - top right subtle touch */
+    radial-gradient(ellipse 40% 30% at 80% 15%, rgba(250, 204, 21, 0.05) 0%, transparent 40%),
+    /* Cyan - bottom left balance */
+    radial-gradient(ellipse 55% 50% at 25% 85%, rgba(34, 211, 238, 0.06) 0%, transparent 50%),
+    /* Base vignette */
+    radial-gradient(ellipse 100% 100% at 50% 100%, rgba(15, 23, 42, 0.7) 0%, transparent 70%);
 }
 
 .helix-gradient-mesh--light {
   background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(8, 145, 178, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(219, 39, 119, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse 70% 60% at 60% 80%, rgba(202, 138, 4, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 100% at 50% 100%, rgba(248, 250, 252, 0.5) 0%, transparent 70%);
+    /* Cyan - top left anchor */
+    radial-gradient(ellipse 70% 50% at 15% 30%, rgba(8, 145, 178, 0.07) 0%, transparent 50%),
+    /* Amber - center warm glow */
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(180, 83, 9, 0.05) 0%, transparent 45%),
+    /* Magenta - bottom right accent */
+    radial-gradient(ellipse 60% 45% at 85% 70%, rgba(219, 39, 119, 0.05) 0%, transparent 50%),
+    /* Amber - top right subtle touch */
+    radial-gradient(ellipse 40% 30% at 80% 15%, rgba(180, 83, 9, 0.04) 0%, transparent 40%),
+    /* Cyan - bottom left balance */
+    radial-gradient(ellipse 55% 50% at 25% 85%, rgba(8, 145, 178, 0.04) 0%, transparent 50%),
+    /* Base vignette */
+    radial-gradient(ellipse 100% 100% at 50% 100%, rgba(248, 250, 252, 0.4) 0%, transparent 70%);
 }
 
 /* =============================================================================
@@ -179,21 +208,23 @@
    Subtle Glow Effects (Applied to UI Elements)
    ============================================================================= */
 
-/* Card hover glow */
+/* Card hover glow - CMY triadic accent */
 :root[data-theme^="default"].helix-glow-enabled .cover-card:hover,
 :root[data-theme^="default"].helix-glow-enabled .series-cover-card:hover {
   box-shadow:
     var(--shadow-md),
-    0 0 20px rgba(34, 211, 238, 0.12),
-    0 0 40px rgba(34, 211, 238, 0.06);
+    0 0 20px rgba(34, 211, 238, 0.1),
+    0 0 30px rgba(250, 204, 21, 0.08),
+    0 0 40px rgba(233, 30, 140, 0.05);
 }
 
 :root[data-theme="default-light"].helix-glow-enabled .cover-card:hover,
 :root[data-theme="default-light"].helix-glow-enabled .series-cover-card:hover {
   box-shadow:
     var(--shadow-md),
-    0 0 20px rgba(8, 145, 178, 0.08),
-    0 0 40px rgba(8, 145, 178, 0.04);
+    0 0 20px rgba(8, 145, 178, 0.06),
+    0 0 30px rgba(180, 83, 9, 0.05),
+    0 0 40px rgba(219, 39, 119, 0.03);
 }
 
 /* Button hover glow */
@@ -329,10 +360,10 @@
   border-color: var(--helix-cyan);
 }
 
-/* Progress bars */
+/* Progress bars - CMY triadic gradient */
 :root[data-theme^="default"] .progress-bar,
 :root[data-theme^="default"] .reading-progress-fill {
-  background: linear-gradient(90deg, var(--helix-cyan) 0%, var(--helix-magenta) 100%);
+  background: linear-gradient(90deg, var(--helix-cyan) 0%, var(--helix-yellow) 50%, var(--helix-magenta) 100%);
   border-radius: var(--radius-full);
 }
 
@@ -439,7 +470,14 @@
 }
 
 :root[data-theme="default-dark"] h1 {
-  background: linear-gradient(135deg, var(--color-text) 0%, var(--helix-cyan-light) 100%);
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--helix-yellow-light) 40%, var(--helix-cyan-light) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+:root[data-theme="default-light"] h1 {
+  background: linear-gradient(135deg, var(--color-text) 0%, var(--helix-cyan-dark) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -470,16 +508,16 @@
 }
 
 :root[data-theme^="default"] .achievement-card__icon-bg {
-  background: linear-gradient(135deg, var(--helix-cyan) 0%, var(--helix-magenta) 100%);
+  background: linear-gradient(135deg, var(--helix-cyan) 0%, var(--helix-yellow) 50%, var(--helix-magenta) 100%);
   border-radius: var(--radius-md);
 }
 
 :root[data-theme^="default"] .achievement-card__status--unlocked {
-  background: linear-gradient(135deg, var(--color-success) 0%, #10b981 100%);
+  background: linear-gradient(135deg, var(--helix-yellow) 0%, var(--color-success) 100%);
 }
 
 :root[data-theme^="default"] .achievement-card__progress-fill {
-  background: linear-gradient(90deg, var(--helix-cyan) 0%, var(--helix-magenta) 100%);
+  background: linear-gradient(90deg, var(--helix-cyan) 0%, var(--helix-yellow) 50%, var(--helix-magenta) 100%);
 }
 
 /* Rarity colors */
@@ -505,6 +543,85 @@
 }
 
 /* =============================================================================
+   Yellow Accent Elements - Featured, New, Special
+   ============================================================================= */
+
+/* Featured badge - yellow highlight */
+:root[data-theme^="default"] .badge--featured,
+:root[data-theme^="default"] .tag--featured {
+  background: linear-gradient(135deg, var(--helix-yellow) 0%, var(--helix-yellow-dark) 100%);
+  color: var(--helix-navy);
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.3);
+}
+
+:root[data-theme="default-light"] .badge--featured,
+:root[data-theme="default-light"] .tag--featured {
+  background: linear-gradient(135deg, var(--helix-yellow) 0%, var(--helix-yellow-dark) 100%);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(180, 83, 9, 0.2);
+}
+
+/* New indicator - warm yellow glow */
+:root[data-theme^="default"] .new-indicator,
+:root[data-theme^="default"] .badge--new {
+  background: var(--helix-yellow);
+  color: var(--helix-navy);
+  animation: newPulse 2s ease-in-out infinite;
+}
+
+@keyframes newPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(250, 204, 21, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(250, 204, 21, 0.6);
+  }
+}
+
+/* Active tab with yellow accent */
+:root[data-theme="default-dark"] .tab--active,
+:root[data-theme="default-dark"] .nav-tab--active {
+  border-bottom: 2px solid var(--helix-yellow);
+}
+
+:root[data-theme="default-light"] .tab--active,
+:root[data-theme="default-light"] .nav-tab--active {
+  border-bottom: 2px solid var(--helix-yellow);
+}
+
+/* Notification badge - yellow for attention */
+:root[data-theme^="default"] .notification-badge,
+:root[data-theme^="default"] .count-badge {
+  background: var(--helix-yellow);
+  color: var(--helix-navy);
+  font-weight: 600;
+}
+
+/* Scrollbar hover with triadic accent */
+:root[data-theme="default-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--helix-cyan) 0%, var(--helix-yellow) 100%);
+}
+
+:root[data-theme="default-light"] ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--helix-cyan) 0%, var(--helix-yellow) 100%);
+}
+
+/* Reading list item - alternate row with warm tint */
+:root[data-theme="default-dark"] .list-item:nth-child(even) {
+  background: rgba(250, 204, 21, 0.02);
+}
+
+/* Stat card number highlight */
+:root[data-theme^="default"] .stat-value,
+:root[data-theme^="default"] .stat-number {
+  background: linear-gradient(135deg, var(--helix-cyan) 0%, var(--helix-yellow) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* =============================================================================
    Reduced Motion - Accessibility
    ============================================================================= */
 
@@ -522,6 +639,12 @@
 
   .helix-gradient-mesh {
     animation: none;
+  }
+
+  @keyframes newPulse {
+    0%, 100% {
+      box-shadow: 0 0 8px rgba(250, 204, 21, 0.4);
+    }
   }
 }
 

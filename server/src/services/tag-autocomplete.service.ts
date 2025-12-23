@@ -21,6 +21,7 @@ export const TAG_FIELD_TYPES = [
   'genres',
   'tags',
   'storyArcs',
+  'creators',
   'publishers',
   'writers',
   'pencillers',
@@ -195,6 +196,7 @@ const SERIES_FIELD_MAPPINGS: Array<{ fieldType: TagFieldType; column: string }> 
   { fieldType: 'genres', column: 'genres' },
   { fieldType: 'tags', column: 'tags' },
   { fieldType: 'storyArcs', column: 'storyArcs' },
+  { fieldType: 'creators', column: 'creators' },
   { fieldType: 'publishers', column: 'publisher' },
 ];
 
@@ -206,6 +208,7 @@ const FILE_METADATA_FIELD_MAPPINGS: Array<{ fieldType: TagFieldType; column: str
   { fieldType: 'genres', column: 'genre' },
   { fieldType: 'tags', column: 'tags' },
   { fieldType: 'storyArcs', column: 'storyArc' },
+  { fieldType: 'creators', column: 'creator' },
   { fieldType: 'publishers', column: 'publisher' },
   { fieldType: 'writers', column: 'writer' },
   { fieldType: 'pencillers', column: 'penciller' },
@@ -231,6 +234,7 @@ export async function refreshTagsFromSeries(seriesId: string): Promise<void> {
       genres: true,
       tags: true,
       storyArcs: true,
+      creators: true,
       publisher: true,
     },
   });
@@ -258,6 +262,7 @@ export async function refreshTagsFromFile(fileId: string): Promise<void> {
       genre: true,
       tags: true,
       storyArc: true,
+      creator: true,
       publisher: true,
       writer: true,
       penciller: true,
@@ -301,6 +306,7 @@ export async function rebuildAllTags(): Promise<RebuildResult> {
       genres: true,
       tags: true,
       storyArcs: true,
+      creators: true,
       publisher: true,
     },
   });
@@ -324,6 +330,7 @@ export async function rebuildAllTags(): Promise<RebuildResult> {
       genre: true,
       tags: true,
       storyArc: true,
+      creator: true,
       publisher: true,
       writer: true,
       penciller: true,

@@ -810,3 +810,27 @@
   font-size: 0.75rem;
   color: var(--color-text-subtle, rgba(232, 228, 223, 0.3));
 }
+
+/* =============================================================================
+   Section Action Row (for buttons within collapsible sections)
+   ============================================================================= */
+
+.section-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 12px);
+  margin-bottom: var(--spacing-md, 12px);
+  padding-bottom: var(--spacing-md, 12px);
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.06));
+}
+
+.section-action-row .btn-sm {
+  padding: var(--spacing-xs, 4px) var(--spacing-md, 12px);
+  font-size: 0.8rem;
+}
+
+.section-action-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.4));
+  font-style: italic;
+}

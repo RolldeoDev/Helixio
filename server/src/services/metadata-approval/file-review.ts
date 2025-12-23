@@ -174,10 +174,9 @@ async function prepareMangaFileChanges(
 /**
  * Prepare file changes after all series are approved
  *
- * Optimizations:
- * - Uses batch DB queries for file lookups instead of individual queries
- * - Uses cached issue data directly (with credits) instead of individual getIssue() calls
- *   This reduces API calls from N+2 to just 2 (paginated batch requests)
+ * Uses batch queries and cached issue data to minimize API calls.
+ * Note: ComicVine's bulk /issues/ endpoint doesn't return credit fields,
+ * so auto-matched issues only get series-inherited creators.
  */
 export async function prepareFileChanges(
   session: ApprovalSession,

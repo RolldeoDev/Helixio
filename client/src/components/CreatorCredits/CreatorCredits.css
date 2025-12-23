@@ -1,0 +1,150 @@
+/* =============================================================================
+   CreatorCredits Styles
+
+   Movie-credits inspired typography with elegant role/name pairings.
+   Features staggered reveal animations and refined visual hierarchy.
+   ============================================================================= */
+
+.creator-credits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.creator-credits__title {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* =============================================================================
+   Credits Grid
+   ============================================================================= */
+
+.creator-credits__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-sm) var(--spacing-xl);
+}
+
+/* When expanded, allow the grid to span the full available width */
+.creator-credits--expanded .creator-credits__grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--spacing-md) var(--spacing-2xl);
+}
+
+@media (max-width: 600px) {
+  .creator-credits__grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+}
+
+/* =============================================================================
+   Credit Entries
+   ============================================================================= */
+
+.creator-credits__entry {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-xs) 0;
+  animation: creditFadeIn 0.3s ease-out both;
+}
+
+@keyframes creditFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-credits__entry {
+    animation: none;
+  }
+}
+
+.creator-credits__entry--secondary {
+  opacity: 0.85;
+}
+
+/* Role label - small, uppercase, muted */
+.creator-credits__role {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.7;
+}
+
+/* Names - prominent, readable */
+.creator-credits__names {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+
+.creator-credits__name {
+  /* Inline display */
+}
+
+.creator-credits__separator {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+/* Hover effect on entries */
+.creator-credits__entry:hover .creator-credits__role {
+  color: var(--color-primary);
+  opacity: 1;
+}
+
+/* =============================================================================
+   Toggle Button
+   ============================================================================= */
+
+.creator-credits__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  align-self: flex-start;
+}
+
+.creator-credits__toggle:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.creator-credits__toggle:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.creator-credits__toggle-icon {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}

@@ -88,10 +88,10 @@ export interface ComicVineVolume {
   start_year?: string;
   api_detail_url?: string;
   site_detail_url?: string;
-  // Extended fields - characters, concepts, creators, locations, objects
+  // Extended fields - characters, concepts, people (creators), locations, objects
   characters?: ComicVineCredit[];
   concepts?: ComicVineCredit[];
-  creators?: ComicVineCredit[];
+  people?: ComicVineCredit[];
   locations?: ComicVineCredit[];
   objects?: ComicVineCredit[];
 }
@@ -594,7 +594,7 @@ export async function getVolume(id: number, sessionId?: string): Promise<ComicVi
         // Credits - these provide valuable series context
         'characters',
         'concepts',
-        'creators',
+        'people',
         'locations',
         'objects',
       ].join(','),
@@ -854,9 +854,13 @@ export function volumeToSeriesMetadata(volume: ComicVineVolume): Record<string, 
   // Extract locations (limit to 10)
   const topLocations = sortByCount(volume.locations, 10);
 
+  // Extract creators (limit to 20, sorted by appearance count)
+  const topCreators = sortByCount(volume.people, 20);
+
   // Extract just the names from credit objects
   const characterNames = topCharacters.map((c) => c.name);
   const locationNames = topLocations.map((l) => l.name);
+  const creatorNames = topCreators.map((c) => c.name);
 
   return {
     // Basic info
@@ -876,6 +880,7 @@ export function volumeToSeriesMetadata(volume: ComicVineVolume): Record<string, 
     // Extended data - arrays of names
     characters: characterNames.length > 0 ? characterNames : undefined,
     locations: locationNames.length > 0 ? locationNames : undefined,
+    creators: creatorNames.length > 0 ? creatorNames : undefined,
     // Note: ComicVine "concepts" are imprints/labels (e.g., "Vertigo", "DC Black Label"),
     // not thematic genres. Website themes (Horror, Drama, etc.) are not exposed via API.
 

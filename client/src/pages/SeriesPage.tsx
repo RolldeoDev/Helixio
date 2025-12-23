@@ -18,7 +18,7 @@ import './SeriesPage.css';
 
 export function SeriesPage() {
   const navigate = useNavigate();
-  const { libraries } = useApp();
+  const { libraries, selectedLibrary, isAllLibraries, selectLibrary } = useApp();
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -26,8 +26,10 @@ export function SeriesPage() {
   const [type, setType] = useState<'western' | 'manga' | ''>('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [hasUnread, setHasUnread] = useState<boolean | undefined>(undefined);
-  const [libraryId, setLibraryId] = useState<string>('');
   const [sortBy, setSortBy] = useState<SeriesListOptions['sortBy']>('name');
+
+  // Derive libraryId from AppContext for API calls
+  const libraryId = isAllLibraries ? '' : (selectedLibrary?.id || '');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Available filter values
@@ -79,7 +81,8 @@ export function SeriesPage() {
     setType('');
     setSelectedGenres([]);
     setHasUnread(undefined);
-    setLibraryId('');
+    // Select "All Libraries" when clearing filters
+    selectLibrary('all');
   };
 
   const hasActiveFilters = search || publisher || type || selectedGenres.length > 0 || hasUnread !== undefined || libraryId;
@@ -143,7 +146,15 @@ export function SeriesPage() {
           <select
             id="library-select"
             value={libraryId}
-            onChange={(e) => setLibraryId(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '') {
+                selectLibrary('all');
+              } else {
+                const lib = libraries.find(l => l.id === value);
+                if (lib) selectLibrary(lib);
+              }
+            }}
           >
             <option value="">All Libraries</option>
             {libraries.map((lib) => (

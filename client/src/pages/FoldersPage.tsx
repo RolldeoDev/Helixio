@@ -69,8 +69,10 @@ export function FoldersPage() {
     x: number;
     y: number;
     folderPath: string;
+    libraryId?: string;
   } | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+  const [renamingLibraryId, setRenamingLibraryId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameError, setRenameError] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -289,10 +291,10 @@ export function FoldersPage() {
     });
   };
 
-  const handleFolderContextMenu = (e: React.MouseEvent, folderPath: string) => {
+  const handleFolderContextMenu = (e: React.MouseEvent, folderPath: string, libraryId?: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setFolderContextMenu({ x: e.clientX, y: e.clientY, folderPath });
+    setFolderContextMenu({ x: e.clientX, y: e.clientY, folderPath, libraryId });
   };
 
   const closeFolderContextMenu = () => setFolderContextMenu(null);
@@ -329,12 +331,19 @@ export function FoldersPage() {
     setRenameValue(folderName);
     setRenameError(null);
     setRenamingFolder(folderPath);
+    // Store the library ID for "All Libraries" mode
+    setRenamingLibraryId(folderContextMenu.libraryId || selectedLibrary?.id || null);
     closeFolderContextMenu();
     setTimeout(() => renameInputRef.current?.focus(), 0);
   };
 
   const handleConfirmRename = async () => {
-    if (!renamingFolder || !selectedLibrary || !renameValue.trim()) return;
+    // Get the library ID from either the selected library or the stored renaming library ID
+    const libraryId = selectedLibrary?.id || renamingLibraryId;
+
+    if (!renamingFolder || !libraryId || !renameValue.trim()) {
+      return;
+    }
 
     const trimmedName = renameValue.trim();
     const currentName = renamingFolder.split('/').pop() || renamingFolder;
@@ -352,39 +361,35 @@ export function FoldersPage() {
     setOperation('Rename Folder', `Renaming folder to "${trimmedName}"...`);
 
     try {
-      const result = await renameFolder(selectedLibrary.id, renamingFolder, trimmedName);
+      const result = await renameFolder(libraryId, renamingFolder, trimmedName);
 
-      if (result.success) {
-        setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
-        setTimeout(() => setOperation(null), 3000);
+      // Success - API returns data directly (errors throw exceptions)
+      setOperation(null, `Folder renamed. ${result.filesUpdated} file(s) updated.`);
+      setTimeout(() => setOperation(null), 3000);
 
-        if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
-          const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
-          selectFolder(newSelectedFolder);
-        }
-
-        await refreshFiles();
-      } else {
-        setRenameError(result.error || 'Rename failed');
-        setOperation(null, `Rename failed: ${result.error}`);
-        setTimeout(() => setOperation(null), 3000);
-        return;
+      if (selectedFolder === renamingFolder || selectedFolder?.startsWith(renamingFolder + '/')) {
+        const newSelectedFolder = selectedFolder.replace(renamingFolder, result.newPath);
+        selectFolder(newSelectedFolder);
       }
+
+      await refreshFiles();
+
+      // Clear rename state on success
+      setRenamingFolder(null);
+      setRenamingLibraryId(null);
+      setRenameValue('');
+      setRenameError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setRenameError(message);
       setOperation(null, `Rename failed: ${message}`);
       setTimeout(() => setOperation(null), 3000);
-      return;
     }
-
-    setRenamingFolder(null);
-    setRenameValue('');
-    setRenameError(null);
   };
 
   const handleCancelRename = () => {
     setRenamingFolder(null);
+    setRenamingLibraryId(null);
     setRenameValue('');
     setRenameError(null);
   };
@@ -392,9 +397,11 @@ export function FoldersPage() {
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       handleConfirmRename();
     } else if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       handleCancelRename();
     }
   };
@@ -496,7 +503,7 @@ export function FoldersPage() {
 
   const folderTree = buildFolderTree(folders);
 
-  const renderFolderItem = (path: string, depth: number = 0, tree: { [key: string]: string[] } = folderTree) => {
+  const renderFolderItem = (path: string, depth: number = 0, tree: { [key: string]: string[] } = folderTree, libraryId?: string) => {
     const name = path.split('/').pop() || path;
     const children = tree[path] || [];
     const hasChildren = children.length > 0;
@@ -547,7 +554,7 @@ export function FoldersPage() {
             className={`folder-item ${isSelected ? 'selected' : ''} ${isQuarantine ? 'quarantine' : ''}`}
             style={{ paddingLeft: `${12 + depth * 16}px` }}
             onClick={() => selectFolder(path)}
-            onContextMenu={(e) => handleFolderContextMenu(e, path)}
+            onContextMenu={(e) => handleFolderContextMenu(e, path, libraryId)}
           >
             {hasChildren ? (
               <span
@@ -570,7 +577,7 @@ export function FoldersPage() {
             {isQuarantine && <span className="quarantine-badge">!</span>}
           </button>
         )}
-        {!isCollapsed && children.map((child) => renderFolderItem(child, depth + 1, tree))}
+        {!isCollapsed && children.map((child) => renderFolderItem(child, depth + 1, tree, libraryId))}
       </div>
     );
   };
@@ -725,7 +732,7 @@ export function FoldersPage() {
                   return (
                     <div key={lib.id} className="library-folder-group">
                       <div className="library-folder-header">{lib.name}</div>
-                      {libTree['']?.map((path) => renderFolderItem(path, 0, libTree))}
+                      {libTree['']?.map((path) => renderFolderItem(path, 0, libTree, lib.id))}
                     </div>
                   );
                 })

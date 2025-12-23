@@ -129,11 +129,17 @@ export interface PaginatedResponse<T> {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error: ApiError = await response.json().catch(() => ({
+    const errorBody = await response.json().catch(() => ({
       error: `HTTP ${response.status}`,
       message: response.statusText,
     }));
-    throw new Error(error.message || error.error);
+    // Handle server's standardized error format: { success: false, error: { code, message } }
+    const errorMessage =
+      errorBody?.error?.message ||  // Server's standard format
+      errorBody?.message ||          // Simple message format
+      (typeof errorBody?.error === 'string' ? errorBody.error : null) ||  // Simple error format
+      `HTTP ${response.status}`;
+    throw new Error(errorMessage);
   }
   const json = await response.json();
   // Handle standardized API response format: { success: true, data: T, meta?: {...} }
@@ -2996,6 +3002,17 @@ export interface Series {
   teams: string | null;
   locations: string | null;
   storyArcs: string | null;
+  creators: string | null;
+  // Role-specific creators
+  writer: string | null;
+  penciller: string | null;
+  inker: string | null;
+  colorist: string | null;
+  letterer: string | null;
+  coverArtist: string | null;
+  editor: string | null;
+  // Structured creator data (JSON: { writer: ["Name"], penciller: ["Name"], ... })
+  creatorsJson: string | null;
   coverSource: 'api' | 'user' | 'auto';
   coverUrl: string | null;
   coverHash: string | null;
@@ -3202,6 +3219,28 @@ export async function unlockField(seriesId: string, fieldName: string): Promise<
   await del(`/series/${seriesId}/lock-field?fieldName=${encodeURIComponent(fieldName)}`);
 }
 
+/** Response from aggregateSeriesCreators */
+export interface AggregateCreatorsResponse {
+  message: string;
+  creatorsWithRoles: {
+    writer: string[];
+    penciller: string[];
+    inker: string[];
+    colorist: string[];
+    letterer: string[];
+    coverArtist: string[];
+    editor: string[];
+  };
+}
+
+/**
+ * Aggregate creator roles from issue-level ComicVine data
+ * Requires the series to be linked to ComicVine
+ */
+export async function aggregateSeriesCreators(seriesId: string): Promise<AggregateCreatorsResponse> {
+  return post<AggregateCreatorsResponse>(`/series/${seriesId}/aggregate-creators`, {});
+}
+
 /**
  * Set series cover
  */
@@ -3258,6 +3297,7 @@ export interface SeriesMetadataPayload {
   characters?: string[];
   locations?: string[];
   storyArcs?: string[];
+  creators?: string[];
   aliases?: string[];
   genres?: string[];
 }
@@ -4153,6 +4193,53 @@ export async function generateIssueSummary(
 }
 
 // =============================================================================
+// LLM Metadata Generation (Enhanced)
+// =============================================================================
+
+/**
+ * Generated metadata field with confidence score
+ */
+export interface GeneratedMetadataField {
+  value: string | number | null;
+  confidence: number;
+}
+
+/**
+ * Full generated metadata for a series
+ */
+export interface GeneratedSeriesMetadata {
+  summary: GeneratedMetadataField;
+  deck: GeneratedMetadataField;
+  ageRating: GeneratedMetadataField;
+  genres: GeneratedMetadataField;
+  tags: GeneratedMetadataField;
+  startYear: GeneratedMetadataField;
+  endYear: GeneratedMetadataField;
+}
+
+/**
+ * Result from metadata generation
+ */
+export interface GenerateMetadataResult {
+  metadata: GeneratedSeriesMetadata;
+  webSearchUsed: boolean;
+  tokensUsed?: number;
+}
+
+/**
+ * Generate comprehensive metadata for a series using LLM
+ */
+export async function generateSeriesMetadata(
+  seriesId: string,
+  options?: { useWebSearch?: boolean }
+): Promise<GenerateMetadataResult> {
+  return post<GenerateMetadataResult>(
+    `/description/series/${seriesId}/generate-metadata`,
+    options || {}
+  );
+}
+
+// =============================================================================
 // Tag Autocomplete
 // =============================================================================
 
@@ -4166,6 +4253,7 @@ export type TagFieldType =
   | 'genres'
   | 'tags'
   | 'storyArcs'
+  | 'creators'
   | 'publishers'
   | 'writers'
   | 'pencillers'

@@ -16,6 +16,11 @@ import {
   type SeriesDescriptionContext,
   type IssueDescriptionContext,
 } from '../services/description-generator.service.js';
+import {
+  isMetadataGeneratorAvailable,
+  generateSeriesMetadata,
+  type MetadataGenerationContext,
+} from '../services/metadata-generator.service.js';
 import { getLLMModel } from '../services/config.service.js';
 import {
   sendSuccess,
@@ -115,6 +120,76 @@ router.post('/series/:id/generate-description', asyncHandler(async (req: Request
   sendSuccess(res, {
     description: result.description,
     deck: result.deck,
+    tokensUsed: result.tokensUsed,
+  });
+}));
+
+// =============================================================================
+// Series Metadata Generation (Enhanced)
+// =============================================================================
+
+/**
+ * POST /api/series/:id/generate-metadata
+ * Generate comprehensive metadata for a series using LLM with optional web search
+ *
+ * Body: { useWebSearch?: boolean }
+ * Returns: { metadata: GeneratedMetadata, webSearchUsed: boolean, tokensUsed?: number }
+ */
+router.post('/series/:id/generate-metadata', asyncHandler(async (req: Request, res: Response) => {
+  const seriesId = req.params.id!;
+  const { useWebSearch } = req.body as { useWebSearch?: boolean };
+
+  // Check if LLM is available
+  if (!isMetadataGeneratorAvailable()) {
+    sendBadRequest(res, 'LLM metadata generation is not available. Please configure an Anthropic API key.');
+    return;
+  }
+
+  // Fetch series from database
+  const db = getDatabase();
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    sendNotFound(res, 'Series not found');
+    return;
+  }
+
+  // Build context for generation
+  const context: MetadataGenerationContext = {
+    name: series.name,
+    publisher: series.publisher,
+    startYear: series.startYear,
+    endYear: series.endYear,
+    volume: series.volume,
+    type: series.type as 'western' | 'manga',
+    existingGenres: series.genres,
+    existingTags: series.tags,
+    existingSummary: series.summary,
+    existingDeck: series.deck,
+    existingAgeRating: series.ageRating,
+  };
+
+  logger.info({ seriesId, useWebSearch }, `Generating metadata for series: ${series.name}`);
+
+  // Generate metadata
+  const result = await generateSeriesMetadata(context, { useWebSearch });
+
+  if (!result.success) {
+    logger.error({ seriesId, error: result.error }, `Failed to generate metadata for series: ${series.name}`);
+    sendBadRequest(res, result.error || 'Failed to generate metadata');
+    return;
+  }
+
+  logger.info(
+    { seriesId, tokensUsed: result.tokensUsed, webSearchUsed: result.webSearchUsed },
+    `Generated metadata for series: ${series.name}`
+  );
+
+  sendSuccess(res, {
+    metadata: result.metadata,
+    webSearchUsed: result.webSearchUsed,
     tokensUsed: result.tokensUsed,
   });
 }));

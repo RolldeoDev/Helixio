@@ -211,10 +211,27 @@ function buildSystemPrompt(libraryType?: LibraryType): string {
 
 ${conventionsContext}
 
+# Delimiter Handling
+
+Filenames may use various delimiters interchangeably. Treat underscores and dots as equivalent to spaces:
+
+Examples and how to parse them:
+- "Tom_Strong_002_(1999)_(digital-Empire).cbz" → series: "Tom Strong", number: 2, year: 1999
+- "Batman.2016.001.cbz" → series: "Batman", number: 1, year: 2016
+- "Spider-Man_-_001_-_Title.cbz" → series: "Spider-Man", number: 1, title: "Title"
+- "X-Men_Vol_2_023_(2020).cbz" → series: "X-Men", type: "volume", number: 23, year: 2020
+
+Key rules:
+- Underscores and dots separate tokens (treat as spaces)
+- Hyphens within words are part of the name (Spider-Man, X-Men)
+- A 2-4 digit number (like 001, 023, 002) near a year in parentheses is typically the issue number
+- A 4-digit number in parentheses (like 1999, 2016) is typically the year
+- Leading zeros in issue numbers should be stripped (002 → 2, 023 → 23)
+
 # Instructions
 
 1. Parse each filename to extract:
-   - series: The comic series name (clean, without noise)
+   - series: The comic series name (clean, without noise, with proper spacing)
    - type: One of "issue", "volume", "book", or "special"
    - number: The issue or volume number (as a number if possible)
    - title: The issue title or volume subtitle

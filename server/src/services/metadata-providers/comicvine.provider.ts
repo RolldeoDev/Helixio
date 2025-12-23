@@ -55,7 +55,7 @@ function volumeToSeriesMetadata(volume: comicVine.ComicVineVolume): SeriesMetada
 
     // Rich data
     characters: convertCredits(volume.characters?.slice(0, 20)),
-    creators: convertCredits(volume.creators?.slice(0, 20)),
+    creators: convertCredits(volume.people?.slice(0, 20)),
     locations: convertCredits(volume.locations?.slice(0, 10)),
     objects: convertCredits(volume.objects?.slice(0, 10)),
 

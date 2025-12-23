@@ -41,6 +41,7 @@ export interface SeriesMetadataPayload {
   characters?: string[];
   locations?: string[];
   storyArcs?: string[];
+  creators?: string[];
   aliases?: string[];
 }
 
@@ -98,6 +99,7 @@ const API_TO_SERIES_FIELD_MAP: Record<string, string> = {
   characters: 'characters',
   locations: 'locations',
   storyArcs: 'storyArcs',
+  creators: 'creators',
   aliases: 'aliases',
 };
 
@@ -119,6 +121,7 @@ const FIELD_LABELS: Record<string, string> = {
   characters: 'Characters',
   locations: 'Locations',
   storyArcs: 'Story Arcs',
+  creators: 'Creators',
   aliases: 'Aliases',
 };
 
@@ -585,6 +588,11 @@ function convertRawMetadata(
   if (Array.isArray(raw.storyArcs)) {
     payload.storyArcs = raw.storyArcs.map((s) =>
       typeof s === 'object' && s !== null && 'name' in s ? String(s.name) : String(s)
+    );
+  }
+  if (Array.isArray(raw.creators)) {
+    payload.creators = raw.creators.map((c) =>
+      typeof c === 'object' && c !== null && 'name' in c ? String(c.name) : String(c)
     );
   }
   if (Array.isArray(raw.aliases)) {

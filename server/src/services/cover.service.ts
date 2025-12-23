@@ -994,8 +994,44 @@ function getSeriesCoverPaths(coverHash: string): {
  * Returns a hash that can be stored in the database.
  */
 export async function downloadApiCover(url: string): Promise<DownloadCoverResult> {
+  // Validate URL format
+  if (!url || typeof url !== 'string') {
+    return {
+      success: false,
+      error: 'URL is required',
+    };
+  }
+
+  // Trim whitespace
+  const trimmedUrl = url.trim();
+  if (!trimmedUrl) {
+    return {
+      success: false,
+      error: 'URL cannot be empty',
+    };
+  }
+
+  // Validate URL structure
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(trimmedUrl);
+  } catch {
+    return {
+      success: false,
+      error: 'Invalid URL format. Please provide a valid HTTP or HTTPS URL.',
+    };
+  }
+
+  // Only allow HTTP/HTTPS
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    return {
+      success: false,
+      error: 'Only HTTP and HTTPS URLs are supported',
+    };
+  }
+
   // Generate hash from URL
-  const coverHash = generateCoverHash(url);
+  const coverHash = generateCoverHash(trimmedUrl);
   const paths = getSeriesCoverPaths(coverHash);
 
   // Check if already cached
@@ -1022,12 +1058,28 @@ export async function downloadApiCover(url: string): Promise<DownloadCoverResult
     // Ensure directory exists
     await mkdir(getSeriesCoversDir(), { recursive: true });
 
-    // Download the image
-    const response = await fetch(url);
+    // Download the image with proper headers
+    // Many servers block requests without User-Agent or with suspicious patterns
+    const response = await fetch(trimmedUrl, {
+      headers: {
+        'User-Agent': 'Helixio/1.0 (Comic Library Manager)',
+        'Accept': 'image/*,*/*;q=0.8',
+      },
+      redirect: 'follow',
+    });
     if (!response.ok) {
       return {
         success: false,
-        error: `Failed to download: ${response.status} ${response.statusText}`,
+        error: `Failed to download image: Server returned ${response.status} ${response.statusText}`,
+      };
+    }
+
+    // Verify content type is an image
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.startsWith('image/')) {
+      return {
+        success: false,
+        error: `URL does not point to an image (received ${contentType || 'unknown content type'})`,
       };
     }
 

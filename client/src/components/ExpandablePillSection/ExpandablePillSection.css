@@ -1,0 +1,279 @@
+/* =============================================================================
+   ExpandablePillSection Styles
+
+   Cinematic, polished pill sections with smooth expand/collapse animations.
+   Color variants inspired by comic book energy and vibrancy.
+   ============================================================================= */
+
+.expandable-pills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.expandable-pills__title {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.expandable-pills__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
+
+/* Smooth height transition on expand */
+.expandable-pills__list--expanded {
+  /* Allow height to auto-adjust */
+}
+
+/* =============================================================================
+   Pill Items - Base Styles
+   ============================================================================= */
+
+.expandable-pills__item {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 100px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  cursor: default;
+  border: 1px solid transparent;
+}
+
+/* Clickable pills */
+.expandable-pills__item[tabindex="0"] {
+  cursor: pointer;
+}
+
+.expandable-pills__item[tabindex="0"]:hover {
+  transform: translateY(-1px);
+}
+
+.expandable-pills__item[tabindex="0"]:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Animation for newly revealed pills */
+.expandable-pills__list--expanded .expandable-pills__item {
+  animation: pillReveal 0.25s ease-out both;
+}
+
+@keyframes pillReveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expandable-pills__list--expanded .expandable-pills__item {
+    animation: none;
+  }
+}
+
+/* =============================================================================
+   Pill Variants - Distinctive Color Schemes
+   ============================================================================= */
+
+/* Default - Neutral */
+.expandable-pills__item--default {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+.expandable-pills__item--default:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/* Character - Electric Blue (heroic, dynamic) */
+.expandable-pills__item--character {
+  background: rgba(66, 153, 225, 0.12);
+  border-color: rgba(66, 153, 225, 0.25);
+  color: #63b3ed;
+}
+
+.expandable-pills__item--character:hover {
+  background: rgba(66, 153, 225, 0.22);
+  border-color: rgba(66, 153, 225, 0.45);
+  box-shadow: 0 0 12px rgba(66, 153, 225, 0.2);
+}
+
+/* Team - Emerald Green (unity, strength) */
+.expandable-pills__item--team {
+  background: rgba(72, 187, 120, 0.12);
+  border-color: rgba(72, 187, 120, 0.25);
+  color: #68d391;
+}
+
+.expandable-pills__item--team:hover {
+  background: rgba(72, 187, 120, 0.22);
+  border-color: rgba(72, 187, 120, 0.45);
+  box-shadow: 0 0 12px rgba(72, 187, 120, 0.2);
+}
+
+/* Location - Amber/Gold (adventure, places) */
+.expandable-pills__item--location {
+  background: rgba(237, 137, 54, 0.12);
+  border-color: rgba(237, 137, 54, 0.25);
+  color: #f6ad55;
+}
+
+.expandable-pills__item--location:hover {
+  background: rgba(237, 137, 54, 0.22);
+  border-color: rgba(237, 137, 54, 0.45);
+  box-shadow: 0 0 12px rgba(237, 137, 54, 0.2);
+}
+
+/* Arc - Purple/Violet (mystery, story depth) */
+.expandable-pills__item--arc {
+  background: rgba(159, 122, 234, 0.12);
+  border-color: rgba(159, 122, 234, 0.25);
+  color: #b794f4;
+}
+
+.expandable-pills__item--arc:hover {
+  background: rgba(159, 122, 234, 0.22);
+  border-color: rgba(159, 122, 234, 0.45);
+  box-shadow: 0 0 12px rgba(159, 122, 234, 0.2);
+}
+
+/* Creator - Warm Orange (creativity, artistry) */
+.expandable-pills__item--creator {
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.25);
+  color: #fb923c;
+}
+
+.expandable-pills__item--creator:hover {
+  background: rgba(251, 146, 60, 0.22);
+  border-color: rgba(251, 146, 60, 0.45);
+  box-shadow: 0 0 12px rgba(251, 146, 60, 0.2);
+}
+
+/* Genre - Primary accent */
+.expandable-pills__item--genre {
+  background: var(--color-primary-muted);
+  border-color: transparent;
+  color: var(--color-primary);
+}
+
+.expandable-pills__item--genre:hover {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* Tag - Subtle neutral */
+.expandable-pills__item--tag {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.expandable-pills__item--tag:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Toggle Button
+   ============================================================================= */
+
+.expandable-pills__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 14px;
+  border: 1px dashed var(--color-border);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.expandable-pills__toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.expandable-pills__toggle:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.expandable-pills__toggle-icon {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.5;
+  transition: transform var(--transition-fast);
+}
+
+/* Variant-specific toggle colors */
+.expandable-pills__toggle--character:hover {
+  border-color: #63b3ed;
+  color: #63b3ed;
+  background: rgba(66, 153, 225, 0.12);
+}
+
+.expandable-pills__toggle--team:hover {
+  border-color: #68d391;
+  color: #68d391;
+  background: rgba(72, 187, 120, 0.12);
+}
+
+.expandable-pills__toggle--location:hover {
+  border-color: #f6ad55;
+  color: #f6ad55;
+  background: rgba(237, 137, 54, 0.12);
+}
+
+.expandable-pills__toggle--arc:hover {
+  border-color: #b794f4;
+  color: #b794f4;
+  background: rgba(159, 122, 234, 0.12);
+}
+
+.expandable-pills__toggle--creator:hover {
+  border-color: #fb923c;
+  color: #fb923c;
+  background: rgba(251, 146, 60, 0.12);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .expandable-pills__item {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+  }
+
+  .expandable-pills__toggle {
+    font-size: 0.6875rem;
+    padding: 4px 10px;
+  }
+}

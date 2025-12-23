@@ -1,0 +1,251 @@
+/* =============================================================================
+   MetadataGenerator Styles
+   ============================================================================= */
+
+.metadata-generator {
+  margin-bottom: var(--spacing-md);
+}
+
+.metadata-generator-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+/* Generate Button */
+.metadata-generator .generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metadata-generator .generate-btn:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.metadata-generator .generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Small Spinner */
+.metadata-generator .spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Web Search Toggle */
+.metadata-generator .web-search-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.metadata-generator .web-search-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.metadata-generator .web-search-toggle:hover .toggle-label {
+  color: var(--color-text);
+}
+
+.metadata-generator .toggle-label {
+  transition: color var(--transition-fast);
+}
+
+/* Error Message */
+.metadata-generator .generation-error {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error, #ef4444);
+  font-size: 0.8125rem;
+}
+
+/* =============================================================================
+   Compact Mode (Header Placement)
+   ============================================================================= */
+
+.metadata-generator-compact {
+  margin-bottom: 0;
+  position: relative;
+}
+
+.metadata-generator-compact .generate-btn-wrapper {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+/* Secondary/Subdued Button Style */
+.metadata-generator-compact .generate-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  padding-right: var(--spacing-xs);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.5));
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metadata-generator-compact .generate-btn-secondary:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text, #e8e4df);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metadata-generator-compact .generate-btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* BETA Badge */
+.metadata-generator-compact .beta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  margin-left: var(--spacing-xs);
+  border-radius: 3px;
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--color-primary, #d4a574);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Options Chevron Toggle */
+.metadata-generator-compact .generate-options-toggle {
+  display: flex;
+  align-items: stretch;
+}
+
+.metadata-generator-compact .options-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-xs);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.5));
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metadata-generator-compact .options-chevron:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text, #e8e4df);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metadata-generator-compact .options-chevron:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Options Dropdown */
+.metadata-generator-compact .generate-options-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 280px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-secondary, #151b23);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.3));
+}
+
+/* Disclaimer Warning */
+.metadata-generator-compact .generate-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: rgba(212, 165, 116, 0.08);
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.metadata-generator-compact .generate-disclaimer svg {
+  flex-shrink: 0;
+  color: var(--color-primary, #d4a574);
+  opacity: 0.7;
+}
+
+/* Web Search Toggle in Dropdown */
+.metadata-generator-compact .web-search-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.metadata-generator-compact .web-search-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.metadata-generator-compact .web-search-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* Compact Error */
+.metadata-generator-compact .generation-error-compact {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  margin-top: 0;
+  font-size: 0.75rem;
+  z-index: 99;
+}

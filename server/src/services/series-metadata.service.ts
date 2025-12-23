@@ -66,6 +66,8 @@ export interface SeriesMetadata {
   storyArcs?: string[];
   /** Locations featured in the series */
   locations?: string[];
+  /** Creators associated with the series (no role info at series level) */
+  creators?: string[];
   /** User notes about the series */
   userNotes?: string;
   /** Volume number for multi-volume series */
