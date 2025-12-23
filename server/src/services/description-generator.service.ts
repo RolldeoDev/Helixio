@@ -388,12 +388,42 @@ export async function generateSeriesDescription(
       }
       jsonStr = jsonStr.trim();
 
-      parsed = JSON.parse(jsonStr);
-    } catch {
-      logger.error(`Failed to parse JSON response for series: ${context.name}`);
+      // Try direct parse first
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch {
+        // If direct parse fails, try to extract JSON object from the response
+        const text = textContent.text;
+        const startIdx = text.indexOf('{');
+        if (startIdx !== -1) {
+          let depth = 0;
+          let endIdx = -1;
+          for (let i = startIdx; i < text.length; i++) {
+            if (text[i] === '{') depth++;
+            else if (text[i] === '}') {
+              depth--;
+              if (depth === 0) {
+                endIdx = i;
+                break;
+              }
+            }
+          }
+          if (endIdx !== -1) {
+            jsonStr = text.substring(startIdx, endIdx + 1);
+            parsed = JSON.parse(jsonStr);
+          } else {
+            throw new Error('Could not find balanced JSON object');
+          }
+        } else {
+          throw new Error('No JSON object found in response');
+        }
+      }
+    } catch (parseErr) {
+      const parseError = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      logger.error(`Failed to parse JSON response for series: ${context.name}. Error: ${parseError}`);
       return {
         success: false,
-        error: `Failed to parse Claude response: ${textContent.text.substring(0, 200)}`,
+        error: `Failed to parse Claude response: ${parseError}`,
       };
     }
 
@@ -507,12 +537,42 @@ export async function generateIssueSummary(
       }
       jsonStr = jsonStr.trim();
 
-      parsed = JSON.parse(jsonStr);
-    } catch {
-      logger.error(`Failed to parse JSON response for issue: ${issueLabel}`);
+      // Try direct parse first
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch {
+        // If direct parse fails, try to extract JSON object from the response
+        const text = textContent.text;
+        const startIdx = text.indexOf('{');
+        if (startIdx !== -1) {
+          let depth = 0;
+          let endIdx = -1;
+          for (let i = startIdx; i < text.length; i++) {
+            if (text[i] === '{') depth++;
+            else if (text[i] === '}') {
+              depth--;
+              if (depth === 0) {
+                endIdx = i;
+                break;
+              }
+            }
+          }
+          if (endIdx !== -1) {
+            jsonStr = text.substring(startIdx, endIdx + 1);
+            parsed = JSON.parse(jsonStr);
+          } else {
+            throw new Error('Could not find balanced JSON object');
+          }
+        } else {
+          throw new Error('No JSON object found in response');
+        }
+      }
+    } catch (parseErr) {
+      const parseError = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      logger.error(`Failed to parse JSON response for issue: ${issueLabel}. Error: ${parseError}`);
       return {
         success: false,
-        error: `Failed to parse Claude response: ${textContent.text.substring(0, 200)}`,
+        error: `Failed to parse Claude response: ${parseError}`,
       };
     }
 

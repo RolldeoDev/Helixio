@@ -58,6 +58,7 @@ import tagsRoutes from './routes/tags.routes.js';
 import collectionsRoutes from './routes/collections.routes.js';
 import libraryScanRoutes from './routes/library-scan.routes.js';
 import factoryResetRoutes from './routes/factory-reset.routes.js';
+import issueMetadataRoutes from './routes/issue-metadata.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -350,6 +351,7 @@ app.use('/api/tags', tagsRoutes);
 app.use('/api/collections', collectionsRoutes);
 app.use('/api/libraries', libraryScanRoutes);  // Library scan routes (mounted on /api/libraries for /scan/full endpoints)
 app.use('/api/factory-reset', factoryResetRoutes);
+app.use('/api/files', issueMetadataRoutes);  // Issue metadata routes (mounted on /api/files for /:fileId/issue-metadata endpoints)
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);

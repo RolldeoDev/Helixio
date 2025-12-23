@@ -14,6 +14,7 @@ import { CoverSizeSlider } from '../CoverSizeSlider';
 import { CollectionPickerModal } from '../CollectionPickerModal';
 import { groupFiles } from '../../utils/file-grouping';
 import { useOptimalGridSize } from '../../hooks/useOptimalGridSize';
+import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 
 import type { ComicFile } from '../../services/api.service';
 import type { GroupField } from '../SortGroup/SortGroupPanel';
@@ -71,6 +72,20 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     minCoverWidth: 80,
     maxCoverWidth: 350,
   });
+
+  // Virtualization for better scroll performance (when no grouping)
+  // Item dimensions based on cover size
+  const itemWidth = 180;
+  const itemHeight = 280;
+  const { virtualItems, totalHeight, containerRef: virtualContainerRef, isScrolling } = useVirtualGrid(
+    groupField === 'none' ? files : [],
+    {
+      itemWidth,
+      itemHeight,
+      gap: 16,
+      overscan: 3,
+    }
+  );
 
   // Reading progress state
   const [readingProgress, setReadingProgress] = useState<Record<string, { currentPage: number; totalPages: number; completed: boolean }>>({});
@@ -367,8 +382,46 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
         </div>
       )}
 
-      {/* Grid */}
-      {files.length > 0 && (() => {
+      {/* Virtualized Grid (when no grouping) */}
+      {files.length > 0 && groupField === 'none' && (
+        <div
+          ref={virtualContainerRef}
+          className={`grid-virtual-container ${isScrolling ? 'scrolling' : ''}`}
+        >
+          <div
+            className="grid-virtual-content"
+            style={{ height: totalHeight, position: 'relative' }}
+          >
+            {virtualItems.map(({ item: file, style, index }) => (
+              <div key={file.id} style={style} className="grid-virtual-item" data-file-index={index} data-file-id={file.id}>
+                <CoverCard
+                  file={file}
+                  progress={readingProgress[file.id]}
+                  variant="grid"
+                  size="medium"
+                  selectable={true}
+                  isSelected={selectedFiles.has(file.id)}
+                  checkboxVisibility="hover"
+                  contextMenuEnabled={true}
+                  menuItems={menuItems}
+                  selectedCount={selectedFiles.size}
+                  showInfo={true}
+                  showSeries={true}
+                  showIssueNumber={true}
+                  onClick={handleCardClick}
+                  onDoubleClick={handleCardDoubleClick}
+                  onRead={handleRead}
+                  onSelectionChange={handleSelectionChange}
+                  onMenuAction={handleMenuAction}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Non-virtualized Grid (when grouping is enabled) */}
+      {files.length > 0 && groupField !== 'none' && (() => {
         // Track global index across all groups for navigation sidebar
         let globalIndex = 0;
         const groups = Array.from(groupFiles(files, groupField).entries());
@@ -402,7 +455,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
 
               return (
                 <div key={groupName || 'all'} className="grid-group">
-                  {groupField !== 'none' && groupName && (
+                  {groupName && (
                     <div className="grid-group-header">
                       {groupField === 'series' && seriesId ? (
                         <h3

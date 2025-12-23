@@ -1,0 +1,423 @@
+/**
+ * IssueMetadataGrabber Component Styles
+ */
+
+/* ==========================================================================
+   Modal Structure
+   ========================================================================== */
+
+.grabber-modal {
+  width: 90%;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.grabber-body {
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 300px;
+}
+
+/* ==========================================================================
+   Loading States
+   ========================================================================== */
+
+.grabber-searching,
+.grabber-fetching,
+.grabber-applying {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md);
+}
+
+.grabber-searching p,
+.grabber-fetching p,
+.grabber-applying p {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   Search Results
+   ========================================================================== */
+
+.grabber-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.results-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.results-count {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.result-item:hover {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-accent);
+}
+
+.result-cover {
+  width: 60px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-title {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: var(--spacing-xs);
+}
+
+.result-issue-title {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-date {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.result-confidence {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.results-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+/* ==========================================================================
+   No Results / Manual Search
+   ========================================================================== */
+
+.grabber-no-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  align-items: center;
+  padding: var(--spacing-xl);
+}
+
+.grabber-no-results p {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.search-form {
+  display: flex;
+  gap: var(--spacing-sm);
+  width: 100%;
+  max-width: 500px;
+}
+
+.search-form input {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.search-form input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.search-form select {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+/* ==========================================================================
+   Comparison View
+   ========================================================================== */
+
+.grabber-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.comparison-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.comparison-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.comparison-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
+}
+
+.field-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.field-row.locked {
+  opacity: 0.6;
+}
+
+.field-row.changed {
+  border-left: 3px solid var(--color-accent);
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+}
+
+.field-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.field-checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
+
+.field-label {
+  font-weight: 500;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.lock-icon {
+  font-size: 0.8rem;
+}
+
+.field-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  padding-left: calc(16px + var(--spacing-sm));
+}
+
+.field-current,
+.field-proposed {
+  font-size: 0.85rem;
+}
+
+.value-label {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  margin-bottom: var(--spacing-xs);
+}
+
+.value-text {
+  display: block;
+  color: var(--color-text);
+  word-break: break-word;
+}
+
+.value-text em {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.comparison-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.selected-count {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   Complete State
+   ========================================================================== */
+
+.grabber-complete {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md);
+  text-align: center;
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--color-success);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.grabber-complete h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.grabber-complete p {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ==========================================================================
+   Error State
+   ========================================================================== */
+
+.grabber-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md);
+  text-align: center;
+}
+
+.error-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--color-error);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+}
+
+.grabber-error h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.grabber-error p {
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 400px;
+}
+
+.error-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+/* ==========================================================================
+   Button Variants
+   ========================================================================== */
+
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.85rem;
+}

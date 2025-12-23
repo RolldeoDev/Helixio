@@ -4637,3 +4637,136 @@ export async function getAllActiveScans(): Promise<{ jobs: LibraryScanJob[] }> {
   return get<{ jobs: LibraryScanJob[] }>('/libraries/scans/active');
 }
 
+// =============================================================================
+// Issue Metadata Grabber
+// =============================================================================
+
+export interface IssueMatch {
+  id: string;
+  source: MetadataSource;
+  issueNumber: string;
+  title?: string;
+  coverDate?: string;
+  coverUrl?: string;
+  volumeName?: string;
+  volumeId?: string;
+  confidence: number;
+}
+
+export interface IssueMetadata {
+  series?: string;
+  number?: string;
+  title?: string;
+  volume?: number;
+  alternateSeries?: string;
+  alternateNumber?: string;
+  alternateCount?: number;
+  summary?: string;
+  year?: number;
+  month?: number;
+  day?: number;
+  writer?: string;
+  penciller?: string;
+  inker?: string;
+  colorist?: string;
+  letterer?: string;
+  coverArtist?: string;
+  editor?: string;
+  characters?: string;
+  teams?: string;
+  locations?: string;
+  storyArc?: string;
+  publisher?: string;
+  count?: number;
+  pageCount?: number;
+  format?: string;
+  languageISO?: string;
+  ageRating?: string;
+  coverUrl?: string;
+  sourceId?: string;
+  source?: MetadataSource;
+}
+
+export interface PreviewField {
+  name: string;
+  label: string;
+  current: string | null;
+  proposed: string | null;
+  selected: boolean;
+  isLocked: boolean;
+  hasChanged: boolean;
+}
+
+export interface IssueSearchResult {
+  results: IssueMatch[];
+  usedCache: boolean;
+  source: MetadataSource;
+}
+
+export interface IssueApplyResult {
+  success: boolean;
+  converted?: boolean;
+  newPath?: string;
+  operationId?: string;
+  error?: string;
+}
+
+/**
+ * Search for issue metadata using existing file data and series context
+ */
+export async function searchIssueMetadata(
+  fileId: string,
+  options?: { query?: string; source?: MetadataSource }
+): Promise<IssueSearchResult> {
+  return post<IssueSearchResult>(`/files/${fileId}/issue-metadata/search`, options || {});
+}
+
+/**
+ * Fetch full metadata for a specific issue by source and ID
+ */
+export async function fetchIssueMetadataById(
+  fileId: string,
+  source: MetadataSource,
+  issueId: string
+): Promise<{ metadata: IssueMetadata }> {
+  return post<{ metadata: IssueMetadata }>(`/files/${fileId}/issue-metadata/fetch`, {
+    source,
+    issueId,
+  });
+}
+
+/**
+ * Generate a preview of metadata changes for an issue
+ */
+export async function previewIssueMetadata(
+  fileId: string,
+  metadata: IssueMetadata,
+  source: MetadataSource,
+  issueId: string
+): Promise<{ fields: PreviewField[]; lockedFields: string[] }> {
+  return post<{ fields: PreviewField[]; lockedFields: string[] }>(
+    `/files/${fileId}/issue-metadata/preview`,
+    { metadata, source, issueId }
+  );
+}
+
+/**
+ * Apply selected metadata changes to a file
+ */
+export async function applyIssueMetadata(
+  fileId: string,
+  metadata: IssueMetadata,
+  source: MetadataSource,
+  issueId: string,
+  selectedFields: string[],
+  coverAction?: 'keep' | 'download' | 'replace'
+): Promise<IssueApplyResult> {
+  return post<IssueApplyResult>(`/files/${fileId}/issue-metadata/apply`, {
+    metadata,
+    source,
+    issueId,
+    selectedFields,
+    coverAction,
+  });
+}
+

@@ -1781,6 +1781,59 @@ body {
   overflow-y: auto;
 }
 
+/* =============================================================================
+   Virtualized Grid Container (Performance Optimized)
+   ============================================================================= */
+
+.grid-virtual-container {
+  /* Fixed height scroll container for virtualization */
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-sm);
+
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+
+  /* Scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.grid-virtual-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.grid-virtual-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.grid-virtual-container::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.grid-virtual-container::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Disable smooth scroll during rapid scrolling */
+.grid-virtual-container.scrolling {
+  scroll-behavior: auto;
+}
+
+.grid-virtual-content {
+  /* Virtual container - items positioned absolutely within */
+  width: 100%;
+}
+
+.grid-virtual-item {
+  /* Positioned by useVirtualGrid */
+  display: flex;
+  flex-direction: column;
+}
+
 .grid {
   display: grid;
   /* Default fallback - inline styles override this with exact column count */

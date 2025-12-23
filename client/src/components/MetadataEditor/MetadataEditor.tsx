@@ -26,6 +26,7 @@ interface MetadataEditorProps {
   onClose?: () => void;
   onSave?: () => void;
   onCoverChange?: (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => void;
+  onGrabMetadata?: () => void;
 }
 
 type EditableField = keyof ComicInfo;
@@ -63,7 +64,7 @@ const EDITABLE_FIELDS: FieldConfig[] = [
   { key: 'StoryArc', label: 'Story Arc', type: 'tag', autocompleteField: 'storyArcs' },
 ];
 
-export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: MetadataEditorProps) {
+export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrabMetadata }: MetadataEditorProps) {
   // Use the redesigned BatchMetadataEditor for multiple files
   if (fileIds.length > 1) {
     return <BatchMetadataEditor fileIds={fileIds} onClose={onClose} onSave={onSave} />;
@@ -184,11 +185,18 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange }: Meta
     <div className="metadata-editor">
       <div className="metadata-editor-header">
         <h2>Edit Metadata</h2>
-        {onClose && (
-          <button className="btn-icon" onClick={onClose} title="Close">
-            ✕
-          </button>
-        )}
+        <div className="metadata-editor-header-actions">
+          {onGrabMetadata && fileIds.length === 1 && (
+            <button className="btn-ghost btn-sm" onClick={onGrabMetadata} title="Fetch metadata from API">
+              Grab from API
+            </button>
+          )}
+          {onClose && (
+            <button className="btn-icon" onClick={onClose} title="Close">
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}

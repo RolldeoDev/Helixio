@@ -27,6 +27,7 @@ import {
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { MetadataEditor } from '../components/MetadataEditor';
+import { IssueMetadataGrabber } from '../components/IssueMetadataGrabber';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { QuickCollectionIcons } from '../components/QuickCollectionIcons';
 import { CollectionFlyout } from '../components/CollectionFlyout';
@@ -97,6 +98,7 @@ export function IssueDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
+  const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -220,6 +222,15 @@ export function IssueDetailPage() {
 
   const handleEditMetadata = () => {
     setIsEditingMetadata(true);
+  };
+
+  const handleGrabMetadata = () => {
+    setIsGrabbingMetadata(true);
+  };
+
+  const handleGrabMetadataSuccess = () => {
+    // Refresh the page data after successful metadata grab
+    fetchData();
   };
 
   const handleCoverChange = (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
@@ -448,8 +459,11 @@ export function IssueDetailPage() {
                 Mark Read
               </button>
             )}
+            <button className="btn-ghost" onClick={handleGrabMetadata}>
+              Grab Metadata
+            </button>
             <button className="btn-ghost" onClick={handleFetchMetadata}>
-              Fetch Metadata
+              Batch Fetch
             </button>
             <QuickCollectionIcons fileId={file.id} size="medium" />
             <CollectionFlyout fileId={file.id} size="medium" align="right" />
@@ -709,9 +723,22 @@ export function IssueDetailPage() {
                 fetchData();
               }}
               onCoverChange={handleCoverChange}
+              onGrabMetadata={() => {
+                setIsEditingMetadata(false);
+                setIsGrabbingMetadata(true);
+              }}
             />
           </div>
         </div>
+      )}
+
+      {/* Issue Metadata Grabber Modal */}
+      {isGrabbingMetadata && fileId && (
+        <IssueMetadataGrabber
+          fileId={fileId}
+          onClose={() => setIsGrabbingMetadata(false)}
+          onSuccess={handleGrabMetadataSuccess}
+        />
       )}
     </div>
   );
