@@ -6,6 +6,10 @@
  *
  * ComicVine's volume (series) endpoint only returns creators without role info.
  * This service fetches issue data and aggregates person_credits by role.
+ *
+ * NOTE: The ComicVine /issues/ bulk endpoint does NOT return person_credits
+ * even when requested - credits are only available via individual /issue/{id}/ calls.
+ * This service fetches issues individually to get the credit information.
  */
 
 import * as comicVine from './comicvine.service.js';
@@ -71,10 +75,64 @@ function matchRole(roleString: string): keyof CreatorsByRole | null {
 // =============================================================================
 
 /**
+ * Helper to delay execution (for rate limiting)
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetch issues in parallel batches with rate limiting
+ *
+ * @param issueIds - Array of issue IDs to fetch
+ * @param batchSize - Number of issues to fetch in parallel (default: 5)
+ * @param delayBetweenBatches - Delay in ms between batches (default: 200)
+ * @param sessionId - Optional session ID for request tracking
+ */
+async function fetchIssuesInBatches(
+  issueIds: number[],
+  batchSize: number = 5,
+  delayBetweenBatches: number = 200,
+  sessionId?: string
+): Promise<Array<Awaited<ReturnType<typeof comicVine.getIssue>>>> {
+  const results: Array<Awaited<ReturnType<typeof comicVine.getIssue>>> = [];
+
+  for (let i = 0; i < issueIds.length; i += batchSize) {
+    const batch = issueIds.slice(i, i + batchSize);
+
+    // Fetch batch in parallel
+    const batchResults = await Promise.all(
+      batch.map((issueId) =>
+        comicVine.getIssue(issueId, sessionId).catch((err) => {
+          logger.warn({ issueId, error: err }, 'Failed to fetch issue, skipping');
+          return null;
+        })
+      )
+    );
+
+    results.push(...batchResults);
+
+    // Delay between batches to avoid rate limiting
+    if (i + batchSize < issueIds.length) {
+      await delay(delayBetweenBatches);
+    }
+  }
+
+  return results;
+}
+
+/**
  * Aggregate creator roles from issue-level ComicVine data
  *
  * Fetches issues for a volume and extracts person_credits, grouping
  * creators by their roles (writer, penciller, inker, etc.)
+ *
+ * NOTE: This function must fetch each issue individually because the
+ * ComicVine /issues/ bulk endpoint does NOT return person_credits.
+ * Credits are only available via individual /issue/{id}/ calls.
+ *
+ * Uses parallel batch fetching for efficiency (5 issues at a time with
+ * 200ms delay between batches to respect rate limits).
  *
  * @param volumeId - ComicVine volume ID
  * @param options - Aggregation options
@@ -111,25 +169,35 @@ export async function aggregateCreatorRolesFromIssues(
   };
 
   try {
-    // Fetch issues for the volume (already includes person_credits)
+    // First, get the list of issue IDs from the volume
+    // The bulk endpoint returns basic issue info but NOT person_credits
     const issuesResponse = await comicVine.getVolumeIssues(volumeId, {
       limit: maxIssues,
       sessionId,
     });
 
-    logger.debug(
-      { volumeId, issueCount: issuesResponse.results.length, total: issuesResponse.total },
-      'Fetched issues for aggregation'
+    const issueIds = issuesResponse.results.map((issue) => issue.id).slice(0, maxIssues);
+    const totalIssues = issueIds.length;
+
+    logger.info(
+      { volumeId, issueCount: totalIssues, total: issuesResponse.total },
+      'Fetching individual issues for creator credits (parallel batches)'
     );
 
-    // Process each issue's person_credits
-    for (const issue of issuesResponse.results) {
-      const credits = issue.person_credits || [];
+    // Fetch issues in parallel batches (5 at a time, 200ms between batches)
+    // For 50 issues: ~10 batches * 200ms = ~2 seconds (vs ~5 seconds sequential)
+    const issues = await fetchIssuesInBatches(issueIds, 5, 200, sessionId);
 
-      for (const credit of credits) {
-        const role = matchRole(credit.role);
-        if (role) {
-          uniqueCreators[role].add(credit.name);
+    // Process credits from all fetched issues
+    let fetchedCount = 0;
+    for (const issue of issues) {
+      if (issue?.person_credits) {
+        fetchedCount++;
+        for (const credit of issue.person_credits) {
+          const role = matchRole(credit.role);
+          if (role) {
+            uniqueCreators[role].add(credit.name);
+          }
         }
       }
     }
@@ -142,6 +210,7 @@ export async function aggregateCreatorRolesFromIssues(
     logger.info(
       {
         volumeId,
+        issuesFetched: fetchedCount,
         writers: result.writer.length,
         pencillers: result.penciller.length,
         inkers: result.inker.length,
