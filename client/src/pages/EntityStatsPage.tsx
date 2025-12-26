@@ -19,6 +19,7 @@ import {
   RelatedEntity,
   RelatedSeries,
 } from '../services/api.service';
+import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import './EntityStatsPage.css';
 
 // =============================================================================
@@ -238,6 +239,7 @@ export function EntityStatsPage() {
   const { entityType, entityName } = useParams<{ entityType: string; entityName: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setBreadcrumbs } = useBreadcrumbs();
 
   const entityRole = searchParams.get('role') || undefined;
   const libraryId = searchParams.get('libraryId') || undefined;
@@ -270,6 +272,20 @@ export function EntityStatsPage() {
 
     fetchDetails();
   }, [entityType, entityName, entityRole, libraryId]);
+
+  // Set breadcrumbs when details load
+  useEffect(() => {
+    if (details && entityType && entityName) {
+      setBreadcrumbs([
+        { label: 'Statistics', path: '/stats' },
+        { label: getEntityTypeLabel(details.entityType) + 's', path: '/stats' },
+        {
+          label: decodeURIComponent(entityName),
+          path: `/stats/${entityType}/${entityName}`,
+        },
+      ]);
+    }
+  }, [details, entityType, entityName, setBreadcrumbs]);
 
   const handleComicClick = (comic: EntityComic) => {
     navigate(`/issue/${comic.fileId}`);

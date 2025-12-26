@@ -19,6 +19,7 @@ import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffe
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { DownloadProvider } from './contexts/DownloadContext';
+import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import { DownloadNotificationBar } from './components/DownloadNotificationBar/DownloadNotificationBar';
 import { DownloadConfirmationModal } from './components/DownloadConfirmationModal/DownloadConfirmationModal';
 import { SidebarNew, StatusBar } from './components/Layout';
@@ -418,7 +419,8 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
-          <LibraryScanProvider>
+          <BreadcrumbProvider>
+            <LibraryScanProvider>
             <SmartFilterProvider>
               <CollectionsProvider>
                 <WantToReadProvider>
@@ -439,7 +441,8 @@ function App() {
                 </WantToReadProvider>
               </CollectionsProvider>
             </SmartFilterProvider>
-          </LibraryScanProvider>
+            </LibraryScanProvider>
+          </BreadcrumbProvider>
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>

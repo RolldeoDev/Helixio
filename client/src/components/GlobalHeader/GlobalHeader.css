@@ -284,6 +284,12 @@
   gap: 6px;
 }
 
+.breadcrumb-segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .breadcrumb-item {
   font-size: 12px;
   font-family: var(--font-body);
@@ -293,6 +299,9 @@
   padding: 0;
   cursor: default;
   white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .breadcrumb-root {
@@ -315,6 +324,39 @@
 .breadcrumb-current {
   color: var(--color-text);
   font-weight: 500;
+}
+
+/* Clickable intermediate segments */
+.breadcrumb-link {
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.breadcrumb-link:hover {
+  color: var(--color-text);
+}
+
+/* Loading placeholder animation */
+.breadcrumb-loading {
+  display: inline-block;
+  width: 60px;
+  height: 12px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: breadcrumb-shimmer 1.5s infinite;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+@keyframes breadcrumb-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* =============================================================================

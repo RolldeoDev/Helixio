@@ -229,7 +229,9 @@ export function CreatorCredits({
 
   return (
     <div className={`creator-credits ${isExpanded ? 'creator-credits--expanded' : ''} ${className}`}>
-      <h3 className="creator-credits__title">Credits</h3>
+      <div className="creator-credits__header">
+        <h3 className="creator-credits__title">Credits</h3>
+      </div>
 
       <div className="creator-credits__grid">
         {/* Primary roles */}

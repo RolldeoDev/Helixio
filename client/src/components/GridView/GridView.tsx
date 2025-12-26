@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
+import { NavigationOrigin } from '../../contexts/BreadcrumbContext';
 import { renameFile, rebuildCache, getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CoverSizeSlider } from '../CoverSizeSlider';
@@ -229,8 +230,13 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     }
 
     // Plain click (no modifiers) - navigate to issue detail
-    navigate(`/issue/${fileId}`);
-  }, [lastSelectedFileId, selectRange, selectFile, onFileSelect, navigate]);
+    const navState: NavigationOrigin = {
+      from: 'library',
+      libraryId: selectedLibrary?.id,
+      libraryName: isAllLibraries ? 'All Libraries' : selectedLibrary?.name,
+    };
+    navigate(`/issue/${fileId}`, { state: navState });
+  }, [lastSelectedFileId, selectRange, selectFile, onFileSelect, navigate, selectedLibrary, isAllLibraries]);
 
   // Handle card double click
   const handleCardDoubleClick = useCallback((fileId: string) => {

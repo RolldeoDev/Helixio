@@ -43,6 +43,13 @@ function mangaToSeriesMetadata(manga: anilist.AniListManga): SeriesMetadata {
         staff.push({
           id: edge.node.id,
           name: edge.node.name.full,
+          nativeName: edge.node.name.native || undefined,
+          alternativeNames:
+            edge.node.name.alternative?.length > 0
+              ? edge.node.name.alternative
+              : undefined,
+          profileUrl: edge.node.siteUrl,
+          imageUrl: edge.node.image?.large || edge.node.image?.medium || undefined,
         });
       }
     }

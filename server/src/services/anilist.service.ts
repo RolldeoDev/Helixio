@@ -62,11 +62,13 @@ export interface AniListStaffEdge {
     name: {
       full: string;
       native: string | null;
+      alternative: string[];  // Pen names, other names
     };
     image: {
       large: string | null;
       medium: string | null;
     } | null;
+    siteUrl: string;  // AniList profile URL
   };
 }
 
@@ -216,11 +218,13 @@ query ($search: String, $page: Int, $perPage: Int) {
             name {
               full
               native
+              alternative
             }
             image {
               large
               medium
             }
+            siteUrl
           }
         }
       }
@@ -301,11 +305,13 @@ query ($id: Int) {
           name {
             full
             native
+            alternative
           }
           image {
             large
             medium
           }
+          siteUrl
         }
       }
     }

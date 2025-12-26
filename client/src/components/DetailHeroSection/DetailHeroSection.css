@@ -1,0 +1,112 @@
+/* =============================================================================
+   DetailHeroSection Styles
+
+   Shared backdrop and container for detail page hero sections.
+   Provides dynamic gradient from cover colors and positions content above.
+   ============================================================================= */
+
+.detail-hero-section {
+  /* Default color values (dark fallback) */
+  --hero-color-r: 30;
+  --hero-color-g: 30;
+  --hero-color-b: 40;
+
+  position: relative;
+  z-index: 1; /* Ensure hero section and its dropdowns stack above content below */
+  padding: var(--spacing-xl) var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  margin: calc(-1 * var(--spacing-lg));
+  margin-bottom: var(--spacing-xl);
+  overflow: visible; /* Allow dropdowns to overflow; backdrop handles its own clipping */
+  min-height: 400px;
+}
+
+/* =============================================================================
+   Backdrop & Gradient
+   ============================================================================= */
+
+.detail-hero-section__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.detail-hero-section__gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgb(var(--hero-color-r), var(--hero-color-g), var(--hero-color-b)) 0%,
+    rgba(var(--hero-color-r), var(--hero-color-g), var(--hero-color-b), 0.95) 20%,
+    rgba(var(--hero-color-r), var(--hero-color-g), var(--hero-color-b), 0.7) 50%,
+    var(--color-bg) 100%
+  );
+  transition: background 0.5s ease-out;
+}
+
+/* Subtle noise texture for depth */
+.detail-hero-section__noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  pointer-events: none;
+}
+
+/* Add subtle glow when color is extracted */
+.detail-hero-section--has-color .detail-hero-section__gradient::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 150%;
+  height: 100%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(var(--hero-color-r), var(--hero-color-g), var(--hero-color-b), 0.4) 0%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  animation: detailHeroGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes detailHeroGlow {
+  from {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(1);
+  }
+  to {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-hero-section--has-color .detail-hero-section__gradient::before {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* =============================================================================
+   Content Container
+   ============================================================================= */
+
+.detail-hero-section__content {
+  position: relative;
+  z-index: 1;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .detail-hero-section {
+    padding: var(--spacing-lg) var(--spacing-md);
+    min-height: auto;
+  }
+}

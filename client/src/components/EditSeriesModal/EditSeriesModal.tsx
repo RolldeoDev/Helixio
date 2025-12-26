@@ -22,6 +22,7 @@ import {
   uploadSeriesCover,
   getApiCoverUrl,
   aggregateSeriesCreators,
+  getSeriesCreatorsFromIssues,
   // Metadata fetch imports
   MetadataSource,
   SeriesMetadataPayload,
@@ -393,6 +394,10 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
 
   // State for fetching creator roles
   const [fetchingCreators, setFetchingCreators] = useState(false);
+  // State for creator source selection ('api' = ComicVine/Metron, 'issues' = local FileMetadata)
+  const [creatorSourceSelection, setCreatorSourceSelection] = useState<'api' | 'issues'>(
+    (state.originalSeries?.creatorSource as 'api' | 'issues') || 'api'
+  );
 
   const handleCoverChange = useCallback(
     (source: 'api' | 'user' | 'auto', fileId: string | null, url: string | null) => {
@@ -433,15 +438,40 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
   // =============================================================================
 
   const handleFetchCreatorRoles = useCallback(async () => {
-    const comicVineId = state.editedSeries.comicVineId;
-    if (!seriesId || !comicVineId) return;
+    if (!seriesId) return;
+
+    // For API source, require external ID
+    if (creatorSourceSelection === 'api' && !state.editedSeries.comicVineId) {
+      dispatch({
+        type: 'SET_ERROR',
+        error: 'Series must be linked to ComicVine to fetch from API. Use "Fetch Metadata" first.',
+      });
+      return;
+    }
 
     setFetchingCreators(true);
     try {
-      const result = await aggregateSeriesCreators(seriesId);
+      let creatorsWithRoles: {
+        writer?: string[];
+        penciller?: string[];
+        inker?: string[];
+        colorist?: string[];
+        letterer?: string[];
+        coverArtist?: string[];
+        editor?: string[];
+      };
+
+      if (creatorSourceSelection === 'api') {
+        // Fetch from ComicVine API
+        const result = await aggregateSeriesCreators(seriesId);
+        creatorsWithRoles = result.creatorsWithRoles;
+      } else {
+        // Fetch from local issue metadata (FileMetadata/ComicInfo.xml)
+        const result = await getSeriesCreatorsFromIssues(seriesId);
+        creatorsWithRoles = result.creatorsWithRoles;
+      }
 
       // Update the individual role fields from the aggregated data
-      const { creatorsWithRoles } = result;
       if (creatorsWithRoles.writer?.length) {
         dispatch({ type: 'UPDATE_FIELD', field: 'writer', value: creatorsWithRoles.writer.join(', ') });
       }
@@ -463,6 +493,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
       if (creatorsWithRoles.editor?.length) {
         dispatch({ type: 'UPDATE_FIELD', field: 'editor', value: creatorsWithRoles.editor.join(', ') });
       }
+
+      // Also update the creatorSource field so it persists
+      dispatch({ type: 'UPDATE_FIELD', field: 'creatorSource', value: creatorSourceSelection });
     } catch (err) {
       dispatch({
         type: 'SET_ERROR',
@@ -471,7 +504,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
     } finally {
       setFetchingCreators(false);
     }
-  }, [seriesId, state.editedSeries.comicVineId]);
+  }, [seriesId, state.editedSeries.comicVineId, creatorSourceSelection]);
 
   // =============================================================================
   // Validation
@@ -1102,22 +1135,43 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
 
               {/* Creators Section */}
               <CollapsibleSection title="Creators" defaultExpanded={false}>
-                {/* Fetch Creator Roles Button */}
-                {series.comicVineId && (
-                  <div className="section-action-row">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={handleFetchCreatorRoles}
-                      disabled={fetchingCreators}
-                    >
-                      {fetchingCreators ? 'Fetching...' : 'Fetch Creator Roles from ComicVine'}
-                    </button>
-                    <span className="section-action-hint">
-                      Aggregates roles from issue-level data
-                    </span>
+                {/* Creator Source Selector and Fetch Button */}
+                <div className="section-action-row creator-source-row">
+                  <div className="creator-source-selector">
+                    <span className="creator-source-label">Source:</span>
+                    <div className="creator-source-toggle">
+                      <button
+                        type="button"
+                        className={`creator-source-option ${creatorSourceSelection === 'api' ? 'active' : ''}`}
+                        onClick={() => setCreatorSourceSelection('api')}
+                        disabled={fetchingCreators}
+                      >
+                        API
+                      </button>
+                      <button
+                        type="button"
+                        className={`creator-source-option ${creatorSourceSelection === 'issues' ? 'active' : ''}`}
+                        onClick={() => setCreatorSourceSelection('issues')}
+                        disabled={fetchingCreators}
+                      >
+                        Issue Data
+                      </button>
+                    </div>
                   </div>
-                )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleFetchCreatorRoles}
+                    disabled={fetchingCreators}
+                  >
+                    {fetchingCreators ? 'Fetching...' : 'Fetch Creator Roles'}
+                  </button>
+                  <span className="section-action-hint">
+                    {creatorSourceSelection === 'api'
+                      ? 'Aggregates from ComicVine issue data'
+                      : 'Aggregates from local ComicInfo.xml files'}
+                  </span>
+                </div>
                 <div className="section-fields two-column">
                   <TagInput
                     fieldName="creators"

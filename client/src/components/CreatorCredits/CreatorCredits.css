@@ -11,6 +11,20 @@
   gap: var(--spacing-md);
 }
 
+/* =============================================================================
+   Header with Source Toggle
+   ============================================================================= */
+
+.creator-credits__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
 .creator-credits__title {
   font-family: var(--font-display);
   font-size: 0.6875rem;
@@ -19,8 +33,13 @@
   text-transform: uppercase;
   letter-spacing: 0.12em;
   margin: 0;
-  padding-bottom: var(--spacing-xs);
-  border-bottom: 1px solid var(--color-border);
+  /* Remove padding/border since header now handles it */
+}
+
+/* When header is present, title doesn't need bottom border */
+.creator-credits__header .creator-credits__title {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* =============================================================================

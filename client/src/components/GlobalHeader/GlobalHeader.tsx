@@ -5,11 +5,19 @@
  * Hidden on the reader page for immersive reading.
  */
 
+import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useBreadcrumbs } from '../../contexts/BreadcrumbContext';
 import { GlobalSearchBar } from './GlobalSearchBar';
 import './GlobalHeader.css';
+
+// Truncate text with ellipsis
+function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 1) + '\u2026';
+}
 
 // Route to display name mapping
 const ROUTE_LABELS: Record<string, string> = {
@@ -56,14 +64,20 @@ export function GlobalHeader() {
   const navigate = useNavigate();
   const { selectedLibrary, libraries, isAllLibraries } = useApp();
   const { user, isAuthenticated } = useAuth();
+  const { segments, clearBreadcrumbs } = useBreadcrumbs();
+
+  // Clear breadcrumbs when route changes - pages will set their own
+  useEffect(() => {
+    clearBreadcrumbs();
+  }, [location.pathname, clearBreadcrumbs]);
 
   // Hide on reader pages for immersive fullscreen reading
   if (location.pathname.startsWith('/read/')) {
     return null;
   }
 
-  // Build breadcrumb from current path
-  const getBreadcrumb = () => {
+  // Get fallback breadcrumb label from current path (used when no context segments)
+  const getFallbackLabel = () => {
     const path = location.pathname;
 
     // Check exact matches first
@@ -76,10 +90,10 @@ export function GlobalHeader() {
       return 'Library';
     }
     if (path.startsWith('/series/')) {
-      return 'Series Detail';
+      return 'Series';
     }
     if (path.startsWith('/issue/')) {
-      return 'Issue Detail';
+      return 'Issue';
     }
     if (path.startsWith('/stats/')) {
       return 'Statistics';
@@ -121,12 +135,47 @@ export function GlobalHeader() {
           >
             Helixio
           </button>
-          <span className="breadcrumb-separator">
-            <ChevronIcon />
-          </span>
-          <span className="breadcrumb-item breadcrumb-current">
-            {getBreadcrumb()}
-          </span>
+
+          {segments.length > 0 ? (
+            // Dynamic breadcrumbs from context
+            segments.map((segment, index) => (
+              <span key={segment.path} className="breadcrumb-segment">
+                <span className="breadcrumb-separator">
+                  <ChevronIcon />
+                </span>
+                {index === segments.length - 1 ? (
+                  // Last segment - current page, not clickable
+                  <span className="breadcrumb-item breadcrumb-current" title={segment.label}>
+                    {segment.isLoading ? (
+                      <span className="breadcrumb-loading" />
+                    ) : (
+                      truncate(segment.label, 30)
+                    )}
+                  </span>
+                ) : (
+                  // Intermediate segment - clickable
+                  <button
+                    className="breadcrumb-item breadcrumb-link"
+                    onClick={() => navigate(segment.path)}
+                    type="button"
+                    title={segment.label}
+                  >
+                    {truncate(segment.label, 25)}
+                  </button>
+                )}
+              </span>
+            ))
+          ) : (
+            // Fallback to static label
+            <>
+              <span className="breadcrumb-separator">
+                <ChevronIcon />
+              </span>
+              <span className="breadcrumb-item breadcrumb-current">
+                {getFallbackLabel()}
+              </span>
+            </>
+          )}
         </nav>
       </div>
 

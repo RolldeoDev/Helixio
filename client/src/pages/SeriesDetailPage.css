@@ -48,69 +48,60 @@
 }
 
 /* =============================================================================
-   Two-Column Content Grid
+   Hero Grid (Two-Column Layout inside DetailHeroSection)
    ============================================================================= */
 
-/* 75/25 split layout for description + metadata sidebar */
-.series-content-grid {
-  position: relative;
+.series-hero-grid {
   display: grid;
   grid-template-columns: 3fr 1fr;
   gap: var(--spacing-2xl);
-  margin-bottom: var(--spacing-xl);
-  padding: var(--spacing-xl);
-  border-radius: var(--radius-lg);
-  isolation: isolate;
-}
-
-/* Semi-transparent background using pseudo-element to not affect children */
-.series-content-grid::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--color-bg-card);
-  opacity: 0.88;
-  backdrop-filter: blur(12px);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.08),
-    0 4px 12px rgba(0, 0, 0, 0.04),
-    inset 0 0 0 1px var(--color-border-subtle);
-  z-index: -1;
+  align-items: start;
 }
 
 @media (max-width: 1024px) {
-  .series-content-grid {
+  .series-hero-grid {
     grid-template-columns: 2fr 1fr;
     gap: var(--spacing-xl);
   }
 }
 
 @media (max-width: 768px) {
-  .series-content-grid {
+  .series-hero-grid {
     grid-template-columns: 1fr;
     gap: var(--spacing-lg);
   }
 }
 
-/* Main content column (Description, Creators) */
-.series-content-main {
+/* Main Column (Hero + Description + Creators) */
+.series-hero-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xl);
-  min-width: 0;
+  align-self: start;
+  margin: 0;
+  padding: 0;
 }
 
-/* Sidebar column (All metadata) */
-.series-content-sidebar {
+/* Sidebar Column */
+.series-hero-sidebar {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  align-self: start;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
-  .series-content-sidebar {
-    order: -1; /* Show metadata above description on mobile */
+  .series-hero-sidebar {
+    order: 4; /* After hero, description, creators on mobile */
+    position: static;
+    background: rgba(0, 0, 0, 0.2);
   }
 }
 

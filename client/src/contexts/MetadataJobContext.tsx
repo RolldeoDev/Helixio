@@ -262,6 +262,8 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
   const [lastCompletedJobAt, setLastCompletedJobAt] = useState<number | null>(null);
 
   const initializingRef = useRef(false);
+  // Track when user is navigating back to series selection to prevent polling race conditions
+  const navigatingToSeriesRef = useRef(false);
 
   // Load active jobs on mount and auto-detect existing in-progress jobs
   useEffect(() => {
@@ -317,6 +319,13 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
         // don't let polling revert us back to 'options' - the server just hasn't
         // processed the queue yet. Wait for actual progress.
         if (initializingRef.current && newStep === 'options') {
+          return;
+        }
+
+        // If user is navigating back to series selection, don't let polling
+        // overwrite the step with stale data. The navigation callback will
+        // update the step with fresh data from the API response.
+        if (navigatingToSeriesRef.current) {
           return;
         }
 
@@ -606,6 +615,10 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
 
   const resetSeriesSelection = useCallback(async (seriesGroupIndex: number) => {
     if (!jobId) return;
+
+    // Set flag to prevent polling from overwriting state during navigation
+    navigatingToSeriesRef.current = true;
+
     try {
       // Use navigate (not reset) to keep current selection visible
       const { job } = await navigateToJobSeriesGroup(jobId, seriesGroupIndex);
@@ -617,6 +630,9 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
       });
     } catch (err) {
       console.error('Failed to navigate to series selection:', err);
+    } finally {
+      // Clear the flag after navigation completes (success or error)
+      navigatingToSeriesRef.current = false;
     }
   }, [jobId, updateStepFromStatus, addStepLog]);
 

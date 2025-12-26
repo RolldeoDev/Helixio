@@ -1151,6 +1151,12 @@
   gap: 1px;
 }
 
+/* Ensure series-approval-step styles take precedence over SeriesMetadataSearchModal */
+.series-approval-step .result-info {
+  flex: 1;
+  min-width: 0;
+}
+
 .result-name {
   font-weight: 500;
   font-size: 0.9rem;
@@ -1168,13 +1174,29 @@
 
 .result-details {
   display: flex;
+  align-items: center;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
+  row-gap: 2px;
 }
 
 .result-details .detail {
   font-size: 0.75rem;
   color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Override bullet separators from SeriesMetadataSearchModal.css that bleed into this component */
+.series-approval-step .result-details .detail::after,
+.series-result .result-details .detail::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Add proper separators with consistent spacing */
+.series-approval-step .result-details .detail:not(:last-child) {
+  padding-right: var(--spacing-xs);
+  border-right: 1px solid var(--color-border);
 }
 
 .result-details .publisher {
@@ -1221,6 +1243,14 @@
   align-items: center;
   gap: var(--spacing-sm);
   width: 100%;
+}
+
+/* Ensure series-approval-step layout is enforced */
+.series-approval-step .series-result-main {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 /* Details toggle button - opens the series detail drawer */
@@ -1403,6 +1433,11 @@
   color: var(--color-primary);
   padding: 0 4px;
   border-radius: 2px;
+}
+
+/* Issue count */
+.result-details .issue-count {
+  white-space: nowrap;
 }
 
 /* ==========================================================================

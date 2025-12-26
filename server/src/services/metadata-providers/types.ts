@@ -50,6 +50,11 @@ export interface Credit {
   id: number;
   name: string;
   count?: number;
+  // Extended fields (currently populated by AniList)
+  alternativeNames?: string[];  // Pen names, aliases
+  nativeName?: string;          // Name in native language (e.g., Japanese)
+  profileUrl?: string;          // Link to source profile page
+  imageUrl?: string;            // Portrait/avatar image
 }
 
 // =============================================================================

@@ -78,6 +78,9 @@ model Series {
   // Structured creator data aggregated from issues (JSON: { writer: ["Name"], penciller: ["Name"], ... })
   creatorsJson  String?
 
+  // Creator display source preference: "api" = use API data, "issues" = aggregate from local issue metadata
+  creatorSource String  @default("api")  // "api" | "issues"
+
   // Cover management (Smart Fallback: API > User > First Issue)
   coverSource   String  @default("auto")  // "api" | "user" | "auto"
   coverUrl      String?                   // API-provided cover URL (kept for reference/re-download)
@@ -680,6 +683,8 @@ model ReaderSettings {
   showPageShadow  Boolean @default(true)
   autoHideUI      Boolean @default(true)
   preloadCount    Int     @default(3)        // Number of pages to preload ahead
+  webtoonGap      Int     @default(8)        // Gap between pages in webtoon mode (px)
+  webtoonMaxWidth Int     @default(800)      // Max width for webtoon images (px)
   updatedAt       DateTime @updatedAt
 }
 

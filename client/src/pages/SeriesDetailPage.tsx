@@ -38,6 +38,7 @@ import {
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useDownloads } from '../contexts/DownloadContext';
+import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
 import {
   CoverCard,
   SERIES_ISSUE_MENU_ITEMS,
@@ -52,6 +53,7 @@ import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
+import { DetailHeroSection } from '../components/DetailHeroSection';
 import { SeriesHero } from '../components/SeriesHero';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
@@ -176,6 +178,7 @@ export function SeriesDetailPage() {
   const navigate = useNavigate();
   const { startJob, lastCompletedJobAt } = useMetadataJob();
   const { requestSeriesDownload, requestBulkDownload } = useDownloads();
+  const { setBreadcrumbs } = useBreadcrumbs();
 
   const [series, setSeries] = useState<Series | null>(null);
   const [issues, setIssues] = useState<SeriesIssue[]>([]);
@@ -259,6 +262,16 @@ export function SeriesDetailPage() {
     }
   }, [lastCompletedJobAt, fetchSeries]);
 
+  // Set breadcrumbs when series data loads
+  useEffect(() => {
+    if (series && seriesId) {
+      setBreadcrumbs([
+        { label: 'Series', path: '/series' },
+        { label: series.name, path: `/series/${seriesId}` },
+      ]);
+    }
+  }, [series, seriesId, setBreadcrumbs]);
+
   // Check if description needs truncation (now 6-8 lines)
   useEffect(() => {
     if (descriptionRef.current) {
@@ -318,8 +331,13 @@ export function SeriesDetailPage() {
     }
 
     // Plain click (no modifiers) - navigate to issue detail
-    navigate(`/issue/${fileId}`);
-  }, [navigate]);
+    const navState: NavigationOrigin = {
+      from: 'series',
+      seriesId: seriesId,
+      seriesName: series?.name,
+    };
+    navigate(`/issue/${fileId}`, { state: navState });
+  }, [navigate, seriesId, series?.name]);
 
   // Handle selection change from checkbox
   const handleSelectionChange = useCallback((fileId: string, selected: boolean) => {
@@ -740,22 +758,128 @@ export function SeriesDetailPage() {
   const hasCreatorsJson = creatorsWithRoles && Object.values(creatorsWithRoles).some((arr: string[] | undefined) => arr && arr.length > 0);
   const hasCreatorsLegacy = series.creators && series.creators.trim().length > 0;
   const hasCreators = hasCreatorsJson || hasCreatorsLegacy;
-  const hasSidebar = hasTags || hasEntities;
-  const hasMainContent = hasDescription || hasCreators;
+  const _hasSidebar = hasTags || hasEntities;
+  void _hasSidebar; // Used for future conditional rendering
+  const _hasMainContent = hasDescription || hasCreators;
+  void _hasMainContent; // Used for future conditional rendering
 
   return (
     <div className="series-detail-page">
-      {/* Hero Section */}
-      <SeriesHero
-        series={series}
-        coverUrl={coverUrl}
-        issues={issues}
-        nextIssue={nextIssue}
-        actionItems={SERIES_ACTION_ITEMS}
-        onContinueReading={handleContinueReading}
-        onSeriesAction={handleSeriesAction}
-        onBackClick={() => navigate('/series')}
-      />
+      {/* Hero Section with Two-Column Layout */}
+      <DetailHeroSection coverUrl={coverUrl}>
+        <div className="series-hero-grid">
+          {/* Main column (75%): Hero + Description + Creators */}
+          <div className="series-hero-main">
+            {/* Hero Content */}
+            <SeriesHero
+              series={series}
+              coverUrl={coverUrl}
+              issues={issues}
+              nextIssue={nextIssue}
+              actionItems={SERIES_ACTION_ITEMS}
+              onContinueReading={handleContinueReading}
+              onSeriesAction={handleSeriesAction}
+            />
+
+            {/* Description */}
+            {hasDescription && (
+              <div className="series-description-section">
+                <h3 className="series-section-title">About</h3>
+                <div
+                  ref={descriptionRef}
+                  className={`series-description-content ${isDescriptionExpanded ? 'series-description-content--expanded' : descriptionNeedsTruncation ? 'series-description-content--clamped' : ''}`}
+                >
+                  <MarkdownContent content={series.summary!} className="series-summary-text" />
+                </div>
+                {descriptionNeedsTruncation && (
+                  <button
+                    className="series-description-toggle"
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    aria-expanded={isDescriptionExpanded}
+                  >
+                    {isDescriptionExpanded ? 'Show less' : 'Read more'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Creators */}
+            {hasCreators && (
+              <div className="series-creators-section">
+                <CreatorCredits
+                  creatorsWithRoles={creatorsWithRoles}
+                  creators={series.creators}
+                  expandable={true}
+                  maxPrimary={6}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Sidebar column (25%): All metadata */}
+          <aside className="series-hero-sidebar">
+            {/* Genres */}
+            {genreList.length > 0 && (
+              <ExpandablePillSection
+                title="Genres"
+                items={genreList}
+                variant="genre"
+                maxVisible={8}
+              />
+            )}
+
+            {/* Tags */}
+            {tagList.length > 0 && (
+              <ExpandablePillSection
+                title="Tags"
+                items={tagList}
+                variant="tag"
+                maxVisible={8}
+              />
+            )}
+
+            {/* Characters */}
+            {characterList.length > 0 && (
+              <ExpandablePillSection
+                title="Characters"
+                items={characterList}
+                variant="character"
+                maxVisible={8}
+              />
+            )}
+
+            {/* Teams */}
+            {teamList.length > 0 && (
+              <ExpandablePillSection
+                title="Teams"
+                items={teamList}
+                variant="team"
+                maxVisible={6}
+              />
+            )}
+
+            {/* Locations */}
+            {locationList.length > 0 && (
+              <ExpandablePillSection
+                title="Locations"
+                items={locationList}
+                variant="location"
+                maxVisible={6}
+              />
+            )}
+
+            {/* Story Arcs */}
+            {storyArcList.length > 0 && (
+              <ExpandablePillSection
+                title="Story Arcs"
+                items={storyArcList}
+                variant="arc"
+                maxVisible={6}
+              />
+            )}
+          </aside>
+        </div>
+      </DetailHeroSection>
 
       {/* Related Series Section - Shows parent and child series */}
       {(parentSeries.length > 0 || childSeries.length > 0) && (
@@ -821,113 +945,6 @@ export function SeriesDetailPage() {
                   />
                 ))}
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 75/25 Content Layout: Description + Sidebar */}
-      {(hasMainContent || hasSidebar) && (
-        <div className="series-content-grid">
-          {/* Left column (75%): Description + Creators */}
-          <div className="series-content-main">
-            {/* Description */}
-            {hasDescription && (
-              <div className="series-description-section">
-                <h3 className="series-section-title">About</h3>
-                <div
-                  ref={descriptionRef}
-                  className={`series-description-content ${isDescriptionExpanded ? 'series-description-content--expanded' : descriptionNeedsTruncation ? 'series-description-content--clamped' : ''}`}
-                >
-                  <MarkdownContent content={series.summary!} className="series-summary-text" />
-                </div>
-                {descriptionNeedsTruncation && (
-                  <button
-                    className="series-description-toggle"
-                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                    aria-expanded={isDescriptionExpanded}
-                  >
-                    {isDescriptionExpanded ? 'Show less' : 'Read more'}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Creators */}
-            {hasCreators && (
-              <div className="series-creators-section">
-                <CreatorCredits
-                  creatorsWithRoles={creatorsWithRoles}
-                  creators={series.creators}
-                  expandable={true}
-                  maxPrimary={6}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Right column (25%): All metadata */}
-          {hasSidebar && (
-            <div className="series-content-sidebar">
-              {/* Genres */}
-              {genreList.length > 0 && (
-                <ExpandablePillSection
-                  title="Genres"
-                  items={genreList}
-                  variant="genre"
-                  maxVisible={8}
-                />
-              )}
-
-              {/* Tags */}
-              {tagList.length > 0 && (
-                <ExpandablePillSection
-                  title="Tags"
-                  items={tagList}
-                  variant="tag"
-                  maxVisible={8}
-                />
-              )}
-
-              {/* Characters */}
-              {characterList.length > 0 && (
-                <ExpandablePillSection
-                  title="Characters"
-                  items={characterList}
-                  variant="character"
-                  maxVisible={8}
-                />
-              )}
-
-              {/* Teams */}
-              {teamList.length > 0 && (
-                <ExpandablePillSection
-                  title="Teams"
-                  items={teamList}
-                  variant="team"
-                  maxVisible={6}
-                />
-              )}
-
-              {/* Locations */}
-              {locationList.length > 0 && (
-                <ExpandablePillSection
-                  title="Locations"
-                  items={locationList}
-                  variant="location"
-                  maxVisible={6}
-                />
-              )}
-
-              {/* Story Arcs */}
-              {storyArcList.length > 0 && (
-                <ExpandablePillSection
-                  title="Story Arcs"
-                  items={storyArcList}
-                  variant="arc"
-                  maxVisible={6}
-                />
-              )}
             </div>
           )}
         </div>

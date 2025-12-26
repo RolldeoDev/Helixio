@@ -90,6 +90,7 @@ import {
 } from '../services/metadata-invalidation.service.js';
 import {
   aggregateCreatorRolesFromIssues,
+  aggregateCreatorsFromLocalIssues,
   creatorsToJson,
   creatorsToRoleFields,
   hasAnyCreators,
@@ -867,6 +868,31 @@ router.post('/:id/aggregate-creators', asyncHandler(async (req: Request, res: Re
   sendSuccess(res, {
     message: 'Creator roles aggregated successfully',
     creatorsWithRoles,
+  });
+}));
+
+/**
+ * GET /api/series/:id/creators-from-issues
+ * Aggregate creators from local FileMetadata (not from external API)
+ * Returns structured creator data and coverage statistics
+ */
+router.get('/:id/creators-from-issues', asyncHandler(async (req: Request, res: Response) => {
+  const seriesId = req.params.id!;
+  const result = await aggregateCreatorsFromLocalIssues(seriesId);
+
+  if (!result.success) {
+    if (result.error?.includes('not found')) {
+      sendNotFound(res, result.error);
+    } else {
+      sendBadRequest(res, result.error || 'Failed to aggregate creators');
+    }
+    return;
+  }
+
+  sendSuccess(res, {
+    creatorsWithRoles: result.creatorsWithRoles,
+    coverage: result.coverage,
+    source: 'issues',
   });
 }));
 

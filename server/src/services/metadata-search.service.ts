@@ -69,11 +69,16 @@ export interface SearchQuery {
   writer?: string;
 }
 
-/** Credit entry with optional count */
+/** Credit entry with optional count and extended fields */
 export interface SeriesCredit {
   id: number;
   name: string;
   count?: number;
+  // Extended fields (populated by AniList)
+  alternativeNames?: string[];  // Pen names, aliases
+  nativeName?: string;          // Name in native language
+  profileUrl?: string;          // Link to source profile page
+  imageUrl?: string;            // Portrait/avatar image
 }
 
 export interface SeriesMatch {

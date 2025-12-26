@@ -103,46 +103,36 @@ export function SeriesPage() {
   return (
     <div className="series-page">
       <div className="series-page-header">
-        <div className="series-page-title-row">
-          <h1>Series</h1>
-          <button
-            className="find-duplicates-btn"
-            onClick={() => navigate('/series/duplicates')}
-          >
-            Find Duplicates
-          </button>
-        </div>
+        <h1>Series</h1>
 
-        {/* Search */}
-        <div className="series-search">
-          <input
-            type="text"
-            placeholder="Search series..."
-            value={search}
-            onChange={handleSearchChange}
-            onKeyDown={handleSearchKeyDown}
-            className="search-input"
-          />
-          {search && (
-            <button className="search-clear" onClick={() => setSearch('')}>
-              &times;
-            </button>
-          )}
-        </div>
-      </div>
+        {/* Search and Filters */}
+        <div className="series-search-filters">
+          <div className="series-search">
+            <input
+              type="text"
+              placeholder="Search series..."
+              value={search}
+              onChange={handleSearchChange}
+              onKeyDown={handleSearchKeyDown}
+              className="search-input"
+            />
+            {search && (
+              <button className="search-clear" onClick={() => setSearch('')}>
+                &times;
+              </button>
+            )}
+          </div>
 
-      {/* Filters */}
-      <div className="series-filters">
-        <div className="filter-group">
-          <label htmlFor="sort-select">Sort by</label>
           <select
             id="sort-select"
+            className="filter-select"
             value={`${sortBy}-${sortOrder}`}
             onChange={(e) => {
               const [newSortBy, newSortOrder] = e.target.value.split('-') as [SeriesListOptions['sortBy'], 'asc' | 'desc'];
               setSortBy(newSortBy);
               setSortOrder(newSortOrder);
             }}
+            title="Sort by"
           >
             <option value="name-asc">Name (A-Z)</option>
             <option value="name-desc">Name (Z-A)</option>
@@ -152,12 +142,10 @@ export function SeriesPage() {
             <option value="issueCount-desc">Most Issues</option>
             <option value="issueCount-asc">Fewest Issues</option>
           </select>
-        </div>
 
-        <div className="filter-group">
-          <label htmlFor="library-select">Library</label>
           <select
             id="library-select"
+            className="filter-select"
             value={libraryId}
             onChange={(e) => {
               const value = e.target.value;
@@ -168,6 +156,7 @@ export function SeriesPage() {
                 if (lib) selectLibrary(lib);
               }
             }}
+            title="Library"
           >
             <option value="">All Libraries</option>
             {libraries.map((lib) => (
@@ -176,14 +165,13 @@ export function SeriesPage() {
               </option>
             ))}
           </select>
-        </div>
 
-        <div className="filter-group">
-          <label htmlFor="publisher-select">Publisher</label>
           <select
             id="publisher-select"
+            className="filter-select"
             value={publisher}
             onChange={(e) => setPublisher(e.target.value)}
+            title="Publisher"
           >
             <option value="">All Publishers</option>
             {publishers.map((p) => (
@@ -192,25 +180,22 @@ export function SeriesPage() {
               </option>
             ))}
           </select>
-        </div>
 
-        <div className="filter-group">
-          <label htmlFor="type-select">Type</label>
           <select
             id="type-select"
+            className="filter-select"
             value={type}
             onChange={(e) => setType(e.target.value as 'western' | 'manga' | '')}
+            title="Type"
           >
             <option value="">All Types</option>
-            <option value="western">Western Comics</option>
+            <option value="western">Western</option>
             <option value="manga">Manga</option>
           </select>
-        </div>
 
-        <div className="filter-group">
-          <label htmlFor="unread-select">Reading Status</label>
           <select
             id="unread-select"
+            className="filter-select"
             value={hasUnread === undefined ? '' : hasUnread ? 'unread' : 'complete'}
             onChange={(e) => {
               if (e.target.value === '') {
@@ -219,18 +204,19 @@ export function SeriesPage() {
                 setHasUnread(e.target.value === 'unread');
               }
             }}
+            title="Reading Status"
           >
-            <option value="">All Series</option>
+            <option value="">All Status</option>
             <option value="unread">Has Unread</option>
             <option value="complete">Complete</option>
           </select>
-        </div>
 
-        {hasActiveFilters && (
-          <button className="clear-filters-btn" onClick={clearFilters}>
-            Clear Filters
-          </button>
-        )}
+          {hasActiveFilters && (
+            <button className="clear-filters-btn" onClick={clearFilters} title="Clear all filters">
+              &times;
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Promoted Collections Section */}

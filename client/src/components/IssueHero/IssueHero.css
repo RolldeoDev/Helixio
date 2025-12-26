@@ -1,11 +1,11 @@
 /* =============================================================================
-   SeriesHero Styles
+   IssueHero Styles
 
-   Hero content for series detail pages.
+   Hero content for issue detail pages.
    Note: Gradient backdrop is now handled by DetailHeroSection wrapper.
    ============================================================================= */
 
-.series-hero {
+.issue-hero {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -17,7 +17,7 @@
    Main Content Layout
    ============================================================================= */
 
-.series-hero__content {
+.issue-hero__content {
   display: flex;
   gap: var(--spacing-xl);
   align-items: flex-start;
@@ -26,7 +26,7 @@
 }
 
 @media (max-width: 768px) {
-  .series-hero__content {
+  .issue-hero__content {
     flex-direction: column;
     align-items: center;
     text-align: center;
@@ -37,12 +37,12 @@
    Cover Image
    ============================================================================= */
 
-.series-hero__cover-wrapper {
+.issue-hero__cover-wrapper {
   position: relative;
   flex-shrink: 0;
 }
 
-.series-hero__cover {
+.issue-hero__cover {
   width: 200px;
   aspect-ratio: 2/3;
   border-radius: var(--radius-lg);
@@ -54,7 +54,7 @@
   transition: transform var(--transition-medium), box-shadow var(--transition-medium);
 }
 
-.series-hero__cover:hover {
+.issue-hero__cover:hover {
   transform: translateY(-4px) scale(1.02);
   box-shadow:
     0 16px 50px rgba(0, 0, 0, 0.5),
@@ -62,13 +62,13 @@
     0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
-.series-hero__cover img {
+.issue-hero__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.series-hero__cover-placeholder {
+.issue-hero__cover-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
@@ -81,37 +81,37 @@
   );
 }
 
-.series-hero__cover-placeholder span {
+.issue-hero__cover-placeholder span {
   font-family: var(--font-display);
   font-size: 4rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.3);
 }
 
-/* Progress ring around cover */
-.series-hero__progress-ring {
+/* Progress badge on cover */
+.issue-hero__progress-badge {
   position: absolute;
   top: -8px;
   right: -8px;
-  width: 40px;
-  height: 40px;
-  transform: rotate(-90deg);
-  z-index: 10;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+  min-width: 40px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-xs);
+  background: var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.series-hero__progress-ring-bg {
-  stroke: rgba(0, 0, 0, 0.5);
-  fill: rgba(0, 0, 0, 0.6);
-}
-
-.series-hero__progress-ring-fill {
-  stroke: var(--color-primary);
-  transition: stroke-dasharray 0.5s ease-out;
+.issue-hero__progress-badge span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
 }
 
 /* Complete badge */
-.series-hero__complete-badge {
+.issue-hero__complete-badge {
   position: absolute;
   top: -8px;
   right: -8px;
@@ -125,14 +125,14 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
-.series-hero__complete-badge svg {
+.issue-hero__complete-badge svg {
   width: 18px;
   height: 18px;
   color: white;
 }
 
 @media (max-width: 768px) {
-  .series-hero__cover {
+  .issue-hero__cover {
     width: 160px;
   }
 }
@@ -141,7 +141,7 @@
    Info Section
    ============================================================================= */
 
-.series-hero__info {
+.issue-hero__info {
   position: relative;
   flex: 1;
   min-width: 0;
@@ -155,7 +155,7 @@
 }
 
 /* Semi-transparent background */
-.series-hero__info::before {
+.issue-hero__info::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -165,92 +165,107 @@
   z-index: -1;
 }
 
-/* Meta line (year, publisher, badges) */
-.series-hero__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-size: 0.875rem;
+/* =============================================================================
+   Title Hierarchy (Issue-specific - inverted from Series)
+   ============================================================================= */
+
+/* Secondary title: Series name + Issue number (smaller, above) */
+.issue-hero__title-secondary {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: var(--spacing-xs);
 }
 
-@media (max-width: 768px) {
-  .series-hero__meta {
-    justify-content: center;
-  }
-}
-
-.series-hero__meta-year {
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 600;
-}
-
-.series-hero__meta-publisher {
+.issue-hero__series-name-link {
   color: var(--color-primary);
   text-decoration: none;
-  font-weight: 500;
   transition: opacity var(--transition-fast);
 }
 
-.series-hero__meta-publisher:hover {
+.issue-hero__series-name-link:hover {
   opacity: 0.8;
   text-decoration: underline;
 }
 
-.series-hero__meta-badge {
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.series-hero__meta-badge.manga {
-  background: var(--color-primary-muted);
-  color: var(--color-primary);
-}
-
-/* Title */
-.series-hero__title {
+/* Primary title: Issue title (large, prominent) */
+.issue-hero__title-primary {
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.2;
   color: white;
   margin: 0;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* Deck/tagline */
-.series-hero__deck {
-  max-width: 600px;
-}
-
-.series-hero__deck-content {
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 0.9375rem;
-  font-style: italic;
-  line-height: 1.5;
-}
-
-.series-hero__deck-content p {
-  margin: 0;
+/* Meta line (publisher, year, volume, pages) */
+.issue-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 @media (max-width: 768px) {
-  .series-hero__deck {
-    max-width: none;
+  .issue-hero__meta {
+    justify-content: center;
   }
+}
+
+.issue-hero__meta-publisher {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.issue-hero__meta-year,
+.issue-hero__meta-volume,
+.issue-hero__meta-pages {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.issue-hero__meta > span:not(:last-child)::after {
+  content: '·';
+  margin-left: var(--spacing-sm);
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* =============================================================================
+   Progress Bar
+   ============================================================================= */
+
+.issue-hero__progress-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.issue-hero__progress-bar {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.issue-hero__progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease-out;
+}
+
+.issue-hero__progress-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* =============================================================================
    Stats Row
    ============================================================================= */
 
-.series-hero__stats {
+.issue-hero__stats {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-lg);
@@ -258,19 +273,19 @@
 }
 
 @media (max-width: 768px) {
-  .series-hero__stats {
+  .issue-hero__stats {
     justify-content: center;
     gap: var(--spacing-md);
   }
 }
 
-.series-hero__stat {
+.issue-hero__stat {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
-.series-hero__stat-icon {
+.issue-hero__stat-icon {
   width: 28px;
   height: 28px;
   display: flex;
@@ -281,29 +296,29 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
-.series-hero__stat-icon svg {
+.issue-hero__stat-icon svg {
   width: 16px;
   height: 16px;
 }
 
-.series-hero__stat--accent .series-hero__stat-icon {
+.issue-hero__stat--accent .issue-hero__stat-icon {
   background: var(--color-primary-muted);
   color: var(--color-primary);
 }
 
-.series-hero__stat-content {
+.issue-hero__stat-content {
   display: flex;
   flex-direction: column;
 }
 
-.series-hero__stat-value {
+.issue-hero__stat-value {
   font-size: 1rem;
   font-weight: 700;
   color: white;
   line-height: 1.2;
 }
 
-.series-hero__stat-label {
+.issue-hero__stat-label {
   font-size: 0.6875rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.5);
@@ -315,7 +330,7 @@
    Actions
    ============================================================================= */
 
-.series-hero__actions {
+.issue-hero__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -324,13 +339,13 @@
 }
 
 @media (max-width: 768px) {
-  .series-hero__actions {
+  .issue-hero__actions {
     justify-content: center;
   }
 }
 
 /* Primary CTA button */
-.series-hero__cta {
+.issue-hero__cta {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -346,7 +361,7 @@
   box-shadow: 0 4px 14px rgba(var(--color-primary-rgb, 99, 102, 241), 0.4);
 }
 
-.series-hero__cta:hover {
+.issue-hero__cta:hover {
   background: var(--color-primary-hover);
   transform: translateY(-2px);
   box-shadow:
@@ -354,69 +369,37 @@
     0 0 30px rgba(var(--color-primary-rgb, 99, 102, 241), 0.2);
 }
 
-.series-hero__cta:focus {
+.issue-hero__cta:focus {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.series-hero__cta svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Secondary CTA */
-.series-hero__cta--secondary {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
-  box-shadow: none;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.series-hero__cta--secondary:hover {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-/* Complete text badge */
-.series-hero__complete-text {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-md);
-  background: rgba(72, 187, 120, 0.15);
-  color: #68d391;
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-
-.series-hero__complete-text svg {
+.issue-hero__cta svg {
   width: 18px;
   height: 18px;
 }
 
 /* Secondary actions group */
-.series-hero__actions-secondary {
+.issue-hero__actions-secondary {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
 /* Override button colors for dark background */
-.series-hero__actions-secondary :global(.btn-ghost),
-.series-hero__actions-secondary :global(.action-menu-trigger),
-.series-hero__actions-secondary :global(.collection-flyout-trigger),
-.series-hero__actions-secondary :global(.quick-collection-btn) {
+.issue-hero__actions-secondary :global(.btn-ghost),
+.issue-hero__actions-secondary :global(.action-menu-trigger),
+.issue-hero__actions-secondary :global(.collection-flyout-trigger),
+.issue-hero__actions-secondary :global(.quick-collection-btn) {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.9);
 }
 
-.series-hero__actions-secondary :global(.btn-ghost:hover),
-.series-hero__actions-secondary :global(.action-menu-trigger:hover),
-.series-hero__actions-secondary :global(.collection-flyout-trigger:hover),
-.series-hero__actions-secondary :global(.quick-collection-btn:hover) {
+.issue-hero__actions-secondary :global(.btn-ghost:hover),
+.issue-hero__actions-secondary :global(.action-menu-trigger:hover),
+.issue-hero__actions-secondary :global(.collection-flyout-trigger:hover),
+.issue-hero__actions-secondary :global(.quick-collection-btn:hover) {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.25);
 }
@@ -426,16 +409,15 @@
    ============================================================================= */
 
 @media (max-width: 768px) {
-  .series-hero__title {
-    font-size: 1.5rem;
+  .issue-hero__title-primary {
+    font-size: 1.375rem;
   }
 
-  .series-hero__stats {
+  .issue-hero__stats {
     padding: var(--spacing-sm) 0;
   }
 
-  .series-hero__stat-value {
+  .issue-hero__stat-value {
     font-size: 0.9375rem;
   }
 }
-

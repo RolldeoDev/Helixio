@@ -1,15 +1,15 @@
 /**
  * SeriesHero Component
  *
- * A cinematic hero section for series detail pages with:
- * - Dynamic gradient backdrop extracted from cover colors
+ * Hero content for series detail pages with:
  * - Large cover image with dramatic shadow
  * - Title, deck/tagline, and quick stats
  * - Action buttons (Continue Reading, collections)
+ *
+ * Note: The gradient backdrop is now handled by DetailHeroSection wrapper.
  */
 
 import { useMemo } from 'react';
-import { useDominantColor } from '../../hooks/useDominantColor';
 import { Series, SeriesIssue } from '../../services/api.service';
 import { QuickCollectionIcons } from '../QuickCollectionIcons';
 import { CollectionFlyout } from '../CollectionFlyout';
@@ -29,7 +29,6 @@ interface SeriesHeroProps {
   actionItems: ActionMenuItem[];
   onContinueReading: () => void;
   onSeriesAction: (actionId: string) => void;
-  onBackClick: () => void;
 }
 
 // =============================================================================
@@ -91,11 +90,7 @@ export function SeriesHero({
   actionItems,
   onContinueReading,
   onSeriesAction,
-  onBackClick,
 }: SeriesHeroProps) {
-  // Extract dominant color from cover
-  const { color: dominantColor, rgb } = useDominantColor(coverUrl);
-
   // Calculate stats from issues
   const stats = useMemo(() => {
     let totalPages = 0;
@@ -133,37 +128,8 @@ export function SeriesHero({
       : String(series.startYear)
     : null;
 
-  // Gradient style based on extracted color
-  const gradientStyle = useMemo(() => {
-    if (rgb) {
-      return {
-        '--hero-color-r': rgb.r,
-        '--hero-color-g': rgb.g,
-        '--hero-color-b': rgb.b,
-      } as React.CSSProperties;
-    }
-    return {};
-  }, [rgb]);
-
   return (
-    <section
-      className={`series-hero ${dominantColor ? 'series-hero--has-color' : ''}`}
-      style={gradientStyle}
-    >
-      {/* Gradient backdrop */}
-      <div className="series-hero__backdrop" aria-hidden="true">
-        <div className="series-hero__gradient" />
-        <div className="series-hero__noise" />
-      </div>
-
-      {/* Back button */}
-      <button className="series-hero__back" onClick={onBackClick}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-        <span>Back</span>
-      </button>
-
+    <div className="series-hero">
       {/* Main content */}
       <div className="series-hero__content">
         {/* Cover image */}
@@ -359,7 +325,7 @@ export function SeriesHero({
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 

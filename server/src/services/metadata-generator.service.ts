@@ -358,7 +358,7 @@ For each field, provide:
 
 FIELD GUIDELINES:
 
-1. summary: 2-3 paragraph description (150-300 words) covering premise, characters, themes, significance
+1. summary: 3-4 paragraph description covering the series premise, main characters, themes, and significance in comic history.
 2. deck: Single compelling tagline under 100 characters
 3. ageRating: MUST be one of these exact values:
    - "Unknown" (default if uncertain)
@@ -381,11 +381,22 @@ FIELD GUIDELINES:
 7. endYear: Final publication year as integer, null if ongoing or unknown
 
 IMPORTANT RULES:
-- Be accurate and avoid spoilers
-- Use professional, engaging tone
+- Be accurate and informative without spoilers
+- Use an engaging tone, suitable for a library catalog
+- Use natrual word choices and natural language flow to make the summary interesting and descriptive
+- Avoid generic phrases like "This exciting series..." or "In this thrilling comic..."
+- Avoid overly flowery prose, opting to inform and entice rather than overwhelm the reader
+- Focus on what makes this series notable or interesting
 - Base answers on the series context provided
 - If web search data is provided, use it for accuracy but write original content
 - For manga, use appropriate genre terms (Shonen, Seinen, Isekai, etc.)
+- Generate ~10 tags that are distinct from either other (Avoid )
+
+RATING GUIDELINES:
+E- EVERYONE – Appropriate for readers of all ages. May contain cartoon violence and/or some comic mischief. Equivalent to TV-G.
+T – TEEN – Appropriate for readers age 12 and older. May contain mild violence, language and/or suggestive themes. Equivalent to TV-PG.
+T+ – TEEN PLUS – Appropriate for readers age 15 and older. May contain moderate violence, moderate profanity, graphic imagery and/or suggestive themes. Equivalent to TV-14.
+M – MATURE – Appropriate for readers age 17 and older. May contain intense violence, extensive profanity, nudity, sexual themes and other content suitable only for older readers. Equivalent to TV-MA.
 
 Return ONLY valid JSON in this exact format:
 {

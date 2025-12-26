@@ -1139,11 +1139,16 @@ export type ApprovalSessionStatus =
   | 'complete'
   | 'cancelled';
 
-/** Credit entry with optional count */
+/** Credit entry with optional count and extended fields */
 export interface SeriesCredit {
   id: number;
   name: string;
   count?: number;
+  // Extended fields (populated by AniList)
+  alternativeNames?: string[];  // Pen names, aliases
+  nativeName?: string;          // Name in native language
+  profileUrl?: string;          // Link to source profile page
+  imageUrl?: string;            // Portrait/avatar image
 }
 
 export interface SeriesMatch {
@@ -3025,6 +3030,8 @@ export interface Series {
   editor: string | null;
   // Structured creator data (JSON: { writer: ["Name"], penciller: ["Name"], ... })
   creatorsJson: string | null;
+  // Creator display source preference: "api" = API data, "issues" = local issue metadata
+  creatorSource: 'api' | 'issues';
   coverSource: 'api' | 'user' | 'auto';
   coverUrl: string | null;
   coverHash: string | null;
@@ -3036,6 +3043,8 @@ export interface Series {
   lockedFields: string | null;
   comicVineId: string | null;
   metronId: string | null;
+  anilistId: string | null;
+  malId: string | null;
   createdAt: string;
   updatedAt: string;
   lastSyncedAt: string | null;
@@ -3214,6 +3223,34 @@ export async function getSeriesCover(seriesId: string): Promise<{ cover: SeriesC
  */
 export async function getNextSeriesIssue(seriesId: string): Promise<{ nextIssue: ComicFile | null; message?: string }> {
   return get<{ nextIssue: ComicFile | null; message?: string }>(`/series/${seriesId}/next-issue`);
+}
+
+/**
+ * Response type for creators aggregated from local issue metadata
+ */
+export interface CreatorsFromIssuesResult {
+  creatorsWithRoles: {
+    writer: string[];
+    penciller: string[];
+    inker: string[];
+    colorist: string[];
+    letterer: string[];
+    coverArtist: string[];
+    editor: string[];
+  };
+  coverage: {
+    issuesWithCreators: number;
+    totalIssues: number;
+  };
+  source: 'issues';
+}
+
+/**
+ * Get creators aggregated from local issue metadata
+ * This fetches creator data from FileMetadata (ComicInfo.xml) rather than external APIs
+ */
+export async function getSeriesCreatorsFromIssues(seriesId: string): Promise<CreatorsFromIssuesResult> {
+  return get<CreatorsFromIssuesResult>(`/series/${seriesId}/creators-from-issues`);
 }
 
 /**

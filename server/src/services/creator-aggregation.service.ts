@@ -14,6 +14,7 @@
 
 import * as comicVine from './comicvine.service.js';
 import { comicvineLogger as logger } from './logger.service.js';
+import { getDatabase } from './database.service.js';
 
 // =============================================================================
 // Types
@@ -323,4 +324,129 @@ export function roleFieldsToCreators(fields: {
     coverArtist: parseField(fields.coverArtist),
     editor: parseField(fields.editor),
   };
+}
+
+// =============================================================================
+// Local Issue Aggregation (From FileMetadata)
+// =============================================================================
+
+export interface LocalAggregationResult {
+  success: boolean;
+  creatorsWithRoles?: CreatorsByRole;
+  coverage?: {
+    issuesWithCreators: number;
+    totalIssues: number;
+  };
+  error?: string;
+}
+
+/**
+ * Aggregate creators from local FileMetadata records
+ *
+ * Unlike aggregateCreatorRolesFromIssues (which fetches from ComicVine),
+ * this function uses data already stored in the database from ComicInfo.xml
+ * or previously fetched metadata.
+ *
+ * @param seriesId - Internal series ID
+ * @returns Object with aggregated creators and coverage statistics
+ */
+export async function aggregateCreatorsFromLocalIssues(
+  seriesId: string
+): Promise<LocalAggregationResult> {
+  const db = getDatabase();
+
+  try {
+    // Get series with all its issues and their metadata
+    const series = await db.series.findUnique({
+      where: { id: seriesId },
+      include: {
+        issues: {
+          include: { metadata: true },
+        },
+      },
+    });
+
+    if (!series) {
+      return { success: false, error: 'Series not found' };
+    }
+
+    // Track unique creators per role using Sets
+    const uniqueCreators: Record<keyof CreatorsByRole, Set<string>> = {
+      writer: new Set(),
+      penciller: new Set(),
+      inker: new Set(),
+      colorist: new Set(),
+      letterer: new Set(),
+      coverArtist: new Set(),
+      editor: new Set(),
+    };
+
+    let issuesWithCreators = 0;
+
+    // Process each issue's metadata
+    for (const issue of series.issues) {
+      const meta = issue.metadata;
+      if (!meta) continue;
+
+      let hasAnyCreator = false;
+
+      // Parse comma-separated creator fields using roleFieldsToCreators helper
+      const issueCreators = roleFieldsToCreators({
+        writer: meta.writer,
+        penciller: meta.penciller,
+        inker: meta.inker,
+        colorist: meta.colorist,
+        letterer: meta.letterer,
+        coverArtist: meta.coverArtist,
+        editor: meta.editor,
+      });
+
+      // Merge into unique sets
+      for (const role of Object.keys(uniqueCreators) as Array<keyof CreatorsByRole>) {
+        for (const name of issueCreators[role]) {
+          uniqueCreators[role].add(name);
+          hasAnyCreator = true;
+        }
+      }
+
+      if (hasAnyCreator) issuesWithCreators++;
+    }
+
+    // Convert Sets to sorted arrays
+    const result: CreatorsByRole = {
+      writer: Array.from(uniqueCreators.writer).sort(),
+      penciller: Array.from(uniqueCreators.penciller).sort(),
+      inker: Array.from(uniqueCreators.inker).sort(),
+      colorist: Array.from(uniqueCreators.colorist).sort(),
+      letterer: Array.from(uniqueCreators.letterer).sort(),
+      coverArtist: Array.from(uniqueCreators.coverArtist).sort(),
+      editor: Array.from(uniqueCreators.editor).sort(),
+    };
+
+    logger.info(
+      {
+        seriesId,
+        issuesWithCreators,
+        totalIssues: series.issues.length,
+        writers: result.writer.length,
+        pencillers: result.penciller.length,
+      },
+      'Completed local creator aggregation'
+    );
+
+    return {
+      success: true,
+      creatorsWithRoles: result,
+      coverage: {
+        issuesWithCreators,
+        totalIssues: series.issues.length,
+      },
+    };
+  } catch (error) {
+    logger.error({ seriesId, error }, 'Failed to aggregate local creators');
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }

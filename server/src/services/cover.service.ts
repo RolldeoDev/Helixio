@@ -1060,10 +1060,12 @@ export async function downloadApiCover(url: string): Promise<DownloadCoverResult
 
     // Download the image with proper headers
     // Many servers block requests without User-Agent or with suspicious patterns
+    // Include Referer header to bypass hotlink protection
     const response = await fetch(trimmedUrl, {
       headers: {
-        'User-Agent': 'Helixio/1.0 (Comic Library Manager)',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'image/*,*/*;q=0.8',
+        'Referer': parsedUrl.origin + '/',
       },
       redirect: 'follow',
     });

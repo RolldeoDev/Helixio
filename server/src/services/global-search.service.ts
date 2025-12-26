@@ -350,27 +350,15 @@ async function searchCollections(
   const collections = await db.collection.findMany({
     where: whereClause,
     include: {
-      items: {
-        include: {
-          series: {
-            include: {
-              _count: { select: { issues: true } },
-            },
-          },
-        },
-      },
+      _count: { select: { items: true } },
     },
     take: limit * 2,
   });
 
   return collections.map((c) => {
-    // Calculate aggregate data
-    const seriesItems = c.items.filter((item) => item.series);
-    const seriesCount = seriesItems.length;
-    const totalIssues = seriesItems.reduce(
-      (sum, item) => sum + (item.series?._count?.issues ?? 0),
-      0
-    );
+    // Use cached derived metadata for performance
+    const seriesCount = c._count.items;
+    const totalIssues = c.derivedIssueCount ?? 0;
 
     // Build subtitle
     const subtitleParts: string[] = [];

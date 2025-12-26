@@ -834,3 +834,60 @@
   color: var(--color-text-subtle, rgba(232, 228, 223, 0.4));
   font-style: italic;
 }
+
+/* =============================================================================
+   Creator Source Selector
+   ============================================================================= */
+
+.creator-source-row {
+  flex-wrap: wrap;
+}
+
+.creator-source-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+}
+
+.creator-source-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.creator-source-toggle {
+  display: flex;
+  background: var(--color-bg, #0a0e13);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  padding: 2px;
+  gap: 2px;
+}
+
+.creator-source-option {
+  padding: var(--spacing-xs, 4px) var(--spacing-md, 12px);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+}
+
+.creator-source-option:hover:not(:disabled) {
+  color: var(--color-text, #e8e4df);
+}
+
+.creator-source-option.active {
+  background: var(--color-primary, #d4a574);
+  color: var(--color-bg, #0a0e13);
+}
+
+.creator-source-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
