@@ -21,6 +21,7 @@ import {
   bulkQuarantineFiles,
 } from '../../services/api.service';
 import { ContextMenu, useContextMenu, EXTENDED_MENU_ITEMS, type MenuItemPreset } from '../CoverCard';
+import { GroupSelectCheckbox } from '../GroupSelectCheckbox';
 import { formatFileSize } from '../../utils/format';
 import { groupFiles } from '../../utils/file-grouping';
 
@@ -101,6 +102,7 @@ export function ListView({
     selectFile,
     selectRange,
     selectAllFiles,
+    selectFiles,
     clearSelection,
     refreshFiles,
     setOperation,
@@ -432,11 +434,19 @@ export function ListView({
           {Array.from(groupFiles(files, groupField).entries()).map(([groupName, groupedFiles]) => {
             // Get seriesId from first file for linking (only when grouping by series)
             const seriesId = groupField === 'series' ? groupedFiles[0]?.seriesId : null;
+            const groupFileIds = groupedFiles.map((f) => f.id);
 
             return (
             <div key={groupName || 'all'} className="list-group">
               {groupField !== 'none' && groupName && (
                 <div className="list-group-header">
+                  <GroupSelectCheckbox
+                    groupFileIds={groupFileIds}
+                    selectedFileIds={selectedFiles}
+                    onSelectAll={(ids) => selectFiles(ids, true)}
+                    onDeselectAll={(ids) => selectFiles(ids, false)}
+                    hasAnySelection={selectedFiles.size > 0}
+                  />
                   {groupField === 'series' && seriesId ? (
                     <h3
                       className="list-group-title list-group-title--link"

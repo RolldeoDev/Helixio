@@ -26,6 +26,7 @@ import {
   FileCoverInfo,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
+import { useDownloads } from '../contexts/DownloadContext';
 import { MetadataEditor } from '../components/MetadataEditor';
 import { IssueMetadataGrabber } from '../components/IssueMetadataGrabber';
 import { MarkdownContent } from '../components/MarkdownContent';
@@ -84,6 +85,7 @@ export function IssueDetailPage() {
   const { fileId } = useParams<{ fileId: string }>();
   const navigate = useNavigate();
   const { startJob } = useMetadataJob();
+  const { downloadSingleFile } = useDownloads();
 
   // Data state
   const [file, setFile] = useState<ComicFile | null>(null);
@@ -231,6 +233,11 @@ export function IssueDetailPage() {
   const handleGrabMetadataSuccess = () => {
     // Refresh the page data after successful metadata grab
     fetchData();
+  };
+
+  const handleDownload = () => {
+    if (!file) return;
+    downloadSingleFile(file.id, file.filename);
   };
 
   const handleCoverChange = (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
@@ -449,6 +456,9 @@ export function IssueDetailPage() {
             )}
             <button className="btn-secondary" onClick={handleEditMetadata}>
               Edit Metadata
+            </button>
+            <button className="btn-secondary" onClick={handleDownload}>
+              Download
             </button>
             {isCompleted ? (
               <button className="btn-ghost" onClick={handleMarkUnread}>

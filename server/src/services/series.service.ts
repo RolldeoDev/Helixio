@@ -37,7 +37,7 @@ export interface SeriesWithCounts extends Series {
   _count?: {
     issues: number;
   };
-  progress?: SeriesProgress | null;
+  progress?: SeriesProgress[] | SeriesProgress | null;
   issues?: Array<{ id: string }>; // First issue for cover fallback
 }
 
@@ -52,6 +52,7 @@ export interface SeriesListOptions {
   genres?: string[];
   hasUnread?: boolean;
   libraryId?: string;
+  userId?: string; // Filter progress to this user
 }
 
 export interface SeriesListResult {
@@ -229,6 +230,7 @@ export async function getSeriesList(
     genres,
     hasUnread,
     libraryId,
+    userId,
   } = options;
 
   // Use limit if provided, otherwise default to 50 (unless explicitly undefined for fetch all)
@@ -282,6 +284,8 @@ export async function getSeriesList(
   const total = await db.series.count({ where });
 
   // Get series (all or paginated)
+  // If userId provided, filter progress to just that user
+  const progressWhere = userId ? { userId } : undefined;
   let seriesRecords = await db.series.findMany({
     where,
     orderBy,
@@ -290,7 +294,7 @@ export async function getSeriesList(
       _count: {
         select: { issues: true },
       },
-      progress: true,
+      progress: progressWhere ? { where: progressWhere } : true,
       // Include first issue for cover fallback
       issues: {
         take: 1,
@@ -303,11 +307,23 @@ export async function getSeriesList(
     },
   });
 
+  // Helper to get progress stats (handles array or single object)
+  const getProgressStats = (progress: SeriesProgress[] | SeriesProgress | null | undefined) => {
+    if (!progress) return { totalOwned: 0, totalRead: 0 };
+    if (Array.isArray(progress)) {
+      // Get first (should only be one when filtered by userId)
+      const p = progress[0];
+      return p ? { totalOwned: p.totalOwned, totalRead: p.totalRead } : { totalOwned: 0, totalRead: 0 };
+    }
+    return { totalOwned: progress.totalOwned, totalRead: progress.totalRead };
+  };
+
   // Filter by hasUnread if specified
   if (hasUnread !== undefined) {
     seriesRecords = seriesRecords.filter((series) => {
-      const owned = series.progress?.totalOwned ?? series._count?.issues ?? 0;
-      const read = series.progress?.totalRead ?? 0;
+      const stats = getProgressStats(series.progress);
+      const owned = stats.totalOwned || series._count?.issues || 0;
+      const read = stats.totalRead || 0;
       const hasUnreadIssues = read < owned;
       return hasUnread ? hasUnreadIssues : !hasUnreadIssues;
     });
@@ -737,23 +753,32 @@ export async function findSeriesByAlias(
 // =============================================================================
 
 /**
- * Get or create SeriesProgress for a series.
+ * Get or create SeriesProgress for a specific user and series.
+ * @param userId - The user ID
+ * @param seriesId - The series ID
  */
 export async function getSeriesProgress(
+  userId: string,
   seriesId: string
 ): Promise<SeriesProgress | null> {
   const db = getDatabase();
 
   let progress = await db.seriesProgress.findUnique({
-    where: { seriesId },
+    where: { userId_seriesId: { userId, seriesId } },
   });
 
   if (!progress) {
+    // Get totalOwned count
+    const totalOwned = await db.comicFile.count({
+      where: { seriesId },
+    });
+
     // Create progress record
     progress = await db.seriesProgress.create({
       data: {
+        userId,
         seriesId,
-        totalOwned: 0,
+        totalOwned,
         totalRead: 0,
         totalInProgress: 0,
       },
@@ -764,16 +789,24 @@ export async function getSeriesProgress(
 }
 
 /**
- * Update SeriesProgress based on current reading state.
+ * Update SeriesProgress based on current reading state for a specific user.
+ * If userId is provided, updates only that user's progress.
+ * If userId is not provided, updates all users who have progress records for this series.
+ * @param seriesId - The series ID
+ * @param userId - Optional user ID. If not provided, updates all users with progress.
  */
-export async function updateSeriesProgress(seriesId: string): Promise<void> {
+export async function updateSeriesProgress(seriesId: string, userId?: string): Promise<void> {
   const db = getDatabase();
 
-  // Get all issues for this series
+  // Get the total number of issues in this series (same for all users)
+  const totalOwned = await db.comicFile.count({
+    where: { seriesId },
+  });
+
+  // Get all issues for this series with their IDs
   const issues = await db.comicFile.findMany({
     where: { seriesId },
     include: {
-      readingProgress: true,
       metadata: true,
     },
     orderBy: {
@@ -783,89 +816,119 @@ export async function updateSeriesProgress(seriesId: string): Promise<void> {
     },
   });
 
-  const totalOwned = issues.length;
-  const completedIssues = issues.filter((i) => i.readingProgress?.completed);
-  const totalRead = completedIssues.length;
-  const totalInProgress = issues.filter(
-    (i) =>
-      i.readingProgress &&
-      !i.readingProgress.completed &&
-      i.readingProgress.currentPage > 0
-  ).length;
-
-  // Find last read issue
-  const issuesWithProgress = issues.filter((i) => i.readingProgress?.lastReadAt);
-  issuesWithProgress.sort((a, b) => {
-    const aDate = a.readingProgress?.lastReadAt ?? new Date(0);
-    const bDate = b.readingProgress?.lastReadAt ?? new Date(0);
-    return bDate.getTime() - aDate.getTime();
-  });
-
-  const lastReadIssue = issuesWithProgress[0];
-  const lastReadIssueNum = lastReadIssue?.metadata?.number
-    ? parseFloat(lastReadIssue.metadata.number)
-    : null;
-
-  // Find next unread issue (Last Read +1 logic)
-  let nextUnreadFileId: string | null = null;
-  if (lastReadIssue) {
-    // Find the issue after the last read one
-    const lastReadIndex = issues.findIndex((i) => i.id === lastReadIssue.id);
-    for (let i = lastReadIndex + 1; i < issues.length; i++) {
-      const issue = issues[i];
-      if (issue && !issue.readingProgress?.completed) {
-        nextUnreadFileId = issue.id;
-        break;
-      }
-    }
+  // If a specific userId is provided, update just that user
+  // Otherwise, update all users who have existing progress for this series
+  const userIds: string[] = [];
+  if (userId) {
+    userIds.push(userId);
   } else {
-    // No reading progress - first unread issue
-    const firstUnread = issues.find((i) => !i.readingProgress?.completed);
-    nextUnreadFileId = firstUnread?.id ?? null;
+    // Get all users who have progress records for this series
+    const existingProgress = await db.seriesProgress.findMany({
+      where: { seriesId },
+      select: { userId: true },
+    });
+    userIds.push(...existingProgress.map(p => p.userId));
   }
 
-  // Upsert progress
-  await db.seriesProgress.upsert({
-    where: { seriesId },
-    create: {
-      seriesId,
-      totalOwned,
-      totalRead,
-      totalInProgress,
-      lastReadFileId: lastReadIssue?.id ?? null,
-      lastReadIssueNum: Number.isFinite(lastReadIssueNum)
-        ? lastReadIssueNum
-        : null,
-      lastReadAt: lastReadIssue?.readingProgress?.lastReadAt ?? null,
-      nextUnreadFileId,
-    },
-    update: {
-      totalOwned,
-      totalRead,
-      totalInProgress,
-      lastReadFileId: lastReadIssue?.id ?? null,
-      lastReadIssueNum: Number.isFinite(lastReadIssueNum)
-        ? lastReadIssueNum
-        : null,
-      lastReadAt: lastReadIssue?.readingProgress?.lastReadAt ?? null,
-      nextUnreadFileId,
-    },
-  });
+  // Update progress for each user
+  for (const uid of userIds) {
+    // Get this user's reading progress for all issues in this series
+    const userProgress = await db.userReadingProgress.findMany({
+      where: {
+        userId: uid,
+        fileId: { in: issues.map(i => i.id) },
+      },
+    });
+
+    const progressByFileId = new Map(userProgress.map(p => [p.fileId, p]));
+
+    const completedCount = userProgress.filter(p => p.completed).length;
+    const inProgressCount = userProgress.filter(
+      p => !p.completed && p.currentPage > 0
+    ).length;
+
+    // Find last read issue for this user
+    const issuesWithProgress = userProgress
+      .filter(p => p.lastReadAt)
+      .sort((a, b) => {
+        const aDate = a.lastReadAt ?? new Date(0);
+        const bDate = b.lastReadAt ?? new Date(0);
+        return bDate.getTime() - aDate.getTime();
+      });
+
+    const lastReadProgress = issuesWithProgress[0];
+    const lastReadIssue = lastReadProgress
+      ? issues.find(i => i.id === lastReadProgress.fileId)
+      : undefined;
+    const lastReadIssueNum = lastReadIssue?.metadata?.number
+      ? parseFloat(lastReadIssue.metadata.number)
+      : null;
+
+    // Find next unread issue for this user (Last Read +1 logic)
+    let nextUnreadFileId: string | null = null;
+    if (lastReadIssue) {
+      // Find the issue after the last read one
+      const lastReadIndex = issues.findIndex(i => i.id === lastReadIssue.id);
+      for (let i = lastReadIndex + 1; i < issues.length; i++) {
+        const issue = issues[i];
+        if (issue && !progressByFileId.get(issue.id)?.completed) {
+          nextUnreadFileId = issue.id;
+          break;
+        }
+      }
+    } else {
+      // No reading progress - first unread issue
+      const firstUnread = issues.find(i => !progressByFileId.get(i.id)?.completed);
+      nextUnreadFileId = firstUnread?.id ?? null;
+    }
+
+    // Upsert progress for this user
+    await db.seriesProgress.upsert({
+      where: { userId_seriesId: { userId: uid, seriesId } },
+      create: {
+        userId: uid,
+        seriesId,
+        totalOwned,
+        totalRead: completedCount,
+        totalInProgress: inProgressCount,
+        lastReadFileId: lastReadIssue?.id ?? null,
+        lastReadIssueNum: Number.isFinite(lastReadIssueNum)
+          ? lastReadIssueNum
+          : null,
+        lastReadAt: lastReadProgress?.lastReadAt ?? null,
+        nextUnreadFileId,
+      },
+      update: {
+        totalOwned,
+        totalRead: completedCount,
+        totalInProgress: inProgressCount,
+        lastReadFileId: lastReadIssue?.id ?? null,
+        lastReadIssueNum: Number.isFinite(lastReadIssueNum)
+          ? lastReadIssueNum
+          : null,
+        lastReadAt: lastReadProgress?.lastReadAt ?? null,
+        nextUnreadFileId,
+      },
+    });
+  }
 }
 
 /**
- * Get next unread issue for a series (Continue Series feature).
+ * Get next unread issue for a series for a specific user (Continue Series feature).
+ * @param userId - The user ID
+ * @param seriesId - The series ID
  */
 export async function getNextUnreadIssue(
+  userId: string,
   seriesId: string
 ): Promise<ComicFile | null> {
   const db = getDatabase();
 
-  // Update progress first
-  await updateSeriesProgress(seriesId);
+  // Update progress first for this user
+  await updateSeriesProgress(seriesId, userId);
 
   const progress = await db.seriesProgress.findUnique({
-    where: { seriesId },
+    where: { userId_seriesId: { userId, seriesId } },
   });
 
   if (!progress?.nextUnreadFileId) {

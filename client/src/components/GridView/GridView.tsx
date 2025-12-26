@@ -12,6 +12,7 @@ import { renameFile, rebuildCache, getLibraryReadingProgress, markAsCompleted, m
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CoverSizeSlider } from '../CoverSizeSlider';
 import { CollectionPickerModal } from '../CollectionPickerModal';
+import { GroupSelectCheckbox } from '../GroupSelectCheckbox';
 import { groupFiles } from '../../utils/file-grouping';
 import { useOptimalGridSize } from '../../hooks/useOptimalGridSize';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
@@ -40,6 +41,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     selectFile,
     selectRange,
     selectAllFiles,
+    selectFiles,
     clearSelection,
     refreshFiles,
     setOperation,
@@ -453,10 +455,19 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
               // Get seriesId from first file for linking (only when grouping by series)
               const seriesId = groupField === 'series' ? groupedFiles[0]?.seriesId : null;
 
+              const groupFileIds = groupedFiles.map((f) => f.id);
+
               return (
                 <div key={groupName || 'all'} className="grid-group">
                   {groupName && (
                     <div className="grid-group-header">
+                      <GroupSelectCheckbox
+                        groupFileIds={groupFileIds}
+                        selectedFileIds={selectedFiles}
+                        onSelectAll={(ids) => selectFiles(ids, true)}
+                        onDeselectAll={(ids) => selectFiles(ids, false)}
+                        hasAnySelection={selectedFiles.size > 0}
+                      />
                       {groupField === 'series' && seriesId ? (
                         <h3
                           className="grid-group-title grid-group-title--link"

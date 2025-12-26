@@ -197,67 +197,7 @@ async function migrate() {
         });
         linked += updateResult.count;
 
-        // Create SeriesProgress record
-        const existingProgress = await prisma.seriesProgress.findUnique({
-          where: { seriesId: series.id },
-        });
-
-        if (!existingProgress) {
-          // Count read files for this series
-          const readCount = await prisma.readingProgress.count({
-            where: {
-              fileId: {
-                in: seriesData.fileIds,
-              },
-              completed: true,
-            },
-          });
-
-          const inProgressCount = await prisma.readingProgress.count({
-            where: {
-              fileId: {
-                in: seriesData.fileIds,
-              },
-              completed: false,
-              currentPage: {
-                gt: 0,
-              },
-            },
-          });
-
-          // Get last read info
-          const lastRead = await prisma.readingProgress.findFirst({
-            where: {
-              fileId: {
-                in: seriesData.fileIds,
-              },
-            },
-            orderBy: {
-              lastReadAt: 'desc',
-            },
-            include: {
-              file: {
-                include: {
-                  metadata: true,
-                },
-              },
-            },
-          });
-
-          await prisma.seriesProgress.create({
-            data: {
-              seriesId: series.id,
-              totalOwned: seriesData.fileIds.length,
-              totalRead: readCount,
-              totalInProgress: inProgressCount,
-              lastReadFileId: lastRead?.fileId ?? null,
-              lastReadIssueNum: lastRead?.file?.metadata?.number
-                ? parseFloat(lastRead.file.metadata.number) || null
-                : null,
-              lastReadAt: lastRead?.lastReadAt ?? null,
-            },
-          });
-        }
+        // SeriesProgress is now per-user and will be calculated lazily when accessed
       } catch (error) {
         errors++;
         console.error(`Error processing series "${seriesData.name}":`, error);
@@ -331,21 +271,7 @@ async function migrate() {
         });
         linked += updateResult.count;
 
-        // Create SeriesProgress
-        const existingProgress = await prisma.seriesProgress.findUnique({
-          where: { seriesId: series.id },
-        });
-
-        if (!existingProgress) {
-          await prisma.seriesProgress.create({
-            data: {
-              seriesId: series.id,
-              totalOwned: files.length,
-              totalRead: 0,
-              totalInProgress: 0,
-            },
-          });
-        }
+        // SeriesProgress is now per-user and will be calculated lazily when accessed
       } catch (error) {
         errors++;
         console.error(`Error creating series from folder "${folderName}":`, error);

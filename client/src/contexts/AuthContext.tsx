@@ -42,6 +42,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   setupRequired: boolean;
+  registrationAllowed: boolean;
   error: string | null;
 }
 
@@ -50,6 +51,7 @@ interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   setup: (username: string, password: string) => Promise<boolean>;
+  register: (username: string, password: string, email?: string, displayName?: string) => Promise<boolean>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   getSessions: () => Promise<Session[]>;
@@ -112,6 +114,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isAuthenticated = !!user;
@@ -132,11 +135,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (setupStatus.setupRequired) {
         setSetupRequired(true);
+        setRegistrationAllowed(false);
         setUser(null);
         return;
       }
 
       setSetupRequired(false);
+
+      // Check if registration is allowed
+      try {
+        const { allowed } = await apiRequest<{ allowed: boolean }>('/registration-allowed');
+        setRegistrationAllowed(allowed);
+      } catch {
+        setRegistrationAllowed(false);
+      }
 
       // Try to get current user
       try {
@@ -237,6 +249,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const register = useCallback(async (
+    username: string,
+    password: string,
+    email?: string,
+    displayName?: string
+  ): Promise<boolean> => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { user: newUser } = await apiRequest<{ user: User; token: string }>(
+        '/register',
+        {
+          method: 'POST',
+          body: JSON.stringify({ username, password, email, displayName }),
+        }
+      );
+
+      setUser(newUser);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const updateProfile = useCallback(async (data: Partial<User>) => {
     setError(null);
 
@@ -301,11 +341,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated,
     isLoading,
     setupRequired,
+    registrationAllowed,
     error,
     login,
     logout,
     logoutAll,
     setup,
+    register,
     updateProfile,
     changePassword,
     getSessions,

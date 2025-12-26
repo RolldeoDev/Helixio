@@ -118,7 +118,7 @@ model Series {
 
   // Relations
   issues        ComicFile[]
-  progress      SeriesProgress?
+  progress      SeriesProgress[]
   readerSettings SeriesReaderSettingsNew?
 
   @@unique([name, publisher], name: "series_identity")
@@ -137,7 +137,9 @@ model Series {
 
 model SeriesProgress {
   id               String   @id @default(cuid())
-  seriesId         String   @unique
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesId         String
   series           Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
   // Calculated fields (cached for performance)
@@ -151,6 +153,8 @@ model SeriesProgress {
   lastReadAt       DateTime?
   nextUnreadFileId String?              // Calculated: issue after lastReadIssueNum
 
+  @@unique([userId, seriesId])
+  @@index([userId])
   @@index([seriesId])
   @@index([lastReadAt])
 }
@@ -222,12 +226,13 @@ model ComicFile {
   coverUrl       String?                    // Original URL if cover was downloaded from URL
 
   // Relations
-  library         Library          @relation(fields: [libraryId], references: [id], onDelete: Cascade)
-  metadata        FileMetadata?
-  readingProgress ReadingProgress?
-  readingQueue    ReadingQueue?
-  readingHistory  ReadingHistory[]
-  readerSettings  IssueReaderSettings?
+  library             Library               @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  metadata            FileMetadata?
+  readingProgress     ReadingProgress?
+  userReadingProgress UserReadingProgress[]
+  readingQueue        ReadingQueue?
+  readingHistory      ReadingHistory[]
+  readerSettings      IssueReaderSettings?
 
   @@index([libraryId])
   @@index([hash])
@@ -781,6 +786,8 @@ model User {
   sessions        UserSession[]
   libraryAccess   UserLibraryAccess[]
   readingProgress UserReadingProgress[]
+  seriesProgress  SeriesProgress[]
+  collections     Collection[]
   sharedLists     SharedReadingList[]
   trackerTokens   TrackerToken[]
   syncTokens      SyncToken[]
@@ -820,22 +827,31 @@ model UserLibraryAccess {
   @@index([libraryId])
 }
 
+model AppSettings {
+  id                      String   @id @default("default")
+  allowOpenRegistration   Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
+}
+
 model UserReadingProgress {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   fileId      String
-  currentPage Int      @default(0)
-  totalPages  Int      @default(0)
-  completed   Boolean  @default(false)
-  rating      Int?     // 1-5 stars
-  lastReadAt  DateTime @updatedAt
-  createdAt   DateTime @default(now())
+  file        ComicFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  currentPage Int       @default(0)
+  totalPages  Int       @default(0)
+  completed   Boolean   @default(false)
+  rating      Int?      // 1-5 stars
+  bookmarks   String    @default("[]") // JSON array of page indices
+  lastReadAt  DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
 
   @@unique([userId, fileId])
   @@index([userId])
   @@index([fileId])
   @@index([lastReadAt])
+  @@index([completed])
 }
 
 // =============================================================================
@@ -1130,12 +1146,14 @@ model TagValue {
 
 model Collection {
   id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   description String?
 
   // System collection flag (Favorites, Want to Read)
   isSystem    Boolean  @default(false)
-  systemKey   String?  @unique  // "favorites" | "want-to-read" | null for user collections
+  systemKey   String?  // "favorites" | "want-to-read" | null for user collections
 
   // Visual customization
   iconName    String?            // Icon identifier (e.g., "heart", "bookmark", "star")
@@ -1151,8 +1169,9 @@ model Collection {
   // Relations
   items       CollectionItem[]
 
+  @@unique([userId, systemKey])  // Each user gets their own system collections
+  @@index([userId])
   @@index([isSystem])
-  @@index([systemKey])
   @@index([sortOrder])
 }
 
@@ -1224,6 +1243,54 @@ model ReaderPreset {
   @@index([userId])
   @@index([isSystem])
   @@index([isBundled])
+}
+
+// =============================================================================
+// Download Jobs (Background file downloads)
+// =============================================================================
+
+model DownloadJob {
+  id              String    @id @default(cuid())
+  userId          String    // User who requested the download
+
+  // Job type and targets
+  type            String    // "single" | "series" | "bulk"
+  seriesId        String?   // For series downloads
+  fileIds         String    // JSON array of file IDs
+
+  // Job state
+  status          String    @default("pending") // "pending" | "preparing" | "ready" | "downloading" | "completed" | "failed" | "expired" | "cancelled"
+
+  // Progress tracking
+  totalFiles      Int       @default(0)
+  processedFiles  Int       @default(0)
+  totalSizeBytes  BigInt    @default(0)   // Estimated total size
+  skippedFiles    Int       @default(0)   // Files that couldn't be added (missing, locked)
+  skippedFileIds  String?   // JSON array of skipped file IDs with reasons
+
+  // Output
+  outputPath      String?   // Path to generated ZIP file(s)
+  outputParts     String?   // JSON array of part paths if split
+  outputFileName  String?   // User-friendly filename
+  outputSizeBytes BigInt?   // Actual output size
+
+  // Splitting
+  splitEnabled    Boolean   @default(false)
+  splitSizeBytes  BigInt?   // Size threshold per part (e.g., 2GB)
+
+  // Error tracking
+  error           String?
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  expiresAt       DateTime? // When prepared files should be deleted (24h after completion)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([seriesId])
 }
 
 // =============================================================================

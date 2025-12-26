@@ -298,8 +298,10 @@ router.get('/:fileId/comicinfo', async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
 
+    // Include series to get locked fields
     const file = await db.comicFile.findUnique({
       where: { id: req.params.fileId! },
+      include: { series: { select: { lockedFields: true } } },
     });
 
     if (!file) {
@@ -339,10 +341,16 @@ router.get('/:fileId/comicinfo', async (req: Request, res: Response) => {
       return;
     }
 
+    // Parse locked fields from series (comma-separated string to array)
+    const lockedFields = file.series?.lockedFields
+      ? file.series.lockedFields.split(',').map((f: string) => f.trim()).filter(Boolean)
+      : [];
+
     res.json({
       fileId: file.id,
       filename: file.filename,
       comicInfo: result.comicInfo,
+      lockedFields,
     });
   } catch (error) {
     console.error('Error reading ComicInfo:', error);
@@ -435,8 +443,10 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
   try {
     const db = getDatabase();
 
+    // Include series to get locked fields for validation
     const file = await db.comicFile.findUnique({
       where: { id: req.params.fileId! },
+      include: { series: { select: { lockedFields: true } } },
     });
 
     if (!file) {
@@ -467,9 +477,44 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
       return;
     }
 
-    const updates = req.body as Partial<ComicInfo>;
+    const rawUpdates = req.body as Record<string, unknown>;
 
-    const result = await mergeComicInfo(filePath, updates);
+    // Check for locked fields before processing
+    const lockedFields = file.series?.lockedFields
+      ? file.series.lockedFields.split(',').map((f: string) => f.trim()).filter(Boolean)
+      : [];
+
+    const attemptedLockedFields = Object.keys(rawUpdates).filter(
+      (key) => lockedFields.includes(key)
+    );
+
+    if (attemptedLockedFields.length > 0) {
+      res.status(400).json({
+        error: 'Cannot modify locked fields',
+        lockedFields: attemptedLockedFields,
+        message: `The following fields are locked by series settings: ${attemptedLockedFields.join(', ')}`,
+      });
+      return;
+    }
+
+    // Sentinel value indicating a field should be removed from ComicInfo.xml
+    const REMOVE_FIELD = '__REMOVE_FIELD__';
+
+    // Separate field updates from field removals
+    const updates: Partial<ComicInfo> = {};
+    const removals: string[] = [];
+
+    for (const [key, value] of Object.entries(rawUpdates)) {
+      if (value === REMOVE_FIELD) {
+        // This field should be removed from the archive
+        removals.push(key);
+      } else if (value !== undefined) {
+        // Normal update
+        (updates as Record<string, unknown>)[key] = value;
+      }
+    }
+
+    const result = await mergeComicInfo(filePath, updates, removals);
 
     if (!result.success) {
       res.status(500).json({

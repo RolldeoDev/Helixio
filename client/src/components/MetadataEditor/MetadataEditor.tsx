@@ -14,10 +14,12 @@ import {
   getFileCoverInfo,
   getApiCoverUrl,
   FileCoverInfo,
+  REMOVE_FIELD,
   type TagFieldType,
 } from '../../services/api.service';
 import { IssueCoverPicker } from '../IssueCoverPicker';
 import { DescriptionGenerator } from '../DescriptionGenerator';
+import { IssueMetadataGrabber } from '../IssueMetadataGrabber';
 import { SimpleTagInput } from './SimpleTagInput';
 import { BatchMetadataEditor } from './BatchMetadataEditor';
 
@@ -64,6 +66,16 @@ const EDITABLE_FIELDS: FieldConfig[] = [
   { key: 'StoryArc', label: 'Story Arc', type: 'tag', autocompleteField: 'storyArcs' },
 ];
 
+/** Format hints for metadata fields */
+const FIELD_HINTS: Partial<Record<keyof ComicInfo, string>> = {
+  Number: 'e.g., 1, 1.5, Annual 1, 0',
+  Volume: 'Volume number (integer)',
+  Year: 'Publication year (e.g., 2024)',
+  Month: 'Publication month (1-12)',
+  Day: 'Publication day (1-31)',
+  AgeRating: 'e.g., Everyone, Teen, Mature 17+',
+};
+
 export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrabMetadata }: MetadataEditorProps) {
   // Use the redesigned BatchMetadataEditor for multiple files
   if (fileIds.length > 1) {
@@ -78,21 +90,30 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   const [coverInfo, setCoverInfo] = useState<FileCoverInfo | null>(null);
   const [coverKey, setCoverKey] = useState(0);
   const [isEditingCover, setIsEditingCover] = useState(false);
+  const [lockedFields, setLockedFields] = useState<string[]>([]);
+  // Internal state for metadata grabbing (when onGrabMetadata is not provided)
+  const [isInternalGrabbing, setIsInternalGrabbing] = useState(false);
+
+  // Get the file ID - use first element for single file editing
+  // This prevents useEffect from re-running when parent creates new array references
+  const fileId = fileIds[0];
 
   // Load metadata and cover info
   useEffect(() => {
-    if (fileIds[0]) {
+    if (fileId) {
       setLoading(true);
       setError(null);
 
       Promise.all([
-        getComicInfo(fileIds[0]),
-        getFileCoverInfo(fileIds[0]).catch(() => null),
+        getComicInfo(fileId),
+        getFileCoverInfo(fileId).catch(() => null),
       ])
         .then(([metadataResponse, coverInfoResponse]) => {
           setMetadata(metadataResponse.comicInfo || {});
           setOriginalMetadata(metadataResponse.comicInfo || {});
           setFilename(metadataResponse.filename);
+          // Store locked fields from API response
+          setLockedFields(metadataResponse.lockedFields || []);
           if (coverInfoResponse) {
             setCoverInfo(coverInfoResponse);
           }
@@ -106,12 +127,14 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
     } else {
       setLoading(false);
     }
-  }, [fileIds]);
+  }, [fileId]);
 
   const handleFieldChange = (field: EditableField, value: string | number | undefined) => {
     setMetadata((prev) => ({
       ...prev,
-      [field]: value === '' ? undefined : value,
+      // Use REMOVE_FIELD sentinel for empty values so it survives JSON.stringify
+      // and signals to the backend that this field should be removed from ComicInfo.xml
+      [field]: value === '' || value === undefined ? REMOVE_FIELD : value,
     }));
   };
 
@@ -127,12 +150,24 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
     try {
       const changes: Partial<ComicInfo> = {};
-      for (const key of Object.keys(metadata) as EditableField[]) {
-        if (metadata[key] !== originalMetadata[key]) {
-          (changes as Record<string, unknown>)[key] = metadata[key];
+
+      // Get all unique keys from both current and original metadata
+      const allKeys = new Set([
+        ...Object.keys(metadata),
+        ...Object.keys(originalMetadata),
+      ]) as Set<EditableField>;
+
+      for (const key of allKeys) {
+        const currentValue = metadata[key];
+        const originalValue = originalMetadata[key];
+
+        // Include if value changed (including changes to REMOVE_FIELD)
+        if (currentValue !== originalValue) {
+          (changes as Record<string, unknown>)[key] = currentValue ?? REMOVE_FIELD;
         }
       }
-      await updateComicInfo(fileIds[0]!, changes);
+
+      await updateComicInfo(fileId!, changes);
 
       onSave?.();
       onClose?.();
@@ -146,6 +181,32 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   const handleReset = () => {
     setMetadata(originalMetadata);
   };
+
+  // Reload metadata from server (used after grabbing metadata from API)
+  const reloadMetadata = useCallback(async () => {
+    if (!fileId) return;
+
+    try {
+      const response = await getComicInfo(fileId);
+      setMetadata(response.comicInfo || {});
+      setOriginalMetadata(response.comicInfo || {});
+      setFilename(response.filename);
+      setLockedFields(response.lockedFields || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reload metadata');
+    }
+  }, [fileId]);
+
+  // Handle "Grab from API" button click
+  const handleGrabClick = useCallback(() => {
+    if (onGrabMetadata) {
+      // Use external handler if provided
+      onGrabMetadata();
+    } else {
+      // Use internal grabber
+      setIsInternalGrabbing(true);
+    }
+  }, [onGrabMetadata]);
 
   // Handle cover change from the picker
   const handleCoverUpdate = useCallback((result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
@@ -163,12 +224,12 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
   // Get cover URL based on cover info
   const getCoverDisplayUrl = useCallback(() => {
-    if (!fileIds[0]) return '';
+    if (!fileId) return '';
     if (coverInfo?.coverSource === 'custom' && coverInfo?.coverHash) {
       return getApiCoverUrl(coverInfo.coverHash);
     }
-    return `${getCoverUrl(fileIds[0])}?v=${coverKey}`;
-  }, [fileIds, coverInfo, coverKey]);
+    return `${getCoverUrl(fileId)}?v=${coverKey}`;
+  }, [fileId, coverInfo, coverKey]);
 
   if (loading) {
     return (
@@ -186,8 +247,9 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
       <div className="metadata-editor-header">
         <h2>Edit Metadata</h2>
         <div className="metadata-editor-header-actions">
-          {onGrabMetadata && fileIds.length === 1 && (
-            <button className="btn-ghost btn-sm" onClick={onGrabMetadata} title="Fetch metadata from API">
+          {/* Always show Grab from API for single files */}
+          {fileIds.length === 1 && (
+            <button className="btn-ghost btn-sm" onClick={handleGrabClick} title="Fetch metadata from API">
               Grab from API
             </button>
           )}
@@ -203,7 +265,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
       <div className="metadata-editor-content">
         {/* Cover Preview and Editor */}
-        {fileIds[0] && (
+        {fileId && (
           <div className="metadata-cover-section">
             <div className="metadata-cover-preview">
               <img
@@ -224,7 +286,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
             {isEditingCover && (
               <div className="metadata-cover-picker">
                 <IssueCoverPicker
-                  fileId={fileIds[0]}
+                  fileId={fileId}
                   currentCoverSource={coverInfo?.coverSource as 'auto' | 'page' | 'custom' || 'auto'}
                   currentCoverPageIndex={coverInfo?.coverPageIndex ?? null}
                   currentCoverHash={coverInfo?.coverHash ?? null}
@@ -237,64 +299,91 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
         {/* Form Fields */}
         <div className="metadata-form">
-          {EDITABLE_FIELDS.map(({ key, label, type, autocompleteField }) => (
-            <div
-              key={key}
-              className={`form-field ${type === 'textarea' ? 'full-width' : ''}`}
-            >
-              <label htmlFor={`field-${key}`}>{label}</label>
-              {type === 'textarea' ? (
-                <>
-                  <textarea
-                    id={`field-${key}`}
-                    value={metadata[key] as string || ''}
-                    onChange={(e) => handleFieldChange(key, e.target.value)}
-                    rows={3}
-                  />
-                  {/* Show Generate Description under Summary field */}
-                  {key === 'Summary' && fileIds[0] && (
-                    <DescriptionGenerator
-                      type="issue"
-                      entityId={fileIds[0]}
-                      entityName={metadata.Title || metadata.Series || filename}
-                      currentDescription={metadata.Summary}
-                      onGenerated={(result) => {
-                        handleFieldChange('Summary', result.description);
-                      }}
-                      disabled={saving}
-                    />
+          {EDITABLE_FIELDS.map(({ key, label, type, autocompleteField }) => {
+            // Get display value - treat REMOVE_FIELD sentinel as empty
+            const rawValue = metadata[key];
+            const displayValue = rawValue === REMOVE_FIELD ? '' : rawValue;
+            // Check if this field is locked by series settings
+            const isLocked = lockedFields.includes(key);
+            // Get format hint for this field
+            const hint = FIELD_HINTS[key];
+
+            return (
+              <div
+                key={key}
+                className={`form-field ${type === 'textarea' ? 'full-width' : ''} ${isLocked ? 'form-field--locked' : ''}`}
+              >
+                <label htmlFor={`field-${key}`}>
+                  {label}
+                  {isLocked && (
+                    <span className="field-locked-indicator" title="This field is locked by series settings">
+                      🔒
+                    </span>
                   )}
-                </>
-              ) : type === 'number' ? (
-                <input
-                  id={`field-${key}`}
-                  type="number"
-                  value={metadata[key] as number ?? ''}
-                  onChange={(e) =>
-                    handleFieldChange(
-                      key,
-                      e.target.value ? parseInt(e.target.value, 10) : undefined
-                    )
-                  }
-                />
-              ) : type === 'tag' ? (
-                <SimpleTagInput
-                  id={`field-${key}`}
-                  value={metadata[key] as string || ''}
-                  onChange={(value) => handleFieldChange(key, value || undefined)}
-                  autocompleteField={autocompleteField}
-                  placeholder={`Add ${label.toLowerCase()}...`}
-                />
-              ) : (
-                <input
-                  id={`field-${key}`}
-                  type="text"
-                  value={metadata[key] as string || ''}
-                  onChange={(e) => handleFieldChange(key, e.target.value)}
-                />
-              )}
-            </div>
-          ))}
+                </label>
+                {type === 'textarea' ? (
+                  <>
+                    <textarea
+                      id={`field-${key}`}
+                      value={displayValue as string || ''}
+                      onChange={(e) => handleFieldChange(key, e.target.value)}
+                      rows={3}
+                      disabled={isLocked}
+                    />
+                    {/* Show Generate Description under Summary field */}
+                    {key === 'Summary' && fileId && !isLocked && (
+                      <DescriptionGenerator
+                        type="issue"
+                        entityId={fileId}
+                        entityName={metadata.Title || metadata.Series || filename}
+                        currentDescription={metadata.Summary === REMOVE_FIELD ? undefined : metadata.Summary}
+                        onGenerated={(result) => {
+                          handleFieldChange('Summary', result.description);
+                        }}
+                        disabled={saving}
+                      />
+                    )}
+                  </>
+                ) : type === 'number' ? (
+                  <>
+                    <input
+                      id={`field-${key}`}
+                      type="number"
+                      value={displayValue as number ?? ''}
+                      onChange={(e) =>
+                        handleFieldChange(
+                          key,
+                          e.target.value ? parseInt(e.target.value, 10) : undefined
+                        )
+                      }
+                      disabled={isLocked}
+                    />
+                    {hint && <span className="field-hint">{hint}</span>}
+                  </>
+                ) : type === 'tag' ? (
+                  <SimpleTagInput
+                    id={`field-${key}`}
+                    value={displayValue as string || ''}
+                    onChange={(value) => handleFieldChange(key, value || undefined)}
+                    autocompleteField={autocompleteField}
+                    placeholder={isLocked ? 'Locked' : `Add ${label.toLowerCase()}...`}
+                    disabled={isLocked}
+                  />
+                ) : (
+                  <>
+                    <input
+                      id={`field-${key}`}
+                      type="text"
+                      value={displayValue as string || ''}
+                      onChange={(e) => handleFieldChange(key, e.target.value)}
+                      disabled={isLocked}
+                    />
+                    {hint && <span className="field-hint">{hint}</span>}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -325,6 +414,22 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
           </button>
         </div>
       </div>
+
+      {/* Internal Metadata Grabber Modal (when onGrabMetadata not provided) */}
+      {isInternalGrabbing && fileId && (
+        <div className="modal-overlay" onClick={() => setIsInternalGrabbing(false)}>
+          <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
+            <IssueMetadataGrabber
+              fileId={fileId}
+              onClose={() => setIsInternalGrabbing(false)}
+              onSuccess={() => {
+                setIsInternalGrabbing(false);
+                reloadMetadata();
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

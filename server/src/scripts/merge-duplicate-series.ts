@@ -187,28 +187,15 @@ async function mergeSeries(group: DuplicateGroup): Promise<{ merged: number; iss
       },
     });
 
-    // 6. Update series progress for primary
+    // 6. SeriesProgress is now per-user, so we update all existing progress records
     const totalOwned = await tx.comicFile.count({
       where: { seriesId: primary.id },
     });
-    const totalRead = await tx.readingProgress.count({
-      where: {
-        file: { seriesId: primary.id },
-        completed: true,
-      },
-    });
 
-    await tx.seriesProgress.upsert({
+    // Update totalOwned for all users with existing progress on this series
+    await tx.seriesProgress.updateMany({
       where: { seriesId: primary.id },
-      create: {
-        seriesId: primary.id,
-        totalOwned,
-        totalRead,
-      },
-      update: {
-        totalOwned,
-        totalRead,
-      },
+      data: { totalOwned },
     });
   });
 

@@ -148,3 +148,32 @@
   height: 14px;
   stroke-width: 2.5;
 }
+
+/* =============================================================================
+   Inline Toggle (for expanding names within a role)
+   ============================================================================= */
+
+.creator-credits__inline-toggle {
+  display: inline;
+  padding: 0 var(--spacing-xs);
+  margin-left: var(--spacing-xs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.creator-credits__inline-toggle:hover {
+  background: var(--color-primary-muted);
+  text-decoration: underline;
+}
+
+.creator-credits__inline-toggle:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}

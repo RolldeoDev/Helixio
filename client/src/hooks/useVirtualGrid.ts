@@ -130,7 +130,7 @@ export function useVirtualGrid<T>(
     maxCoverWidth = 350,
     horizontalPadding = 32,
     gap,
-    overscan = 3,
+    overscan = 5, // Increased for smoother fast scrolling
   } = config;
 
   const containerRef = useRef<HTMLDivElement>(null);

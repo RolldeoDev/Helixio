@@ -1,7 +1,7 @@
 /**
  * Login Page
  *
- * Handles user login and initial setup.
+ * Handles user login, registration, and initial setup.
  */
 
 import { useState, FormEvent } from 'react';
@@ -9,17 +9,23 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../themes/ThemeContext';
 import './LoginPage.css';
 
+type PageMode = 'login' | 'register' | 'setup';
+
 export function LoginPage() {
-  const { login, setup, setupRequired, isLoading, error, clearError } = useAuth();
+  const { login, setup, register, setupRequired, registrationAllowed, isLoading, error, clearError } = useAuth();
   const { colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
 
+  const [mode, setMode] = useState<PageMode>(setupRequired ? 'setup' : 'login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const isSetup = setupRequired;
+  const isSetup = setupRequired || mode === 'setup';
+  const isRegister = mode === 'register';
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,7 +37,7 @@ export function LoginPage() {
       return;
     }
 
-    if (isSetup) {
+    if (isSetup || isRegister) {
       if (password !== confirmPassword) {
         setLocalError('Passwords do not match');
         return;
@@ -40,13 +46,43 @@ export function LoginPage() {
         setLocalError('Password must be at least 8 characters');
         return;
       }
-      await setup(username, password);
+      if (username.length < 3) {
+        setLocalError('Username must be at least 3 characters');
+        return;
+      }
+
+      if (isSetup) {
+        await setup(username, password);
+      } else {
+        await register(username, password, email || undefined, displayName || undefined);
+      }
     } else {
       await login(username, password);
     }
   };
 
+  const switchMode = (newMode: PageMode) => {
+    setMode(newMode);
+    setLocalError(null);
+    clearError();
+    setPassword('');
+    setConfirmPassword('');
+  };
+
   const displayError = localError || error;
+
+  const getSubtitle = () => {
+    if (isSetup) return 'Create your admin account';
+    if (isRegister) return 'Create a new account';
+    return 'Sign in to continue';
+  };
+
+  const getButtonText = () => {
+    if (isLoading) return 'Please wait...';
+    if (isSetup) return 'Create Admin Account';
+    if (isRegister) return 'Create Account';
+    return 'Sign In';
+  };
 
   return (
     <div className="login-page">
@@ -57,9 +93,7 @@ export function LoginPage() {
             alt="Helixio"
             className="login-logo-img"
           />
-          <p className="login-subtitle">
-            {isSetup ? 'Create your admin account' : 'Sign in to continue'}
-          </p>
+          <p className="login-subtitle">{getSubtitle()}</p>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
@@ -83,6 +117,36 @@ export function LoginPage() {
             />
           </div>
 
+          {isRegister && (
+            <>
+              <div className="form-group">
+                <label htmlFor="email">Email (optional)</label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter email"
+                  autoComplete="email"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="displayName">Display Name (optional)</label>
+                <input
+                  id="displayName"
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Enter display name"
+                  autoComplete="name"
+                  disabled={isLoading}
+                />
+              </div>
+            </>
+          )}
+
           <div className="form-group">
             <label htmlFor="password">Password</label>
             <input
@@ -91,12 +155,12 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
-              autoComplete={isSetup ? 'new-password' : 'current-password'}
+              autoComplete={isSetup || isRegister ? 'new-password' : 'current-password'}
               disabled={isLoading}
             />
           </div>
 
-          {isSetup && (
+          {(isSetup || isRegister) && (
             <div className="form-group">
               <label htmlFor="confirmPassword">Confirm Password</label>
               <input
@@ -116,7 +180,7 @@ export function LoginPage() {
             className="login-button"
             disabled={isLoading}
           >
-            {isLoading ? 'Please wait...' : isSetup ? 'Create Account' : 'Sign In'}
+            {getButtonText()}
           </button>
         </form>
 
@@ -126,6 +190,46 @@ export function LoginPage() {
               This is your first time setting up Helixio.
               Create an admin account to get started.
             </p>
+          </div>
+        )}
+
+        {isRegister && (
+          <div className="login-info">
+            <p>
+              New accounts have no library access by default.
+              An admin will need to grant you access.
+            </p>
+          </div>
+        )}
+
+        {!isSetup && (
+          <div className="login-toggle">
+            {mode === 'login' && registrationAllowed && (
+              <p>
+                Don't have an account?{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => switchMode('register')}
+                  disabled={isLoading}
+                >
+                  Create one
+                </button>
+              </p>
+            )}
+            {mode === 'register' && (
+              <p>
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => switchMode('login')}
+                  disabled={isLoading}
+                >
+                  Sign in
+                </button>
+              </p>
+            )}
           </div>
         )}
       </div>

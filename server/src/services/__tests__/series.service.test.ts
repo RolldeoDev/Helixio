@@ -139,14 +139,16 @@ describe('Series Service', () => {
       mockDb.series.findUnique.mockResolvedValue({
         ...createMockSeriesRecord(),
         _count: { issues: 52 },
-        progress: { totalOwned: 52, totalRead: 10 },
+        progress: [{ userId: 'user-1', seriesId: 'series-1', totalOwned: 52, totalRead: 10 }],
       });
 
       const series = await getSeries('series-1');
 
       expect(series).not.toBeNull();
       expect(series?._count?.issues).toBe(52);
-      expect(series?.progress?.totalRead).toBe(10);
+      // Progress is now an array since it's per-user
+      const progress = Array.isArray(series?.progress) ? series.progress[0] : series?.progress;
+      expect(progress?.totalRead).toBe(10);
     });
 
     it('should return null for non-existent series', async () => {
@@ -494,35 +496,39 @@ describe('Series Service', () => {
   // ===========================================================================
 
   describe('getSeriesProgress', () => {
-    it('should return existing progress', async () => {
+    it('should return existing progress for user', async () => {
       mockDb.seriesProgress.findUnique.mockResolvedValue({
+        userId: 'user-1',
         seriesId: 'series-1',
         totalOwned: 52,
         totalRead: 10,
         totalInProgress: 2,
       });
 
-      const progress = await getSeriesProgress('series-1');
+      const progress = await getSeriesProgress('user-1', 'series-1');
 
       expect(progress).not.toBeNull();
       expect(progress?.totalOwned).toBe(52);
     });
 
-    it('should create progress if not exists', async () => {
+    it('should create progress if not exists for user', async () => {
       mockDb.seriesProgress.findUnique.mockResolvedValue(null);
+      mockDb.comicFile.count.mockResolvedValue(10);
       mockDb.seriesProgress.create.mockResolvedValue({
+        userId: 'user-1',
         seriesId: 'series-1',
-        totalOwned: 0,
+        totalOwned: 10,
         totalRead: 0,
         totalInProgress: 0,
       });
 
-      const progress = await getSeriesProgress('series-1');
+      const progress = await getSeriesProgress('user-1', 'series-1');
 
       expect(mockDb.seriesProgress.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
+          userId: 'user-1',
           seriesId: 'series-1',
-          totalOwned: 0,
+          totalOwned: 10,
           totalRead: 0,
         }),
       });

@@ -82,6 +82,7 @@ interface AppContextValue extends AppState {
   selectFile: (fileId: string, multi?: boolean, shiftKey?: boolean) => void;
   selectRange: (fromId: string, toId: string) => void;
   selectAllFiles: () => void;
+  selectFiles: (fileIds: string[], selected: boolean) => void;
   clearSelection: () => void;
   lastSelectedFileId: string | null;
 
@@ -403,6 +404,18 @@ export function AppProvider({ children }: AppProviderProps) {
     setSelectedFiles(new Set(files.map((f) => f.id)));
   }, [files]);
 
+  const selectFiles = useCallback((fileIds: string[], selected: boolean) => {
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        fileIds.forEach((id) => next.add(id));
+      } else {
+        fileIds.forEach((id) => next.delete(id));
+      }
+      return next;
+    });
+  }, []);
+
   const clearSelection = useCallback(() => {
     setSelectedFiles(new Set());
     setLastSelectedFileId(null);
@@ -491,6 +504,7 @@ export function AppProvider({ children }: AppProviderProps) {
     selectFile,
     selectRange,
     selectAllFiles,
+    selectFiles,
     clearSelection,
     lastSelectedFileId,
     setStatusFilter: handleSetStatusFilter,

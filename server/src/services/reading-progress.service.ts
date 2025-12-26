@@ -6,6 +6,8 @@
  * - Completion status
  * - Bookmarks
  * - Continue reading functionality
+ *
+ * All reading progress is now user-scoped using UserReadingProgress.
  */
 
 import { rm } from 'fs/promises';
@@ -18,6 +20,7 @@ import { markDirtyForReadingProgress } from './stats-dirty.service.js';
 
 export interface ReadingProgress {
   id: string;
+  userId: string;
   fileId: string;
   currentPage: number;
   totalPages: number;
@@ -68,13 +71,15 @@ export interface AdjacentFiles {
 // =============================================================================
 
 /**
- * Get reading progress for a file
+ * Get reading progress for a file for a specific user
  */
-export async function getProgress(fileId: string): Promise<ReadingProgress | null> {
+export async function getProgress(userId: string, fileId: string): Promise<ReadingProgress | null> {
   const db = getDatabase();
 
-  const progress = await db.readingProgress.findUnique({
-    where: { fileId },
+  const progress = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   });
 
   if (!progress) return null;
@@ -86,9 +91,10 @@ export async function getProgress(fileId: string): Promise<ReadingProgress | nul
 }
 
 /**
- * Update reading progress for a file
+ * Update reading progress for a file for a specific user
  */
 export async function updateProgress(
+  userId: string,
   fileId: string,
   input: UpdateProgressInput
 ): Promise<ReadingProgress> {
@@ -111,9 +117,12 @@ export async function updateProgress(
         ? input.currentPage >= input.totalPages - 1
         : false;
 
-  const progress = await db.readingProgress.upsert({
-    where: { fileId },
+  const progress = await db.userReadingProgress.upsert({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
     create: {
+      userId,
       fileId,
       currentPage: input.currentPage,
       totalPages: input.totalPages || 0,
@@ -128,7 +137,7 @@ export async function updateProgress(
   });
 
   // Sync series progress if file is linked to a series
-  await syncSeriesProgressInternal(db, fileId);
+  await syncSeriesProgressInternal(db, userId, fileId);
 
   // Mark stats as dirty for recalculation
   try {
@@ -144,50 +153,99 @@ export async function updateProgress(
 }
 
 /**
- * Mark a file as completed
+ * Mark a file as completed for a specific user
  */
-export async function markCompleted(fileId: string): Promise<ReadingProgress> {
+export async function markCompleted(userId: string, fileId: string): Promise<ReadingProgress> {
   const db = getDatabase();
 
-  const existing = await db.readingProgress.findUnique({
-    where: { fileId },
+  const existing = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
+  });
+
+  if (!existing) {
+    // Create a new progress entry and mark as completed
+    const file = await db.comicFile.findUnique({
+      where: { id: fileId },
+    });
+
+    if (!file) {
+      throw new Error(`File not found: ${fileId}`);
+    }
+
+    const progress = await db.userReadingProgress.create({
+      data: {
+        userId,
+        fileId,
+        currentPage: 0,
+        totalPages: 0,
+        completed: true,
+        bookmarks: '[]',
+      },
+    });
+
+    // Sync series progress
+    await syncSeriesProgressInternal(db, userId, fileId);
+
+    // Mark stats as dirty
+    try {
+      await markDirtyForReadingProgress(fileId);
+    } catch {
+      // Non-critical
+    }
+
+    return {
+      ...progress,
+      bookmarks: [],
+    };
+  }
+
+  const progress = await db.userReadingProgress.update({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
+    data: { completed: true },
+  });
+
+  // Sync series progress if file is linked to a series
+  await syncSeriesProgressInternal(db, userId, fileId);
+
+  // Mark stats as dirty for recalculation
+  try {
+    await markDirtyForReadingProgress(fileId);
+  } catch {
+    // Non-critical, continue even if dirty marking fails
+  }
+
+  return {
+    ...progress,
+    bookmarks: JSON.parse(progress.bookmarks) as number[],
+  };
+}
+
+/**
+ * Mark a file as not completed (reset completion and progress) for a specific user
+ * This fully resets reading progress as if the file was never read.
+ * Also clears the page extraction cache for this file.
+ */
+export async function markIncomplete(userId: string, fileId: string): Promise<ReadingProgress> {
+  const db = getDatabase();
+
+  const existing = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   });
 
   if (!existing) {
     throw new Error(`No reading progress found for file: ${fileId}`);
   }
 
-  const progress = await db.readingProgress.update({
-    where: { fileId },
-    data: { completed: true },
-  });
-
-  // Sync series progress if file is linked to a series
-  await syncSeriesProgressInternal(db, fileId);
-
-  // Mark stats as dirty for recalculation
-  try {
-    await markDirtyForReadingProgress(fileId);
-  } catch {
-    // Non-critical, continue even if dirty marking fails
-  }
-
-  return {
-    ...progress,
-    bookmarks: JSON.parse(progress.bookmarks) as number[],
-  };
-}
-
-/**
- * Mark a file as not completed (reset completion and progress)
- * This fully resets reading progress as if the file was never read.
- * Also clears the page extraction cache for this file.
- */
-export async function markIncomplete(fileId: string): Promise<ReadingProgress> {
-  const db = getDatabase();
-
-  const progress = await db.readingProgress.update({
-    where: { fileId },
+  const progress = await db.userReadingProgress.update({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
     data: {
       completed: false,
       currentPage: 0,
@@ -195,7 +253,7 @@ export async function markIncomplete(fileId: string): Promise<ReadingProgress> {
   });
 
   // Sync series progress if file is linked to a series
-  await syncSeriesProgressInternal(db, fileId);
+  await syncSeriesProgressInternal(db, userId, fileId);
 
   // Mark stats as dirty for recalculation
   try {
@@ -219,13 +277,15 @@ export async function markIncomplete(fileId: string): Promise<ReadingProgress> {
 }
 
 /**
- * Delete reading progress for a file
+ * Delete reading progress for a file for a specific user
  */
-export async function deleteProgress(fileId: string): Promise<void> {
+export async function deleteProgress(userId: string, fileId: string): Promise<void> {
   const db = getDatabase();
 
-  await db.readingProgress.delete({
-    where: { fileId },
+  await db.userReadingProgress.delete({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   }).catch(() => {
     // Ignore if not found
   });
@@ -236,22 +296,26 @@ export async function deleteProgress(fileId: string): Promise<void> {
 // =============================================================================
 
 /**
- * Add a bookmark to a file
+ * Add a bookmark to a file for a specific user
  */
 export async function addBookmark(
+  userId: string,
   fileId: string,
   pageIndex: number
 ): Promise<ReadingProgress> {
   const db = getDatabase();
 
-  const existing = await db.readingProgress.findUnique({
-    where: { fileId },
+  const existing = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   });
 
   if (!existing) {
     // Create new progress entry with bookmark
-    const progress = await db.readingProgress.create({
+    const progress = await db.userReadingProgress.create({
       data: {
+        userId,
         fileId,
         currentPage: 0,
         totalPages: 0,
@@ -270,8 +334,10 @@ export async function addBookmark(
     bookmarks.sort((a, b) => a - b);
   }
 
-  const progress = await db.readingProgress.update({
-    where: { fileId },
+  const progress = await db.userReadingProgress.update({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
     data: { bookmarks: JSON.stringify(bookmarks) },
   });
 
@@ -282,16 +348,19 @@ export async function addBookmark(
 }
 
 /**
- * Remove a bookmark from a file
+ * Remove a bookmark from a file for a specific user
  */
 export async function removeBookmark(
+  userId: string,
   fileId: string,
   pageIndex: number
 ): Promise<ReadingProgress> {
   const db = getDatabase();
 
-  const existing = await db.readingProgress.findUnique({
-    where: { fileId },
+  const existing = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   });
 
   if (!existing) {
@@ -302,8 +371,10 @@ export async function removeBookmark(
     (b) => b !== pageIndex
   );
 
-  const progress = await db.readingProgress.update({
-    where: { fileId },
+  const progress = await db.userReadingProgress.update({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
     data: { bookmarks: JSON.stringify(bookmarks) },
   });
 
@@ -314,13 +385,15 @@ export async function removeBookmark(
 }
 
 /**
- * Get all bookmarks for a file
+ * Get all bookmarks for a file for a specific user
  */
-export async function getBookmarks(fileId: string): Promise<number[]> {
+export async function getBookmarks(userId: string, fileId: string): Promise<number[]> {
   const db = getDatabase();
 
-  const progress = await db.readingProgress.findUnique({
-    where: { fileId },
+  const progress = await db.userReadingProgress.findUnique({
+    where: {
+      userId_fileId: { userId, fileId },
+    },
   });
 
   if (!progress) return [];
@@ -333,16 +406,18 @@ export async function getBookmarks(fileId: string): Promise<number[]> {
 // =============================================================================
 
 /**
- * Get recently read files that are in progress (not completed)
+ * Get recently read files that are in progress (not completed) for a specific user
  */
 export async function getContinueReading(
+  userId: string,
   limit = 3,
   libraryId?: string
 ): Promise<ContinueReadingItem[]> {
   const db = getDatabase();
 
-  const progress = await db.readingProgress.findMany({
+  const progress = await db.userReadingProgress.findMany({
     where: {
+      userId,
       completed: false,
       currentPage: { gt: 0 },
       ...(libraryId && {
@@ -392,15 +467,17 @@ export async function getContinueReading(
 }
 
 /**
- * Get all reading progress for a library with file info
+ * Get all reading progress for a library for a specific user
  */
 export async function getLibraryProgress(
+  userId: string,
   libraryId: string
 ): Promise<Map<string, { currentPage: number; totalPages: number; completed: boolean }>> {
   const db = getDatabase();
 
-  const progress = await db.readingProgress.findMany({
+  const progress = await db.userReadingProgress.findMany({
     where: {
+      userId,
       file: { libraryId },
     },
     select: {
@@ -424,9 +501,9 @@ export async function getLibraryProgress(
 }
 
 /**
- * Get reading statistics for a library
+ * Get reading statistics for a library for a specific user
  */
-export async function getLibraryReadingStats(libraryId: string): Promise<{
+export async function getLibraryReadingStats(userId: string, libraryId: string): Promise<{
   totalFiles: number;
   inProgress: number;
   completed: number;
@@ -438,16 +515,18 @@ export async function getLibraryReadingStats(libraryId: string): Promise<{
     where: { libraryId, status: 'indexed' },
   });
 
-  const inProgress = await db.readingProgress.count({
+  const inProgress = await db.userReadingProgress.count({
     where: {
+      userId,
       file: { libraryId },
       completed: false,
       currentPage: { gt: 0 },
     },
   });
 
-  const completed = await db.readingProgress.count({
+  const completed = await db.userReadingProgress.count({
     where: {
+      userId,
       file: { libraryId },
       completed: true,
     },
@@ -684,9 +763,13 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
 // =============================================================================
 
 /**
- * Internal helper to sync series progress (takes db connection)
+ * Internal helper to sync series progress for a user (takes db connection)
  */
-async function syncSeriesProgressInternal(db: ReturnType<typeof getDatabase>, fileId: string): Promise<void> {
+async function syncSeriesProgressInternal(
+  db: ReturnType<typeof getDatabase>,
+  userId: string,
+  fileId: string
+): Promise<void> {
   // Get the file and check if it's linked to a series
   const file = await db.comicFile.findUnique({
     where: { id: fileId },
@@ -699,9 +782,10 @@ async function syncSeriesProgressInternal(db: ReturnType<typeof getDatabase>, fi
     return; // File not linked to a series
   }
 
-  // Count completed issues in this series
-  const completedCount = await db.readingProgress.count({
+  // Count completed issues in this series for this user
+  const completedCount = await db.userReadingProgress.count({
     where: {
+      userId,
       file: {
         seriesId: file.seriesId,
       },
@@ -716,10 +800,13 @@ async function syncSeriesProgressInternal(db: ReturnType<typeof getDatabase>, fi
     },
   });
 
-  // Update or create SeriesProgress
+  // Update or create SeriesProgress for this user
   await db.seriesProgress.upsert({
-    where: { seriesId: file.seriesId },
+    where: {
+      userId_seriesId: { userId, seriesId: file.seriesId },
+    },
     create: {
+      userId,
       seriesId: file.seriesId,
       totalOwned: totalCount,
       totalRead: completedCount,
@@ -734,10 +821,10 @@ async function syncSeriesProgressInternal(db: ReturnType<typeof getDatabase>, fi
 }
 
 /**
- * Update SeriesProgress when an issue's reading status changes
+ * Update SeriesProgress when an issue's reading status changes for a user
  * This recalculates totalRead and updates lastReadAt
  */
-export async function syncSeriesProgress(fileId: string): Promise<void> {
+export async function syncSeriesProgress(userId: string, fileId: string): Promise<void> {
   const db = getDatabase();
-  await syncSeriesProgressInternal(db, fileId);
+  await syncSeriesProgressInternal(db, userId, fileId);
 }

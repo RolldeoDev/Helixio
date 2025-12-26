@@ -59,6 +59,8 @@ import collectionsRoutes from './routes/collections.routes.js';
 import libraryScanRoutes from './routes/library-scan.routes.js';
 import factoryResetRoutes from './routes/factory-reset.routes.js';
 import issueMetadataRoutes from './routes/issue-metadata.routes.js';
+import downloadsRoutes from './routes/downloads.routes.js';
+import globalSearchRoutes from './routes/global-search.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -68,8 +70,8 @@ import { cleanupExpiredJobs } from './services/metadata-job.service.js';
 import { initializeScanQueue } from './services/library-scan-queue.service.js';
 import { cleanupOldScanJobs } from './services/library-scan-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
-import { ensureSystemCollections } from './services/collection.service.js';
 import { ensureBundledPresets } from './services/reader-preset.service.js';
+import { runDownloadCleanup } from './services/download.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -325,6 +327,7 @@ app.use('/api/archives', archiveRoutes);
 app.use('/api/covers', coversRoutes);
 app.use('/api/metadata', metadataRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/search', globalSearchRoutes);  // Global search bar endpoint
 app.use('/api/parsing', parsingRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/rollback', rollbackRoutes);
@@ -352,6 +355,7 @@ app.use('/api/collections', collectionsRoutes);
 app.use('/api/libraries', libraryScanRoutes);  // Library scan routes (mounted on /api/libraries for /scan/full endpoints)
 app.use('/api/factory-reset', factoryResetRoutes);
 app.use('/api/files', issueMetadataRoutes);  // Issue metadata routes (mounted on /api/files for /:fileId/issue-metadata endpoints)
+app.use('/api/downloads', downloadsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -388,10 +392,6 @@ async function startServer(): Promise<void> {
     console.log('Connecting to database...');
     await initializeDatabase();
 
-    // Ensure system collections exist (Favorites, Want to Read)
-    console.log('Initializing system collections...');
-    await ensureSystemCollections();
-
     // Ensure bundled reader presets exist (Western, Manga, Webtoon)
     console.log('Initializing reader presets...');
     await ensureBundledPresets();
@@ -417,6 +417,21 @@ async function startServer(): Promise<void> {
     // Initialize library scan queue and recover interrupted scans
     await initializeScanQueue();
     await cleanupOldScanJobs();
+
+    // Clean up expired/stale download jobs
+    const downloadCleanup = await runDownloadCleanup();
+    if (downloadCleanup.expired + downloadCleanup.stale + downloadCleanup.orphaned > 0) {
+      console.log(`Cleaned up downloads: ${downloadCleanup.expired} expired, ${downloadCleanup.stale} stale, ${downloadCleanup.orphaned} orphaned`);
+    }
+
+    // Schedule hourly download cleanup
+    setInterval(async () => {
+      try {
+        await runDownloadCleanup();
+      } catch (err) {
+        console.error('Error during scheduled download cleanup:', err);
+      }
+    }, 60 * 60 * 1000); // Every hour
 
     // Start stats scheduler for background stat computation
     startStatsScheduler();

@@ -390,10 +390,12 @@ export async function writeComicInfo(
 /**
  * Merge new metadata into existing ComicInfo.xml.
  * Only updates fields that are provided, preserves others.
+ * Fields in the `removals` array will be deleted from the result.
  */
 export async function mergeComicInfo(
   archivePath: string,
-  updates: Partial<ComicInfo>
+  updates: Partial<ComicInfo>,
+  removals?: string[]
 ): Promise<ComicInfoWriteResult> {
   try {
     // Try to read existing ComicInfo
@@ -403,6 +405,13 @@ export async function mergeComicInfo(
     const merged: ComicInfo = existing.success && existing.comicInfo
       ? { ...existing.comicInfo, ...updates }
       : { ...updates };
+
+    // Remove fields that were explicitly cleared
+    if (removals && removals.length > 0) {
+      for (const field of removals) {
+        delete (merged as Record<string, unknown>)[field];
+      }
+    }
 
     // Write merged result
     return writeComicInfo(archivePath, merged);

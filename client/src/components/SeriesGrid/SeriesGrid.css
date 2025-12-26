@@ -97,8 +97,7 @@
   /* top, right (before nav), bottom, left */
   padding: var(--spacing-md) var(--spacing-md) var(--spacing-lg) var(--spacing-md);
 
-  /* Smooth scrolling */
-  scroll-behavior: smooth;
+  /* Native momentum scrolling on iOS - NO smooth scroll for virtualization performance */
   -webkit-overflow-scrolling: touch;
 
   /* Hide scrollbar aesthetically but keep functionality */
@@ -123,10 +122,7 @@
   background: var(--color-text-muted);
 }
 
-/* Disable smooth scroll during rapid scrolling */
-.series-grid-scroll-container.scrolling {
-  scroll-behavior: auto;
-}
+/* .scrolling class is still applied for CSS animation/transition optimizations */
 
 .series-grid-virtual {
   /* Virtual container - items are positioned absolutely within */

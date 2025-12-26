@@ -411,4 +411,235 @@ router.delete('/users/:userId', requireAdmin, async (req: Request, res: Response
   }
 });
 
+/**
+ * Update user role (admin only) - PUT alias
+ * PUT /api/auth/users/:userId/role
+ */
+router.put('/users/:userId/role', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const { role } = req.body;
+
+    if (!['admin', 'user'].includes(role)) {
+      res.status(400).json({ error: 'Invalid role' });
+      return;
+    }
+
+    const user = await authService.setUserRole(userId, role);
+    res.json({ user });
+  } catch (error) {
+    console.error('Update role error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to update role',
+    });
+  }
+});
+
+/**
+ * Get user library access (admin only)
+ * GET /api/auth/users/:userId/library-access
+ */
+router.get('/users/:userId/library-access', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const libraries = await authService.getUserLibraryAccess(userId);
+    res.json({ libraries });
+  } catch (error) {
+    console.error('Get library access error:', error);
+    res.status(500).json({ error: 'Failed to get library access' });
+  }
+});
+
+/**
+ * Set user library access (admin only)
+ * PUT /api/auth/users/:userId/library-access/:libraryId
+ */
+router.put('/users/:userId/library-access/:libraryId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { userId, libraryId } = req.params;
+    if (!userId || !libraryId) {
+      res.status(400).json({ error: 'User ID and Library ID required' });
+      return;
+    }
+
+    const { hasAccess, permission } = req.body;
+
+    if (typeof hasAccess !== 'boolean') {
+      res.status(400).json({ error: 'hasAccess must be a boolean' });
+      return;
+    }
+
+    await authService.setUserLibraryAccess(userId, libraryId, hasAccess, permission);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Set library access error:', error);
+    res.status(500).json({ error: 'Failed to set library access' });
+  }
+});
+
+/**
+ * Freeze user account (admin only)
+ * POST /api/auth/users/:userId/freeze
+ */
+router.post('/users/:userId/freeze', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    // Prevent self-freeze
+    if (userId === req.user!.id) {
+      res.status(400).json({ error: 'Cannot freeze your own account' });
+      return;
+    }
+
+    const user = await authService.freezeUser(userId);
+    res.json({ user });
+  } catch (error) {
+    console.error('Freeze user error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to freeze user',
+    });
+  }
+});
+
+/**
+ * Unfreeze user account (admin only)
+ * POST /api/auth/users/:userId/unfreeze
+ */
+router.post('/users/:userId/unfreeze', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const user = await authService.unfreezeUser(userId);
+    res.json({ user });
+  } catch (error) {
+    console.error('Unfreeze user error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to unfreeze user',
+    });
+  }
+});
+
+// =============================================================================
+// App Settings
+// =============================================================================
+
+/**
+ * Get app settings (admin only)
+ * GET /api/auth/settings
+ */
+router.get('/settings', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const settings = await authService.getAppSettings();
+    res.json(settings);
+  } catch (error) {
+    console.error('Get settings error:', error);
+    res.status(500).json({ error: 'Failed to get settings' });
+  }
+});
+
+/**
+ * Update app settings (admin only)
+ * PUT /api/auth/settings
+ */
+router.put('/settings', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { allowOpenRegistration } = req.body;
+    const settings = await authService.updateAppSettings({ allowOpenRegistration });
+    res.json(settings);
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+// =============================================================================
+// Registration (Public)
+// =============================================================================
+
+/**
+ * Check if registration is allowed (public)
+ * GET /api/auth/registration-allowed
+ */
+router.get('/registration-allowed', async (_req: Request, res: Response) => {
+  try {
+    const settings = await authService.getAppSettings();
+    res.json({ allowed: settings.allowOpenRegistration });
+  } catch (error) {
+    console.error('Check registration error:', error);
+    res.json({ allowed: false });
+  }
+});
+
+/**
+ * Self-register (public, if enabled)
+ * POST /api/auth/register
+ */
+router.post('/register', async (req: Request, res: Response) => {
+  try {
+    const { username, password, email, displayName } = req.body;
+
+    if (!username || !password) {
+      res.status(400).json({ error: 'Username and password required' });
+      return;
+    }
+
+    const user = await authService.registerUser({
+      username,
+      password,
+      email,
+      displayName,
+    });
+
+    // Auto-login after registration
+    const loginResult = await authService.login(
+      username,
+      password,
+      req.headers['user-agent'],
+      req.ip
+    );
+
+    if (!loginResult.success) {
+      res.status(500).json({ error: 'Account created but login failed' });
+      return;
+    }
+
+    // Set cookie
+    res.cookie('helixio_token', loginResult.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    res.status(201).json({
+      user,
+      token: loginResult.token,
+      expiresAt: loginResult.expiresAt,
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Registration failed',
+    });
+  }
+});
+
 export default router;

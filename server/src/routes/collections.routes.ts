@@ -6,9 +6,12 @@
  * - Add/remove items from collections
  * - Query collections for items
  * - Toggle system collections (Favorites, Want to Read)
+ *
+ * All routes require authentication as collections are user-scoped.
  */
 
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   getCollections,
   getCollection,
@@ -28,17 +31,21 @@ import {
 
 const router = Router();
 
+// All collection routes require authentication
+router.use(requireAuth);
+
 // =============================================================================
 // Collection CRUD
 // =============================================================================
 
 /**
  * GET /api/collections
- * Get all collections with item counts
+ * Get all collections with item counts for the current user
  */
-router.get('/', async (_req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
-    const collections = await getCollections();
+    const userId = req.user!.id;
+    const collections = await getCollections(userId);
     res.json({ collections });
   } catch (error) {
     console.error('Error getting collections:', error);
@@ -51,13 +58,14 @@ router.get('/', async (_req: Request, res: Response) => {
 
 /**
  * GET /api/collections/for-item
- * Get all collections containing a specific series or file
+ * Get all collections containing a specific series or file for the current user
  */
 router.get('/for-item', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { seriesId, fileId } = req.query as { seriesId?: string; fileId?: string };
 
-    const collections = await getCollectionsForItem(seriesId, fileId);
+    const collections = await getCollectionsForItem(userId, seriesId, fileId);
     res.json({ collections });
   } catch (error) {
     console.error('Error getting collections for item:', error);
@@ -70,10 +78,11 @@ router.get('/for-item', async (req: Request, res: Response) => {
 
 /**
  * GET /api/collections/system/:systemKey
- * Get a system collection by key
+ * Get a system collection by key for the current user
  */
 router.get('/system/:systemKey', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { systemKey } = req.params;
 
     if (systemKey !== 'favorites' && systemKey !== 'want-to-read') {
@@ -81,7 +90,7 @@ router.get('/system/:systemKey', async (req: Request, res: Response) => {
       return;
     }
 
-    const collection = await getSystemCollection(systemKey);
+    const collection = await getSystemCollection(userId, systemKey);
 
     if (!collection) {
       res.status(404).json({ error: 'System collection not found' });
@@ -104,8 +113,9 @@ router.get('/system/:systemKey', async (req: Request, res: Response) => {
  */
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
-    const collection = await getCollection(id!);
+    const collection = await getCollection(userId, id!);
 
     if (!collection) {
       res.status(404).json({ error: 'Collection not found' });
@@ -124,10 +134,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 /**
  * POST /api/collections
- * Create a new collection
+ * Create a new collection for the current user
  */
 router.post('/', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { name, description, iconName, color } = req.body as {
       name: string;
       description?: string;
@@ -140,7 +151,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const collection = await createCollection({ name, description, iconName, color });
+    const collection = await createCollection(userId, { name, description, iconName, color });
     res.status(201).json(collection);
   } catch (error) {
     console.error('Error creating collection:', error);
@@ -157,6 +168,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.put('/:id', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const { name, description, iconName, color, sortOrder } = req.body as {
       name?: string;
@@ -166,7 +178,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       sortOrder?: number;
     };
 
-    const collection = await updateCollection(id!, { name, description, iconName, color, sortOrder });
+    const collection = await updateCollection(userId, id!, { name, description, iconName, color, sortOrder });
     res.json(collection);
   } catch (error) {
     console.error('Error updating collection:', error);
@@ -183,8 +195,9 @@ router.put('/:id', async (req: Request, res: Response) => {
  */
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
-    await deleteCollection(id!);
+    await deleteCollection(userId, id!);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting collection:', error);
@@ -205,6 +218,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  */
 router.post('/:id/items', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const { items } = req.body as {
       items: Array<{ seriesId?: string; fileId?: string; notes?: string }>;
@@ -215,7 +229,7 @@ router.post('/:id/items', async (req: Request, res: Response) => {
       return;
     }
 
-    const added = await addItemsToCollection(id!, items);
+    const added = await addItemsToCollection(userId, id!, items);
     res.status(201).json({ added: added.length, items: added });
   } catch (error) {
     console.error('Error adding items to collection:', error);
@@ -232,6 +246,7 @@ router.post('/:id/items', async (req: Request, res: Response) => {
  */
 router.delete('/:id/items', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const { items } = req.body as {
       items: Array<{ seriesId?: string; fileId?: string }>;
@@ -242,7 +257,7 @@ router.delete('/:id/items', async (req: Request, res: Response) => {
       return;
     }
 
-    const removed = await removeItemsFromCollection(id!, items);
+    const removed = await removeItemsFromCollection(userId, id!, items);
     res.json({ removed });
   } catch (error) {
     console.error('Error removing items from collection:', error);
@@ -259,6 +274,7 @@ router.delete('/:id/items', async (req: Request, res: Response) => {
  */
 router.put('/:id/items/reorder', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const { itemIds } = req.body as { itemIds: string[] };
 
@@ -267,7 +283,7 @@ router.put('/:id/items/reorder', async (req: Request, res: Response) => {
       return;
     }
 
-    await reorderItems(id!, itemIds);
+    await reorderItems(userId, id!, itemIds);
     res.json({ success: true });
   } catch (error) {
     console.error('Error reordering collection items:', error);
@@ -284,10 +300,11 @@ router.put('/:id/items/reorder', async (req: Request, res: Response) => {
  */
 router.get('/:id/check', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const { seriesId, fileId } = req.query as { seriesId?: string; fileId?: string };
 
-    const inCollection = await isInCollection(id!, seriesId, fileId);
+    const inCollection = await isInCollection(userId, id!, seriesId, fileId);
     res.json({ inCollection });
   } catch (error) {
     console.error('Error checking collection membership:', error);
@@ -304,10 +321,11 @@ router.get('/:id/check', async (req: Request, res: Response) => {
 
 /**
  * POST /api/collections/toggle-favorite
- * Toggle an item in the Favorites collection
+ * Toggle an item in the Favorites collection for the current user
  */
 router.post('/toggle-favorite', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { seriesId, fileId } = req.body as { seriesId?: string; fileId?: string };
 
     if (!seriesId && !fileId) {
@@ -315,7 +333,7 @@ router.post('/toggle-favorite', async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await toggleSystemCollection('favorites', seriesId, fileId);
+    const result = await toggleSystemCollection(userId, 'favorites', seriesId, fileId);
     res.json(result);
   } catch (error) {
     console.error('Error toggling favorite:', error);
@@ -328,10 +346,11 @@ router.post('/toggle-favorite', async (req: Request, res: Response) => {
 
 /**
  * POST /api/collections/toggle-want-to-read
- * Toggle an item in the Want to Read collection
+ * Toggle an item in the Want to Read collection for the current user
  */
 router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { seriesId, fileId } = req.body as { seriesId?: string; fileId?: string };
 
     if (!seriesId && !fileId) {
@@ -339,7 +358,7 @@ router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await toggleSystemCollection('want-to-read', seriesId, fileId);
+    const result = await toggleSystemCollection(userId, 'want-to-read', seriesId, fileId);
     res.json(result);
   } catch (error) {
     console.error('Error toggling want to read:', error);
@@ -356,12 +375,13 @@ router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
 
 /**
  * GET /api/collections/unavailable-count
- * Get count of unavailable items across all collections.
+ * Get count of unavailable items across all collections for the current user.
  * Items become unavailable when their referenced file/series is deleted.
  */
-router.get('/unavailable-count', async (_req: Request, res: Response) => {
+router.get('/unavailable-count', async (req: Request, res: Response) => {
   try {
-    const count = await getUnavailableItemCount();
+    const userId = req.user!.id;
+    const count = await getUnavailableItemCount(userId);
     res.json({ count });
   } catch (error) {
     console.error('Error getting unavailable count:', error);
@@ -374,12 +394,13 @@ router.get('/unavailable-count', async (_req: Request, res: Response) => {
 
 /**
  * DELETE /api/collections/unavailable
- * Remove all unavailable items from all collections.
+ * Remove all unavailable items from all collections for the current user.
  * Call this to clean up orphaned collection references.
  */
-router.delete('/unavailable', async (_req: Request, res: Response) => {
+router.delete('/unavailable', async (req: Request, res: Response) => {
   try {
-    const removed = await removeUnavailableItems();
+    const userId = req.user!.id;
+    const removed = await removeUnavailableItems(userId);
     res.json({ removed });
   } catch (error) {
     console.error('Error removing unavailable items:', error);

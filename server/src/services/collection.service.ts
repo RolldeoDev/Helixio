@@ -2,9 +2,11 @@
  * Collection Service
  *
  * Manages user collections including:
- * - System collections (Favorites, Want to Read)
+ * - System collections (Favorites, Want to Read) - per user
  * - User-created collections
  * - Hybrid items (series and files)
+ *
+ * All collections are now user-scoped.
  */
 
 import { getDatabase } from './database.service.js';
@@ -15,6 +17,7 @@ import { getDatabase } from './database.service.js';
 
 export interface Collection {
   id: string;
+  userId: string;
   name: string;
   description: string | null;
   isSystem: boolean;
@@ -103,19 +106,23 @@ const SYSTEM_COLLECTIONS = [
 ];
 
 /**
- * Ensure system collections exist (called at server startup)
+ * Ensure system collections exist for a user
+ * Called when user first accesses collections
  */
-export async function ensureSystemCollections(): Promise<void> {
+export async function ensureSystemCollections(userId: string): Promise<void> {
   const db = getDatabase();
 
   for (const systemCollection of SYSTEM_COLLECTIONS) {
     const existing = await db.collection.findUnique({
-      where: { systemKey: systemCollection.systemKey },
+      where: {
+        userId_systemKey: { userId, systemKey: systemCollection.systemKey },
+      },
     });
 
     if (!existing) {
       await db.collection.create({
         data: {
+          userId,
           name: systemCollection.name,
           isSystem: true,
           systemKey: systemCollection.systemKey,
@@ -123,21 +130,26 @@ export async function ensureSystemCollections(): Promise<void> {
           sortOrder: systemCollection.sortOrder,
         },
       });
-      console.log(`Created system collection: ${systemCollection.name}`);
     }
   }
 }
 
 /**
- * Get system collection by key
+ * Get system collection by key for a user
  */
 export async function getSystemCollection(
+  userId: string,
   systemKey: 'favorites' | 'want-to-read'
 ): Promise<Collection | null> {
   const db = getDatabase();
 
+  // Ensure system collections exist for this user
+  await ensureSystemCollections(userId);
+
   const collection = await db.collection.findUnique({
-    where: { systemKey },
+    where: {
+      userId_systemKey: { userId, systemKey },
+    },
     include: {
       _count: { select: { items: true } },
     },
@@ -156,12 +168,16 @@ export async function getSystemCollection(
 // =============================================================================
 
 /**
- * Get all collections with item counts
+ * Get all collections for a user with item counts
  */
-export async function getCollections(): Promise<Collection[]> {
+export async function getCollections(userId: string): Promise<Collection[]> {
   const db = getDatabase();
 
+  // Ensure system collections exist for this user
+  await ensureSystemCollections(userId);
+
   const collections = await db.collection.findMany({
+    where: { userId },
     orderBy: [{ isSystem: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
     include: {
       _count: { select: { items: true } },
@@ -170,6 +186,7 @@ export async function getCollections(): Promise<Collection[]> {
 
   return collections.map((c) => ({
     id: c.id,
+    userId: c.userId,
     name: c.name,
     description: c.description,
     isSystem: c.isSystem,
@@ -184,20 +201,16 @@ export async function getCollections(): Promise<Collection[]> {
 }
 
 /**
- * Get a single collection with all items
+ * Get a single collection with all items (verifies user ownership)
  */
-export async function getCollection(id: string): Promise<CollectionWithItems | null> {
+export async function getCollection(userId: string, id: string): Promise<CollectionWithItems | null> {
   const db = getDatabase();
 
-  const collection = await db.collection.findUnique({
-    where: { id },
+  const collection = await db.collection.findFirst({
+    where: { id, userId },
     include: {
       items: {
         orderBy: { position: 'asc' },
-        include: {
-          // Note: These are not real relations in Prisma since seriesId/fileId are just strings
-          // We'll need to fetch them separately
-        },
       },
       _count: { select: { items: true } },
     },
@@ -261,6 +274,7 @@ export async function getCollection(id: string): Promise<CollectionWithItems | n
 
   return {
     id: collection.id,
+    userId: collection.userId,
     name: collection.name,
     description: collection.description,
     isSystem: collection.isSystem,
@@ -278,18 +292,19 @@ export async function getCollection(id: string): Promise<CollectionWithItems | n
 /**
  * Create a new user collection
  */
-export async function createCollection(input: CreateCollectionInput): Promise<Collection> {
+export async function createCollection(userId: string, input: CreateCollectionInput): Promise<Collection> {
   const db = getDatabase();
 
   // Get the next sort order for user collections
   const lastCollection = await db.collection.findFirst({
-    where: { isSystem: false },
+    where: { userId, isSystem: false },
     orderBy: { sortOrder: 'desc' },
   });
   const nextSortOrder = (lastCollection?.sortOrder ?? SYSTEM_COLLECTIONS.length - 1) + 1;
 
   const collection = await db.collection.create({
     data: {
+      userId,
       name: input.name,
       description: input.description,
       iconName: input.iconName,
@@ -306,13 +321,23 @@ export async function createCollection(input: CreateCollectionInput): Promise<Co
 }
 
 /**
- * Update a collection
+ * Update a collection (verifies user ownership)
  */
 export async function updateCollection(
+  userId: string,
   id: string,
   input: UpdateCollectionInput
 ): Promise<Collection> {
   const db = getDatabase();
+
+  // Verify ownership
+  const existing = await db.collection.findFirst({
+    where: { id, userId },
+  });
+
+  if (!existing) {
+    throw new Error('Collection not found');
+  }
 
   const collection = await db.collection.update({
     where: { id },
@@ -329,13 +354,13 @@ export async function updateCollection(
 }
 
 /**
- * Delete a collection (fails for system collections)
+ * Delete a collection (fails for system collections, verifies user ownership)
  */
-export async function deleteCollection(id: string): Promise<void> {
+export async function deleteCollection(userId: string, id: string): Promise<void> {
   const db = getDatabase();
 
-  const collection = await db.collection.findUnique({
-    where: { id },
+  const collection = await db.collection.findFirst({
+    where: { id, userId },
   });
 
   if (!collection) {
@@ -356,17 +381,18 @@ export async function deleteCollection(id: string): Promise<void> {
 // =============================================================================
 
 /**
- * Add items to a collection
+ * Add items to a collection (verifies user ownership)
  */
 export async function addItemsToCollection(
+  userId: string,
   collectionId: string,
   items: AddItemInput[]
 ): Promise<CollectionItem[]> {
   const db = getDatabase();
 
-  // Verify collection exists
-  const collection = await db.collection.findUnique({
-    where: { id: collectionId },
+  // Verify collection exists and belongs to user
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
   });
 
   if (!collection) {
@@ -429,13 +455,23 @@ export async function addItemsToCollection(
 }
 
 /**
- * Remove items from a collection
+ * Remove items from a collection (verifies user ownership)
  */
 export async function removeItemsFromCollection(
+  userId: string,
   collectionId: string,
   items: RemoveItemInput[]
 ): Promise<number> {
   const db = getDatabase();
+
+  // Verify collection exists and belongs to user
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
 
   let removedCount = 0;
 
@@ -474,10 +510,19 @@ export async function removeItemsFromCollection(
 }
 
 /**
- * Reorder items within a collection
+ * Reorder items within a collection (verifies user ownership)
  */
-export async function reorderItems(collectionId: string, orderedItemIds: string[]): Promise<void> {
+export async function reorderItems(userId: string, collectionId: string, orderedItemIds: string[]): Promise<void> {
   const db = getDatabase();
+
+  // Verify collection exists and belongs to user
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
 
   await db.$transaction(
     orderedItemIds.map((itemId, index) =>
@@ -494,9 +539,10 @@ export async function reorderItems(collectionId: string, orderedItemIds: string[
 // =============================================================================
 
 /**
- * Get all collections containing a specific series or file
+ * Get all collections containing a specific series or file for a user
  */
 export async function getCollectionsForItem(
+  userId: string,
   seriesId?: string,
   fileId?: string
 ): Promise<Collection[]> {
@@ -506,25 +552,19 @@ export async function getCollectionsForItem(
     return [];
   }
 
-  // Find all collection items matching the series or file
-  const items = await db.collectionItem.findMany({
-    where: {
-      OR: [
-        ...(seriesId ? [{ seriesId }] : []),
-        ...(fileId ? [{ fileId }] : []),
-      ],
-    },
-    select: { collectionId: true },
-  });
-
-  if (items.length === 0) {
-    return [];
-  }
-
-  const collectionIds = Array.from(new Set(items.map((i) => i.collectionId)));
-
+  // Find all collection items matching the series or file in user's collections
   const collections = await db.collection.findMany({
-    where: { id: { in: collectionIds } },
+    where: {
+      userId,
+      items: {
+        some: {
+          OR: [
+            ...(seriesId ? [{ seriesId }] : []),
+            ...(fileId ? [{ fileId }] : []),
+          ],
+        },
+      },
+    },
     orderBy: [{ isSystem: 'desc' }, { sortOrder: 'asc' }],
     include: {
       _count: { select: { items: true } },
@@ -533,6 +573,7 @@ export async function getCollectionsForItem(
 
   return collections.map((c) => ({
     id: c.id,
+    userId: c.userId,
     name: c.name,
     description: c.description,
     isSystem: c.isSystem,
@@ -547,9 +588,10 @@ export async function getCollectionsForItem(
 }
 
 /**
- * Check if a series or file is in a specific collection
+ * Check if a series or file is in a specific collection (verifies user ownership)
  */
 export async function isInCollection(
+  userId: string,
   collectionId: string,
   seriesId?: string,
   fileId?: string
@@ -557,6 +599,15 @@ export async function isInCollection(
   const db = getDatabase();
 
   if (!seriesId && !fileId) {
+    return false;
+  }
+
+  // Verify collection belongs to user
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
     return false;
   }
 
@@ -574,51 +625,63 @@ export async function isInCollection(
 }
 
 /**
- * Check if a series or file is in a system collection
+ * Check if a series or file is in a system collection for a user
  */
 export async function isInSystemCollection(
+  userId: string,
   systemKey: 'favorites' | 'want-to-read',
   seriesId?: string,
   fileId?: string
 ): Promise<boolean> {
   const db = getDatabase();
 
+  // Ensure system collections exist
+  await ensureSystemCollections(userId);
+
   const collection = await db.collection.findUnique({
-    where: { systemKey },
+    where: {
+      userId_systemKey: { userId, systemKey },
+    },
   });
 
   if (!collection) {
     return false;
   }
 
-  return isInCollection(collection.id, seriesId, fileId);
+  return isInCollection(userId, collection.id, seriesId, fileId);
 }
 
 /**
- * Toggle an item in a system collection
+ * Toggle an item in a system collection for a user
  */
 export async function toggleSystemCollection(
+  userId: string,
   systemKey: 'favorites' | 'want-to-read',
   seriesId?: string,
   fileId?: string
 ): Promise<{ added: boolean }> {
   const db = getDatabase();
 
+  // Ensure system collections exist
+  await ensureSystemCollections(userId);
+
   const collection = await db.collection.findUnique({
-    where: { systemKey },
+    where: {
+      userId_systemKey: { userId, systemKey },
+    },
   });
 
   if (!collection) {
     throw new Error(`System collection not found: ${systemKey}`);
   }
 
-  const isCurrentlyIn = await isInCollection(collection.id, seriesId, fileId);
+  const isCurrentlyIn = await isInCollection(userId, collection.id, seriesId, fileId);
 
   if (isCurrentlyIn) {
-    await removeItemsFromCollection(collection.id, [{ seriesId, fileId }]);
+    await removeItemsFromCollection(userId, collection.id, [{ seriesId, fileId }]);
     return { added: false };
   } else {
-    await addItemsToCollection(collection.id, [{ seriesId, fileId }]);
+    await addItemsToCollection(userId, collection.id, [{ seriesId, fileId }]);
     return { added: true };
   }
 }
@@ -628,26 +691,32 @@ export async function toggleSystemCollection(
 // =============================================================================
 
 /**
- * Get count of unavailable items across all collections.
+ * Get count of unavailable items for a user
  * Items become unavailable when their referenced file/series is deleted.
  */
-export async function getUnavailableItemCount(): Promise<number> {
+export async function getUnavailableItemCount(userId: string): Promise<number> {
   const db = getDatabase();
 
   return db.collectionItem.count({
-    where: { isAvailable: false },
+    where: {
+      isAvailable: false,
+      collection: { userId },
+    },
   });
 }
 
 /**
- * Remove all unavailable items from all collections.
+ * Remove all unavailable items from a user's collections.
  * Call this to clean up orphaned collection references.
  */
-export async function removeUnavailableItems(): Promise<number> {
+export async function removeUnavailableItems(userId: string): Promise<number> {
   const db = getDatabase();
 
   const result = await db.collectionItem.deleteMany({
-    where: { isAvailable: false },
+    where: {
+      isAvailable: false,
+      collection: { userId },
+    },
   });
 
   return result.count;
@@ -655,6 +724,7 @@ export async function removeUnavailableItems(): Promise<number> {
 
 /**
  * Mark collection items as unavailable when their referenced file is deleted.
+ * This affects all users who have this file in their collections.
  */
 export async function markFileItemsUnavailable(fileId: string): Promise<number> {
   const db = getDatabase();
@@ -669,6 +739,7 @@ export async function markFileItemsUnavailable(fileId: string): Promise<number> 
 
 /**
  * Mark collection items as unavailable when their referenced series is soft-deleted.
+ * This affects all users who have this series in their collections.
  */
 export async function markSeriesItemsUnavailable(seriesId: string): Promise<number> {
   const db = getDatabase();
@@ -683,6 +754,7 @@ export async function markSeriesItemsUnavailable(seriesId: string): Promise<numb
 
 /**
  * Restore collection items when a series is restored from soft-delete.
+ * This affects all users who have this series in their collections.
  */
 export async function restoreSeriesItems(seriesId: string): Promise<number> {
   const db = getDatabase();

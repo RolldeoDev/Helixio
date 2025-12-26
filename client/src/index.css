@@ -292,13 +292,33 @@ body {
 .app {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: 1fr var(--statusbar-height);
+  grid-template-rows: auto 1fr var(--statusbar-height); /* header + main + status */
   height: 100vh; /* Fixed height for proper sidebar scrolling */
   overflow: hidden;
 }
 
 .app.no-sidebar {
   grid-template-columns: 1fr;
+}
+
+/* Global Header - spans column 2, row 1 */
+.global-header {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.app.no-sidebar .global-header {
+  grid-column: 1;
+}
+
+/* Main content moves to row 2 */
+.app .main-content {
+  grid-row: 2;
+}
+
+/* Status bar in row 3 */
+.app .status-bar {
+  grid-row: 3;
 }
 
 /* Folder drawer pinned mode - adds a third column for the drawer */
@@ -1792,8 +1812,7 @@ body {
   overflow-x: hidden;
   padding: var(--spacing-sm);
 
-  /* Smooth scrolling */
-  scroll-behavior: smooth;
+  /* Native momentum scrolling on iOS - NO smooth scroll for virtualization performance */
   -webkit-overflow-scrolling: touch;
 
   /* Scrollbar styling */
@@ -1818,10 +1837,7 @@ body {
   background: var(--color-text-muted);
 }
 
-/* Disable smooth scroll during rapid scrolling */
-.grid-virtual-container.scrolling {
-  scroll-behavior: auto;
-}
+/* .scrolling class is still applied for CSS animation/transition optimizations */
 
 .grid-virtual-content {
   /* Virtual container - items positioned absolutely within */
@@ -4069,6 +4085,32 @@ body {
 .metadata-form input:disabled,
 .metadata-form textarea:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--color-surface);
+}
+
+/* Locked field styles */
+.metadata-form .form-field--locked {
+  opacity: 0.7;
+}
+
+.metadata-form .form-field--locked label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.field-locked-indicator {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Field hints */
+.metadata-form .field-hint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0.8;
+  margin-top: 2px;
 }
 
 .batch-checkbox {

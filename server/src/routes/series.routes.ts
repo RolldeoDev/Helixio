@@ -15,6 +15,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { getDatabase } from '../services/database.service.js';
+import { optionalAuth, requireAuth } from '../middleware/auth.middleware.js';
 import {
   createSeries,
   getSeries,
@@ -580,9 +581,11 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
 /**
  * GET /api/series/:id/next-issue
  * Get next unread issue (for Continue Series feature)
+ * Requires authentication to know which user's progress to check
  */
-router.get('/:id/next-issue', asyncHandler(async (req: Request, res: Response) => {
-  const nextIssue = await getNextUnreadIssue(req.params.id!);
+router.get('/:id/next-issue', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const nextIssue = await getNextUnreadIssue(userId, req.params.id!);
 
   if (!nextIssue) {
     sendSuccess(res, { nextIssue: null, message: 'No unread issues' });
@@ -595,9 +598,11 @@ router.get('/:id/next-issue', asyncHandler(async (req: Request, res: Response) =
 /**
  * POST /api/series/:id/continue
  * Get continue reading info (same as next-issue, semantic endpoint)
+ * Requires authentication to know which user's progress to check
  */
-router.post('/:id/continue', asyncHandler(async (req: Request, res: Response) => {
-  const nextIssue = await getNextUnreadIssue(req.params.id!);
+router.post('/:id/continue', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const nextIssue = await getNextUnreadIssue(userId, req.params.id!);
 
   if (!nextIssue) {
     sendSuccess(res, {

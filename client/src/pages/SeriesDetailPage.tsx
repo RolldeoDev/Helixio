@@ -30,6 +30,7 @@ import {
   SeriesForMerge,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
+import { useDownloads } from '../contexts/DownloadContext';
 import {
   CoverCard,
   SERIES_ISSUE_MENU_ITEMS,
@@ -59,6 +60,7 @@ const SERIES_ACTION_ITEMS: ActionMenuItem[] = [
   { id: 'fetchAllIssuesMetadata', label: 'Fetch Metadata (All Issues)' },
   { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
   { id: 'markAllUnread', label: 'Mark All as Unread' },
+  { id: 'downloadAll', label: 'Download All Issues', dividerBefore: true },
   { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
   { id: 'rebuildCache', label: 'Rebuild All Covers', dividerBefore: true },
 ];
@@ -68,6 +70,7 @@ const ISSUE_BULK_ACTION_ITEMS: ActionMenuItem[] = [
   { id: 'markRead', label: 'Mark as Read' },
   { id: 'markUnread', label: 'Mark as Unread' },
   { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
+  { id: 'downloadSelected', label: 'Download Selected', dividerBefore: true },
   { id: 'rebuildCache', label: 'Rebuild Cover Cache', dividerBefore: true },
 ];
 
@@ -163,6 +166,7 @@ export function SeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const navigate = useNavigate();
   const { startJob, lastCompletedJobAt } = useMetadataJob();
+  const { requestSeriesDownload, requestBulkDownload } = useDownloads();
 
   const [series, setSeries] = useState<Series | null>(null);
   const [issues, setIssues] = useState<SeriesIssue[]>([]);
@@ -470,6 +474,13 @@ export function SeriesDetailPage() {
         }
         break;
 
+      case 'downloadAll': {
+        if (issues.length > 0) {
+          requestSeriesDownload(series.id, series.name);
+        }
+        break;
+      }
+
       case 'mergeWith':
         setShowSeriesSelectModal(true);
         break;
@@ -487,7 +498,7 @@ export function SeriesDetailPage() {
         }
         break;
     }
-  }, [series, issues, startJob, fetchSeries]);
+  }, [series, issues, startJob, fetchSeries, requestSeriesDownload]);
 
   // Handle bulk issue actions from ActionMenu
   const handleBulkIssueAction = useCallback(async (actionId: string) => {
@@ -526,6 +537,10 @@ export function SeriesDetailPage() {
         startJob(targetIds);
         break;
 
+      case 'downloadSelected':
+        requestBulkDownload(targetIds, series?.name);
+        break;
+
       case 'rebuildCache':
         try {
           setOperationMessage(`Rebuilding cache for ${targetIds.length} file(s)...`);
@@ -538,7 +553,7 @@ export function SeriesDetailPage() {
         }
         break;
     }
-  }, [selectedFiles, startJob, fetchSeries]);
+  }, [selectedFiles, startJob, fetchSeries, series?.name, requestBulkDownload]);
 
   // Parse creatorsJson if available for structured creator data
   // NOTE: This must be before early returns to satisfy React's rules of hooks

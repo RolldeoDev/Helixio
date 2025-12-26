@@ -129,31 +129,33 @@ export function matchFileToIssue(
 
   // Parse the issue number
   const fileIssueNum = issueNumber.replace(/^#/, '').trim();
-  const fileIssueNumInt = parseInt(fileIssueNum, 10);
+  // Use parseFloat to preserve decimal issue numbers (e.g., "1.5", "2.1")
+  const fileIssueNumFloat = parseFloat(fileIssueNum);
 
   // Find matching issue
   for (const issue of issues) {
     const issueNum = getIssueNumber(issue).replace(/^#/, '').trim();
-    const issueNumInt = parseInt(issueNum, 10);
+    const issueNumFloat = parseFloat(issueNum);
 
     // Exact match - higher confidence if from LLM
     if (fileIssueNum === issueNum) {
       return { issue, confidence: parsedData?.number ? 0.98 : 0.95 };
     }
 
-    // Numeric match (handles leading zeros)
-    if (!isNaN(fileIssueNumInt) && !isNaN(issueNumInt) && fileIssueNumInt === issueNumInt) {
+    // Numeric match (handles leading zeros but preserves decimals)
+    if (!isNaN(fileIssueNumFloat) && !isNaN(issueNumFloat) && fileIssueNumFloat === issueNumFloat) {
       return { issue, confidence: parsedData?.number ? 0.95 : 0.9 };
     }
   }
 
   // No exact match - try fuzzy matching on original filename as last resort
-  const numericMatch = filename.match(/(?:#|Issue\s*|No\.?\s*)(\d+)/i);
+  // This regex matches whole numbers only, not decimals (fallback behavior)
+  const numericMatch = filename.match(/(?:#|Issue\s*|No\.?\s*)(\d+(?:\.\d+)?)/i);
   if (numericMatch) {
-    const extractedNum = parseInt(numericMatch[1]!, 10);
+    const extractedNum = parseFloat(numericMatch[1]!);
     for (const issue of issues) {
-      const issueNumInt = parseInt(getIssueNumber(issue), 10);
-      if (!isNaN(issueNumInt) && extractedNum === issueNumInt) {
+      const issueNumFloat = parseFloat(getIssueNumber(issue));
+      if (!isNaN(issueNumFloat) && extractedNum === issueNumFloat) {
         return { issue, confidence: 0.7 };
       }
     }

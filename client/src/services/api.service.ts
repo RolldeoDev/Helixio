@@ -8,6 +8,18 @@
 const API_BASE = '/api';
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Sentinel value to indicate a field should be removed from ComicInfo.xml.
+ * This survives JSON.stringify() (unlike undefined) and signals to the
+ * backend that the field should be deleted entirely, not just set to empty.
+ */
+export const REMOVE_FIELD = '__REMOVE_FIELD__' as const;
+export type FieldRemoval = typeof REMOVE_FIELD;
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -581,7 +593,7 @@ export interface ComicInfo {
 
 export async function getComicInfo(
   fileId: string
-): Promise<{ fileId: string; filename: string; comicInfo: ComicInfo }> {
+): Promise<{ fileId: string; filename: string; comicInfo: ComicInfo; lockedFields?: string[] }> {
   return get(`/archives/${fileId}/comicinfo`);
 }
 
@@ -3116,6 +3128,52 @@ export async function searchSeries(
   params.set('q', query);
   params.set('limit', limit.toString());
   return get<{ series: Series[] }>(`/series/search?${params}`);
+}
+
+// =============================================================================
+// Global Search
+// =============================================================================
+
+/**
+ * Global search result item
+ */
+export interface GlobalSearchResult {
+  id: string;
+  type: 'series' | 'issue' | 'creator';
+  title: string;
+  subtitle: string;
+  thumbnailId: string | null;
+  thumbnailType: 'file' | 'series' | 'none';
+  navigationPath: string;
+  relevanceScore: number;
+  metadata: {
+    publisher?: string | null;
+    year?: number | null;
+    issueNumber?: string | null;
+    role?: string | null;
+  };
+}
+
+/**
+ * Global search response
+ */
+export interface GlobalSearchResponse {
+  results: GlobalSearchResult[];
+  query: string;
+  timing: number;
+}
+
+/**
+ * Unified global search across series, issues, and creators
+ */
+export async function globalSearch(
+  query: string,
+  limit = 6
+): Promise<GlobalSearchResponse> {
+  const params = new URLSearchParams();
+  params.set('q', query);
+  params.set('limit', limit.toString());
+  return get<GlobalSearchResponse>(`/search/global?${params}`);
 }
 
 /**

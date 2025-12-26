@@ -251,29 +251,17 @@ async function main() {
     }
   }
 
-  // Update series progress for all series
-  console.log('\nUpdating series progress...');
+  // Update series progress totalOwned for all series
+  // SeriesProgress is now per-user, so we just update totalOwned for existing records
+  console.log('\nUpdating series progress totalOwned...');
   const allSeries = await prisma.series.findMany({ select: { id: true } });
   for (const series of allSeries) {
     const totalOwned = await prisma.comicFile.count({ where: { seriesId: series.id } });
-    const totalRead = await prisma.readingProgress.count({
-      where: {
-        file: { seriesId: series.id },
-        completed: true,
-      },
-    });
 
-    await prisma.seriesProgress.upsert({
+    // Update all existing user progress records for this series
+    await prisma.seriesProgress.updateMany({
       where: { seriesId: series.id },
-      create: {
-        seriesId: series.id,
-        totalOwned,
-        totalRead,
-      },
-      update: {
-        totalOwned,
-        totalRead,
-      },
+      data: { totalOwned },
     });
   }
 

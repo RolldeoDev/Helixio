@@ -66,6 +66,7 @@ export const scanQueueLogger = createServiceLogger('scan-queue');
 export const readerLogger = createServiceLogger('reader');
 export const configLogger = createServiceLogger('config');
 export const databaseLogger = createServiceLogger('database');
+export const downloadLogger = createServiceLogger('download');
 
 // =============================================================================
 // Express Middleware Logger

@@ -408,3 +408,152 @@ export async function cleanupExpiredSessions(): Promise<number> {
 
   return result.count;
 }
+
+// =============================================================================
+// App Settings
+// =============================================================================
+
+export interface AppSettings {
+  allowOpenRegistration: boolean;
+}
+
+export async function getAppSettings(): Promise<AppSettings> {
+  const settings = await prisma.appSettings.findUnique({
+    where: { id: 'default' },
+  });
+
+  return {
+    allowOpenRegistration: settings?.allowOpenRegistration ?? false,
+  };
+}
+
+export async function updateAppSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
+  const settings = await prisma.appSettings.upsert({
+    where: { id: 'default' },
+    create: {
+      id: 'default',
+      allowOpenRegistration: updates.allowOpenRegistration ?? false,
+    },
+    update: {
+      allowOpenRegistration: updates.allowOpenRegistration,
+    },
+  });
+
+  return {
+    allowOpenRegistration: settings.allowOpenRegistration,
+  };
+}
+
+// =============================================================================
+// User Library Access
+// =============================================================================
+
+export interface LibraryAccessInfo {
+  libraryId: string;
+  libraryName: string;
+  hasAccess: boolean;
+  permission: string;
+}
+
+export async function getUserLibraryAccess(userId: string): Promise<LibraryAccessInfo[]> {
+  // Get all libraries
+  const libraries = await prisma.library.findMany({
+    orderBy: { name: 'asc' },
+  });
+
+  // Get user's access records
+  const accessRecords = await prisma.userLibraryAccess.findMany({
+    where: { userId },
+  });
+
+  const accessMap = new Map(accessRecords.map(a => [a.libraryId, a.permission]));
+
+  return libraries.map(lib => ({
+    libraryId: lib.id,
+    libraryName: lib.name,
+    hasAccess: accessMap.has(lib.id),
+    permission: accessMap.get(lib.id) ?? 'none',
+  }));
+}
+
+export async function setUserLibraryAccess(
+  userId: string,
+  libraryId: string,
+  hasAccess: boolean,
+  permission: string = 'read'
+): Promise<void> {
+  if (hasAccess) {
+    // Grant access
+    await prisma.userLibraryAccess.upsert({
+      where: {
+        userId_libraryId: { userId, libraryId },
+      },
+      create: {
+        userId,
+        libraryId,
+        permission,
+      },
+      update: {
+        permission,
+      },
+    });
+  } else {
+    // Revoke access
+    await prisma.userLibraryAccess.deleteMany({
+      where: { userId, libraryId },
+    });
+  }
+}
+
+// =============================================================================
+// User Freeze/Unfreeze
+// =============================================================================
+
+export async function freezeUser(userId: string): Promise<UserInfo> {
+  // Disable user
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { isActive: false },
+  });
+
+  // Revoke all sessions
+  await prisma.userSession.deleteMany({
+    where: { userId },
+  });
+
+  return mapUserToInfo(user);
+}
+
+export async function unfreezeUser(userId: string): Promise<UserInfo> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { isActive: true },
+  });
+
+  return mapUserToInfo(user);
+}
+
+// =============================================================================
+// Self Registration
+// =============================================================================
+
+export async function registerUser(input: {
+  username: string;
+  password: string;
+  email?: string;
+  displayName?: string;
+}): Promise<UserInfo> {
+  // Check if registration is allowed
+  const settings = await getAppSettings();
+  if (!settings.allowOpenRegistration) {
+    throw new Error('Registration is currently disabled');
+  }
+
+  return createUser({
+    username: input.username,
+    password: input.password,
+    email: input.email,
+    displayName: input.displayName,
+    role: 'user', // New users are always regular users
+  });
+}

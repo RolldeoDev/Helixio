@@ -28,6 +28,7 @@ import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import { TrackerSettings } from './TrackerSettings';
 import { SyncSettings } from './SyncSettings';
 import { AccountSettings } from './AccountSettings';
+import { AdminSettings } from './AdminSettings';
 import { ThemeSettings } from './ThemeSettings';
 import { ReaderPresetSettings } from './ReaderPresetSettings';
 import { HelixioLoader } from '../HelixioLoader';
@@ -53,11 +54,12 @@ interface AppConfig {
   };
 }
 
-type SettingsTab = 'appearance' | 'general' | 'libraries' | 'reader' | 'api' | 'cache' | 'trackers' | 'sync' | 'account' | 'about';
+type SettingsTab = 'appearance' | 'general' | 'libraries' | 'reader' | 'api' | 'cache' | 'trackers' | 'sync' | 'account' | 'admin' | 'about';
 
 export function Settings() {
   const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata } = useApp();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
 
@@ -661,6 +663,14 @@ export function Settings() {
               >
                 Account
               </button>
+              {isAdmin && (
+                <button
+                  className={`tab ${activeTab === 'admin' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('admin')}
+                >
+                  Admin
+                </button>
+              )}
             </>
           )}
           <button
@@ -1493,6 +1503,11 @@ export function Settings() {
           {/* Account Settings */}
           {activeTab === 'account' && (
             <AccountSettings />
+          )}
+
+          {/* Admin Settings (Admin only) */}
+          {activeTab === 'admin' && isAdmin && (
+            <AdminSettings />
           )}
 
           {/* About Helixio */}

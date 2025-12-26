@@ -5,9 +5,12 @@
  * - Get/update progress
  * - Manage bookmarks
  * - Continue reading
+ *
+ * All routes require authentication as reading progress is user-scoped.
  */
 
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   getProgress,
   updateProgress,
@@ -25,6 +28,9 @@ import {
 
 const router = Router();
 
+// All reading progress routes require authentication
+router.use(requireAuth);
+
 // =============================================================================
 // Continue Reading (must come before :fileId routes)
 // =============================================================================
@@ -35,10 +41,11 @@ const router = Router();
  */
 router.get('/continue-reading', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 3;
     const libraryId = req.query.libraryId as string | undefined;
 
-    const items = await getContinueReading(limit, libraryId);
+    const items = await getContinueReading(userId, limit, libraryId);
     res.json({ items });
   } catch (error) {
     console.error('Error getting continue reading:', error);
@@ -55,7 +62,8 @@ router.get('/continue-reading', async (req: Request, res: Response) => {
  */
 router.get('/library/:libraryId', async (req: Request, res: Response) => {
   try {
-    const progressMap = await getLibraryProgress(req.params.libraryId!);
+    const userId = req.user!.id;
+    const progressMap = await getLibraryProgress(userId, req.params.libraryId!);
     const progress = Object.fromEntries(progressMap);
     res.json({ progress });
   } catch (error) {
@@ -73,7 +81,8 @@ router.get('/library/:libraryId', async (req: Request, res: Response) => {
  */
 router.get('/library/:libraryId/stats', async (req: Request, res: Response) => {
   try {
-    const stats = await getLibraryReadingStats(req.params.libraryId!);
+    const userId = req.user!.id;
+    const stats = await getLibraryReadingStats(userId, req.params.libraryId!);
     res.json(stats);
   } catch (error) {
     console.error('Error getting library reading stats:', error);
@@ -94,7 +103,8 @@ router.get('/library/:libraryId/stats', async (req: Request, res: Response) => {
  */
 router.get('/:fileId', async (req: Request, res: Response) => {
   try {
-    const progress = await getProgress(req.params.fileId!);
+    const userId = req.user!.id;
+    const progress = await getProgress(userId, req.params.fileId!);
 
     if (!progress) {
       res.json({
@@ -124,6 +134,7 @@ router.get('/:fileId', async (req: Request, res: Response) => {
  */
 router.put('/:fileId', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { currentPage, totalPages, completed } = req.body as {
       currentPage: number;
       totalPages?: number;
@@ -135,7 +146,7 @@ router.put('/:fileId', async (req: Request, res: Response) => {
       return;
     }
 
-    const progress = await updateProgress(req.params.fileId!, {
+    const progress = await updateProgress(userId, req.params.fileId!, {
       currentPage,
       totalPages,
       completed,
@@ -157,7 +168,8 @@ router.put('/:fileId', async (req: Request, res: Response) => {
  */
 router.post('/:fileId/complete', async (req: Request, res: Response) => {
   try {
-    const progress = await markCompleted(req.params.fileId!);
+    const userId = req.user!.id;
+    const progress = await markCompleted(userId, req.params.fileId!);
     res.json(progress);
   } catch (error) {
     console.error('Error marking as completed:', error);
@@ -174,7 +186,8 @@ router.post('/:fileId/complete', async (req: Request, res: Response) => {
  */
 router.post('/:fileId/incomplete', async (req: Request, res: Response) => {
   try {
-    const progress = await markIncomplete(req.params.fileId!);
+    const userId = req.user!.id;
+    const progress = await markIncomplete(userId, req.params.fileId!);
     res.json(progress);
   } catch (error) {
     console.error('Error marking as incomplete:', error);
@@ -191,7 +204,8 @@ router.post('/:fileId/incomplete', async (req: Request, res: Response) => {
  */
 router.delete('/:fileId', async (req: Request, res: Response) => {
   try {
-    await deleteProgress(req.params.fileId!);
+    const userId = req.user!.id;
+    await deleteProgress(userId, req.params.fileId!);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting reading progress:', error);
@@ -205,6 +219,7 @@ router.delete('/:fileId', async (req: Request, res: Response) => {
 /**
  * GET /api/reading-progress/:fileId/adjacent
  * Get adjacent files (prev/next) in the same series
+ * Note: This doesn't need userId as it's based on file organization, not reading progress
  */
 router.get('/:fileId/adjacent', async (req: Request, res: Response) => {
   try {
@@ -229,7 +244,8 @@ router.get('/:fileId/adjacent', async (req: Request, res: Response) => {
  */
 router.get('/:fileId/bookmarks', async (req: Request, res: Response) => {
   try {
-    const bookmarks = await getBookmarks(req.params.fileId!);
+    const userId = req.user!.id;
+    const bookmarks = await getBookmarks(userId, req.params.fileId!);
     res.json({ bookmarks });
   } catch (error) {
     console.error('Error getting bookmarks:', error);
@@ -246,6 +262,7 @@ router.get('/:fileId/bookmarks', async (req: Request, res: Response) => {
  */
 router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const { pageIndex } = req.body as { pageIndex: number };
 
     if (typeof pageIndex !== 'number' || pageIndex < 0) {
@@ -253,7 +270,7 @@ router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
       return;
     }
 
-    const progress = await addBookmark(req.params.fileId!, pageIndex);
+    const progress = await addBookmark(userId, req.params.fileId!, pageIndex);
     res.json(progress);
   } catch (error) {
     console.error('Error adding bookmark:', error);
@@ -270,6 +287,7 @@ router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
  */
 router.delete('/:fileId/bookmarks/:pageIndex', async (req: Request, res: Response) => {
   try {
+    const userId = req.user!.id;
     const pageIndex = parseInt(req.params.pageIndex!, 10);
 
     if (isNaN(pageIndex) || pageIndex < 0) {
@@ -277,7 +295,7 @@ router.delete('/:fileId/bookmarks/:pageIndex', async (req: Request, res: Respons
       return;
     }
 
-    const progress = await removeBookmark(req.params.fileId!, pageIndex);
+    const progress = await removeBookmark(userId, req.params.fileId!, pageIndex);
     res.json(progress);
   } catch (error) {
     console.error('Error removing bookmark:', error);

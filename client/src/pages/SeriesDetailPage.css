@@ -328,8 +328,7 @@
   /* Reserve space for fixed navigation sidebar - ensures scrollbar appears to its left */
   margin-right: 10px;
 
-  /* Smooth scrolling */
-  scroll-behavior: smooth;
+  /* Native momentum scrolling on iOS - NO smooth scroll for virtualization performance */
   -webkit-overflow-scrolling: touch;
 
   /* Scrollbar styling */
@@ -354,10 +353,7 @@
   background: var(--color-text-muted);
 }
 
-/* Disable smooth scroll during rapid scrolling */
-.series-issues-scroll-container.scrolling {
-  scroll-behavior: auto;
-}
+/* .scrolling class is still applied for CSS animation/transition optimizations */
 
 .series-issues-virtual {
   /* Virtual container - items positioned absolutely within */

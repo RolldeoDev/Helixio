@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import { execSync } from 'child_process';
 import { getDatabaseUrl, ensureAppDirectories } from './app-paths.service.js';
 import { databaseLogger as logger } from './logger.service.js';
 
@@ -24,6 +25,61 @@ export function getDatabase(): PrismaClient {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
   }
   return prisma;
+}
+
+// =============================================================================
+// Schema Sync (for factory reset recovery)
+// =============================================================================
+
+/**
+ * Check if the database schema has been applied
+ * Uses SQLite's sqlite_master table to check for existence of core tables
+ */
+async function isDatabaseSchemaApplied(): Promise<boolean> {
+  if (!prisma) {
+    return false;
+  }
+
+  try {
+    // Check if the Library table exists (a core table that should always exist)
+    const result = await prisma.$queryRaw<Array<{ name: string }>>`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name='Library'
+    `;
+    return result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure database schema is applied
+ * Runs prisma db push if tables are missing (e.g., after factory reset)
+ */
+async function ensureDatabaseSchema(): Promise<void> {
+  const schemaExists = await isDatabaseSchemaApplied();
+
+  if (schemaExists) {
+    logger.debug('Database schema already applied');
+    return;
+  }
+
+  logger.info('Database schema not found, running prisma db push...');
+
+  try {
+    // Run prisma db push to create/sync schema
+    // --skip-generate: The client is already generated at build time
+    // --accept-data-loss: Required for fresh DBs, safe since there's no data
+    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+      cwd: process.cwd(),
+      env: { ...process.env },
+      stdio: 'pipe',
+    });
+    logger.info('Database schema applied successfully');
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to apply database schema');
+    throw new Error('Failed to initialize database schema. Please run "npm run db:push" manually.');
+  }
 }
 
 /**
@@ -62,6 +118,9 @@ export async function initializeDatabase(): Promise<PrismaClient> {
     logger.error({ err: error }, 'Failed to connect to database');
     throw error;
   }
+
+  // Ensure schema is applied (handles fresh database after factory reset)
+  await ensureDatabaseSchema();
 
   return prisma;
 }

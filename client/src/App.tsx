@@ -18,6 +18,9 @@ import { ThemeProvider } from './themes/ThemeContext';
 import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects } from './themes';
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
+import { DownloadProvider } from './contexts/DownloadContext';
+import { DownloadNotificationBar } from './components/DownloadNotificationBar/DownloadNotificationBar';
+import { DownloadConfirmationModal } from './components/DownloadConfirmationModal/DownloadConfirmationModal';
 import { SidebarNew, StatusBar } from './components/Layout';
 import { FileList } from './components/FileList';
 import { GridView } from './components/GridView';
@@ -51,6 +54,7 @@ import { SharedLists } from './components/SharedLists';
 import { UserManagement } from './components/Admin';
 import { HelixioLoader } from './components/HelixioLoader';
 import { NavigationSidebar } from './components/NavigationSidebar';
+import { GlobalHeader } from './components/GlobalHeader';
 import { groupFiles } from './utils/file-grouping';
 import type { ComicFile } from './services/api.service';
 
@@ -359,6 +363,9 @@ function AppContent() {
 
       {!hideSidebar && <SidebarNew />}
 
+      {/* Global Header - hidden on reader route (handled internally) */}
+      <GlobalHeader />
+
       <main className="main-content">
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -417,9 +424,14 @@ function App() {
                   <AnnotationsProvider>
                     <MetadataJobProvider>
                       <AchievementProvider>
-                        <AppContent />
-                        {/* Achievement notifications */}
-                        <AchievementToast />
+                        <DownloadProvider>
+                          <AppContent />
+                          {/* Achievement notifications */}
+                          <AchievementToast />
+                          {/* Download notifications */}
+                          <DownloadNotificationBar />
+                          <DownloadConfirmationModal />
+                        </DownloadProvider>
                       </AchievementProvider>
                     </MetadataJobProvider>
                   </AnnotationsProvider>

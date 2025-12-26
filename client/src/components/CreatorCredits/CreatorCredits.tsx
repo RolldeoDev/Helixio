@@ -60,6 +60,8 @@ interface CreatorCreditsProps {
   defaultExpanded?: boolean;
   /** Maximum primary creators to show before expand */
   maxPrimary?: number;
+  /** Maximum names to show per role before showing "x more" (default: 10) */
+  maxNamesPerRole?: number;
   /** Custom class name */
   className?: string;
 }
@@ -141,10 +143,13 @@ export function CreatorCredits({
   defaultExpanded = false,
   // maxPrimary is reserved for future use
   maxPrimary: _maxPrimary = 6,
+  maxNamesPerRole = 10,
   className = '',
 }: CreatorCreditsProps) {
   void _maxPrimary; // Suppress unused warning
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  // Track which roles have their names expanded (by role name)
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
 
   // Use structured input if available, otherwise fall back to parsing string
   const parsedCreators = useMemo(() => {
@@ -201,6 +206,18 @@ export function CreatorCredits({
     setIsExpanded((prev) => !prev);
   }, []);
 
+  const toggleRoleExpanded = useCallback((role: string) => {
+    setExpandedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) {
+        next.delete(role);
+      } else {
+        next.add(role);
+      }
+      return next;
+    });
+  }, []);
+
   if (!hasCreators) {
     return null;
   }
@@ -216,43 +233,101 @@ export function CreatorCredits({
 
       <div className="creator-credits__grid">
         {/* Primary roles */}
-        {showPrimary.map(({ role, names }, idx) => (
-          <div
-            key={role}
-            className="creator-credits__entry"
-            style={{ animationDelay: `${idx * 50}ms` }}
-          >
-            <span className="creator-credits__role">{role}</span>
-            <span className="creator-credits__names">
-              {names.map((name, nameIdx) => (
-                <span key={name} className="creator-credits__name">
-                  {name}
-                  {nameIdx < names.length - 1 && <span className="creator-credits__separator">, </span>}
-                </span>
-              ))}
-            </span>
-          </div>
-        ))}
+        {showPrimary.map(({ role, names }, idx) => {
+          const isRoleExpanded = expandedRoles.has(role);
+          const hasMoreNames = names.length > maxNamesPerRole;
+          const visibleNames = hasMoreNames && !isRoleExpanded
+            ? names.slice(0, maxNamesPerRole)
+            : names;
+          const hiddenCount = names.length - maxNamesPerRole;
 
-        {/* Secondary roles (when expanded) */}
-        {isExpanded &&
-          secondaryRoles.map(({ role, names }, idx) => (
+          return (
             <div
               key={role}
-              className="creator-credits__entry creator-credits__entry--secondary"
-              style={{ animationDelay: `${(showPrimary.length + idx) * 50}ms` }}
+              className="creator-credits__entry"
+              style={{ animationDelay: `${idx * 50}ms` }}
             >
               <span className="creator-credits__role">{role}</span>
               <span className="creator-credits__names">
-                {names.map((name, nameIdx) => (
+                {visibleNames.map((name, nameIdx) => (
                   <span key={name} className="creator-credits__name">
                     {name}
-                    {nameIdx < names.length - 1 && <span className="creator-credits__separator">, </span>}
+                    {nameIdx < visibleNames.length - 1 && (
+                      <span className="creator-credits__separator">, </span>
+                    )}
                   </span>
                 ))}
+                {hasMoreNames && !isRoleExpanded && (
+                  <button
+                    className="creator-credits__inline-toggle"
+                    onClick={() => toggleRoleExpanded(role)}
+                    aria-expanded={false}
+                  >
+                    +{hiddenCount} more
+                  </button>
+                )}
+                {hasMoreNames && isRoleExpanded && (
+                  <button
+                    className="creator-credits__inline-toggle"
+                    onClick={() => toggleRoleExpanded(role)}
+                    aria-expanded={true}
+                  >
+                    show less
+                  </button>
+                )}
               </span>
             </div>
-          ))}
+          );
+        })}
+
+        {/* Secondary roles (when expanded) */}
+        {isExpanded &&
+          secondaryRoles.map(({ role, names }, idx) => {
+            const isRoleExpanded = expandedRoles.has(role);
+            const hasMoreNames = names.length > maxNamesPerRole;
+            const visibleNames = hasMoreNames && !isRoleExpanded
+              ? names.slice(0, maxNamesPerRole)
+              : names;
+            const hiddenCount = names.length - maxNamesPerRole;
+
+            return (
+              <div
+                key={role}
+                className="creator-credits__entry creator-credits__entry--secondary"
+                style={{ animationDelay: `${(showPrimary.length + idx) * 50}ms` }}
+              >
+                <span className="creator-credits__role">{role}</span>
+                <span className="creator-credits__names">
+                  {visibleNames.map((name, nameIdx) => (
+                    <span key={name} className="creator-credits__name">
+                      {name}
+                      {nameIdx < visibleNames.length - 1 && (
+                        <span className="creator-credits__separator">, </span>
+                      )}
+                    </span>
+                  ))}
+                  {hasMoreNames && !isRoleExpanded && (
+                    <button
+                      className="creator-credits__inline-toggle"
+                      onClick={() => toggleRoleExpanded(role)}
+                      aria-expanded={false}
+                    >
+                      +{hiddenCount} more
+                    </button>
+                  )}
+                  {hasMoreNames && isRoleExpanded && (
+                    <button
+                      className="creator-credits__inline-toggle"
+                      onClick={() => toggleRoleExpanded(role)}
+                      aria-expanded={true}
+                    >
+                      show less
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })}
       </div>
 
       {/* Expand/collapse button */}

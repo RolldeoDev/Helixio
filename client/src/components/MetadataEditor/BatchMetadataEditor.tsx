@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo } from 'react';
 import {
   updateComicInfo,
   ComicInfo,
+  REMOVE_FIELD,
   type TagFieldType,
 } from '../../services/api.service';
 import { SimpleTagInput } from './SimpleTagInput';
@@ -120,7 +121,9 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
   const handleFieldChange = (field: EditableField, value: string | number | undefined) => {
     setMetadata((prev) => ({
       ...prev,
-      [field]: value === '' ? undefined : value,
+      // Use REMOVE_FIELD sentinel for empty values so it survives JSON.stringify
+      // and signals to the backend that this field should be removed from ComicInfo.xml
+      [field]: value === '' || value === undefined ? REMOVE_FIELD : value,
     }));
   };
 
@@ -184,7 +187,10 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
     const changes: { field: string; value: string }[] = [];
     selectedFields.forEach((field) => {
       const value = metadata[field];
-      const displayValue = value !== undefined && value !== '' ? String(value) : '(empty)';
+      // Treat REMOVE_FIELD sentinel as empty for display
+      const displayValue = value !== undefined && value !== '' && value !== REMOVE_FIELD
+        ? String(value)
+        : '(clear field)';
       const config = FIELD_CATEGORIES.flatMap((c) => c.fields).find((f) => f.key === field);
       changes.push({
         field: config?.label || field,
@@ -203,7 +209,9 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
     try {
       const updates: Partial<ComicInfo> = {};
       selectedFields.forEach((field) => {
-        (updates as Record<string, unknown>)[field] = metadata[field];
+        // Include the field value, using REMOVE_FIELD for undefined/empty values
+        const value = metadata[field];
+        (updates as Record<string, unknown>)[field] = value ?? REMOVE_FIELD;
       });
 
       const failed: string[] = [];
@@ -251,6 +259,10 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
       );
     }
 
+    // Get display value - treat REMOVE_FIELD sentinel as empty
+    const rawValue = metadata[key];
+    const displayValue = rawValue === REMOVE_FIELD ? '' : rawValue;
+
     return (
       <div key={key} className="batch-field-active">
         <div className="batch-field-header">
@@ -270,7 +282,7 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
           {type === 'textarea' ? (
             <textarea
               id={`field-${key}`}
-              value={(metadata[key] as string) || ''}
+              value={(displayValue as string) || ''}
               onChange={(e) => handleFieldChange(key, e.target.value)}
               rows={3}
               placeholder={`Enter ${label.toLowerCase()}...`}
@@ -279,7 +291,7 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
             <input
               id={`field-${key}`}
               type="number"
-              value={(metadata[key] as number) ?? ''}
+              value={(displayValue as number) ?? ''}
               onChange={(e) =>
                 handleFieldChange(key, e.target.value ? parseInt(e.target.value, 10) : undefined)
               }
@@ -288,7 +300,7 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
           ) : type === 'tag' ? (
             <SimpleTagInput
               id={`field-${key}`}
-              value={(metadata[key] as string) || ''}
+              value={(displayValue as string) || ''}
               onChange={(value) => handleFieldChange(key, value || undefined)}
               autocompleteField={autocompleteField}
               placeholder={`Add ${label.toLowerCase()}...`}
@@ -297,7 +309,7 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
             <input
               id={`field-${key}`}
               type="text"
-              value={(metadata[key] as string) || ''}
+              value={(displayValue as string) || ''}
               onChange={(e) => handleFieldChange(key, e.target.value)}
               placeholder={`Enter ${label.toLowerCase()}...`}
             />
@@ -490,7 +502,7 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
                 <div key={field} className="batch-summary-item">
                   <span className="batch-summary-field">{field}</span>
                   <span className="batch-summary-arrow">→</span>
-                  <span className={`batch-summary-value ${value === '(empty)' ? 'empty' : ''}`}>
+                  <span className={`batch-summary-value ${value === '(clear field)' ? 'empty' : ''}`}>
                     {value}
                   </span>
                 </div>
