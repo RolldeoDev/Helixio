@@ -27,6 +27,12 @@ import {
   getSystemCollection,
   getUnavailableItemCount,
   removeUnavailableItems,
+  getPromotedCollections,
+  toggleCollectionPromotion,
+  updateCollectionCover,
+  setCollectionCoverHash,
+  updateCollectionMetadata,
+  getCollectionReadingProgress,
 } from '../services/collection.service.js';
 
 const router = Router();
@@ -406,6 +412,163 @@ router.delete('/unavailable', async (req: Request, res: Response) => {
     console.error('Error removing unavailable items:', error);
     res.status(500).json({
       error: 'Failed to remove unavailable items',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Promoted Collections (Show in Series View)
+// =============================================================================
+
+/**
+ * GET /api/collections/promoted
+ * Get all promoted collections for the current user (for Series page display).
+ * Returns collections with aggregated metadata and series covers for mosaic.
+ */
+router.get('/promoted', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const collections = await getPromotedCollections(userId);
+    res.json({ collections });
+  } catch (error) {
+    console.error('Error getting promoted collections:', error);
+    res.status(500).json({
+      error: 'Failed to get promoted collections',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/promote
+ * Toggle promotion status for a collection.
+ */
+router.post('/:id/promote', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const collection = await toggleCollectionPromotion(userId, collectionId);
+    return res.json({ collection });
+  } catch (error) {
+    console.error('Error toggling collection promotion:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to toggle collection promotion',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/collections/:id/cover
+ * Update collection cover source.
+ * Body: { coverType: 'auto' | 'series' | 'issue' | 'custom', sourceId?: string }
+ */
+router.put('/:id/cover', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { coverType, sourceId } = req.body;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!coverType) {
+      return res.status(400).json({ error: 'Cover type is required' });
+    }
+
+    const validTypes = ['auto', 'series', 'issue', 'custom'];
+    if (!validTypes.includes(coverType)) {
+      return res.status(400).json({
+        error: `Invalid cover type. Must be one of: ${validTypes.join(', ')}`,
+      });
+    }
+
+    const collection = await updateCollectionCover(
+      userId,
+      collectionId,
+      coverType,
+      sourceId
+    );
+    return res.json({ collection });
+  } catch (error) {
+    console.error('Error updating collection cover:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to update collection cover',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/collections/:id/progress
+ * Get aggregate reading progress for a collection.
+ */
+router.get('/:id/progress', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const progress = await getCollectionReadingProgress(userId, collectionId);
+    return res.json(progress);
+  } catch (error) {
+    console.error('Error getting collection progress:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to get collection progress',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/collections/:id/metadata
+ * Update collection metadata overrides.
+ * Body: { overridePublisher?, overrideStartYear?, overrideEndYear?, overrideGenres? }
+ */
+router.put('/:id/metadata', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { overridePublisher, overrideStartYear, overrideEndYear, overrideGenres } =
+      req.body;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const collection = await updateCollectionMetadata(userId, collectionId, {
+      overridePublisher,
+      overrideStartYear,
+      overrideEndYear,
+      overrideGenres,
+    });
+    return res.json({ collection });
+  } catch (error) {
+    console.error('Error updating collection metadata:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to update collection metadata',
       message: error instanceof Error ? error.message : String(error),
     });
   }

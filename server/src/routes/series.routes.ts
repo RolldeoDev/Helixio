@@ -46,6 +46,9 @@ import {
   getAllGenres,
   getDeletedSeries,
   restoreSeries,
+  toggleSeriesHidden,
+  setSeriesHidden,
+  getHiddenSeries,
   SeriesListOptions,
   type DuplicateConfidence,
 } from '../services/series.service.js';
@@ -61,6 +64,14 @@ import {
   inheritMetadataToAllIssues,
   getFilesNeedingInheritance,
 } from '../services/series-inheritance.service.js';
+import {
+  addChildSeries,
+  removeChildSeries,
+  getSeriesRelationships,
+  reorderChildSeries,
+  updateRelationshipType,
+  type RelationshipType,
+} from '../services/series-relationship.service.js';
 import {
   fetchSeriesMetadataById,
   fetchMetadataByExternalId,
@@ -1529,6 +1540,205 @@ router.post('/:id/restore', asyncHandler(async (req: Request, res: Response) => 
   } catch (error) {
     if (error instanceof Error && error.message.includes('not found')) {
       return sendNotFound(res, error.message);
+    }
+    throw error;
+  }
+}));
+
+// =============================================================================
+// Series Visibility (Hidden Flag)
+// =============================================================================
+
+/**
+ * GET /api/series/admin/hidden
+ * Get all hidden series.
+ */
+router.get('/admin/hidden', asyncHandler(async (_req: Request, res: Response) => {
+  const hidden = await getHiddenSeries();
+  sendSuccess(res, { series: hidden, count: hidden.length });
+}));
+
+/**
+ * PATCH /api/series/:id/hidden
+ * Toggle or set the hidden status of a series.
+ * Body: { hidden?: boolean } - If provided, sets to that value. If not, toggles.
+ */
+router.patch('/:id/hidden', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { hidden } = req.body;
+
+  if (!id) {
+    return sendBadRequest(res, 'Series ID is required');
+  }
+
+  try {
+    let series;
+    if (hidden !== undefined) {
+      series = await setSeriesHidden(id, hidden);
+      logger.info({ seriesId: id, hidden }, 'Set series hidden status');
+    } else {
+      series = await toggleSeriesHidden(id);
+      logger.info({ seriesId: id, isHidden: series.isHidden }, 'Toggled series hidden status');
+    }
+    sendSuccess(res, { series });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      return sendNotFound(res, error.message);
+    }
+    throw error;
+  }
+}));
+
+// =============================================================================
+// Series Relationships (Parent/Child)
+// =============================================================================
+
+/**
+ * GET /api/series/:id/relationships
+ * Get all parent and child relationships for a series.
+ */
+router.get('/:id/relationships', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return sendBadRequest(res, 'Series ID is required');
+  }
+
+  try {
+    const relationships = await getSeriesRelationships(id);
+    sendSuccess(res, relationships);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('not found')) {
+      return sendNotFound(res, error.message);
+    }
+    throw error;
+  }
+}));
+
+/**
+ * POST /api/series/:id/children
+ * Add a child series to this series.
+ * Body: { childSeriesId: string, relationshipType?: 'related' | 'spinoff' | 'prequel' | 'sequel' | 'bonus' }
+ */
+router.post('/:id/children', asyncHandler(async (req: Request, res: Response) => {
+  const { id: parentSeriesId } = req.params;
+  const { childSeriesId, relationshipType = 'related' } = req.body;
+
+  if (!parentSeriesId) {
+    return sendBadRequest(res, 'Parent series ID is required');
+  }
+
+  if (!childSeriesId) {
+    return sendBadRequest(res, 'Child series ID is required');
+  }
+
+  try {
+    const relationship = await addChildSeries(
+      parentSeriesId,
+      childSeriesId,
+      relationshipType as RelationshipType
+    );
+    logger.info({ parentSeriesId, childSeriesId, relationshipType }, 'Added child series');
+    sendSuccess(res, { relationship }, undefined, 201);
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return sendNotFound(res, error.message);
+      }
+      if (error.message.includes('circular') || error.message.includes('itself')) {
+        return sendBadRequest(res, error.message);
+      }
+      // Unique constraint violation = already exists
+      if (error.message.includes('Unique constraint')) {
+        return sendBadRequest(res, 'This relationship already exists');
+      }
+    }
+    throw error;
+  }
+}));
+
+/**
+ * DELETE /api/series/:id/children/:childId
+ * Remove a child series from this series.
+ */
+router.delete('/:id/children/:childId', asyncHandler(async (req: Request, res: Response) => {
+  const { id: parentSeriesId, childId: childSeriesId } = req.params;
+
+  if (!parentSeriesId || !childSeriesId) {
+    return sendBadRequest(res, 'Parent and child series IDs are required');
+  }
+
+  try {
+    await removeChildSeries(parentSeriesId, childSeriesId);
+    logger.info({ parentSeriesId, childSeriesId }, 'Removed child series');
+    sendSuccess(res, { message: 'Child series removed' });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Record to delete does not exist')) {
+      return sendNotFound(res, 'Relationship not found');
+    }
+    throw error;
+  }
+}));
+
+/**
+ * PUT /api/series/:id/children/reorder
+ * Reorder child series within a parent.
+ * Body: { orderedChildIds: string[] }
+ */
+router.put('/:id/children/reorder', asyncHandler(async (req: Request, res: Response) => {
+  const { id: parentSeriesId } = req.params;
+  const { orderedChildIds } = req.body;
+
+  if (!parentSeriesId) {
+    return sendBadRequest(res, 'Parent series ID is required');
+  }
+
+  if (!orderedChildIds || !Array.isArray(orderedChildIds)) {
+    return sendBadRequest(res, 'orderedChildIds must be an array');
+  }
+
+  try {
+    await reorderChildSeries(parentSeriesId, orderedChildIds);
+    logger.info({ parentSeriesId, count: orderedChildIds.length }, 'Reordered child series');
+    sendSuccess(res, { message: 'Order updated' });
+  } catch (error) {
+    throw error;
+  }
+}));
+
+/**
+ * PATCH /api/series/:id/children/:childId
+ * Update the relationship type between parent and child.
+ * Body: { relationshipType: 'related' | 'spinoff' | 'prequel' | 'sequel' | 'bonus' }
+ */
+router.patch('/:id/children/:childId', asyncHandler(async (req: Request, res: Response) => {
+  const { id: parentSeriesId, childId: childSeriesId } = req.params;
+  const { relationshipType } = req.body;
+
+  if (!parentSeriesId || !childSeriesId) {
+    return sendBadRequest(res, 'Parent and child series IDs are required');
+  }
+
+  if (!relationshipType) {
+    return sendBadRequest(res, 'Relationship type is required');
+  }
+
+  const validTypes = ['related', 'spinoff', 'prequel', 'sequel', 'bonus'];
+  if (!validTypes.includes(relationshipType)) {
+    return sendBadRequest(res, `Invalid relationship type. Must be one of: ${validTypes.join(', ')}`);
+  }
+
+  try {
+    const relationship = await updateRelationshipType(
+      parentSeriesId,
+      childSeriesId,
+      relationshipType as RelationshipType
+    );
+    logger.info({ parentSeriesId, childSeriesId, relationshipType }, 'Updated relationship type');
+    sendSuccess(res, { relationship });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Record to update not found')) {
+      return sendNotFound(res, 'Relationship not found');
     }
     throw error;
   }

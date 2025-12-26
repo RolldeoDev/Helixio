@@ -11,7 +11,8 @@ import { SeriesCache, type CachedIssuesData } from '../series-cache.service.js';
 import * as comicVine from '../comicvine.service.js';
 import { getSession, setSession } from './session-store.js';
 import { matchFileToIssue, getIssueNumber, getIssueTitle } from './helpers.js';
-import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, type MangaChapterOptions } from './field-changes.js';
+import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, type MangaChapterOptions, type ComicClassificationOptions } from './field-changes.js';
+import { getComicClassificationSettings } from '../config.service.js';
 import { classifyMangaFile, type MangaClassificationResult } from '../manga-classification.service.js';
 import { getMangaClassificationSettings } from '../config.service.js';
 import type {
@@ -289,6 +290,21 @@ export async function prepareFileChanges(
     let matchedCount = 0;
     let unmatchedCount = 0;
 
+    // Fetch page counts for all files if comic classification is enabled
+    const comicClassificationSettings = getComicClassificationSettings();
+    let pageCountMap: Map<string, number> = new Map();
+    if (comicClassificationSettings.enabled) {
+      const filesWithMetadata = await prisma.comicFile.findMany({
+        where: { id: { in: group.fileIds } },
+        select: { id: true, metadata: { select: { pageCount: true } } },
+      });
+      for (const file of filesWithMetadata) {
+        if (file.metadata?.pageCount) {
+          pageCountMap.set(file.id, file.metadata.pageCount);
+        }
+      }
+    }
+
     progress(`Matching ${group.fileIds.length} files to issues`, 'Analyzing filenames...');
 
     for (let i = 0; i < group.fileIds.length; i++) {
@@ -301,6 +317,13 @@ export async function prepareFileChanges(
       const parseSource = parsedData?.number ? 'parsed' : 'regex';
       const parsedNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber || '?';
 
+      // Get page count for format classification
+      const pageCount = pageCountMap.get(fileId) || 0;
+      const classificationOptions: ComicClassificationOptions = {
+        filename,
+        pageCount,
+      };
+
       if (issue && confidence >= 0.5) {
         matchedCount++;
         const fullIssue = issueMap.get(issue.id) || issue;
@@ -310,12 +333,14 @@ export async function prepareFileChanges(
             ? await issueToFieldChanges(
                 fileId,
                 fullIssue as comicVine.ComicVineIssue,
-                metadataSource
+                metadataSource,
+                classificationOptions
               )
             : await metronIssueToFieldChanges(
                 fileId,
                 fullIssue as Parameters<typeof metronIssueToFieldChanges>[1],
-                metadataSource
+                metadataSource,
+                classificationOptions
               );
 
         const confidencePercent = Math.round(confidence * 100);

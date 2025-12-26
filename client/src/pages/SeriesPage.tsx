@@ -3,15 +3,22 @@
  *
  * Main page for browsing all series in the library.
  * Part of the Series-Centric Architecture UI.
+ *
+ * Features:
+ * - Promoted collections section at the top
+ * - Series grid with filters and search
  */
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SeriesGrid } from '../components/SeriesGrid';
+import { CollectionCoverCard, type PromotedCollectionData } from '../components/CollectionCoverCard';
 import {
   getSeriesPublishers,
   getSeriesGenres,
+  getPromotedCollections,
   SeriesListOptions,
+  PromotedCollection,
 } from '../services/api.service';
 import { useApp } from '../contexts/AppContext';
 import './SeriesPage.css';
@@ -36,21 +43,27 @@ export function SeriesPage() {
   const [publishers, setPublishers] = useState<string[]>([]);
   const [_genres, setGenres] = useState<string[]>([]);
 
-  // Fetch filter options
+  // Promoted collections state
+  const [promotedCollections, setPromotedCollections] = useState<PromotedCollection[]>([]);
+  const [showPromotedCollections, setShowPromotedCollections] = useState(true);
+
+  // Fetch filter options and promoted collections
   useEffect(() => {
-    const fetchFilters = async () => {
+    const fetchData = async () => {
       try {
-        const [pubResult, genreResult] = await Promise.all([
+        const [pubResult, genreResult, collectionsResult] = await Promise.all([
           getSeriesPublishers(),
           getSeriesGenres(),
+          getPromotedCollections(),
         ]);
         setPublishers(pubResult.publishers);
         setGenres(genreResult.genres);
+        setPromotedCollections(collectionsResult.collections);
       } catch (err) {
-        console.error('Failed to load filter options:', err);
+        console.error('Failed to load data:', err);
       }
     };
-    fetchFilters();
+    fetchData();
   }, []);
 
   // Build options for SeriesGrid
@@ -219,6 +232,76 @@ export function SeriesPage() {
           </button>
         )}
       </div>
+
+      {/* Promoted Collections Section */}
+      {promotedCollections.length > 0 && showPromotedCollections && !hasActiveFilters && (
+        <div className="series-promoted-collections">
+          <div className="series-promoted-header">
+            <h2>Collections</h2>
+            <button
+              className="series-promoted-toggle"
+              onClick={() => setShowPromotedCollections(false)}
+              aria-label="Hide collections"
+            >
+              Hide
+            </button>
+          </div>
+          <div className="series-promoted-grid">
+            {promotedCollections.map((collection) => {
+              // Convert PromotedCollection to PromotedCollectionData
+              const collectionData: PromotedCollectionData = {
+                id: collection.id,
+                name: collection.name,
+                description: collection.description,
+                isPromoted: collection.isPromoted,
+                coverType: collection.coverType,
+                coverSeriesId: collection.coverSeriesId,
+                coverFileId: collection.coverFileId,
+                coverHash: collection.coverHash,
+                derivedPublisher: collection.derivedPublisher,
+                derivedStartYear: collection.derivedStartYear,
+                derivedEndYear: collection.derivedEndYear,
+                derivedGenres: collection.derivedGenres,
+                derivedIssueCount: collection.derivedIssueCount,
+                derivedReadCount: collection.derivedReadCount,
+                overridePublisher: collection.overridePublisher,
+                overrideStartYear: collection.overrideStartYear,
+                overrideEndYear: collection.overrideEndYear,
+                overrideGenres: collection.overrideGenres,
+                totalIssues: collection.totalIssues,
+                readIssues: collection.readIssues,
+                seriesCovers: collection.seriesCovers.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  coverHash: s.coverHash,
+                  coverFileId: s.coverFileId,
+                  firstIssueId: s.firstIssueId,
+                  coverSource: s.coverSource,
+                })),
+              };
+
+              return (
+                <CollectionCoverCard
+                  key={collection.id}
+                  collection={collectionData}
+                  size="medium"
+                  onClick={(id) => navigate(`/collections/${id}`)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Show collapsed collections indicator */}
+      {promotedCollections.length > 0 && !showPromotedCollections && !hasActiveFilters && (
+        <button
+          className="series-promoted-show-btn"
+          onClick={() => setShowPromotedCollections(true)}
+        >
+          Show {promotedCollections.length} Collection{promotedCollections.length !== 1 ? 's' : ''}
+        </button>
+      )}
 
       {/* Series Grid */}
       <SeriesGrid options={options} />

@@ -20,6 +20,8 @@ import { scanLibrary, applyScan, rebuildCache, renameFolder, createLibrary, Libr
 import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import './Sidebar.css';
 
+const API_BASE = '/api';
+
 type SidebarView = 'home' | 'reading' | 'collections' | 'folders' | 'tools';
 
 const PANEL_MIN_WIDTH = 200;
@@ -48,6 +50,25 @@ export function Sidebar() {
 
   // Determine active view based on route or selection
   const [activeView, setActiveView] = useState<SidebarView>('home');
+
+  // App version for footer
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  // Fetch app version
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/config`);
+        if (response.ok) {
+          const data = await response.json();
+          setAppVersion(data.version || null);
+        }
+      } catch {
+        // Silently fail - version in footer is optional
+      }
+    };
+    fetchVersion();
+  }, []);
 
   // Panel resize state
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -259,6 +280,21 @@ export function Sidebar() {
               <line x1="17" y1="16" x2="23" y2="16" />
             </svg>
           </button>
+        </div>
+
+        {/* About Footer */}
+        <div className="rail-footer">
+          <img
+            src="/helixioHighFidelityLogo.png"
+            alt="Helixio"
+            className="rail-footer-logo"
+            title={appVersion ? `Helixio v${appVersion}` : 'Helixio'}
+          />
+          {appVersion && (
+            <span className="rail-footer-version" title={`Version ${appVersion}`}>
+              v{appVersion}
+            </span>
+          )}
         </div>
       </nav>
 

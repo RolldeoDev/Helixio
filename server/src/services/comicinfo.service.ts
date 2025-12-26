@@ -117,6 +117,8 @@ export interface ComicInfoReadResult {
 export interface ComicInfoWriteResult {
   success: boolean;
   error?: string;
+  /** The merged ComicInfo that was written (returned by mergeComicInfo) */
+  comicInfo?: ComicInfo;
 }
 
 // =============================================================================
@@ -264,9 +266,21 @@ export async function readComicInfo(archivePath: string): Promise<ComicInfoReadR
     const archiveInfo = await listArchiveContents(archivePath);
     logger.debug({ entryCount: archiveInfo.entries.length, hasComicInfo: archiveInfo.hasComicInfo }, 'Found archive entries');
 
-    const comicInfoEntry = archiveInfo.entries.find(
+    // Find all ComicInfo.xml entries, preferring root-level over nested ones
+    // Some archives have multiple ComicInfo.xml files (one at root, one in subdirectory)
+    // We prefer root-level because that's where we write updates
+    const comicInfoEntries = archiveInfo.entries.filter(
       (e) => basename(e.path).toLowerCase() === 'comicinfo.xml'
     );
+
+    // Sort by path depth (fewer separators = closer to root)
+    comicInfoEntries.sort((a, b) => {
+      const depthA = (a.path.match(/[/\\]/g) || []).length;
+      const depthB = (b.path.match(/[/\\]/g) || []).length;
+      return depthA - depthB;
+    });
+
+    const comicInfoEntry = comicInfoEntries[0];
 
     if (!comicInfoEntry) {
       logger.debug({ firstEntries: archiveInfo.entries.slice(0, 5).map(e => e.path) }, 'ComicInfo.xml not found in entries');
@@ -305,23 +319,29 @@ export async function readComicInfo(archivePath: string): Promise<ComicInfoReadR
           };
         }
 
-        // Find ComicInfo.xml in extracted files
+        // Find ComicInfo.xml in extracted files, preferring root-level
         logger.debug({ fileCount: fullExtractResult.fileCount }, 'Full extraction succeeded');
-        const findComicInfo = async (dir: string): Promise<string | null> => {
+        const findAllComicInfo = async (dir: string, basePath = ''): Promise<{ path: string; depth: number }[]> => {
+          const results: { path: string; depth: number }[] = [];
           const entries = await readdir(dir, { withFileTypes: true });
           for (const entry of entries) {
             const fullPath = join(dir, entry.name);
+            const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
             if (entry.isDirectory()) {
-              const found = await findComicInfo(fullPath);
-              if (found) return found;
+              const found = await findAllComicInfo(fullPath, relativePath);
+              results.push(...found);
             } else if (entry.name.toLowerCase() === 'comicinfo.xml') {
-              return fullPath;
+              const depth = (relativePath.match(/[/\\]/g) || []).length;
+              results.push({ path: fullPath, depth });
             }
           }
-          return null;
+          return results;
         };
 
-        const foundPath = await findComicInfo(tempDir);
+        const allComicInfo = await findAllComicInfo(tempDir);
+        // Sort by depth (shallowest first) to prefer root-level ComicInfo.xml
+        allComicInfo.sort((a, b) => a.depth - b.depth);
+        const foundPath = allComicInfo.length > 0 ? allComicInfo[0]!.path : null;
         if (!foundPath) {
           logger.debug('ComicInfo.xml not found in extracted files');
           return {
@@ -369,7 +389,9 @@ export async function writeComicInfo(
   comicInfo: ComicInfo
 ): Promise<ComicInfoWriteResult> {
   try {
+    logger.info({ archivePath, comicInfoFields: Object.keys(comicInfo) }, 'writeComicInfo called');
     const xmlString = buildComicInfoXml(comicInfo);
+    logger.debug({ xmlLength: xmlString.length }, 'Built XML string');
     const xmlBuffer = Buffer.from(xmlString, 'utf-8');
 
     const result = await updateFileInArchive(
@@ -377,9 +399,11 @@ export async function writeComicInfo(
       'ComicInfo.xml',
       xmlBuffer
     );
+    logger.info({ result }, 'updateFileInArchive returned');
 
     return result;
   } catch (err) {
+    logger.error({ err }, 'writeComicInfo error');
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),
@@ -398,8 +422,11 @@ export async function mergeComicInfo(
   removals?: string[]
 ): Promise<ComicInfoWriteResult> {
   try {
+    logger.info({ archivePath, updates, removals }, 'mergeComicInfo called');
+
     // Try to read existing ComicInfo
     const existing = await readComicInfo(archivePath);
+    logger.info({ existingSuccess: existing.success, hasComicInfo: !!existing.comicInfo }, 'Read existing ComicInfo');
 
     // Merge with existing or create new
     const merged: ComicInfo = existing.success && existing.comicInfo
@@ -413,9 +440,19 @@ export async function mergeComicInfo(
       }
     }
 
+    logger.info({ mergedFields: Object.keys(merged) }, 'Merged ComicInfo');
+
     // Write merged result
-    return writeComicInfo(archivePath, merged);
+    const writeResult = await writeComicInfo(archivePath, merged);
+    logger.info({ writeResult }, 'writeComicInfo completed');
+
+    // Return the merged comicInfo so callers can use it without re-reading
+    return {
+      ...writeResult,
+      comicInfo: writeResult.success ? merged : undefined,
+    };
   } catch (err) {
+    logger.error({ err }, 'mergeComicInfo error');
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),

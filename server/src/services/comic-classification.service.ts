@@ -7,22 +7,13 @@
  * - ComicInfo.xml Format field generation
  */
 
+import { getComicClassificationSettings, type ComicClassificationSettings } from './config.service.js';
+
 // =============================================================================
 // Types
 // =============================================================================
 
 export type ComicFormat = 'issue' | 'tpb' | 'omnibus';
-
-export interface ComicClassificationSettings {
-  /** Enable page-based classification */
-  enabled: boolean;
-  /** Page threshold: below this is an issue */
-  issuePageThreshold: number;
-  /** Page threshold: above this is an omnibus (between issue and omnibus is TPB) */
-  omnibusPageThreshold: number;
-  /** Whether filename indicators override page count */
-  filenameOverridesPageCount: boolean;
-}
 
 export interface ComicClassificationResult {
   /** The classified format */
@@ -41,16 +32,8 @@ export interface ComicFileInput {
   folderPath?: string;
 }
 
-// =============================================================================
-// Default Settings
-// =============================================================================
-
-const DEFAULT_SETTINGS: ComicClassificationSettings = {
-  enabled: true,
-  issuePageThreshold: 50,
-  omnibusPageThreshold: 200,
-  filenameOverridesPageCount: true,
-};
+// Re-export the ComicClassificationSettings type from config
+export type { ComicClassificationSettings } from './config.service.js';
 
 // =============================================================================
 // Regex Patterns for Format Detection
@@ -105,11 +88,12 @@ export function detectFormatFromFilename(filename: string): {
  */
 export function classifyByPageCount(
   pageCount: number,
-  settings: ComicClassificationSettings = DEFAULT_SETTINGS
+  settings?: ComicClassificationSettings
 ): ComicFormat {
-  if (pageCount < settings.issuePageThreshold) {
+  const config = settings || getComicClassificationSettings();
+  if (pageCount < config.issuePageThreshold) {
     return 'issue';
-  } else if (pageCount > settings.omnibusPageThreshold) {
+  } else if (pageCount > config.omnibusPageThreshold) {
     return 'omnibus';
   } else {
     return 'tpb';
@@ -134,9 +118,11 @@ export function getFormatLabel(format: ComicFormat): string {
 export function classifyComicFormat(
   filename: string,
   pageCount: number,
-  settings: ComicClassificationSettings = DEFAULT_SETTINGS
+  settings?: ComicClassificationSettings
 ): ComicClassificationResult {
-  if (!settings.enabled) {
+  const config = settings || getComicClassificationSettings();
+
+  if (!config.enabled) {
     // When disabled, default to issue
     return {
       format: 'issue',
@@ -149,7 +135,7 @@ export function classifyComicFormat(
   // First, try to detect format from filename
   const filenameResult = detectFormatFromFilename(filename);
 
-  if (filenameResult.format && settings.filenameOverridesPageCount) {
+  if (filenameResult.format && config.filenameOverridesPageCount) {
     // Filename takes precedence
     return {
       format: filenameResult.format,
@@ -160,7 +146,7 @@ export function classifyComicFormat(
   }
 
   // Use page count classification
-  const pageFormat = classifyByPageCount(pageCount, settings);
+  const pageFormat = classifyByPageCount(pageCount, config);
 
   // If we have a filename hint but it doesn't override, use it to boost confidence
   let confidence = 0.8;
@@ -181,12 +167,13 @@ export function classifyComicFormat(
  */
 export function batchClassifyComicFiles(
   files: ComicFileInput[],
-  settings: ComicClassificationSettings = DEFAULT_SETTINGS
+  settings?: ComicClassificationSettings
 ): Map<string, ComicClassificationResult> {
+  const config = settings || getComicClassificationSettings();
   const results = new Map<string, ComicClassificationResult>();
 
   for (const file of files) {
-    const result = classifyComicFormat(file.filename, file.pageCount, settings);
+    const result = classifyComicFormat(file.filename, file.pageCount, config);
     results.set(file.filename, result);
   }
 
@@ -194,10 +181,10 @@ export function batchClassifyComicFiles(
 }
 
 /**
- * Get default classification settings
+ * Get current classification settings from config
  */
-export function getDefaultSettings(): ComicClassificationSettings {
-  return { ...DEFAULT_SETTINGS };
+export function getSettings(): ComicClassificationSettings {
+  return getComicClassificationSettings();
 }
 
 /**

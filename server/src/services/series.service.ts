@@ -53,6 +53,7 @@ export interface SeriesListOptions {
   hasUnread?: boolean;
   libraryId?: string;
   userId?: string; // Filter progress to this user
+  includeHidden?: boolean; // If true, include hidden series (default: false)
 }
 
 export interface SeriesListResult {
@@ -231,15 +232,17 @@ export async function getSeriesList(
     hasUnread,
     libraryId,
     userId,
+    includeHidden = false,
   } = options;
 
   // Use limit if provided, otherwise default to 50 (unless explicitly undefined for fetch all)
   const effectiveLimit = limit === undefined ? undefined : (limit || 50);
   const fetchAll = effectiveLimit === undefined;
 
-  // Build where clause - exclude soft-deleted by default
+  // Build where clause - exclude soft-deleted and hidden by default
   const where: Prisma.SeriesWhereInput = {
     deletedAt: null,
+    ...(includeHidden ? {} : { isHidden: false }),
   };
 
   if (search) {
@@ -1928,4 +1931,72 @@ export async function checkAndSoftDeleteEmptySeries(
   }
 
   return false;
+}
+
+// =============================================================================
+// Series Visibility (Hidden Flag)
+// =============================================================================
+
+/**
+ * Toggle the hidden status of a series.
+ * Hidden series are excluded from browse lists but still accessible via search/links.
+ */
+export async function toggleSeriesHidden(seriesId: string): Promise<Series> {
+  const db = getDatabase();
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    throw new Error(`Series ${seriesId} not found`);
+  }
+
+  return db.series.update({
+    where: { id: seriesId },
+    data: { isHidden: !series.isHidden },
+  });
+}
+
+/**
+ * Explicitly set the hidden status of a series.
+ */
+export async function setSeriesHidden(
+  seriesId: string,
+  hidden: boolean
+): Promise<Series> {
+  const db = getDatabase();
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) {
+    throw new Error(`Series ${seriesId} not found`);
+  }
+
+  return db.series.update({
+    where: { id: seriesId },
+    data: { isHidden: hidden },
+  });
+}
+
+/**
+ * Get all hidden series (for admin/management purposes).
+ */
+export async function getHiddenSeries(): Promise<SeriesWithCounts[]> {
+  const db = getDatabase();
+
+  return db.series.findMany({
+    where: {
+      isHidden: true,
+      deletedAt: null,
+    },
+    include: {
+      _count: {
+        select: { issues: true },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
 }

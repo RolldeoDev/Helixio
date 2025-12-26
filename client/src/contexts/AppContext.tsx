@@ -208,10 +208,11 @@ export function AppProvider({ children }: AppProviderProps) {
           setSelectedLibrary(null);
           localStorage.removeItem(LAST_LIBRARY_KEY);
         }
-      } else {
+      } else if (!isAllLibraries) {
         // On initial load, try to restore the last selected library
+        // (skip if already in all-libraries mode, which is initialized from localStorage)
         const lastLibraryId = localStorage.getItem(LAST_LIBRARY_KEY);
-        if (lastLibraryId) {
+        if (lastLibraryId && lastLibraryId !== 'all') {
           const lastLibrary = response.libraries.find((l) => l.id === lastLibraryId);
           if (lastLibrary) {
             setSelectedLibrary(lastLibrary);
@@ -226,7 +227,7 @@ export function AppProvider({ children }: AppProviderProps) {
     } finally {
       setLoadingLibraries(false);
     }
-  }, [selectedLibrary]);
+  }, [selectedLibrary, isAllLibraries]);
 
   const selectLibrary = useCallback((library: Library | null | 'all') => {
     // Handle 'all' case

@@ -16,7 +16,7 @@ import { LRUCache } from './lru-cache.service.js';
 
 export interface GlobalSearchResult {
   id: string;
-  type: 'series' | 'issue' | 'creator';
+  type: 'series' | 'issue' | 'creator' | 'collection';
   title: string;
   subtitle: string;
   thumbnailId: string | null;
@@ -28,13 +28,17 @@ export interface GlobalSearchResult {
     year?: number | null;
     issueNumber?: string | null;
     role?: string | null;
+    seriesCount?: number;
+    totalIssues?: number;
+    readIssues?: number;
   };
 }
 
 export interface GlobalSearchOptions {
   limit?: number;
-  types?: ('series' | 'issue' | 'creator')[];
+  types?: ('series' | 'issue' | 'creator' | 'collection')[];
   libraryId?: string;
+  userId?: string;
 }
 
 export interface GlobalSearchResponse {
@@ -64,13 +68,13 @@ const searchCache = new LRUCache<GlobalSearchResult[]>({
 function calculateRelevance(
   value: string,
   query: string,
-  type: 'series' | 'issue' | 'creator'
+  type: 'series' | 'issue' | 'creator' | 'collection'
 ): number {
   const valueLower = value.toLowerCase();
   const queryLower = query.toLowerCase();
 
-  // Base score by type priority
-  let score = type === 'series' ? 100 : type === 'issue' ? 80 : 60;
+  // Base score by type priority (collections are between series and issues)
+  let score = type === 'series' ? 100 : type === 'collection' ? 90 : type === 'issue' ? 80 : 60;
 
   // Exact match bonus
   if (valueLower === queryLower) {
@@ -107,12 +111,12 @@ async function searchSeries(
   const db = getDatabase();
   const queryLower = query.toLowerCase();
 
-  // Build where clause
+  // Build where clause - SQLite LIKE is case-insensitive for ASCII
   const whereClause: Record<string, unknown> = {
     deletedAt: null,
     OR: [
-      { name: { contains: query, mode: 'insensitive' } },
-      { aliases: { contains: query, mode: 'insensitive' } },
+      { name: { contains: query } },
+      { aliases: { contains: query } },
     ],
   };
 
@@ -183,12 +187,12 @@ async function searchIssues(
   const db = getDatabase();
   const queryLower = query.toLowerCase();
 
-  // Build where clause
+  // Build where clause - SQLite LIKE is case-insensitive for ASCII
   const whereClause: Record<string, unknown> = {
     OR: [
-      { filename: { contains: query, mode: 'insensitive' } },
-      { metadata: { series: { contains: query, mode: 'insensitive' } } },
-      { metadata: { title: { contains: query, mode: 'insensitive' } } },
+      { filename: { contains: query } },
+      { metadata: { series: { contains: query } } },
+      { metadata: { title: { contains: query } } },
     ],
   };
 
@@ -318,19 +322,93 @@ async function searchCreators(
     });
 }
 
+/**
+ * Search promoted collections by name
+ */
+async function searchCollections(
+  query: string,
+  limit: number,
+  userId?: string
+): Promise<GlobalSearchResult[]> {
+  const db = getDatabase();
+  const queryLower = query.toLowerCase();
+
+  // Only search promoted collections that the user owns
+  const whereClause: Record<string, unknown> = {
+    isPromoted: true,
+    OR: [
+      { name: { contains: query } },
+      { description: { contains: query } },
+    ],
+  };
+
+  // Filter by user if specified
+  if (userId) {
+    whereClause.userId = userId;
+  }
+
+  const collections = await db.collection.findMany({
+    where: whereClause,
+    include: {
+      items: {
+        include: {
+          series: {
+            include: {
+              _count: { select: { issues: true } },
+            },
+          },
+        },
+      },
+    },
+    take: limit * 2,
+  });
+
+  return collections.map((c) => {
+    // Calculate aggregate data
+    const seriesItems = c.items.filter((item) => item.series);
+    const seriesCount = seriesItems.length;
+    const totalIssues = seriesItems.reduce(
+      (sum, item) => sum + (item.series?._count?.issues ?? 0),
+      0
+    );
+
+    // Build subtitle
+    const subtitleParts: string[] = [];
+    subtitleParts.push(`${seriesCount} series`);
+    subtitleParts.push(`${totalIssues} issues`);
+    const subtitle = subtitleParts.join(' \u2022 ');
+
+    return {
+      id: c.id,
+      type: 'collection' as const,
+      title: c.name,
+      subtitle,
+      thumbnailId: null, // Collections use mosaic covers generated client-side
+      thumbnailType: 'none' as const,
+      navigationPath: `/collections/${c.id}`,
+      relevanceScore: calculateRelevance(c.name, queryLower, 'collection'),
+      metadata: {
+        seriesCount,
+        totalIssues,
+        readIssues: c.derivedReadCount ?? 0,
+      },
+    };
+  });
+}
+
 // =============================================================================
 // Main Export
 // =============================================================================
 
 /**
- * Unified global search across series, issues, and creators
+ * Unified global search across series, issues, creators, and collections
  */
 export async function globalSearch(
   query: string,
   options: GlobalSearchOptions = {}
 ): Promise<GlobalSearchResponse> {
   const startTime = Date.now();
-  const { limit = 6, types = ['series', 'issue', 'creator'], libraryId } = options;
+  const { limit = 6, types = ['series', 'issue', 'creator', 'collection'], libraryId, userId } = options;
   const queryTrimmed = query.trim();
 
   // Early return for short queries
@@ -339,7 +417,7 @@ export async function globalSearch(
   }
 
   // Check cache
-  const cacheKey = `${queryTrimmed.toLowerCase()}:${limit}:${types.join(',')}:${libraryId || 'all'}`;
+  const cacheKey = `${queryTrimmed.toLowerCase()}:${limit}:${types.join(',')}:${libraryId || 'all'}:${userId || 'none'}`;
   const cached = searchCache.get(cacheKey);
   if (cached) {
     return {
@@ -360,6 +438,9 @@ export async function globalSearch(
   }
   if (types.includes('creator')) {
     searchPromises.push(searchCreators(queryTrimmed, limit));
+  }
+  if (types.includes('collection')) {
+    searchPromises.push(searchCollections(queryTrimmed, limit, userId));
   }
 
   const searchResults = await Promise.all(searchPromises);

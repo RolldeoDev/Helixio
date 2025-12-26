@@ -105,6 +105,18 @@
   --scale-image-hover: 1.05;
   --lift-hover: -4px;
   --shadow-hover-glow: 0 0 25px rgba(212, 165, 116, 0.25);
+
+  /* Legacy variable aliases - map short names to theme system */
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-bg-secondary);
+  --bg-tertiary: var(--color-bg-tertiary);
+  --bg-hover: var(--color-hover);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+  --text-tertiary: var(--color-text-subtle);
+  --border-color: var(--color-border);
+  --accent-color: var(--color-primary);
+  --accent-color-rgb: 212, 165, 116;
 }
 
 /* =============================================================================
@@ -140,6 +152,18 @@
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
   --shadow-glow: 0 0 20px rgba(139, 105, 20, 0.1);
+
+  /* Legacy variable aliases for light mode */
+  --bg-primary: var(--color-bg);
+  --bg-secondary: var(--color-bg-secondary);
+  --bg-tertiary: var(--color-bg-tertiary);
+  --bg-hover: var(--color-hover);
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-muted);
+  --text-tertiary: var(--color-text-subtle);
+  --border-color: var(--color-border);
+  --accent-color: var(--color-primary);
+  --accent-color-rgb: 139, 105, 20;
 }
 
 /* =============================================================================
@@ -1850,6 +1874,12 @@ body {
   flex-direction: column;
 }
 
+/* Force child cards to fill the grid item's calculated width */
+.grid-virtual-item > * {
+  width: 100% !important;
+  max-width: 100%;
+}
+
 .grid {
   display: grid;
   /* Default fallback - inline styles override this with exact column count */
@@ -2706,6 +2736,219 @@ body {
 .modal-content.large {
   width: 90vw;
   max-width: 1200px;
+}
+
+/* =============================================================================
+   Global Drawer/Slide Panel Styles
+   ============================================================================= */
+
+/* Drawer Overlay - sits above modal overlay (z-index: 1000) */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.drawer-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Drawer Panel - slides in from right */
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: 90vw;
+  background: var(--color-bg);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  z-index: 1101;
+}
+
+.drawer-panel.open {
+  transform: translateX(0);
+}
+
+/* Drawer Header - fixed at top */
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.drawer-title-section {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.3;
+}
+
+/* Drawer Close Button - consistent style */
+.drawer-close {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 3;
+}
+
+.drawer-close:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.drawer-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Drawer Content - scrollable middle section */
+.drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-xl);
+  position: relative;
+  z-index: 1;
+}
+
+/* Drawer Footer - fixed at bottom */
+.drawer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* Drawer responsive */
+@media (max-width: 600px) {
+  .drawer-panel {
+    width: 100vw;
+    max-width: 100vw;
+  }
+}
+
+/* =============================================================================
+   Global Modal Header/Footer Patterns
+   ============================================================================= */
+
+/* Modal Header - consistent pattern */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.modal-header h2,
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Modal Close Button - consistent style */
+.btn-close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  position: relative;
+  z-index: 3;
+}
+
+.btn-close:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.btn-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.btn-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Modal Footer - consistent pattern */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  flex-shrink: 0;
+  /* Note: z-index removed to prevent interference with stacked/nested modals.
+     Individual modals can set z-index explicitly if needed for internal layering. */
+}
+
+/* Modal Content - scrollable middle */
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  /* Note: z-index removed to prevent interference with stacked/nested modals.
+     Individual modals can set z-index explicitly if needed for internal layering. */
 }
 
 /* =============================================================================

@@ -49,6 +49,8 @@ export interface MetadataSettings {
   autoApplyHighConfidence: boolean;
   /** Manga file classification settings */
   mangaClassification: MangaClassificationSettings;
+  /** Western comic file classification settings */
+  comicClassification: ComicClassificationSettings;
 }
 
 export interface MangaClassificationSettings {
@@ -57,6 +59,17 @@ export interface MangaClassificationSettings {
   /** Page count threshold: files with fewer pages are classified as chapters, more as volumes */
   volumePageThreshold: number;
   /** Whether filename-parsed type (e.g., "Vol 5", "Ch 12") overrides page count inference */
+  filenameOverridesPageCount: boolean;
+}
+
+export interface ComicClassificationSettings {
+  /** Enable page-based format classification for Western comic files */
+  enabled: boolean;
+  /** Page threshold: files with fewer pages are classified as issues */
+  issuePageThreshold: number;
+  /** Page threshold: files with more pages are classified as omnibus (between is TPB) */
+  omnibusPageThreshold: number;
+  /** Whether filename indicators (TPB, Omnibus, etc.) override page count inference */
   filenameOverridesPageCount: boolean;
 }
 
@@ -117,6 +130,12 @@ const DEFAULT_CONFIG: AppConfig = {
     mangaClassification: {
       enabled: true,
       volumePageThreshold: 60,
+      filenameOverridesPageCount: true,
+    },
+    comicClassification: {
+      enabled: true,
+      issuePageThreshold: 50,
+      omnibusPageThreshold: 200,
       filenameOverridesPageCount: true,
     },
   },
@@ -347,6 +366,22 @@ export function updateMangaClassificationSettings(settings: Partial<MangaClassif
   saveConfig(config);
 }
 
+/**
+ * Get comic (Western) classification settings
+ */
+export function getComicClassificationSettings(): ComicClassificationSettings {
+  return loadConfig().metadata.comicClassification;
+}
+
+/**
+ * Update comic (Western) classification settings
+ */
+export function updateComicClassificationSettings(settings: Partial<ComicClassificationSettings>): void {
+  const config = loadConfig();
+  config.metadata.comicClassification = { ...config.metadata.comicClassification, ...settings };
+  saveConfig(config);
+}
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -373,6 +408,11 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     mangaClassification: {
       ...DEFAULT_CONFIG.metadata.mangaClassification,
       ...(partial.metadata?.mangaClassification || {}),
+    },
+    // Western comic classification settings
+    comicClassification: {
+      ...DEFAULT_CONFIG.metadata.comicClassification,
+      ...(partial.metadata?.comicClassification || {}),
     },
   };
 

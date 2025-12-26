@@ -3,6 +3,8 @@
  *
  * Shows a side-by-side preview of current vs API values for series metadata.
  * Users can select which fields to apply, with locked fields shown but disabled.
+ *
+ * Uses the shared FieldComparisonRow component for consistent field display.
  */
 
 import { useState, useCallback, useMemo } from 'react';
@@ -10,6 +12,7 @@ import type {
   MetadataPreviewField,
   MetadataSource,
 } from '../../services/api.service';
+import { FieldComparisonRow, type FieldDiffStatus } from '../FieldComparison';
 import './MetadataPreviewModal.css';
 
 interface MetadataPreviewModalProps {
@@ -26,6 +29,20 @@ interface MetadataPreviewModalProps {
   };
 }
 
+// Map MetadataPreviewField.diff to FieldDiffStatus
+function mapDiffStatus(diff: MetadataPreviewField['diff']): FieldDiffStatus {
+  switch (diff) {
+    case 'new':
+      return 'new';
+    case 'diff':
+      return 'changed';
+    case 'removed':
+      return 'removed';
+    default:
+      return 'same';
+  }
+}
+
 export function MetadataPreviewModal({
   isOpen,
   onClose,
@@ -40,6 +57,7 @@ export function MetadataPreviewModal({
   const externalId = source === 'comicvine'
     ? currentSeries?.comicVineId
     : currentSeries?.metronId;
+
   // Track selected fields - default to all unlocked fields with changes
   const [selectedFields, setSelectedFields] = useState<Set<string>>(() => {
     const defaultSelected = new Set<string>();
@@ -64,13 +82,13 @@ export function MetadataPreviewModal({
   );
 
   // Toggle a single field
-  const toggleField = useCallback((fieldName: string) => {
+  const toggleField = useCallback((fieldName: string, selected: boolean) => {
     setSelectedFields((prev) => {
       const next = new Set(prev);
-      if (next.has(fieldName)) {
-        next.delete(fieldName);
-      } else {
+      if (selected) {
         next.add(fieldName);
+      } else {
+        next.delete(fieldName);
       }
       return next;
     });
@@ -98,37 +116,22 @@ export function MetadataPreviewModal({
     await onApply(Array.from(selectedFields));
   }, [onApply, selectedFields]);
 
-  // Get diff badge class
-  const getDiffBadgeClass = (diff: MetadataPreviewField['diff']): string => {
-    switch (diff) {
-      case 'new':
-        return 'diff-badge diff-new';
-      case 'diff':
-        return 'diff-badge diff-changed';
-      case 'removed':
-        return 'diff-badge diff-removed';
-      default:
-        return 'diff-badge diff-same';
-    }
-  };
-
-  // Get diff badge text
-  const getDiffBadgeText = (diff: MetadataPreviewField['diff']): string => {
-    switch (diff) {
-      case 'new':
-        return 'NEW';
-      case 'diff':
-        return 'CHANGED';
-      case 'removed':
-        return 'REMOVED';
-      default:
-        return 'SAME';
-    }
-  };
-
   // Format source name
   const formatSource = (s: MetadataSource): string => {
-    return s === 'comicvine' ? 'ComicVine' : 'Metron';
+    switch (s) {
+      case 'comicvine':
+        return 'ComicVine';
+      case 'metron':
+        return 'Metron';
+      case 'gcd':
+        return 'GCD';
+      case 'anilist':
+        return 'AniList';
+      case 'mal':
+        return 'MAL';
+      default:
+        return s;
+    }
   };
 
   if (!isOpen || !source) return null;
@@ -171,7 +174,7 @@ export function MetadataPreviewModal({
           ) : (
             <>
               {lockedFieldsWithChanges.length > 0 && (
-                <div className="locked-warning">
+                <div className="field-comparison-locked-warning">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                     <path
                       d="M12 5.333V4a4 4 0 1 0-8 0v1.333M4.667 14.667h6.666a1.333 1.333 0 0 0 1.334-1.334V6.667a1.333 1.333 0 0 0-1.334-1.334H4.667a1.333 1.333 0 0 0-1.334 1.334v6.666a1.333 1.333 0 0 0 1.334 1.334Z"
@@ -182,12 +185,12 @@ export function MetadataPreviewModal({
                     />
                   </svg>
                   <span>
-                    {lockedFieldsWithChanges.length} field(s) have changes but are locked
+                    {lockedFieldsWithChanges.length} field{lockedFieldsWithChanges.length !== 1 ? 's' : ''} have changes but {lockedFieldsWithChanges.length !== 1 ? 'are' : 'is'} locked
                   </span>
                 </div>
               )}
 
-              <div className="fields-list">
+              <div className="field-comparison-rows">
                 {fields.map((field) => {
                   // Only show fields with differences
                   if (field.diff === 'same') return null;
@@ -196,105 +199,22 @@ export function MetadataPreviewModal({
                   const isSelected = selectedFields.has(field.field);
 
                   return (
-                    <div
+                    <FieldComparisonRow
                       key={field.field}
-                      className={`field-row ${field.isLocked ? 'locked' : ''} ${isSelected ? 'selected' : ''}`}
-                    >
-                      <div className="field-checkbox">
-                        <input
-                          type="checkbox"
-                          id={`field-${field.field}`}
-                          checked={isSelected}
-                          onChange={() => toggleField(field.field)}
-                          disabled={field.isLocked || isApplying}
-                        />
-                        <label htmlFor={`field-${field.field}`}>
-                          {field.isLocked && (
-                            <svg
-                              className="lock-icon"
-                              width="14"
-                              height="14"
-                              viewBox="0 0 14 14"
-                              fill="none"
-                            >
-                              <path
-                                d="M10.5 6.417V4.667a3.5 3.5 0 1 0-7 0v1.75M4.083 12.833h5.834a1.167 1.167 0 0 0 1.166-1.166V7.583a1.167 1.167 0 0 0-1.166-1.166H4.083a1.167 1.167 0 0 0-1.166 1.166v4.084a1.167 1.167 0 0 0 1.166 1.166Z"
-                                stroke="currentColor"
-                                strokeWidth="1.2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          )}
-                          {field.label}
-                        </label>
-                      </div>
-
-                      <div className={getDiffBadgeClass(field.diff)}>
-                        {getDiffBadgeText(field.diff)}
-                      </div>
-
-                      <div className="field-values">
-                        {isCoverField && coverPreviewUrls ? (
-                          <div className="cover-comparison">
-                            <div className="cover-preview current">
-                              <span className="cover-label">Current</span>
-                              {coverPreviewUrls.current ? (
-                                <img
-                                  src={coverPreviewUrls.current}
-                                  alt="Current cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <div className="no-cover">No cover</div>
-                              )}
-                            </div>
-                            <div className="cover-arrow">
-                              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                                <path
-                                  d="M4 10H16M16 10L11 5M16 10L11 15"
-                                  stroke="currentColor"
-                                  strokeWidth="1.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                            <div className="cover-preview api">
-                              <span className="cover-label">API</span>
-                              {coverPreviewUrls.api ? (
-                                <img
-                                  src={coverPreviewUrls.api}
-                                  alt="API cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <div className="no-cover">No cover</div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="value current">
-                              <span className="value-label">Current:</span>
-                              <span className="value-text">
-                                {field.currentValue ?? <em className="empty">Empty</em>}
-                              </span>
-                            </div>
-                            <div className="value api">
-                              <span className="value-label">API:</span>
-                              <span className="value-text">
-                                {field.apiValue ?? <em className="empty">Empty</em>}
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                      fieldName={field.field}
+                      label={field.label}
+                      currentValue={field.currentValue}
+                      proposedValue={field.apiValue}
+                      isSelected={isSelected}
+                      isLocked={field.isLocked}
+                      status={mapDiffStatus(field.diff)}
+                      onToggle={(selected) => toggleField(field.field, selected)}
+                      disabled={isApplying}
+                      coverPreview={isCoverField && coverPreviewUrls ? {
+                        currentUrl: coverPreviewUrls.current,
+                        proposedUrl: coverPreviewUrls.api,
+                      } : undefined}
+                    />
                   );
                 })}
               </div>

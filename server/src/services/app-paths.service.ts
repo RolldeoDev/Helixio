@@ -85,6 +85,20 @@ export function getThumbnailsDir(): string {
 }
 
 /**
+ * Get the path to the avatars directory
+ */
+export function getAvatarsDir(): string {
+  return join(getAppDataDir(), 'avatars');
+}
+
+/**
+ * Get the path to a user's avatar
+ */
+export function getAvatarPath(userId: string): string {
+  return join(getAvatarsDir(), `${userId}.jpg`);
+}
+
+/**
  * Get the path to a library's cover cache directory
  */
 export function getLibraryCoverDir(libraryId: string): string {
@@ -144,6 +158,7 @@ export function ensureAppDirectories(): void {
     getCoversDir(),
     getSeriesCoversDir(),
     getThumbnailsDir(),
+    getAvatarsDir(),
     getSeriesCacheDir(),
     ...ALL_CACHEABLE_SOURCES.map(getSourceSeriesCacheDir),
   ];

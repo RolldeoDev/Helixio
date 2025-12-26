@@ -3,11 +3,14 @@
  *
  * Preview modal for LLM-generated metadata with confidence scores.
  * Users can select which fields to apply, with empty fields pre-selected by default.
+ *
+ * Uses the shared FieldComparisonRow component for consistent field display.
  */
 
 import { useState, useCallback } from 'react';
 import type { GeneratedSeriesMetadata } from '../../services/api.service';
 import type { MetadataGeneratorCurrentValues } from './MetadataGenerator';
+import { FieldComparisonRow } from '../FieldComparison';
 import './MetadataGeneratorPreviewModal.css';
 
 // Field configuration
@@ -88,13 +91,13 @@ export function MetadataGeneratorPreviewModal({
   });
 
   // Toggle a single field
-  const toggleField = useCallback((fieldKey: keyof GeneratedSeriesMetadata) => {
+  const toggleField = useCallback((fieldKey: string, selected: boolean) => {
     setSelectedFields((prev) => {
       const next = new Set(prev);
-      if (next.has(fieldKey)) {
-        next.delete(fieldKey);
+      if (selected) {
+        next.add(fieldKey as keyof GeneratedSeriesMetadata);
       } else {
-        next.add(fieldKey);
+        next.delete(fieldKey as keyof GeneratedSeriesMetadata);
       }
       return next;
     });
@@ -135,24 +138,18 @@ export function MetadataGeneratorPreviewModal({
     onApply(updates);
   }, [selectedFields, generatedMetadata, onApply]);
 
-  // Get confidence badge class
-  const getConfidenceClass = (confidence: number): string => {
-    if (confidence >= 0.7) return 'confidence-high';
-    if (confidence >= 0.4) return 'confidence-medium';
-    return 'confidence-low';
-  };
-
-  // Format confidence percentage
-  const formatConfidence = (confidence: number): string => {
-    return `${Math.round(confidence * 100)}%`;
-  };
-
   // Check if current value is empty
   const isCurrentEmpty = (value: string | number | null): boolean => {
     return value === null || value === '' || value === undefined;
   };
 
   if (!isOpen) return null;
+
+  // Filter to only show fields that have generated values
+  const visibleFields = FIELD_CONFIGS.filter((config) => {
+    const generated = generatedMetadata[config.key];
+    return generated && generated.value !== null && generated.value !== '';
+  });
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -189,56 +186,25 @@ export function MetadataGeneratorPreviewModal({
             )}
           </div>
 
-          <div className="fields-list">
-            {FIELD_CONFIGS.map((config) => {
+          <div className="field-comparison-rows">
+            {visibleFields.map((config) => {
               const generated = generatedMetadata[config.key];
               const currentValue = currentValues[config.key];
               const isSelected = selectedFields.has(config.key);
               const isEmpty = isCurrentEmpty(currentValue);
-              const hasValue = generated && generated.value !== null && generated.value !== '';
-
-              if (!hasValue) return null;
 
               return (
-                <div
+                <FieldComparisonRow
                   key={config.key}
-                  className={`field-row ${isSelected ? 'selected' : ''}`}
-                >
-                  <div className="field-checkbox">
-                    <input
-                      type="checkbox"
-                      id={`field-${config.key}`}
-                      checked={isSelected}
-                      onChange={() => toggleField(config.key)}
-                    />
-                    <label htmlFor={`field-${config.key}`}>
-                      {config.label}
-                    </label>
-                  </div>
-
-                  <div className={`confidence-badge ${getConfidenceClass(generated.confidence)}`}>
-                    {formatConfidence(generated.confidence)}
-                  </div>
-
-                  <div className="field-values">
-                    <div className="value current">
-                      <span className="value-label">Current:</span>
-                      <span className="value-text">
-                        {isEmpty ? (
-                          <em className="empty">Empty</em>
-                        ) : (
-                          config.formatValue(currentValue)
-                        )}
-                      </span>
-                    </div>
-                    <div className="value proposed">
-                      <span className="value-label">Proposed:</span>
-                      <span className="value-text">
-                        {config.formatValue(generated.value)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  fieldName={config.key}
+                  label={config.label}
+                  currentValue={isEmpty ? null : currentValue}
+                  proposedValue={generated.value}
+                  isSelected={isSelected}
+                  confidence={generated.confidence}
+                  onToggle={(selected) => toggleField(config.key, selected)}
+                  formatValue={config.formatValue}
+                />
               );
             })}
           </div>
@@ -248,15 +214,15 @@ export function MetadataGeneratorPreviewModal({
           <div className="footer-left">
             <button
               type="button"
-              className="btn-link"
+              className="field-comparison-quick-action"
               onClick={selectAllEmpty}
             >
               Select All Empty
             </button>
-            <span className="separator">|</span>
+            <span className="field-comparison-separator">|</span>
             <button
               type="button"
-              className="btn-link"
+              className="field-comparison-quick-action"
               onClick={deselectAll}
             >
               Deselect All

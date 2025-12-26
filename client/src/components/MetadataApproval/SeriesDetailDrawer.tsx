@@ -4,9 +4,13 @@
  * A slide-out drawer that displays comprehensive series information from ComicVine.
  * Shows all available metadata including description, characters, creators,
  * concepts, locations, and objects.
+ *
+ * Uses React Portal to render at document body level, bypassing any stacking
+ * context issues from parent modal overlays with backdrop-filter.
  */
 
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { type SeriesMatch, type SeriesCredit } from '../../services/api.service';
 import './SeriesDetailDrawer.css';
 
@@ -63,7 +67,11 @@ export function SeriesDetailDrawer({
     };
   }, [isOpen]);
 
+  // Don't render if no series data
   if (!series) return null;
+
+  // Get portal target - fallback to body
+  const portalTarget = document.body;
 
   const formatConfidence = (confidence: number): string => {
     return `${Math.round(confidence * 100)}%`;
@@ -73,6 +81,17 @@ export function SeriesDetailDrawer({
     if (confidence >= 0.8) return 'confidence-high';
     if (confidence >= 0.5) return 'confidence-medium';
     return 'confidence-low';
+  };
+
+  const getSourceDisplayName = (source: string): string => {
+    const sourceNames: Record<string, string> = {
+      comicvine: 'ComicVine',
+      metron: 'Metron',
+      gcd: 'Grand Comics Database',
+      anilist: 'AniList',
+      mal: 'MyAnimeList',
+    };
+    return sourceNames[source] || source;
   };
 
   const renderCreditSection = (
@@ -103,7 +122,9 @@ export function SeriesDetailDrawer({
     );
   };
 
-  return (
+  // Use portal to render at document body level
+  // This bypasses stacking context issues from parent modal overlays with backdrop-filter
+  return createPortal(
     <div className={`drawer-overlay ${isOpen ? 'open' : ''}`}>
       <div ref={drawerRef} className={`series-detail-drawer ${isOpen ? 'open' : ''}`}>
         {/* Header */}
@@ -175,7 +196,7 @@ export function SeriesDetailDrawer({
                   rel="noopener noreferrer"
                   className="external-link"
                 >
-                  View on {series.source === 'comicvine' ? 'ComicVine' : 'Metron'}
+                  View on {getSourceDisplayName(series.source)}
                 </a>
               )}
             </div>
@@ -257,7 +278,8 @@ export function SeriesDetailDrawer({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    portalTarget
   );
 }
 

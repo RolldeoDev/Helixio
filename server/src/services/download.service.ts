@@ -10,6 +10,7 @@ import { createWriteStream, createReadStream, existsSync } from 'fs';
 import { mkdir, rm, stat, readdir, unlink } from 'fs/promises';
 import { join, basename, dirname, extname } from 'path';
 import { pipeline } from 'stream/promises';
+import { createHash } from 'crypto';
 import { Response } from 'express';
 import { getDatabase } from './database.service.js';
 import { downloadLogger as logger } from './logger.service.js';
@@ -58,6 +59,7 @@ export interface DownloadJobResult {
   estimatedSize: number;
   fileCount: number;
   needsConfirmation: boolean;
+  cached?: boolean; // True if reusing an existing cached download
 }
 
 export interface ZipCreationResult {
@@ -246,6 +248,69 @@ export async function getActiveDownloads(userId: string): Promise<Array<{
 }
 
 /**
+ * Compute a content hash from sorted file IDs.
+ * This is used for cache reuse - if two downloads have the same content hash,
+ * the cached files can be reused.
+ */
+function computeContentHash(fileIds: string[]): string {
+  const sortedIds = [...fileIds].sort();
+  return createHash('sha256').update(sortedIds.join(',')).digest('hex').substring(0, 32);
+}
+
+/**
+ * Find an existing cached download job with matching content.
+ * Returns the job if it's ready and not expired.
+ */
+async function findCachedDownload(contentHash: string): Promise<{
+  id: string;
+  totalFiles: number;
+  totalSizeBytes: bigint;
+  outputPath: string | null;
+  outputParts: string | null;
+  outputFileName: string | null;
+  expiresAt: Date | null;
+} | null> {
+  const db = getDatabase();
+
+  // Find a ready job with matching content hash that hasn't expired
+  const cachedJob = await db.downloadJob.findFirst({
+    where: {
+      contentHash,
+      status: 'ready',
+      expiresAt: { gt: new Date() },
+    },
+    select: {
+      id: true,
+      totalFiles: true,
+      totalSizeBytes: true,
+      outputPath: true,
+      outputParts: true,
+      outputFileName: true,
+      expiresAt: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!cachedJob || !cachedJob.outputPath) {
+    return null;
+  }
+
+  // Verify the files still exist on disk
+  const outputPaths: string[] = cachedJob.outputParts
+    ? JSON.parse(cachedJob.outputParts)
+    : [cachedJob.outputPath];
+
+  for (const path of outputPaths) {
+    if (!existsSync(path)) {
+      logger.info({ contentHash }, 'Cached download files no longer exist on disk');
+      return null;
+    }
+  }
+
+  return cachedJob;
+}
+
+/**
  * Create a new download job.
  */
 export async function createDownloadJob(
@@ -253,7 +318,28 @@ export async function createDownloadJob(
 ): Promise<DownloadJobResult> {
   const { userId, type, seriesId, fileIds, splitEnabled, splitSizeBytes } = options;
 
-  // Check for existing active job
+  // Compute content hash for cache lookup
+  const contentHash = computeContentHash(fileIds);
+
+  // Check for cached download with matching content
+  const cachedJob = await findCachedDownload(contentHash);
+  if (cachedJob) {
+    logger.info({
+      jobId: cachedJob.id,
+      contentHash,
+      fileCount: cachedJob.totalFiles,
+    }, 'Reusing cached download');
+
+    return {
+      jobId: cachedJob.id,
+      estimatedSize: Number(cachedJob.totalSizeBytes),
+      fileCount: cachedJob.totalFiles,
+      needsConfirmation: false, // No confirmation needed for cached downloads
+      cached: true,
+    };
+  }
+
+  // Check for existing active job (only if not reusing cache)
   if (await hasActiveDownload(userId)) {
     throw new Error('You already have a download in progress. Please wait for it to complete.');
   }
@@ -303,6 +389,7 @@ export async function createDownloadJob(
       type,
       seriesId,
       fileIds: JSON.stringify(fileIds),
+      contentHash, // Store hash for cache reuse
       status: 'pending',
       totalFiles: estimate.fileCount,
       processedFiles: 0,
@@ -317,6 +404,7 @@ export async function createDownloadJob(
     type,
     fileCount: estimate.fileCount,
     totalSize: estimate.totalSizeBytes,
+    contentHash,
   }, `Created download job ${job.id} for user ${userId}`);
 
   // Determine if confirmation is needed
@@ -838,4 +926,141 @@ export async function runDownloadCleanup(): Promise<{
   const orphaned = await cleanupOrphanedDownloads();
 
   return { expired, stale, orphaned };
+}
+
+// =============================================================================
+// Cache Management
+// =============================================================================
+
+export interface DownloadCacheStats {
+  totalFiles: number;
+  totalSizeBytes: number;
+  jobCount: number;
+  oldestJob: Date | null;
+  newestJob: Date | null;
+}
+
+/**
+ * Get download cache statistics.
+ */
+export async function getDownloadCacheStats(): Promise<DownloadCacheStats> {
+  const db = getDatabase();
+
+  // Get jobs with cached files
+  const cachedJobs = await db.downloadJob.findMany({
+    where: {
+      status: 'ready',
+      outputPath: { not: null },
+    },
+    select: {
+      id: true,
+      outputPath: true,
+      outputParts: true,
+      outputSizeBytes: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  let totalFiles = 0;
+  let totalSizeBytes = 0;
+  let validJobCount = 0;
+
+  for (const job of cachedJobs) {
+    const paths: string[] = job.outputParts
+      ? JSON.parse(job.outputParts)
+      : job.outputPath ? [job.outputPath] : [];
+
+    // Check if files exist
+    let jobHasFiles = false;
+    for (const path of paths) {
+      if (existsSync(path)) {
+        totalFiles++;
+        jobHasFiles = true;
+        try {
+          const fileStat = await stat(path);
+          totalSizeBytes += fileStat.size;
+        } catch {
+          // File stat failed, skip
+        }
+      }
+    }
+
+    if (jobHasFiles) {
+      validJobCount++;
+    }
+  }
+
+  return {
+    totalFiles,
+    totalSizeBytes,
+    jobCount: validJobCount,
+    oldestJob: cachedJobs.length > 0 ? cachedJobs[0]!.createdAt : null,
+    newestJob: cachedJobs.length > 0 ? cachedJobs[cachedJobs.length - 1]!.createdAt : null,
+  };
+}
+
+/**
+ * Clear all download cache files and mark jobs as expired.
+ */
+export async function clearDownloadCache(): Promise<{
+  filesDeleted: number;
+  bytesFreed: number;
+  jobsCleared: number;
+}> {
+  const db = getDatabase();
+
+  // Get stats before clearing
+  const stats = await getDownloadCacheStats();
+
+  // Get all jobs with cached files
+  const cachedJobs = await db.downloadJob.findMany({
+    where: {
+      status: 'ready',
+      outputPath: { not: null },
+    },
+    select: { id: true },
+  });
+
+  // Delete files for each job
+  for (const job of cachedJobs) {
+    await cleanupJobFiles(job.id);
+  }
+
+  // Mark all ready jobs as expired
+  await db.downloadJob.updateMany({
+    where: {
+      status: 'ready',
+    },
+    data: {
+      status: 'expired',
+    },
+  });
+
+  // Also clean up the entire downloads directory to catch any orphans
+  try {
+    const downloadsDir = await getDownloadsCacheDir();
+    const entries = await readdir(downloadsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const dirPath = join(downloadsDir, entry.name);
+        await rm(dirPath, { recursive: true, force: true });
+      }
+    }
+  } catch (error) {
+    logger.error(`Error cleaning downloads directory: ${error}`);
+  }
+
+  logger.info({
+    filesDeleted: stats.totalFiles,
+    bytesFreed: stats.totalSizeBytes,
+    jobsCleared: cachedJobs.length,
+  }, 'Cleared download cache');
+
+  return {
+    filesDeleted: stats.totalFiles,
+    bytesFreed: stats.totalSizeBytes,
+    jobsCleared: cachedJobs.length,
+  };
 }

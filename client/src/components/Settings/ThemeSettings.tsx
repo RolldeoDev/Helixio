@@ -34,7 +34,7 @@ export function ThemeSettings() {
   const [deletingTheme, setDeletingTheme] = useState<string | null>(null);
 
   // Get unique bundled theme IDs
-  const bundledThemeIds: ThemeId[] = ['default', 'dc', 'marvel', 'sandman', 'synthwave', 'retro', 'manga'];
+  const bundledThemeIds: ThemeId[] = ['default', 'dc', 'marvel', 'sandman', 'synthwave', 'retro', 'manga', 'pulp', 'high-contrast'];
 
   // Handle theme selection
   const handleSelectTheme = (id: ThemeId) => {

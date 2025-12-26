@@ -1,0 +1,208 @@
+/**
+ * ToggleSwitch Component Styles
+ * Premium iOS-style toggle with refined micro-interactions
+ */
+
+/* Setting Row Layout - when label/description provided */
+.toggle-setting-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toggle-setting-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.toggle-setting-row:first-child {
+  padding-top: 0;
+}
+
+.toggle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.toggle-label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.toggle-label:hover {
+  color: var(--accent-color);
+}
+
+.toggle-description {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Toggle Switch Container */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* Hide native checkbox */
+.toggle-switch input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Track (the pill-shaped background) */
+.toggle-track {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 26px;
+  cursor: pointer;
+  transition:
+    background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Small size track */
+.toggle-switch.toggle-small .toggle-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 22px;
+}
+
+/* Knob (the circular thumb) */
+.toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(180deg, #fff 0%, #f8f8f8 100%);
+  border-radius: 50%;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.15),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.2s ease;
+  will-change: transform;
+}
+
+/* Small size knob */
+.toggle-switch.toggle-small .toggle-knob {
+  width: 16px;
+  height: 16px;
+}
+
+/* Checked state - track */
+.toggle-switch input:checked + .toggle-track {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(var(--accent-color-rgb, 99, 102, 241), 0.1);
+}
+
+/* Checked state - knob position */
+.toggle-switch input:checked + .toggle-track .toggle-knob {
+  transform: translateX(22px);
+}
+
+.toggle-switch.toggle-small input:checked + .toggle-track .toggle-knob {
+  transform: translateX(18px);
+}
+
+/* Hover states */
+.toggle-switch:hover .toggle-track {
+  border-color: var(--accent-color);
+}
+
+.toggle-switch:hover .toggle-knob {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.18),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Active/pressed state - subtle knob squish effect */
+.toggle-switch:active .toggle-knob {
+  transform: scaleX(1.1);
+}
+
+.toggle-switch input:checked + .toggle-track:active .toggle-knob {
+  transform: translateX(22px) scaleX(1.1);
+}
+
+.toggle-switch.toggle-small input:checked + .toggle-track:active .toggle-knob {
+  transform: translateX(18px) scaleX(1.1);
+}
+
+/* Focus state for accessibility */
+.toggle-switch input:focus-visible + .toggle-track {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* Disabled state */
+.toggle-switch.toggle-disabled {
+  pointer-events: none;
+}
+
+.toggle-switch.toggle-disabled .toggle-track {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-switch.toggle-disabled .toggle-knob {
+  background: linear-gradient(180deg, #e8e8e8 0%, #ddd 100%);
+}
+
+/* Disabled label styling */
+.toggle-setting-row.toggle-row-disabled .toggle-label,
+.toggle-setting-row.toggle-row-disabled .toggle-description {
+  opacity: 0.5;
+}
+
+.toggle-setting-row.toggle-row-disabled .toggle-label {
+  cursor: not-allowed;
+}
+
+.toggle-setting-row.toggle-row-disabled .toggle-label:hover {
+  color: var(--text-primary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .toggle-setting-row {
+    gap: 0.75rem;
+  }
+
+  .toggle-label {
+    font-size: 0.875rem;
+  }
+
+  .toggle-description {
+    font-size: 0.75rem;
+  }
+}

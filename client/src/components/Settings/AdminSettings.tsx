@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { ToggleSwitch } from '../ToggleSwitch';
 import './AdminSettings.css';
 
 interface User {
@@ -301,21 +302,13 @@ export function AdminSettings() {
           <h3>Registration</h3>
         </div>
         <div className="setting-row">
-          <div className="setting-info">
-            <span className="setting-label">Open Registration</span>
-            <span className="setting-description">
-              Allow new users to create accounts from the login page
-            </span>
-          </div>
-          <label className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings?.allowOpenRegistration || false}
-              onChange={handleToggleRegistration}
-              disabled={savingSettings || !settings}
-            />
-            <span className="slider"></span>
-          </label>
+          <ToggleSwitch
+            checked={settings?.allowOpenRegistration || false}
+            onChange={handleToggleRegistration}
+            disabled={savingSettings || !settings}
+            label="Open Registration"
+            description="Allow new users to create accounts from the login page"
+          />
         </div>
         <p className="setting-note">
           New users will have no library access by default. You must grant access individually.
@@ -435,14 +428,11 @@ export function AdminSettings() {
               {userLibraryAccess.map(lib => (
                 <div key={lib.libraryId} className="library-access-row">
                   <span className="library-name">{lib.libraryName}</span>
-                  <label className="toggle-switch small">
-                    <input
-                      type="checkbox"
-                      checked={lib.hasAccess}
-                      onChange={() => handleToggleLibraryAccess(lib.libraryId, lib.hasAccess)}
-                    />
-                    <span className="slider"></span>
-                  </label>
+                  <ToggleSwitch
+                    checked={lib.hasAccess}
+                    onChange={() => handleToggleLibraryAccess(lib.libraryId, lib.hasAccess)}
+                    size="small"
+                  />
                 </div>
               ))}
             </div>

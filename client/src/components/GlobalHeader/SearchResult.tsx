@@ -33,10 +33,23 @@ const CreatorIcon = () => (
   </svg>
 );
 
-// Placeholder icon for creators (no thumbnail)
+const CollectionIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/>
+  </svg>
+);
+
+// Placeholder icon for creators/collections (no thumbnail)
 const PlaceholderIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
     <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+  </svg>
+);
+
+// Collection placeholder icon
+const CollectionPlaceholderIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" opacity="0.4">
+    <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/>
   </svg>
 );
 
@@ -55,7 +68,23 @@ export function SearchResult({ result, isSelected, onClick, onMouseEnter }: Sear
   const thumbnailUrl = getThumbnailUrl();
 
   // Get type icon
-  const TypeIcon = result.type === 'series' ? SeriesIcon : result.type === 'issue' ? IssueIcon : CreatorIcon;
+  const getTypeIcon = () => {
+    switch (result.type) {
+      case 'series':
+        return SeriesIcon;
+      case 'issue':
+        return IssueIcon;
+      case 'collection':
+        return CollectionIcon;
+      case 'creator':
+      default:
+        return CreatorIcon;
+    }
+  };
+  const TypeIcon = getTypeIcon();
+
+  // Get placeholder icon based on type
+  const PlaceholderIconComponent = result.type === 'collection' ? CollectionPlaceholderIcon : PlaceholderIcon;
 
   return (
     <button
@@ -78,7 +107,7 @@ export function SearchResult({ result, isSelected, onClick, onMouseEnter }: Sear
           />
         ) : (
           <div className="search-result-placeholder">
-            <PlaceholderIcon />
+            <PlaceholderIconComponent />
           </div>
         )}
       </div>

@@ -766,3 +766,450 @@ export async function restoreSeriesItems(seriesId: string): Promise<number> {
 
   return result.count;
 }
+
+// =============================================================================
+// Promoted Collections (Show in Series View)
+// =============================================================================
+
+export interface PromotedCollectionWithMeta {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  iconName: string | null;
+  color: string | null;
+  isPromoted: boolean;
+  promotedOrder: number | null;
+  // Cover info
+  coverType: string;
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  // Derived/override metadata
+  publisher: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  genres: string | null;
+  // Aggregate reading progress
+  totalIssues: number;
+  readIssues: number;
+  // Series info for mosaic cover
+  seriesCovers: Array<{
+    seriesId: string;
+    coverHash: string | null;
+    coverUrl: string | null;
+    coverFileId: string | null;
+    name: string;
+  }>;
+  seriesCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Get all promoted collections for a user with aggregated data.
+ */
+export async function getPromotedCollections(
+  userId: string
+): Promise<PromotedCollectionWithMeta[]> {
+  const db = getDatabase();
+
+  // Get promoted collections with their series items
+  const collections = await db.collection.findMany({
+    where: {
+      userId,
+      isPromoted: true,
+    },
+    orderBy: [{ promotedOrder: 'asc' }, { name: 'asc' }],
+    include: {
+      items: {
+        where: {
+          seriesId: { not: null },
+          isAvailable: true,
+        },
+        select: {
+          seriesId: true,
+        },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+
+  // Transform to include aggregated data
+  return Promise.all(
+    collections.map(async (collection) => {
+      // Get series IDs from collection items
+      const seriesIds = collection.items
+        .map((item) => item.seriesId)
+        .filter((id): id is string => id !== null);
+
+      // Fetch full series data for these IDs
+      const seriesRecords = seriesIds.length > 0
+        ? await db.series.findMany({
+            where: { id: { in: seriesIds } },
+            select: {
+              id: true,
+              name: true,
+              coverHash: true,
+              coverUrl: true,
+              coverFileId: true,
+              publisher: true,
+              startYear: true,
+              endYear: true,
+              genres: true,
+              _count: {
+                select: { issues: true },
+              },
+            },
+          })
+        : [];
+
+      // Map for quick lookup while preserving order
+      const seriesMap = new Map(seriesRecords.map(s => [s.id, s]));
+      const seriesItems = seriesIds
+        .map(id => seriesMap.get(id))
+        .filter((s): s is typeof seriesRecords[0] => s !== undefined);
+
+      // Calculate aggregate issue count
+      const totalIssues = seriesItems.reduce(
+        (sum, s) => sum + (s._count?.issues || 0),
+        0
+      );
+
+      // Calculate read count for this user
+      let readIssues = 0;
+
+      if (seriesIds.length > 0) {
+        const progressRecords = await db.seriesProgress.findMany({
+          where: {
+            userId,
+            seriesId: { in: seriesIds },
+          },
+          select: { totalRead: true },
+        });
+        readIssues = progressRecords.reduce((sum, p) => sum + p.totalRead, 0);
+      }
+
+      // Derive metadata from series
+      const publishers = seriesItems
+        .map((s) => s.publisher)
+        .filter((p): p is string => !!p);
+      const mostCommonPublisher =
+        publishers.length > 0
+          ? publishers.sort(
+              (a: string, b: string) =>
+                publishers.filter((v: string) => v === b).length -
+                publishers.filter((v: string) => v === a).length
+            )[0]
+          : null;
+
+      const years = seriesItems
+        .map((s) => s.startYear)
+        .filter((y): y is number => y !== null);
+      const minYear = years.length > 0 ? Math.min(...years) : null;
+
+      const endYears = seriesItems
+        .map((s) => s.endYear)
+        .filter((y): y is number => y !== null);
+      const maxYear = endYears.length > 0 ? Math.max(...endYears) : null;
+
+      const allGenres = seriesItems
+        .flatMap((s) => (s.genres || '').split(',').map((g: string) => g.trim()))
+        .filter((g: string) => g.length > 0);
+      const uniqueGenres = [...new Set(allGenres)].slice(0, 5).join(', ');
+
+      // Get cover series info for mosaic
+      const seriesCovers = seriesItems.slice(0, 6).map((s) => ({
+        seriesId: s.id,
+        coverHash: s.coverHash,
+        coverUrl: s.coverUrl,
+        coverFileId: s.coverFileId,
+        name: s.name,
+      }));
+
+      return {
+        id: collection.id,
+        userId: collection.userId,
+        name: collection.name,
+        description: collection.description,
+        iconName: collection.iconName,
+        color: collection.color,
+        isPromoted: collection.isPromoted,
+        promotedOrder: collection.promotedOrder,
+        coverType: collection.coverType,
+        coverSeriesId: collection.coverSeriesId,
+        coverFileId: collection.coverFileId,
+        coverHash: collection.coverHash,
+        // Use override if set, otherwise use derived
+        publisher: collection.overridePublisher ?? mostCommonPublisher ?? null,
+        startYear: collection.overrideStartYear ?? minYear ?? null,
+        endYear: collection.overrideEndYear ?? maxYear ?? null,
+        genres: collection.overrideGenres ?? (uniqueGenres || null),
+        totalIssues,
+        readIssues,
+        seriesCovers,
+        seriesCount: seriesItems.length,
+        createdAt: collection.createdAt,
+        updatedAt: collection.updatedAt,
+      };
+    })
+  );
+}
+
+/**
+ * Toggle collection promotion status.
+ */
+export async function toggleCollectionPromotion(
+  userId: string,
+  collectionId: string
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Verify ownership
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  // If promoting, get the next order
+  let promotedOrder: number | null = null;
+  if (!collection.isPromoted) {
+    const maxOrder = await db.collection.findFirst({
+      where: { userId, isPromoted: true },
+      orderBy: { promotedOrder: 'desc' },
+      select: { promotedOrder: true },
+    });
+    promotedOrder = (maxOrder?.promotedOrder ?? -1) + 1;
+  }
+
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      isPromoted: !collection.isPromoted,
+      promotedOrder: !collection.isPromoted ? promotedOrder : null,
+    },
+  });
+
+  return {
+    id: updated.id,
+    userId: updated.userId,
+    name: updated.name,
+    description: updated.description,
+    isSystem: updated.isSystem,
+    systemKey: updated.systemKey,
+    iconName: updated.iconName,
+    color: updated.color,
+    sortOrder: updated.sortOrder,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  };
+}
+
+/**
+ * Update collection cover source.
+ */
+export async function updateCollectionCover(
+  userId: string,
+  collectionId: string,
+  coverType: 'auto' | 'series' | 'issue' | 'custom',
+  sourceId?: string
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Verify ownership
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  const updateData: any = {
+    coverType,
+    coverSeriesId: null,
+    coverFileId: null,
+    coverHash: null,
+  };
+
+  if (coverType === 'series' && sourceId) {
+    updateData.coverSeriesId = sourceId;
+  } else if (coverType === 'issue' && sourceId) {
+    updateData.coverFileId = sourceId;
+  }
+
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: updateData,
+  });
+
+  return {
+    id: updated.id,
+    userId: updated.userId,
+    name: updated.name,
+    description: updated.description,
+    isSystem: updated.isSystem,
+    systemKey: updated.systemKey,
+    iconName: updated.iconName,
+    color: updated.color,
+    sortOrder: updated.sortOrder,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  };
+}
+
+/**
+ * Set custom cover hash for a collection.
+ */
+export async function setCollectionCoverHash(
+  userId: string,
+  collectionId: string,
+  coverHash: string
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Verify ownership
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      coverType: 'custom',
+      coverHash,
+      coverSeriesId: null,
+      coverFileId: null,
+    },
+  });
+
+  return {
+    id: updated.id,
+    userId: updated.userId,
+    name: updated.name,
+    description: updated.description,
+    isSystem: updated.isSystem,
+    systemKey: updated.systemKey,
+    iconName: updated.iconName,
+    color: updated.color,
+    sortOrder: updated.sortOrder,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  };
+}
+
+/**
+ * Update collection metadata overrides.
+ */
+export async function updateCollectionMetadata(
+  userId: string,
+  collectionId: string,
+  metadata: {
+    overridePublisher?: string | null;
+    overrideStartYear?: number | null;
+    overrideEndYear?: number | null;
+    overrideGenres?: string | null;
+  }
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Verify ownership
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      overridePublisher: metadata.overridePublisher,
+      overrideStartYear: metadata.overrideStartYear,
+      overrideEndYear: metadata.overrideEndYear,
+      overrideGenres: metadata.overrideGenres,
+      metadataUpdatedAt: new Date(),
+    },
+  });
+
+  return {
+    id: updated.id,
+    userId: updated.userId,
+    name: updated.name,
+    description: updated.description,
+    isSystem: updated.isSystem,
+    systemKey: updated.systemKey,
+    iconName: updated.iconName,
+    color: updated.color,
+    sortOrder: updated.sortOrder,
+    createdAt: updated.createdAt,
+    updatedAt: updated.updatedAt,
+  };
+}
+
+/**
+ * Get aggregate reading progress for a collection.
+ */
+export async function getCollectionReadingProgress(
+  userId: string,
+  collectionId: string
+): Promise<{ totalIssues: number; readIssues: number }> {
+  const db = getDatabase();
+
+  // Verify ownership and get series items
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+    include: {
+      items: {
+        where: {
+          seriesId: { not: null },
+          isAvailable: true,
+        },
+        select: {
+          seriesId: true,
+        },
+      },
+    },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  const seriesIds = collection.items
+    .map((item) => item.seriesId)
+    .filter((id): id is string => id !== null);
+
+  if (seriesIds.length === 0) {
+    return { totalIssues: 0, readIssues: 0 };
+  }
+
+  // Get issue counts for all series
+  const issueCountResult = await db.comicFile.count({
+    where: { seriesId: { in: seriesIds } },
+  });
+
+  // Get read counts from series progress
+  const progressRecords = await db.seriesProgress.findMany({
+    where: {
+      userId,
+      seriesId: { in: seriesIds },
+    },
+    select: { totalRead: true },
+  });
+
+  const readIssues = progressRecords.reduce((sum, p) => sum + p.totalRead, 0);
+
+  return {
+    totalIssues: issueCountResult,
+    readIssues,
+  };
+}

@@ -158,7 +158,7 @@ export function GlobalSearchBar() {
         {isLoading ? (
           <Spinner />
         ) : (
-          <kbd className="global-search-shortcut">/</kbd>
+          <span className="global-search-shortcut">/</span>
         )}
       </div>
 

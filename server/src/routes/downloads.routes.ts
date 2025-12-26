@@ -24,6 +24,8 @@ import {
   cancelDownloadJob,
   getActiveDownloads,
   hasActiveDownload,
+  getDownloadCacheStats,
+  clearDownloadCache,
 } from '../services/download.service.js';
 import {
   enqueueDownload,
@@ -484,6 +486,47 @@ router.delete('/job/:jobId', requireAuth, async (req: Request, res: Response) =>
     logger.error(`Error cancelling download: ${error}`);
     res.status(500).json({
       error: 'Failed to cancel download',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Cache Management
+// =============================================================================
+
+/**
+ * GET /api/downloads/cache/stats
+ * Get download cache statistics.
+ */
+router.get('/cache/stats', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const stats = await getDownloadCacheStats();
+    res.json(stats);
+  } catch (error) {
+    logger.error(`Error getting cache stats: ${error}`);
+    res.status(500).json({
+      error: 'Failed to get cache stats',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/downloads/cache
+ * Clear all download cache files.
+ */
+router.delete('/cache', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const result = await clearDownloadCache();
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    logger.error(`Error clearing cache: ${error}`);
+    res.status(500).json({
+      error: 'Failed to clear cache',
       message: error instanceof Error ? error.message : String(error),
     });
   }

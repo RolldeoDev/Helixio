@@ -3139,7 +3139,7 @@ export async function searchSeries(
  */
 export interface GlobalSearchResult {
   id: string;
-  type: 'series' | 'issue' | 'creator';
+  type: 'series' | 'issue' | 'creator' | 'collection';
   title: string;
   subtitle: string;
   thumbnailId: string | null;
@@ -3151,6 +3151,9 @@ export interface GlobalSearchResult {
     year?: number | null;
     issueNumber?: string | null;
     role?: string | null;
+    seriesCount?: number;
+    totalIssues?: number;
+    readIssues?: number;
   };
 }
 
@@ -4826,5 +4829,217 @@ export async function applyIssueMetadata(
     selectedFields,
     coverAction,
   });
+}
+
+// =============================================================================
+// Series Relationships
+// =============================================================================
+
+export type RelationshipType = 'related' | 'spinoff' | 'prequel' | 'sequel' | 'bonus';
+
+export interface SeriesRelationship {
+  id: string;
+  parentSeriesId: string;
+  childSeriesId: string;
+  relationshipType: RelationshipType;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface RelatedSeriesInfo {
+  id: string;
+  name: string;
+  publisher: string | null;
+  startYear: number | null;
+  coverHash: string | null;
+  coverUrl: string | null;
+  coverFileId: string | null;
+  coverSource: string;
+  _count?: { issues: number };
+}
+
+export interface SeriesRelationshipsResult {
+  parents: RelatedSeriesInfo[];
+  children: RelatedSeriesInfo[];
+}
+
+/**
+ * Get all parent/child relationships for a series
+ */
+export async function getSeriesRelationships(
+  seriesId: string
+): Promise<SeriesRelationshipsResult> {
+  return get<SeriesRelationshipsResult>(`/series/${seriesId}/relationships`);
+}
+
+/**
+ * Add a child series to a parent series
+ */
+export async function addChildSeries(
+  parentSeriesId: string,
+  childSeriesId: string,
+  relationshipType: RelationshipType = 'related'
+): Promise<SeriesRelationship> {
+  return post<SeriesRelationship>(`/series/${parentSeriesId}/children`, {
+    childSeriesId,
+    relationshipType,
+  });
+}
+
+/**
+ * Remove a child series from a parent series
+ */
+export async function removeChildSeries(
+  parentSeriesId: string,
+  childSeriesId: string
+): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/series/${parentSeriesId}/children/${childSeriesId}`);
+}
+
+/**
+ * Reorder child series
+ */
+export async function reorderChildSeries(
+  parentSeriesId: string,
+  orderedChildIds: string[]
+): Promise<{ success: boolean }> {
+  return put<{ success: boolean }>(`/series/${parentSeriesId}/children/reorder`, {
+    orderedChildIds,
+  });
+}
+
+/**
+ * Update the relationship type between parent and child series
+ */
+export async function updateRelationshipType(
+  parentSeriesId: string,
+  childSeriesId: string,
+  relationshipType: RelationshipType
+): Promise<SeriesRelationship> {
+  return patch<SeriesRelationship>(`/series/${parentSeriesId}/children/${childSeriesId}`, {
+    relationshipType,
+  });
+}
+
+// =============================================================================
+// Series Visibility (Hidden Flag)
+// =============================================================================
+
+/**
+ * Set the hidden status of a series
+ */
+export async function setSeriesHidden(
+  seriesId: string,
+  hidden: boolean
+): Promise<Series> {
+  return patch<Series>(`/series/${seriesId}/hidden`, { hidden });
+}
+
+/**
+ * Toggle the hidden status of a series
+ */
+export async function toggleSeriesHidden(seriesId: string): Promise<Series> {
+  return patch<Series>(`/series/${seriesId}/hidden`, {});
+}
+
+/**
+ * Get all hidden series
+ */
+export async function getHiddenSeries(): Promise<{ series: RelatedSeriesInfo[] }> {
+  return get<{ series: RelatedSeriesInfo[] }>('/series/admin/hidden');
+}
+
+// =============================================================================
+// Promoted Collections
+// =============================================================================
+
+export interface SeriesCoverForMosaic {
+  id: string;
+  name: string;
+  coverHash: string | null;
+  coverFileId: string | null;
+  firstIssueId: string | null;
+  coverSource: 'api' | 'user' | 'auto';
+}
+
+export interface PromotedCollection {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  isPromoted: boolean;
+  coverType: 'auto' | 'series' | 'issue' | 'custom';
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  derivedPublisher: string | null;
+  derivedStartYear: number | null;
+  derivedEndYear: number | null;
+  derivedGenres: string | null;
+  derivedIssueCount: number | null;
+  derivedReadCount: number | null;
+  overridePublisher: string | null;
+  overrideStartYear: number | null;
+  overrideEndYear: number | null;
+  overrideGenres: string | null;
+  totalIssues: number;
+  readIssues: number;
+  seriesCovers: SeriesCoverForMosaic[];
+}
+
+/**
+ * Get all promoted collections for the current user
+ */
+export async function getPromotedCollections(): Promise<{ collections: PromotedCollection[] }> {
+  return get<{ collections: PromotedCollection[] }>('/collections/promoted');
+}
+
+/**
+ * Toggle the promotion status of a collection
+ */
+export async function toggleCollectionPromotion(
+  collectionId: string
+): Promise<Collection> {
+  return post<Collection>(`/collections/${collectionId}/promote`);
+}
+
+/**
+ * Update the cover source for a collection
+ */
+export async function updateCollectionCover(
+  collectionId: string,
+  coverType: 'auto' | 'series' | 'issue' | 'custom',
+  sourceId?: string
+): Promise<Collection> {
+  return put<Collection>(`/collections/${collectionId}/cover`, {
+    coverType,
+    sourceId,
+  });
+}
+
+/**
+ * Get aggregate reading progress for a collection
+ */
+export async function getCollectionProgress(
+  collectionId: string
+): Promise<{ totalIssues: number; readIssues: number }> {
+  return get<{ totalIssues: number; readIssues: number }>(
+    `/collections/${collectionId}/progress`
+  );
+}
+
+/**
+ * Update collection metadata overrides
+ */
+export async function updateCollectionMetadata(
+  collectionId: string,
+  metadata: {
+    overridePublisher?: string | null;
+    overrideStartYear?: number | null;
+    overrideEndYear?: number | null;
+    overrideGenres?: string | null;
+  }
+): Promise<Collection> {
+  return put<Collection>(`/collections/${collectionId}/metadata`, metadata);
 }
 

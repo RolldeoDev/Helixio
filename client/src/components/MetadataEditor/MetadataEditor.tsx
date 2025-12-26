@@ -130,12 +130,15 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   }, [fileId]);
 
   const handleFieldChange = (field: EditableField, value: string | number | undefined) => {
-    setMetadata((prev) => ({
-      ...prev,
-      // Use REMOVE_FIELD sentinel for empty values so it survives JSON.stringify
-      // and signals to the backend that this field should be removed from ComicInfo.xml
-      [field]: value === '' || value === undefined ? REMOVE_FIELD : value,
-    }));
+    setMetadata((prev) => {
+      const newValue = value === '' || value === undefined ? REMOVE_FIELD : value;
+      return {
+        ...prev,
+        // Use REMOVE_FIELD sentinel for empty values so it survives JSON.stringify
+        // and signals to the backend that this field should be removed from ComicInfo.xml
+        [field]: newValue,
+      };
+    });
   };
 
   const hasChanges = () => {
@@ -143,7 +146,9 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   };
 
   const handleSave = async () => {
-    if (!hasChanges()) return;
+    if (!hasChanges()) {
+      return;
+    }
 
     setSaving(true);
     setError(null);

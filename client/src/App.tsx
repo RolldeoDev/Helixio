@@ -15,7 +15,7 @@ import { CollectionsProvider } from './contexts/CollectionsContext';
 import { WantToReadProvider } from './contexts/WantToReadContext';
 import { AnnotationsProvider } from './contexts/AnnotationsContext';
 import { ThemeProvider } from './themes/ThemeContext';
-import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects } from './themes';
+import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects, PulpEffects } from './themes';
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { DownloadProvider } from './contexts/DownloadContext';
@@ -406,6 +406,7 @@ function AppContent() {
           <SynthwaveEffects />
           <RetroEffects />
           <MangaEffects />
+          <PulpEffects />
         </>
       )}
     </div>

@@ -526,8 +526,10 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
 
     // Invalidate and refresh all related data (cache, series linkage, etc.)
     // This handles moving the file to a new series if the metadata series changed
+    // Pass the merged comicInfo directly to avoid re-reading from archive
+    // (macOS file system caching can cause stale reads immediately after writes)
     const invalidationResult = await invalidateFileMetadata(file.id, {
-      refreshFromArchive: true,
+      comicInfo: result.comicInfo,
       updateSeriesLinkage: true,
     });
 

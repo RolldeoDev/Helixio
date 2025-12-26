@@ -2,13 +2,16 @@
  * Download Confirmation Modal
  *
  * Shown when downloading large series (>50 issues or >1GB).
- * Allows users to confirm and configure split options.
+ * Shows split options only for downloads over 2GB.
  */
 
 import { useState } from 'react';
 import { Download, AlertTriangle, X, HardDrive, FileArchive } from 'lucide-react';
 import { useDownloads, formatFileSize } from '../../contexts/DownloadContext';
 import './DownloadConfirmationModal.css';
+
+// 2GB threshold for showing split options
+const LARGE_DOWNLOAD_THRESHOLD = 2 * 1024 * 1024 * 1024;
 
 // Default split sizes in bytes
 const SPLIT_SIZES = [
@@ -28,10 +31,13 @@ export function DownloadConfirmationModal() {
     return null;
   }
 
+  // Check if this is a large download (over 2GB)
+  const isLargeDownload = estimate.totalSizeBytes >= LARGE_DOWNLOAD_THRESHOLD;
+
   const handleConfirm = () => {
     onConfirm?.({
-      splitEnabled,
-      splitSizeBytes: splitEnabled ? splitSizeBytes : undefined,
+      splitEnabled: isLargeDownload ? splitEnabled : false,
+      splitSizeBytes: isLargeDownload && splitEnabled ? splitSizeBytes : undefined,
     });
   };
 
@@ -69,13 +75,15 @@ export function DownloadConfirmationModal() {
 
         {/* Content */}
         <div className="download-modal__content">
-          {/* Size Warning */}
-          <div className="download-modal__warning">
-            <AlertTriangle size={20} />
-            <span>
-              This is a large download. Make sure you have enough disk space.
-            </span>
-          </div>
+          {/* Size Warning - only for large downloads */}
+          {isLargeDownload && (
+            <div className="download-modal__warning">
+              <AlertTriangle size={20} />
+              <span>
+                This is a large download. Make sure you have enough disk space.
+              </span>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="download-modal__stats">
@@ -110,44 +118,46 @@ export function DownloadConfirmationModal() {
             </div>
           )}
 
-          {/* Split Options */}
-          <div className="download-modal__options">
-            <label className="download-modal__checkbox">
-              <input
-                type="checkbox"
-                checked={splitEnabled}
-                onChange={(e) => setSplitEnabled(e.target.checked)}
-              />
-              <span className="download-modal__checkbox-label">
-                Split into smaller parts
-              </span>
-              <span className="download-modal__checkbox-hint">
-                Recommended for downloads over 2 GB
-              </span>
-            </label>
-
-            {splitEnabled && (
-              <div className="download-modal__split-size">
-                <label className="download-modal__split-label">
-                  Part size:
-                </label>
-                <select
-                  className="download-modal__split-select"
-                  value={splitSizeBytes}
-                  onChange={(e) => setSplitSizeBytes(Number(e.target.value))}
-                >
-                  {SPLIT_SIZES.map((size) => (
-                    <option key={size.value} value={size.value}>
-                      {size.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="download-modal__split-estimate">
-                  ~{estimatedParts} part{estimatedParts > 1 ? 's' : ''}
+          {/* Split Options - only for large downloads */}
+          {isLargeDownload && (
+            <div className="download-modal__options">
+              <label className="download-modal__checkbox">
+                <input
+                  type="checkbox"
+                  checked={splitEnabled}
+                  onChange={(e) => setSplitEnabled(e.target.checked)}
+                />
+                <span className="download-modal__checkbox-label">
+                  Split into smaller parts
                 </span>
-              </div>
-            )}
-          </div>
+                <span className="download-modal__checkbox-hint">
+                  Recommended for downloads over 2 GB
+                </span>
+              </label>
+
+              {splitEnabled && (
+                <div className="download-modal__split-size">
+                  <label className="download-modal__split-label">
+                    Part size:
+                  </label>
+                  <select
+                    className="download-modal__split-select"
+                    value={splitSizeBytes}
+                    onChange={(e) => setSplitSizeBytes(Number(e.target.value))}
+                  >
+                    {SPLIT_SIZES.map((size) => (
+                      <option key={size.value} value={size.value}>
+                        {size.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="download-modal__split-estimate">
+                    ~{estimatedParts} part{estimatedParts > 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

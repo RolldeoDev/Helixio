@@ -1,0 +1,503 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap');
+
+/**
+ * Pulp Noir Theme Effects
+ *
+ * "The rain hammered against the window like a dame's
+ *  angry fists on a locked door. I lit another cigarette
+ *  and waited for trouble to find me. It always did."
+ *
+ * Visual effects that transport you to the golden age of pulp fiction:
+ * - Aged paper texture with authentic grain
+ * - Ink splatters and printing imperfections
+ * - Classic film noir grain overlay
+ * - Vignette darkening for that vintage photo feel
+ * - Drifting cigarette smoke wisps
+ */
+
+/* ==========================================================================
+   Pulp Theme Variables
+   ========================================================================== */
+
+:root[data-theme^="pulp"] {
+  --pulp-gold: #c9a227;
+  --pulp-gold-light: #dab632;
+  --pulp-ink: #2d2418;
+  --pulp-blood: #8b2500;
+  --pulp-paper: #f4ece0;
+  --pulp-shadow: #1a1512;
+}
+
+/* ==========================================================================
+   Paper Texture Effect
+   ========================================================================== */
+
+.pulp-paper-texture {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+:root[data-theme="pulp-light"] .pulp-paper-texture {
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+}
+
+:root[data-theme="pulp-dark"] .pulp-paper-texture {
+  opacity: 0.15;
+  mix-blend-mode: overlay;
+}
+
+.pulp-paper-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+}
+
+.pulp-paper-texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+:root[data-theme="pulp-light"] .pulp-paper-texture::after {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(139, 115, 85, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(139, 115, 85, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 60% 20%, rgba(139, 115, 85, 0.04) 0%, transparent 30%);
+}
+
+:root[data-theme="pulp-dark"] .pulp-paper-texture::after {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(201, 162, 39, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(201, 162, 39, 0.02) 0%, transparent 40%);
+}
+
+/* ==========================================================================
+   Ink Splatter Effect
+   ========================================================================== */
+
+.pulp-ink-splatter {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.pulp-ink-drop {
+  position: absolute;
+  background: currentColor;
+  border-radius: 50%;
+}
+
+:root[data-theme="pulp-dark"] .pulp-ink-drop {
+  color: var(--pulp-gold);
+  opacity: 0.08;
+}
+
+:root[data-theme="pulp-light"] .pulp-ink-drop {
+  color: var(--pulp-ink);
+  opacity: 0.06;
+}
+
+.pulp-ink-drop::before,
+.pulp-ink-drop::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+
+.pulp-ink-drop--1 {
+  width: 8px;
+  height: 8px;
+  top: 15%;
+  left: 8%;
+  transform: rotate(15deg);
+}
+
+.pulp-ink-drop--1::before {
+  width: 4px;
+  height: 4px;
+  top: -6px;
+  left: 2px;
+}
+
+.pulp-ink-drop--2 {
+  width: 12px;
+  height: 10px;
+  top: 45%;
+  right: 5%;
+  border-radius: 60% 40% 50% 50%;
+}
+
+.pulp-ink-drop--2::before {
+  width: 5px;
+  height: 5px;
+  bottom: -8px;
+  left: 3px;
+}
+
+.pulp-ink-drop--2::after {
+  width: 3px;
+  height: 3px;
+  bottom: -4px;
+  right: -5px;
+}
+
+.pulp-ink-drop--3 {
+  width: 6px;
+  height: 6px;
+  bottom: 20%;
+  left: 12%;
+}
+
+.pulp-ink-drop--4 {
+  width: 10px;
+  height: 8px;
+  top: 75%;
+  right: 15%;
+  border-radius: 50% 50% 40% 60%;
+}
+
+.pulp-ink-drop--4::before {
+  width: 4px;
+  height: 4px;
+  top: -5px;
+  right: 0;
+}
+
+.pulp-ink-drop--5 {
+  width: 5px;
+  height: 5px;
+  top: 30%;
+  left: 92%;
+}
+
+/* ==========================================================================
+   Film Grain Effect
+   ========================================================================== */
+
+.pulp-film-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  animation: pulp-grain-shift 0.5s steps(10) infinite;
+}
+
+:root[data-theme="pulp-light"] .pulp-film-grain {
+  opacity: 0.035;
+}
+
+:root[data-theme="pulp-dark"] .pulp-film-grain {
+  opacity: 0.06;
+}
+
+.pulp-film-grain::before {
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+@keyframes pulp-grain-shift {
+  0%, 100% { transform: translate(0, 0); }
+  10% { transform: translate(-2%, -2%); }
+  20% { transform: translate(2%, 1%); }
+  30% { transform: translate(-1%, 2%); }
+  40% { transform: translate(1%, -1%); }
+  50% { transform: translate(-2%, 1%); }
+  60% { transform: translate(2%, -2%); }
+  70% { transform: translate(-1%, -1%); }
+  80% { transform: translate(1%, 2%); }
+  90% { transform: translate(-2%, -1%); }
+}
+
+/* ==========================================================================
+   Vignette Effect
+   ========================================================================== */
+
+.pulp-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+:root[data-theme="pulp-dark"] .pulp-vignette {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 40%,
+    rgba(18, 15, 12, 0.4) 80%,
+    rgba(18, 15, 12, 0.7) 100%
+  );
+}
+
+:root[data-theme="pulp-light"] .pulp-vignette {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0%,
+    transparent 50%,
+    rgba(92, 74, 50, 0.08) 80%,
+    rgba(92, 74, 50, 0.15) 100%
+  );
+}
+
+/* ==========================================================================
+   Smoke Wisps Effect
+   ========================================================================== */
+
+.pulp-smoke-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.pulp-smoke-wisp {
+  position: absolute;
+  width: 100px;
+  height: 200px;
+  opacity: 0;
+  filter: blur(8px);
+}
+
+:root[data-theme="pulp-dark"] .pulp-smoke-wisp {
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(201, 162, 39, 0.03) 30%,
+    rgba(201, 162, 39, 0.06) 50%,
+    rgba(201, 162, 39, 0.03) 70%,
+    transparent 100%
+  );
+}
+
+:root[data-theme="pulp-light"] .pulp-smoke-wisp {
+  background: linear-gradient(
+    to top,
+    transparent 0%,
+    rgba(92, 74, 50, 0.02) 30%,
+    rgba(92, 74, 50, 0.04) 50%,
+    rgba(92, 74, 50, 0.02) 70%,
+    transparent 100%
+  );
+}
+
+.pulp-smoke-wisp--1 {
+  left: 5%;
+  bottom: -200px;
+  animation: pulp-smoke-rise 20s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.pulp-smoke-wisp--2 {
+  right: 8%;
+  bottom: -200px;
+  animation: pulp-smoke-rise 25s ease-in-out infinite;
+  animation-delay: -8s;
+}
+
+.pulp-smoke-wisp--3 {
+  left: 15%;
+  bottom: -200px;
+  animation: pulp-smoke-rise 22s ease-in-out infinite;
+  animation-delay: -15s;
+  width: 80px;
+}
+
+@keyframes pulp-smoke-rise {
+  0% {
+    transform: translateY(0) translateX(0) scaleX(1);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-50vh) translateX(20px) scaleX(1.3);
+    opacity: 0.4;
+  }
+  95% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(-10px) scaleX(1.8);
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   Pulp Quote Effect
+   ========================================================================== */
+
+.pulp-quote {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  max-width: 280px;
+  font-family: 'Crimson Pro', 'Libre Baskerville', Georgia, serif;
+  font-style: italic;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  text-align: right;
+  pointer-events: none;
+  z-index: 10;
+  transition: opacity 0.8s ease-in-out;
+}
+
+:root[data-theme="pulp-dark"] .pulp-quote {
+  color: var(--color-text-subtle);
+}
+
+:root[data-theme="pulp-light"] .pulp-quote {
+  color: var(--color-text-muted);
+}
+
+.pulp-quote-text {
+  display: block;
+  opacity: 0.6;
+}
+
+.pulp-quote-author {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+:root[data-theme="pulp-dark"] .pulp-quote-author {
+  color: var(--color-primary);
+}
+
+:root[data-theme="pulp-light"] .pulp-quote-author {
+  color: var(--color-accent);
+}
+
+/* Typewriter cursor effect */
+.pulp-quote-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: currentColor;
+  margin-left: 2px;
+  animation: pulp-cursor-blink 1s steps(1) infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes pulp-cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ==========================================================================
+   Corner Decoration - Vintage Magazine Corner
+   ========================================================================== */
+
+.pulp-corner-decoration {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+:root[data-theme="pulp-light"] .pulp-corner-decoration {
+  opacity: 0.15;
+}
+
+:root[data-theme="pulp-dark"] .pulp-corner-decoration {
+  opacity: 0.1;
+}
+
+.pulp-corner-decoration::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-primary) 20%,
+    transparent 20%
+  );
+}
+
+.pulp-corner-decoration::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  border: 1px solid var(--color-primary);
+  background: linear-gradient(
+    135deg,
+    transparent 0%,
+    transparent 30%,
+    var(--color-bg) 30%
+  );
+}
+
+/* ==========================================================================
+   Stain Effects - Coffee rings and age spots
+   ========================================================================== */
+
+.pulp-stain {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 50%;
+}
+
+:root[data-theme="pulp-light"] .pulp-stain {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(139, 101, 20, 0.3) 0%,
+    rgba(139, 101, 20, 0.15) 30%,
+    rgba(139, 101, 20, 0.05) 60%,
+    transparent 70%
+  );
+  opacity: 0.04;
+}
+
+:root[data-theme="pulp-dark"] .pulp-stain {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(201, 162, 39, 0.1) 0%,
+    rgba(201, 162, 39, 0.05) 30%,
+    transparent 60%
+  );
+  opacity: 0.03;
+}
+
+.pulp-stain--1 {
+  width: 120px;
+  height: 110px;
+  top: 20%;
+  right: 10%;
+  transform: rotate(-15deg);
+}
+
+.pulp-stain--2 {
+  width: 80px;
+  height: 85px;
+  bottom: 30%;
+  left: 5%;
+  transform: rotate(10deg);
+}

@@ -76,16 +76,17 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
   });
 
   // Virtualization for better scroll performance (when no grouping)
-  // Item dimensions based on cover size
-  const itemWidth = 180;
-  const itemHeight = 280;
+  // Uses sliderValue to calculate optimal columns and item width based on container width
   const { virtualItems, totalHeight, containerRef: virtualContainerRef, isScrolling } = useVirtualGrid(
     groupField === 'none' ? files : [],
     {
-      itemWidth,
-      itemHeight,
+      sliderValue: coverSize,
       gap: 16,
       overscan: 3,
+      aspectRatio: 1.5,
+      infoHeight: 60,
+      minCoverWidth: 80,
+      maxCoverWidth: 350,
     }
   );
 

@@ -25,9 +25,16 @@ import {
   markAsIncomplete,
   rebuildCache,
   fetchSeriesMetadata,
+  previewSeriesMetadata,
+  applySeriesMetadata,
+  getSeriesRelationships,
   Series,
   SeriesIssue,
   SeriesForMerge,
+  MetadataSource,
+  SeriesMetadataPayload,
+  MetadataPreviewField,
+  RelatedSeriesInfo,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useDownloads } from '../contexts/DownloadContext';
@@ -40,13 +47,16 @@ import { MetadataEditor } from '../components/MetadataEditor';
 import { EditSeriesModal } from '../components/EditSeriesModal';
 import { SeriesSelectModal } from '../components/SeriesSelectModal';
 import { MergeSeriesModal } from '../components/MergeSeriesModal';
+import { SeriesMetadataSearchModal } from '../components/SeriesMetadataSearchModal';
+import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
 import { SeriesHero } from '../components/SeriesHero';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
-import { useVirtualGrid } from '../hooks/useVirtualGrid';
+import { SeriesCoverCard } from '../components/SeriesCoverCard';
+import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -95,17 +105,16 @@ function VirtualizedIssuesGrid({
   onSelectionChange,
   onMenuAction,
 }: VirtualizedIssuesGridProps) {
-  // Grid item dimensions (medium size cards)
-  const itemWidth = 180;
-  const itemHeight = 280;
-  const gap = 16;
-
-  // Virtualization with built-in scroll state detection
-  const { virtualItems, totalHeight, containerRef, isScrolling } = useVirtualGrid(issues, {
-    itemWidth,
-    itemHeight,
-    gap,
+  // Window-based virtualization for seamless page scrolling
+  // Uses slider value 5 (medium) for consistent sizing
+  const { virtualItems, totalHeight, containerRef, isScrolling } = useWindowVirtualGrid(issues, {
+    sliderValue: 5,
+    gap: 16,
     overscan: 3,
+    aspectRatio: 1.5,
+    infoHeight: 60,
+    minCoverWidth: 80,
+    maxCoverWidth: 350,
   });
 
   if (issues.length === 0) {
@@ -119,7 +128,7 @@ function VirtualizedIssuesGrid({
   return (
     <div
       ref={containerRef}
-      className={`series-issues-scroll-container ${isScrolling ? 'scrolling' : ''}`}
+      className={`series-issues-grid-container ${isScrolling ? 'scrolling' : ''}`}
     >
       <div
         className="series-issues-virtual"
@@ -178,6 +187,10 @@ export function SeriesDetailPage() {
   const [editingMetadataFileIds, setEditingMetadataFileIds] = useState<string[] | null>(null);
   const [isEditSeriesModalOpen, setIsEditSeriesModalOpen] = useState(false);
 
+  // Related series state
+  const [parentSeries, setParentSeries] = useState<RelatedSeriesInfo[]>([]);
+  const [childSeries, setChildSeries] = useState<RelatedSeriesInfo[]>([]);
+
   // Merge modal state
   const [showSeriesSelectModal, setShowSeriesSelectModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
@@ -191,6 +204,15 @@ export function SeriesDetailPage() {
   // Collection picker modal state
   const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
+  // Metadata fetch workflow state
+  const [showMetadataSearchModal, setShowMetadataSearchModal] = useState(false);
+  const [showMetadataPreviewModal, setShowMetadataPreviewModal] = useState(false);
+  const [pendingMetadata, setPendingMetadata] = useState<SeriesMetadataPayload | null>(null);
+  const [pendingSource, setPendingSource] = useState<MetadataSource | null>(null);
+  const [pendingExternalId, setPendingExternalId] = useState<string | null>(null);
+  const [previewFields, setPreviewFields] = useState<MetadataPreviewField[]>([]);
+  const [isApplyingMetadata, setIsApplyingMetadata] = useState(false);
+
   // Fetch series data (all issues at once for infinite scroll)
   const fetchSeries = useCallback(async () => {
     if (!seriesId) return;
@@ -199,14 +221,17 @@ export function SeriesDetailPage() {
     setError(null);
 
     try {
-      const [seriesResult, issuesResult, nextResult] = await Promise.all([
+      const [seriesResult, issuesResult, nextResult, relationshipsResult] = await Promise.all([
         getSeries(seriesId),
         getSeriesIssues(seriesId, { all: true, sortBy: 'number', sortOrder: 'asc' }),
         getNextSeriesIssue(seriesId),
+        getSeriesRelationships(seriesId),
       ]);
 
       setSeries(seriesResult.series);
       setIssues(issuesResult.issues);
+      setParentSeries(relationshipsResult.parents);
+      setChildSeries(relationshipsResult.children);
 
       if (nextResult.nextIssue) {
         setNextIssue({
@@ -413,6 +438,81 @@ export function SeriesDetailPage() {
     fetchSeries();
   };
 
+  // Handle metadata search modal selection
+  const handleMetadataSearchSelect = useCallback(
+    async (source: MetadataSource, externalId: string, metadata: SeriesMetadataPayload) => {
+      setShowMetadataSearchModal(false);
+
+      if (!seriesId) return;
+
+      try {
+        setOperationMessage('Loading preview...');
+
+        // Get preview data for the selected metadata
+        const previewResult = await previewSeriesMetadata(
+          seriesId,
+          metadata,
+          source,
+          externalId
+        );
+
+        setPendingMetadata(metadata);
+        setPendingSource(source);
+        setPendingExternalId(externalId);
+        setPreviewFields(previewResult.preview.fields);
+        setOperationMessage(null);
+        setShowMetadataPreviewModal(true);
+      } catch (err) {
+        setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to load preview'}`);
+        setTimeout(() => setOperationMessage(null), 3000);
+      }
+    },
+    [seriesId]
+  );
+
+  // Handle metadata preview modal apply
+  const handleMetadataPreviewApply = useCallback(
+    async (selectedFields: string[]) => {
+      if (!seriesId || !pendingMetadata || !pendingSource) return;
+
+      setIsApplyingMetadata(true);
+
+      try {
+        await applySeriesMetadata(seriesId, {
+          metadata: pendingMetadata,
+          source: pendingSource,
+          externalId: pendingExternalId,
+          fields: selectedFields,
+        });
+
+        // Reset state and refresh
+        setShowMetadataPreviewModal(false);
+        setPendingMetadata(null);
+        setPendingSource(null);
+        setPendingExternalId(null);
+        setPreviewFields([]);
+        setOperationMessage('Metadata applied successfully');
+        fetchSeries();
+        setTimeout(() => setOperationMessage(null), 3000);
+      } catch (err) {
+        setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to apply metadata'}`);
+        setTimeout(() => setOperationMessage(null), 3000);
+      } finally {
+        setIsApplyingMetadata(false);
+      }
+    },
+    [seriesId, pendingMetadata, pendingSource, pendingExternalId, fetchSeries]
+  );
+
+  // Handle metadata preview modal close
+  const handleMetadataPreviewClose = useCallback(() => {
+    setShowMetadataPreviewModal(false);
+    setPendingMetadata(null);
+    setPendingSource(null);
+    setPendingExternalId(null);
+    setPreviewFields([]);
+  }, []);
+
   // Handle series-level actions from ActionMenu
   const handleSeriesAction = useCallback(async (actionId: string) => {
     if (!series) return;
@@ -426,15 +526,30 @@ export function SeriesDetailPage() {
         try {
           setOperationMessage('Fetching series metadata...');
           const result = await fetchSeriesMetadata(series.id);
+
           if (result.needsSearch) {
-            setOperationMessage('No linked metadata source. Use Edit Series to search and link.');
-          } else if (result.metadata) {
-            setOperationMessage('Series metadata updated');
-            fetchSeries();
+            // No external ID - show search modal
+            setOperationMessage(null);
+            setShowMetadataSearchModal(true);
+          } else if (result.metadata && result.source && result.externalId) {
+            // Has external ID - fetch preview and show preview modal
+            const previewResult = await previewSeriesMetadata(
+              series.id,
+              result.metadata,
+              result.source,
+              result.externalId
+            );
+
+            setPendingMetadata(result.metadata);
+            setPendingSource(result.source);
+            setPendingExternalId(result.externalId);
+            setPreviewFields(previewResult.preview.fields);
+            setOperationMessage(null);
+            setShowMetadataPreviewModal(true);
           } else {
             setOperationMessage(result.message || 'No metadata found');
+            setTimeout(() => setOperationMessage(null), 3000);
           }
-          setTimeout(() => setOperationMessage(null), 3000);
         } catch (err) {
           setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to fetch metadata'}`);
           setTimeout(() => setOperationMessage(null), 3000);
@@ -641,6 +756,75 @@ export function SeriesDetailPage() {
         onSeriesAction={handleSeriesAction}
         onBackClick={() => navigate('/series')}
       />
+
+      {/* Related Series Section - Shows parent and child series */}
+      {(parentSeries.length > 0 || childSeries.length > 0) && (
+        <div className="series-related-section">
+          {/* Parent series (this series is a spinoff/sequel of) */}
+          {parentSeries.length > 0 && (
+            <div className="series-related-group">
+              <h3 className="series-related-title">
+                Related To
+                <span className="series-related-count">{parentSeries.length}</span>
+              </h3>
+              <div className="series-related-grid">
+                {parentSeries.map((parent) => (
+                  <SeriesCoverCard
+                    key={parent.id}
+                    series={{
+                      id: parent.id,
+                      name: parent.name,
+                      publisher: parent.publisher,
+                      startYear: parent.startYear,
+                      coverHash: parent.coverHash,
+                      coverUrl: parent.coverUrl,
+                      coverFileId: parent.coverFileId,
+                      coverSource: parent.coverSource as 'api' | 'user' | 'auto',
+                      _count: parent._count,
+                    } as Series}
+                    size="small"
+                    onClick={(id) => navigate(`/series/${id}`)}
+                    showYear={true}
+                    showPublisher={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Child series (spinoffs/sequels of this series) */}
+          {childSeries.length > 0 && (
+            <div className="series-related-group">
+              <h3 className="series-related-title">
+                Related Series
+                <span className="series-related-count">{childSeries.length}</span>
+              </h3>
+              <div className="series-related-grid">
+                {childSeries.map((child) => (
+                  <SeriesCoverCard
+                    key={child.id}
+                    series={{
+                      id: child.id,
+                      name: child.name,
+                      publisher: child.publisher,
+                      startYear: child.startYear,
+                      coverHash: child.coverHash,
+                      coverUrl: child.coverUrl,
+                      coverFileId: child.coverFileId,
+                      coverSource: child.coverSource as 'api' | 'user' | 'auto',
+                      _count: child._count,
+                    } as Series}
+                    size="small"
+                    onClick={(id) => navigate(`/series/${id}`)}
+                    showYear={true}
+                    showPublisher={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 75/25 Content Layout: Description + Sidebar */}
       {(hasMainContent || hasSidebar) && (
@@ -859,6 +1043,29 @@ export function SeriesDetailPage() {
         isOpen={collectionPickerFileIds.length > 0}
         onClose={() => setCollectionPickerFileIds([])}
         fileIds={collectionPickerFileIds}
+      />
+
+      {/* Series Metadata Search Modal */}
+      {series && seriesId && (
+        <SeriesMetadataSearchModal
+          isOpen={showMetadataSearchModal}
+          onClose={() => setShowMetadataSearchModal(false)}
+          onSelect={handleMetadataSearchSelect}
+          seriesId={seriesId}
+          initialQuery={series.name}
+          libraryType={series.type}
+        />
+      )}
+
+      {/* Metadata Preview Modal */}
+      <MetadataPreviewModal
+        isOpen={showMetadataPreviewModal}
+        onClose={handleMetadataPreviewClose}
+        onApply={handleMetadataPreviewApply}
+        fields={previewFields}
+        source={pendingSource}
+        currentSeries={series}
+        isApplying={isApplyingMetadata}
       />
     </div>
   );

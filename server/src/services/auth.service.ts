@@ -6,6 +6,8 @@
 
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
+import { writeFileSync, unlinkSync, existsSync } from 'fs';
+import { getAvatarPath, getAvatarsDir } from './app-paths.service.js';
 
 const prisma = new PrismaClient();
 
@@ -555,5 +557,88 @@ export async function registerUser(input: {
     email: input.email,
     displayName: input.displayName,
     role: 'user', // New users are always regular users
+  });
+}
+
+// =============================================================================
+// Avatar Management
+// =============================================================================
+
+export async function uploadAvatar(userId: string, imageBuffer: Buffer): Promise<string> {
+  const avatarPath = getAvatarPath(userId);
+
+  // Write the image file
+  writeFileSync(avatarPath, imageBuffer);
+
+  // Generate URL path (relative)
+  const avatarUrl = `/api/auth/avatars/${userId}`;
+
+  // Update user record
+  await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl },
+  });
+
+  return avatarUrl;
+}
+
+export async function removeAvatar(userId: string): Promise<void> {
+  const avatarPath = getAvatarPath(userId);
+
+  // Delete file if exists
+  if (existsSync(avatarPath)) {
+    unlinkSync(avatarPath);
+  }
+
+  // Clear avatarUrl in database
+  await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl: null },
+  });
+}
+
+export function getAvatarFilePath(userId: string): string | null {
+  const avatarPath = getAvatarPath(userId);
+  return existsSync(avatarPath) ? avatarPath : null;
+}
+
+// =============================================================================
+// Account Self-Deletion
+// =============================================================================
+
+export async function deleteOwnAccount(userId: string, password: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Verify password
+  if (!verifyPassword(password, user.passwordHash)) {
+    throw new Error('Incorrect password');
+  }
+
+  // Prevent last admin from deleting themselves
+  if (user.role === 'admin') {
+    const adminCount = await prisma.user.count({
+      where: { role: 'admin' },
+    });
+
+    if (adminCount <= 1) {
+      throw new Error('Cannot delete the last admin account');
+    }
+  }
+
+  // Delete avatar file if exists
+  const avatarPath = getAvatarPath(userId);
+  if (existsSync(avatarPath)) {
+    unlinkSync(avatarPath);
+  }
+
+  // Delete user (cascades to sessions, progress, collections, etc.)
+  await prisma.user.delete({
+    where: { id: userId },
   });
 }

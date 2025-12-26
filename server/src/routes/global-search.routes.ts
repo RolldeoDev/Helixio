@@ -20,12 +20,12 @@ const router = Router();
 
 /**
  * GET /api/search/global
- * Unified search across series, issues, and creators.
+ * Unified search across series, issues, creators, and collections.
  *
  * Query params:
  * - q: search query (required, min 2 chars)
  * - limit: number (default 6, max 20)
- * - types: comma-separated list of types to search (default: series,issue,creator)
+ * - types: comma-separated list of types to search (default: series,issue,creator,collection)
  * - libraryId: optional library ID to filter results
  */
 router.get('/global', async (req: Request, res: Response): Promise<void> => {
@@ -34,6 +34,9 @@ router.get('/global', async (req: Request, res: Response): Promise<void> => {
     const limit = Math.min(parseInt(req.query.limit as string) || 6, 20);
     const typesParam = req.query.types as string;
     const libraryId = req.query.libraryId as string | undefined;
+
+    // Get userId from session/auth if available (for collection search)
+    const userId = (req as Request & { userId?: string }).userId;
 
     // Validate query
     if (!query || query.trim().length < 2) {
@@ -45,12 +48,12 @@ router.get('/global', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Parse types
-    const validTypes = ['series', 'issue', 'creator'] as const;
-    let types: ('series' | 'issue' | 'creator')[] = [...validTypes];
+    const validTypes = ['series', 'issue', 'creator', 'collection'] as const;
+    let types: ('series' | 'issue' | 'creator' | 'collection')[] = [...validTypes];
 
     if (typesParam) {
       const requestedTypes = typesParam.split(',').map((t) => t.trim().toLowerCase());
-      types = requestedTypes.filter((t): t is 'series' | 'issue' | 'creator' =>
+      types = requestedTypes.filter((t): t is 'series' | 'issue' | 'creator' | 'collection' =>
         validTypes.includes(t as typeof validTypes[number])
       );
 
@@ -63,7 +66,7 @@ router.get('/global', async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    const result = await globalSearch(query, { limit, types, libraryId });
+    const result = await globalSearch(query, { limit, types, libraryId, userId });
 
     res.json(result);
   } catch (err) {

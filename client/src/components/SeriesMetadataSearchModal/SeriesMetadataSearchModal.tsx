@@ -20,6 +20,7 @@ import {
   expandSeriesResult,
 } from '../../services/api.service';
 import { MergedMetadataModal } from '../MetadataApproval/MergedMetadataModal';
+import { SeriesDetailDrawer } from '../MetadataApproval/SeriesDetailDrawer';
 import './SeriesMetadataSearchModal.css';
 
 interface SeriesMetadataSearchModalProps {
@@ -52,9 +53,12 @@ export function SeriesMetadataSearchModal({
   const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>('all');
 
   // Multi-source / expand functionality
-  const [searchAllSources, setSearchAllSources] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
   const [expandingSeriesId, setExpandingSeriesId] = useState<string | null>(null);
+
+  // Series detail drawer
+  const [detailDrawerSeries, setDetailDrawerSeries] = useState<SeriesMatch | null>(null);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [expandedResult, setExpandedResult] = useState<{
     merged: MergedSeriesMetadata;
     sourceResults: Record<MetadataSource, SeriesMatch | null>;
@@ -265,6 +269,20 @@ export function SeriesMetadataSearchModal({
     onSelect(merged.source, merged.sourceId, metadata);
   }, [onSelect]);
 
+  // Handle clicking on a result row to show details
+  const handleResultClick = useCallback((match: SeriesMatch) => {
+    setDetailDrawerSeries(match);
+    setIsDetailDrawerOpen(true);
+  }, []);
+
+  // Handle selecting from the detail drawer
+  const handleSelectFromDrawer = useCallback(async (match: SeriesMatch) => {
+    setIsDetailDrawerOpen(false);
+    setDetailDrawerSeries(null);
+    // Use the same selection logic
+    await handleSelect(match);
+  }, [handleSelect]);
+
   // Format source name
   const formatSource = (source: MetadataSource): string => {
     const labels: Record<MetadataSource, string> = {
@@ -349,22 +367,6 @@ export function SeriesMetadataSearchModal({
               <option value="mal">MAL</option>
             </select>
           </div>
-          {/* Search options - toggle for searching all sources */}
-          <div className="search-options">
-            <label className="option-toggle">
-              <input
-                type="checkbox"
-                checked={searchAllSources}
-                onChange={(e) => setSearchAllSources(e.target.checked)}
-              />
-              <span>Search all sources</span>
-            </label>
-            <span className="option-hint">
-              {searchAllSources
-                ? 'Results from all sources will be merged'
-                : 'Click ⊕ on a result to fetch from other sources'}
-            </span>
-          </div>
         </form>
 
         <div className="modal-content">
@@ -402,7 +404,19 @@ export function SeriesMetadataSearchModal({
           {results.length > 0 && (
             <div className="results-list">
               {results.map((match) => (
-                <div key={`${match.source}-${match.sourceId}`} className="result-item">
+                <div
+                  key={`${match.source}-${match.sourceId}`}
+                  className="result-item"
+                  onClick={() => handleResultClick(match)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleResultClick(match);
+                    }
+                  }}
+                >
                   <div className="result-cover">
                     {match.coverUrl ? (
                       <img
@@ -480,25 +494,29 @@ export function SeriesMetadataSearchModal({
                     )}
                   </div>
 
-                  <div className="result-actions">
-                    {/* Expand button - shown when not in searchAllSources mode */}
-                    {!searchAllSources && (
-                      <button
-                        className={`btn btn-icon expand-btn ${expandingSeriesId === match.sourceId ? 'loading' : ''}`}
-                        onClick={() => handleExpandResult(match)}
-                        disabled={isExpanding || isSelecting !== null}
-                        title="Expand: fetch from all sources"
-                      >
-                        {expandingSeriesId === match.sourceId ? (
-                          <span className="spinner-tiny" />
-                        ) : (
-                          <span className="expand-icon">⊕</span>
-                        )}
-                      </button>
-                    )}
+                  <div className="result-actions" onClick={(e) => e.stopPropagation()}>
+                    {/* Expand button - fetch from all sources */}
+                    <button
+                      className={`btn btn-icon expand-btn ${expandingSeriesId === match.sourceId ? 'loading' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExpandResult(match);
+                      }}
+                      disabled={isExpanding || isSelecting !== null}
+                      title="Expand: fetch from all sources"
+                    >
+                      {expandingSeriesId === match.sourceId ? (
+                        <span className="spinner-tiny" />
+                      ) : (
+                        <span className="expand-icon">⊕</span>
+                      )}
+                    </button>
                     <button
                       className="btn btn-primary result-select-btn"
-                      onClick={() => handleSelect(match)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSelect(match);
+                      }}
                       disabled={isSelecting !== null || isExpanding}
                     >
                       {isSelecting === match.sourceId ? 'Loading...' : 'Select'}
@@ -551,6 +569,18 @@ export function SeriesMetadataSearchModal({
           isLoading={false}
         />
       )}
+
+      {/* Series Detail Drawer - shows full series info when clicking a result */}
+      <SeriesDetailDrawer
+        series={detailDrawerSeries}
+        isOpen={isDetailDrawerOpen}
+        onClose={() => {
+          setIsDetailDrawerOpen(false);
+          setDetailDrawerSeries(null);
+        }}
+        onSelect={handleSelectFromDrawer}
+        isSelected={false}
+      />
     </div>
   );
 }

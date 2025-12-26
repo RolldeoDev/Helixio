@@ -127,6 +127,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
+  min-height: 96px; /* 72px cover + 24px padding */
   background: var(--bg-secondary, #252540);
   border-radius: 8px;
   border: 2px solid transparent;

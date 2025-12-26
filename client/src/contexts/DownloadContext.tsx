@@ -40,6 +40,8 @@ export interface DownloadJob {
   totalSizeBytes: number;
   downloadUrls?: string[];
   outputParts?: string[];
+  partsCount?: number; // Total number of parts
+  currentPart?: number; // Currently downloading part (0-indexed)
   error?: string;
   createdAt: Date;
 }
@@ -158,6 +160,86 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
   // SSE Connection Management
   // ==========================================================================
 
+  // Track pending auto-downloads to prevent double-triggering
+  const pendingAutoDownloads = useRef<Set<string>>(new Set());
+
+  // Auto-download a ready job (called when SSE receives 'ready' status)
+  const autoDownloadJob = useCallback(async (jobId: string) => {
+    // Prevent double-triggering
+    if (pendingAutoDownloads.current.has(jobId)) return;
+    pendingAutoDownloads.current.add(jobId);
+
+    try {
+      // Fetch job details to get parts info
+      const jobDetails = await fetchApi<{
+        id: string;
+        outputParts: string[] | null;
+        outputPath: string | null;
+        outputFileName: string | null;
+      }>(`/job/${jobId}`);
+
+      const partsCount = jobDetails.outputParts?.length ?? 1;
+
+      // Update job with parts info
+      setActiveDownloads((prev) =>
+        prev.map((job) =>
+          job.id === jobId
+            ? { ...job, partsCount, currentPart: 0, status: 'downloading' as DownloadStatus }
+            : job
+        )
+      );
+
+      // Download parts sequentially
+      for (let partIndex = 0; partIndex < partsCount; partIndex++) {
+        // Update current part
+        setActiveDownloads((prev) =>
+          prev.map((job) =>
+            job.id === jobId
+              ? {
+                  ...job,
+                  currentPart: partIndex,
+                  message: partsCount > 1 ? `Downloading part ${partIndex + 1} of ${partsCount}...` : 'Downloading...',
+                }
+              : job
+          )
+        );
+
+        // Trigger download for this part
+        const link = document.createElement('a');
+        link.href = `${API_BASE}/job/${jobId}/download?part=${partIndex}`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Wait between parts to avoid overwhelming the browser
+        if (partIndex < partsCount - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+
+      // Mark as completed
+      setActiveDownloads((prev) =>
+        prev.map((job) =>
+          job.id === jobId
+            ? { ...job, status: 'completed' as DownloadStatus, message: 'Download complete' }
+            : job
+        )
+      );
+    } catch (error) {
+      console.error('Failed to auto-download job:', error);
+      setActiveDownloads((prev) =>
+        prev.map((job) =>
+          job.id === jobId
+            ? { ...job, status: 'failed' as DownloadStatus, error: 'Failed to start download' }
+            : job
+        )
+      );
+    } finally {
+      pendingAutoDownloads.current.delete(jobId);
+    }
+  }, []);
+
   const connectToJobProgress = useCallback((jobId: string) => {
     // Close existing connection if any
     const existing = sseConnections.current.get(jobId);
@@ -193,8 +275,13 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
           })
         );
 
-        // Close connection when job is complete
-        if (data.status === 'ready' || data.status === 'failed') {
+        // Close connection and auto-start download when job is ready
+        if (data.status === 'ready') {
+          eventSource.close();
+          sseConnections.current.delete(jobId);
+          // Auto-trigger the download
+          autoDownloadJob(jobId);
+        } else if (data.status === 'failed') {
           eventSource.close();
           sseConnections.current.delete(jobId);
         }
@@ -221,7 +308,7 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
     };
 
     sseConnections.current.set(jobId, eventSource);
-  }, []);
+  }, [autoDownloadJob]);
 
   // ==========================================================================
   // Job Creation
@@ -246,6 +333,7 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
           estimatedSize: number;
           fileCount: number;
           needsConfirmation: boolean;
+          cached?: boolean;
         };
 
         if (type === 'series' && seriesId) {
@@ -260,6 +348,28 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
           });
         } else {
           throw new Error('Invalid job options');
+        }
+
+        // If cached, skip the queue and go straight to download
+        if (result.cached) {
+          // Add to active downloads with ready status
+          const cachedJob: DownloadJob = {
+            id: result.jobId,
+            type,
+            status: 'ready',
+            progress: 100,
+            message: 'Using cached download...',
+            seriesName: seriesName || 'Download',
+            fileCount: result.fileCount,
+            totalSizeBytes: result.estimatedSize,
+            createdAt: new Date(),
+          };
+
+          setActiveDownloads((prev) => [...prev, cachedJob]);
+
+          // Auto-start the download immediately
+          autoDownloadJob(result.jobId);
+          return;
         }
 
         // Add to active downloads
@@ -284,7 +394,7 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
         throw error;
       }
     },
-    [connectToJobProgress]
+    [connectToJobProgress, autoDownloadJob]
   );
 
   // ==========================================================================
@@ -422,29 +532,20 @@ export function DownloadProvider({ children }: DownloadProviderProps) {
     );
   }, []);
 
-  const downloadReadyJob = useCallback((jobId: string, partIndex = 0) => {
-    const link = document.createElement('a');
-    link.href = `${API_BASE}/job/${jobId}/download?part=${partIndex}`;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Mark as downloading, then completed after a short delay
-    setActiveDownloads((prev) =>
-      prev.map((job) =>
-        job.id === jobId ? { ...job, status: 'downloading' as DownloadStatus } : job
-      )
-    );
-
-    setTimeout(() => {
-      setActiveDownloads((prev) =>
-        prev.map((job) =>
-          job.id === jobId ? { ...job, status: 'completed' as DownloadStatus } : job
-        )
-      );
-    }, 2000);
-  }, []);
+  const downloadReadyJob = useCallback((jobId: string, partIndex?: number) => {
+    if (partIndex !== undefined) {
+      // Download specific part only
+      const link = document.createElement('a');
+      link.href = `${API_BASE}/job/${jobId}/download?part=${partIndex}`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      // Download all parts using auto-download logic
+      autoDownloadJob(jobId);
+    }
+  }, [autoDownloadJob]);
 
   const closeConfirmation = useCallback(() => {
     setConfirmationState({ isOpen: false });

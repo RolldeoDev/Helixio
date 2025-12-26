@@ -5,10 +5,29 @@
  */
 
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
 import * as authService from '../services/auth.service.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
+import { getAvatarsDir } from '../services/app-paths.service.js';
 
 const router = Router();
+
+// Configure multer for avatar uploads (memory storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max
+  },
+  fileFilter: (_req, file, cb) => {
+    // Accept images only
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  },
+});
 
 // =============================================================================
 // Setup Check
@@ -638,6 +657,111 @@ router.post('/register', async (req: Request, res: Response) => {
     console.error('Register error:', error);
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Registration failed',
+    });
+  }
+});
+
+// =============================================================================
+// Avatar Management
+// =============================================================================
+
+/**
+ * Upload avatar
+ * POST /api/auth/me/avatar
+ */
+router.post('/me/avatar', requireAuth, upload.single('avatar'), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'No image file provided' });
+      return;
+    }
+
+    // Process and resize image with sharp
+    const processedImage = await sharp(req.file.buffer)
+      .resize(256, 256, { fit: 'cover' })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const avatarUrl = await authService.uploadAvatar(req.user!.id, processedImage);
+
+    res.json({ avatarUrl });
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to upload avatar',
+    });
+  }
+});
+
+/**
+ * Remove avatar
+ * DELETE /api/auth/me/avatar
+ */
+router.delete('/me/avatar', requireAuth, async (req: Request, res: Response) => {
+  try {
+    await authService.removeAvatar(req.user!.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Remove avatar error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to remove avatar',
+    });
+  }
+});
+
+/**
+ * Get avatar image (public)
+ * GET /api/auth/avatars/:userId
+ */
+router.get('/avatars/:userId', async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const avatarPath = authService.getAvatarFilePath(userId);
+
+    if (!avatarPath) {
+      res.status(404).json({ error: 'Avatar not found' });
+      return;
+    }
+
+    res.sendFile(avatarPath);
+  } catch (error) {
+    console.error('Get avatar error:', error);
+    res.status(500).json({ error: 'Failed to get avatar' });
+  }
+});
+
+// =============================================================================
+// Account Self-Deletion
+// =============================================================================
+
+/**
+ * Delete own account
+ * DELETE /api/auth/me
+ */
+router.delete('/me', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      res.status(400).json({ error: 'Password required to delete account' });
+      return;
+    }
+
+    await authService.deleteOwnAccount(req.user!.id, password);
+
+    // Clear session cookie
+    res.clearCookie('helixio_token');
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to delete account',
     });
   }
 });

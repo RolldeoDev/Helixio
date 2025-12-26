@@ -27,20 +27,23 @@
 }
 
 /* ==========================================================================
-   Drawer Panel
+   Series Detail Drawer Panel
    ========================================================================== */
 
 .series-detail-drawer {
   position: fixed;
   top: 0;
   right: 0;
+  bottom: 0;
   width: 480px;
   max-width: 90vw;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   background: var(--color-bg);
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   transform: translateX(100%);
   transition: transform 0.3s ease;
   z-index: 1101;
@@ -54,7 +57,7 @@
    Drawer Header
    ========================================================================== */
 
-.drawer-header {
+.series-detail-drawer .drawer-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -63,14 +66,15 @@
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
   flex-shrink: 0;
+  min-height: 60px;
 }
 
-.drawer-title-section {
+.series-detail-drawer .drawer-title-section {
   flex: 1;
   min-width: 0;
 }
 
-.drawer-title {
+.series-detail-drawer .drawer-title {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
@@ -78,7 +82,7 @@
   line-height: 1.3;
 }
 
-.drawer-year {
+.series-detail-drawer .drawer-year {
   display: inline-block;
   margin-top: var(--spacing-xs);
   font-size: 0.9rem;
@@ -86,8 +90,8 @@
   font-weight: normal;
 }
 
-.drawer-close {
-  background: none;
+.series-detail-drawer .drawer-close {
+  background: transparent;
   border: none;
   font-size: 1.75rem;
   color: var(--color-text-muted);
@@ -104,19 +108,36 @@
   transition: all 0.15s ease;
 }
 
-.drawer-close:hover {
+.series-detail-drawer .drawer-close:hover {
   color: var(--color-text);
-  background: var(--color-bg-tertiary);
+  background: var(--color-hover);
 }
 
 /* ==========================================================================
    Drawer Content
    ========================================================================== */
 
-.drawer-content {
+.series-detail-drawer .drawer-content {
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-xl);
+  min-height: 0; /* Important for flex scroll */
+}
+
+/* ==========================================================================
+   Drawer Footer
+   ========================================================================== */
+
+.series-detail-drawer .drawer-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+  min-height: 60px;
 }
 
 /* Hero Section - Cover + Quick Info */
@@ -332,21 +353,10 @@
 }
 
 /* ==========================================================================
-   Drawer Footer
+   Drawer Footer - Button Styles
    ========================================================================== */
 
-.drawer-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg) var(--spacing-xl);
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  flex-shrink: 0;
-}
-
-.drawer-footer .btn-primary.selected {
+.series-detail-drawer .drawer-footer .btn-primary.selected {
   background: var(--color-success);
   border-color: var(--color-success);
 }

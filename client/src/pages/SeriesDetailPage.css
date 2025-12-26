@@ -309,62 +309,33 @@
 }
 
 /* =============================================================================
-   Virtualized Issues Grid (Performance Optimized)
+   Virtualized Issues Grid (Window Scroll Based)
    ============================================================================= */
 
-.series-issues-scroll-container {
-  /* Fixed height scroll container for virtualization */
-  height: 500px;
-  min-height: 300px;
-  max-height: calc(100vh - 400px);
-  overflow-y: auto;
-  overflow-x: hidden;
-
-  /* Grid layout: content + sidebar */
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: start;
-  gap: var(--spacing-md);
-  /* Reserve space for fixed navigation sidebar - ensures scrollbar appears to its left */
-  margin-right: 10px;
-
-  /* Native momentum scrolling on iOS - NO smooth scroll for virtualization performance */
-  -webkit-overflow-scrolling: touch;
-
-  /* Scrollbar styling */
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
+.series-issues-grid-container {
+  /* No fixed height - part of normal page flow */
+  /* Grid uses window scroll for virtualization */
+  width: 100%;
+  padding: var(--spacing-sm) 0;
 }
 
-.series-issues-scroll-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.series-issues-scroll-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.series-issues-scroll-container::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 4px;
-}
-
-.series-issues-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
-}
-
-/* .scrolling class is still applied for CSS animation/transition optimizations */
+/* .scrolling class is applied for CSS animation/transition optimizations */
 
 .series-issues-virtual {
   /* Virtual container - items positioned absolutely within */
   width: 100%;
-  padding: var(--spacing-sm);
 }
 
 .series-issue-item {
-  /* Positioned by useVirtualGrid */
+  /* Positioned by useWindowVirtualGrid */
   display: flex;
   flex-direction: column;
+}
+
+/* Force child cards to fill the grid item's calculated width */
+.series-issue-item > * {
+  width: 100% !important;
+  max-width: 100%;
 }
 
 .series-issues-empty {
@@ -492,4 +463,75 @@
   background: rgba(237, 137, 54, 0.1);
   border-color: rgba(237, 137, 54, 0.3);
   color: #ed8936;
+}
+
+/* =============================================================================
+   Related Series Section
+   ============================================================================= */
+
+.series-related-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  background: var(--color-surface-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.series-related-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.series-related-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.series-related-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  border-radius: 10px;
+}
+
+.series-related-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.series-related-grid .series-cover-card {
+  flex: 0 0 auto;
+  width: 120px;
+}
+
+@media (max-width: 768px) {
+  .series-related-grid {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: var(--spacing-sm);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .series-related-grid .series-cover-card {
+    flex-shrink: 0;
+  }
 }

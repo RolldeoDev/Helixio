@@ -2,10 +2,19 @@
  * MetadataGeneratorPreviewModal Styles
  *
  * Preview modal for LLM-generated metadata with confidence scores.
+ * Uses shared FieldComparison styles for field rows.
  */
 
+@import '../FieldComparison/FieldComparison.css';
+
+/* Override modal-overlay z-index when this modal is open */
+/* This modal appears on top of EditSeriesModal, so needs higher z-index */
+.modal-overlay:has(.metadata-generator-modal) {
+  z-index: 1050;
+}
+
 .metadata-generator-modal {
-  background: var(--color-surface);
+  background: var(--color-bg-elevated, #1a222c);
   border-radius: var(--radius-lg);
   width: 90%;
   max-width: 700px;
@@ -14,6 +23,8 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: var(--shadow-xl);
+  position: relative;
+  z-index: 1051;
 }
 
 .metadata-generator-modal .modal-header {
@@ -22,6 +33,10 @@
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, #1a222c);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
 }
 
 .metadata-generator-modal .modal-header h2 {
@@ -30,6 +45,7 @@
   font-weight: 600;
 }
 
+/* Ensure close button is clickable */
 .metadata-generator-modal .btn-close {
   display: flex;
   align-items: center;
@@ -43,6 +59,8 @@
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
+  position: relative;
+  z-index: 3;
 }
 
 .metadata-generator-modal .btn-close:hover {
@@ -54,6 +72,10 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-bg-elevated, #1a222c);
+  position: relative;
+  z-index: 1;
+  min-height: 0; /* Critical for flex scroll - allows content to shrink */
 }
 
 /* Series info */
@@ -87,115 +109,7 @@
   flex-shrink: 0;
 }
 
-/* Fields list */
-.metadata-generator-modal .fields-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.metadata-generator-modal .field-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: var(--spacing-md);
-  align-items: start;
-  padding: var(--spacing-md);
-  background: var(--color-surface-elevated);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  transition: border-color 0.15s ease;
-}
-
-.metadata-generator-modal .field-row.selected {
-  border-color: var(--color-primary);
-}
-
-/* Field checkbox and label */
-.metadata-generator-modal .field-checkbox {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  min-width: 100px;
-}
-
-.metadata-generator-modal .field-checkbox input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--color-primary);
-}
-
-.metadata-generator-modal .field-checkbox label {
-  font-weight: 500;
-  font-size: 0.9rem;
-  cursor: pointer;
-}
-
-/* Confidence badges */
-.confidence-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.15rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  font-weight: 600;
-  min-width: 50px;
-}
-
-.confidence-badge.confidence-high {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-}
-
-.confidence-badge.confidence-medium {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-}
-
-.confidence-badge.confidence-low {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-/* Field values */
-.metadata-generator-modal .field-values {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  min-width: 0;
-}
-
-.metadata-generator-modal .field-values .value {
-  display: flex;
-  gap: var(--spacing-sm);
-  font-size: 0.85rem;
-}
-
-.metadata-generator-modal .field-values .value-label {
-  color: var(--color-text-muted);
-  min-width: 65px;
-  flex-shrink: 0;
-}
-
-.metadata-generator-modal .field-values .value-text {
-  color: var(--color-text);
-  word-break: break-word;
-}
-
-.metadata-generator-modal .field-values .value-text .empty {
-  color: var(--color-text-muted);
-  font-style: italic;
-}
-
-.metadata-generator-modal .field-values .value.current .value-text {
-  color: var(--color-text-muted);
-}
-
-.metadata-generator-modal .field-values .value.proposed .value-text {
-  color: var(--color-text);
-  font-weight: 500;
-}
+/* Note: Field row and confidence badge styles are now in shared FieldComparison.css */
 
 /* Modal footer */
 .metadata-generator-modal .modal-footer {
@@ -204,7 +118,11 @@
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background: var(--color-bg-elevated, #1a222c);
+  flex-shrink: 0;
+  min-height: 60px; /* Ensure footer is always visible */
+  position: relative;
+  z-index: 2;
 }
 
 .footer-left {
@@ -213,25 +131,7 @@
   gap: var(--spacing-sm);
 }
 
-.footer-left .btn-link {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--color-primary);
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
-
-.footer-left .btn-link:hover {
-  color: var(--color-primary-hover);
-  text-decoration: underline;
-}
-
-.footer-left .separator {
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-}
+/* Note: Quick action button styles are now in shared FieldComparison.css */
 
 .footer-right {
   display: flex;

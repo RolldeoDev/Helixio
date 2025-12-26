@@ -680,15 +680,25 @@ async function findExtractedFile(
       }
     }
 
-    // Second priority: filename match at end of path
+    // Second priority: filename match, but prefer files closer to root
+    // (fewer path separators = closer to root)
+    const matchingFiles: { path: string; depth: number }[] = [];
     for (const file of files) {
       const filePath = typeof file === 'string' ? file : String(file);
-      if (basename(filePath) === targetFilename) {
-        return join(tempDir, filePath);
+      if (basename(filePath).toLowerCase() === targetFilename.toLowerCase()) {
+        const depth = (filePath.match(/[/\\]/g) || []).length;
+        matchingFiles.push({ path: filePath, depth });
       }
     }
-  } catch (err) {
-    console.error(`[findExtractedFile] Error scanning:`, err);
+
+    if (matchingFiles.length > 0) {
+      // Sort by depth (shallowest first)
+      matchingFiles.sort((a, b) => a.depth - b.depth);
+      const selected = matchingFiles[0]!;
+      return join(tempDir, selected.path);
+    }
+  } catch {
+    // Error scanning directory
   }
 
   return null;
@@ -823,7 +833,6 @@ export async function addToArchive(
   return new Promise((resolve) => {
     let errorMessage: string | null = null;
 
-    // Pass the full file path - 7zip will store it with just the filename
     const addStream = Seven.add(archivePath, filePath, {
       $bin: pathTo7zip,
       $progress: false,
@@ -843,10 +852,34 @@ export async function addToArchive(
     });
 
     addStream.on('end', async () => {
+
       // If there was a real error, fail immediately
       if (errorMessage) {
         resolve({ success: false, error: errorMessage });
         return;
+      }
+
+      // Force file system cache invalidation after 7zip write
+      // macOS aggressively caches file reads, and immediate re-reads after
+      // 7zip writes can return stale data. We use multiple strategies:
+      // 1. Small delay to let the filesystem settle
+      // 2. stat() call to refresh file metadata cache
+      // 3. Read a byte from the file to force cache refresh
+      try {
+        // Small delay to let macOS flush its buffers
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Stat the file to refresh metadata cache
+        const { stat: statFile, open } = await import('fs/promises');
+        await statFile(archivePath, { bigint: true });
+
+        // Open and read one byte to force data cache refresh
+        const fd = await open(archivePath, 'r');
+        const buffer = Buffer.alloc(1);
+        await fd.read(buffer, 0, 1, 0);
+        await fd.close();
+      } catch {
+        // Continue even if cache refresh fails
       }
 
       // Verify the file was actually added by listing archive contents

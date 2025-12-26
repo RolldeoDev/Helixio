@@ -32,6 +32,10 @@ import { retroDarkTheme } from './bundled/retro-dark';
 import { retroLightTheme } from './bundled/retro-light';
 import { mangaDarkTheme } from './bundled/manga-dark';
 import { mangaLightTheme } from './bundled/manga-light';
+import { highContrastDarkTheme } from './bundled/high-contrast-dark';
+import { highContrastLightTheme } from './bundled/high-contrast-light';
+import { pulpDarkTheme } from './bundled/pulp-dark';
+import { pulpLightTheme } from './bundled/pulp-light';
 
 // Re-export types
 export * from './types';
@@ -42,6 +46,7 @@ export { SandmanEffects } from './sandman';
 export { SynthwaveEffects } from './synthwave';
 export { RetroEffects } from './retro';
 export { MangaEffects } from './manga';
+export { PulpEffects } from './pulp';
 
 // All bundled themes
 export const bundledThemes: Record<ThemeKey, ThemeDefinition> = {
@@ -64,6 +69,10 @@ export const bundledThemes: Record<ThemeKey, ThemeDefinition> = {
   'retro-light': retroLightTheme,
   'manga-dark': mangaDarkTheme,
   'manga-light': mangaLightTheme,
+  'high-contrast-dark': highContrastDarkTheme,
+  'high-contrast-light': highContrastLightTheme,
+  'pulp-dark': pulpDarkTheme,
+  'pulp-light': pulpLightTheme,
 };
 
 // Get theme by ID and scheme

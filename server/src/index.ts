@@ -12,12 +12,16 @@ import {
   loadConfig,
   updateConfig,
   setApiKey,
+  getApiKey,
   updateMetadataSettings,
   updateCacheSettings,
   getMangaClassificationSettings,
   updateMangaClassificationSettings,
+  getComicClassificationSettings,
+  updateComicClassificationSettings,
 } from './services/config.service.js';
 import { checkApiAvailability as checkMetronAvailability } from './services/metron.service.js';
+import { checkApiAvailability as checkComicVineAvailability } from './services/comicvine.service.js';
 import {
   initializeDatabase,
   closeDatabase,
@@ -192,6 +196,58 @@ app.post('/api/config/test-metron', async (_req, res) => {
   }
 });
 
+// Test ComicVine API key
+app.post('/api/config/test-comicvine', async (_req, res) => {
+  try {
+    const result = await checkComicVineAvailability();
+    if (result.available) {
+      res.json({ success: true, message: 'ComicVine API key is valid' });
+    } else {
+      res.status(401).json({ success: false, error: result.error || 'API key validation failed' });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+// Test Anthropic API key
+app.post('/api/config/test-anthropic', async (_req, res) => {
+  try {
+    const apiKey = getApiKey('anthropic');
+    if (!apiKey) {
+      res.status(401).json({ success: false, error: 'API key not configured' });
+      return;
+    }
+
+    // Make a minimal test request to Anthropic API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'test' }],
+      }),
+    });
+
+    if (response.ok) {
+      res.json({ success: true, message: 'Anthropic API key is valid' });
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = (errorData as { error?: { message?: string } })?.error?.message || 'API key validation failed';
+      res.status(401).json({ success: false, error: errorMessage });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
 // Update metadata settings
 app.put('/api/config/metadata', (req, res) => {
   try {
@@ -292,6 +348,41 @@ app.put('/api/config/manga-classification', (req, res) => {
     });
 
     res.json({ success: true, message: 'Manga classification settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Get comic (Western) classification settings
+app.get('/api/config/comic-classification', (_req, res) => {
+  try {
+    const settings = getComicClassificationSettings();
+    res.json(settings);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Update comic (Western) classification settings
+app.put('/api/config/comic-classification', (req, res) => {
+  try {
+    const { enabled, issuePageThreshold, omnibusPageThreshold, filenameOverridesPageCount } = req.body as {
+      enabled?: boolean;
+      issuePageThreshold?: number;
+      omnibusPageThreshold?: number;
+      filenameOverridesPageCount?: boolean;
+    };
+
+    updateComicClassificationSettings({
+      ...(enabled !== undefined && { enabled }),
+      ...(issuePageThreshold !== undefined && { issuePageThreshold }),
+      ...(omnibusPageThreshold !== undefined && { omnibusPageThreshold }),
+      ...(filenameOverridesPageCount !== undefined && { filenameOverridesPageCount }),
+    });
+
+    res.json({ success: true, message: 'Comic classification settings updated' });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

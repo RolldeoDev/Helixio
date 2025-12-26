@@ -116,12 +116,20 @@ model Series {
   // Soft delete support
   deletedAt     DateTime?  // Null = active, timestamp = soft-deleted
 
+  // Visibility control (separate from soft-delete)
+  isHidden      Boolean   @default(false)  // Hidden from browse lists, but accessible via search/links
+
   // Relations
   issues        ComicFile[]
   progress      SeriesProgress[]
   readerSettings SeriesReaderSettingsNew?
 
+  // Parent/Child relationships (many-to-many)
+  parentRelationships  SeriesRelationship[] @relation("ChildSeries")   // Series where this is the child
+  childRelationships   SeriesRelationship[] @relation("ParentSeries")  // Series where this is the parent
+
   @@unique([name, publisher], name: "series_identity")
+  @@index([isHidden])
   @@index([name])
   @@index([publisher])
   @@index([startYear])
@@ -129,6 +137,32 @@ model Series {
   @@index([metronId])
   @@index([anilistId])
   @@index([malId])
+}
+
+// =============================================================================
+// Series Relationships (Parent/Child, Many-to-Many)
+// =============================================================================
+
+model SeriesRelationship {
+  id              String   @id @default(cuid())
+
+  // Parent series (e.g., "Solo Leveling")
+  parentSeriesId  String
+  parentSeries    Series   @relation("ParentSeries", fields: [parentSeriesId], references: [id], onDelete: Cascade)
+
+  // Child series (e.g., "Solo Leveling: Side Stories")
+  childSeriesId   String
+  childSeries     Series   @relation("ChildSeries", fields: [childSeriesId], references: [id], onDelete: Cascade)
+
+  // Relationship metadata
+  relationshipType String  @default("related") // "related" | "spinoff" | "prequel" | "sequel" | "bonus"
+  sortOrder       Int      @default(0)         // Order within parent's related series
+
+  createdAt       DateTime @default(now())
+
+  @@unique([parentSeriesId, childSeriesId])
+  @@index([parentSeriesId])
+  @@index([childSeriesId])
 }
 
 // =============================================================================
@@ -1162,6 +1196,41 @@ model Collection {
   // Ordering
   sortOrder   Int      @default(0)  // For custom ordering in UI
 
+  // ===========================================
+  // Promotion (show in Series view)
+  // ===========================================
+  isPromoted    Boolean   @default(false)  // Show in Series page grid
+  promotedOrder Int?                        // Sort order among promoted collections
+
+  // ===========================================
+  // Cover customization
+  // ===========================================
+  coverType     String    @default("auto")  // "auto" | "series" | "issue" | "custom"
+  coverSeriesId String?                     // If coverType = "series", the series ID for cover
+  coverFileId   String?                     // If coverType = "issue", the file ID for cover
+  coverHash     String?                     // If coverType = "custom", hash of uploaded image
+
+  // ===========================================
+  // Auto-derived metadata cache (for promoted display)
+  // ===========================================
+  derivedPublisher   String?  // Most common publisher in collection
+  derivedStartYear   Int?     // Earliest year from contained series
+  derivedEndYear     Int?     // Latest year from contained series
+  derivedGenres      String?  // Comma-separated aggregated genres
+  derivedIssueCount  Int?     // Total issues across all series
+  derivedReadCount   Int?     // Total issues read across all series (user-specific)
+
+  // ===========================================
+  // Manual metadata overrides (null = use derived)
+  // ===========================================
+  overridePublisher  String?
+  overrideStartYear  Int?
+  overrideEndYear    Int?
+  overrideGenres     String?
+
+  // When derived metadata was last calculated
+  metadataUpdatedAt  DateTime?
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1173,6 +1242,8 @@ model Collection {
   @@index([userId])
   @@index([isSystem])
   @@index([sortOrder])
+  @@index([isPromoted])
+  @@index([promotedOrder])
 }
 
 model CollectionItem {
@@ -1257,6 +1328,7 @@ model DownloadJob {
   type            String    // "single" | "series" | "bulk"
   seriesId        String?   // For series downloads
   fileIds         String    // JSON array of file IDs
+  contentHash     String?   // Hash of sorted file IDs for cache reuse
 
   // Job state
   status          String    @default("pending") // "pending" | "preparing" | "ready" | "downloading" | "completed" | "failed" | "expired" | "cancelled"
@@ -1291,6 +1363,7 @@ model DownloadJob {
   @@index([status])
   @@index([expiresAt])
   @@index([seriesId])
+  @@index([contentHash])
 }
 
 // =============================================================================

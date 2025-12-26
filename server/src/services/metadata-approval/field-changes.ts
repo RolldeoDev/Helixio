@@ -14,7 +14,11 @@ import {
   generateDisplayTitle,
   type MangaClassificationResult,
 } from '../manga-classification.service.js';
-import { getMangaClassificationSettings } from '../config.service.js';
+import { getMangaClassificationSettings, getComicClassificationSettings } from '../config.service.js';
+import {
+  classifyComicFormat,
+  type ComicClassificationResult,
+} from '../comic-classification.service.js';
 
 // =============================================================================
 // Current Metadata Extraction
@@ -184,6 +188,22 @@ function parseCoverDate(coverDate: string | undefined): {
 }
 
 // =============================================================================
+// Comic Classification Options (Western Comics)
+// =============================================================================
+
+/**
+ * Options for comic format classification
+ */
+export interface ComicClassificationOptions {
+  /** Pre-computed classification result (to avoid re-parsing) */
+  classification?: ComicClassificationResult;
+  /** Page count for classification (if not pre-computed) */
+  pageCount?: number;
+  /** Filename for classification (if not pre-computed) */
+  filename?: string;
+}
+
+// =============================================================================
 // ComicVine Field Changes
 // =============================================================================
 
@@ -193,7 +213,8 @@ function parseCoverDate(coverDate: string | undefined): {
 export async function issueToFieldChanges(
   fileId: string,
   issue: ComicVineIssue,
-  seriesMatch: SeriesMatch
+  seriesMatch: SeriesMatch,
+  options: ComicClassificationOptions = {}
 ): Promise<Record<string, FieldChange>> {
   const currentMetadata = await getCurrentMetadata(fileId);
 
@@ -232,6 +253,13 @@ export async function issueToFieldChanges(
     return aliasList[0] ?? null;
   };
 
+  // Get or compute format classification
+  const comicSettings = getComicClassificationSettings();
+  let classification = options.classification;
+  if (!classification && comicSettings.enabled && options.filename && options.pageCount !== undefined && options.pageCount > 0) {
+    classification = classifyComicFormat(options.filename, options.pageCount, comicSettings);
+  }
+
   const proposedMetadata: Record<string, string | number | null> = {
     // Basic Info
     series: seriesMatch.name,
@@ -262,6 +290,8 @@ export async function issueToFieldChanges(
     publisher: seriesMatch.publisher ?? null,
     count: seriesMatch.issueCount ?? null,
     web: issue.site_detail_url ?? null,
+    // Format (from classification)
+    format: classification?.formatLabel ?? null,
   };
 
   return buildFieldChanges(currentMetadata, proposedMetadata);
@@ -277,7 +307,8 @@ export async function issueToFieldChanges(
 export async function metronIssueToFieldChanges(
   fileId: string,
   issue: MetronIssue,
-  seriesMatch: SeriesMatch
+  seriesMatch: SeriesMatch,
+  options: ComicClassificationOptions = {}
 ): Promise<Record<string, FieldChange>> {
   const currentMetadata = await getCurrentMetadata(fileId);
 
@@ -311,6 +342,13 @@ export async function metronIssueToFieldChanges(
 
   const { year, month, day } = parseCoverDate(issue.cover_date);
 
+  // Get or compute format classification
+  const comicSettings = getComicClassificationSettings();
+  let classification = options.classification;
+  if (!classification && comicSettings.enabled && options.filename && options.pageCount !== undefined && options.pageCount > 0) {
+    classification = classifyComicFormat(options.filename, options.pageCount, comicSettings);
+  }
+
   const proposedMetadata: Record<string, string | number | null> = {
     // Basic Info
     series: seriesMatch.name,
@@ -341,6 +379,8 @@ export async function metronIssueToFieldChanges(
     count: seriesMatch.issueCount ?? null,
     gtin: issue.upc || issue.isbn || null,
     web: issue.resource_url ?? null,
+    // Format (from classification)
+    format: classification?.formatLabel ?? null,
   };
 
   return buildFieldChanges(currentMetadata, proposedMetadata);

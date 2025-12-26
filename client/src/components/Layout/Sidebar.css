@@ -70,6 +70,37 @@
   flex: 1;
 }
 
+/* Rail Footer - About */
+.rail-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0 8px;
+  margin-top: auto;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.rail-footer-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+  cursor: default;
+}
+
+.rail-footer-logo:hover {
+  opacity: 1;
+}
+
+.rail-footer-version {
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+  opacity: 0.6;
+}
+
 /* Rail Buttons */
 .rail-btn {
   position: relative;
