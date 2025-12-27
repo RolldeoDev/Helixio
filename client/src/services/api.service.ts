@@ -3247,6 +3247,7 @@ export async function getSeriesList(
   if (options.genres) params.set('genres', options.genres.join(','));
   if (options.hasUnread !== undefined) params.set('hasUnread', options.hasUnread.toString());
   if (options.libraryId) params.set('libraryId', options.libraryId);
+  if (options.includeHidden) params.set('includeHidden', 'true');
   return get<SeriesListResult>(`/series?${params}`);
 }
 
@@ -3272,6 +3273,7 @@ export async function getUnifiedGridItems(
   if (options.includePromotedCollections !== undefined) {
     params.set('includePromotedCollections', options.includePromotedCollections.toString());
   }
+  if (options.includeHidden) params.set('includeHidden', 'true');
   return get<UnifiedGridResult>(`/series/grid?${params}`);
 }
 
@@ -4436,6 +4438,46 @@ export async function generateIssueSummary(
   return post<GeneratedIssueSummary>(
     `/description/files/${fileId}/generate-summary`,
     options || {}
+  );
+}
+
+// =============================================================================
+// LLM Collection Description Generation
+// =============================================================================
+
+/**
+ * Collection description generation status
+ */
+export interface CollectionDescriptionGenerationStatus {
+  available: boolean;
+  model: string | null;
+}
+
+/**
+ * Check if collection description generation is available
+ */
+export async function getCollectionDescriptionGenerationStatus(): Promise<CollectionDescriptionGenerationStatus> {
+  return get<CollectionDescriptionGenerationStatus>('/description/collection/status');
+}
+
+/**
+ * Generated collection description result
+ */
+export interface GeneratedCollectionDescription {
+  description: string;
+  deck: string;
+  tokensUsed?: number;
+}
+
+/**
+ * Generate description for a collection using LLM
+ */
+export async function generateCollectionDescription(
+  collectionId: string
+): Promise<GeneratedCollectionDescription> {
+  return post<GeneratedCollectionDescription>(
+    `/description/collection/${collectionId}/generate`,
+    {}
   );
 }
 

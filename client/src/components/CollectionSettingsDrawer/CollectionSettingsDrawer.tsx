@@ -21,6 +21,8 @@ import {
   getCollectionCoverPreviewUrl,
   uploadCollectionCover,
   setCollectionCoverFromUrl,
+  getCollectionDescriptionGenerationStatus,
+  generateCollectionDescription,
 } from '../../services/api.service';
 import './CollectionSettingsDrawer.css';
 
@@ -127,6 +129,12 @@ export function CollectionSettingsDrawer({
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [localItems, setLocalItems] = useState<CollectionItem[]>([]);
 
+  // LLM Description Generation State
+  const [isLLMAvailable, setIsLLMAvailable] = useState<boolean | null>(null);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
+  const [showGenerateConfirmDialog, setShowGenerateConfirmDialog] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
   // Initialize form state when collection changes
   useEffect(() => {
     if (collection) {
@@ -154,6 +162,30 @@ export function CollectionSettingsDrawer({
   useEffect(() => {
     setLocalItems(collectionItems);
   }, [collectionItems]);
+
+  // Check LLM availability on mount
+  useEffect(() => {
+    let mounted = true;
+
+    const checkLLMAvailability = async () => {
+      try {
+        const status = await getCollectionDescriptionGenerationStatus();
+        if (mounted) {
+          setIsLLMAvailable(status.available);
+        }
+      } catch {
+        if (mounted) {
+          setIsLLMAvailable(false);
+        }
+      }
+    };
+
+    checkLLMAvailability();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Handle escape key to close
   useEffect(() => {
@@ -289,6 +321,49 @@ export function CollectionSettingsDrawer({
     // Reset input so same file can be selected again
     e.target.value = '';
   }, [handleFileUpload]);
+
+  // Perform the actual generation
+  const performGenerateDescription = useCallback(async () => {
+    if (!collection) return;
+
+    setShowGenerateConfirmDialog(false);
+    setIsGeneratingDescription(true);
+    setGenerateError(null);
+
+    try {
+      const result = await generateCollectionDescription(collection.id);
+
+      // Update form state with generated content
+      if (result.deck) {
+        setDeck(result.deck);
+      }
+      if (result.description) {
+        setDescription(result.description);
+      }
+
+      markChanged();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to generate description';
+      setGenerateError(errorMsg);
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  }, [collection, markChanged]);
+
+  // Handle generate description button click
+  const handleGenerateDescriptionClick = useCallback(() => {
+    // Check if there's existing content to overwrite
+    if (deck || description) {
+      setShowGenerateConfirmDialog(true);
+    } else {
+      performGenerateDescription();
+    }
+  }, [deck, description, performGenerateDescription]);
+
+  // Cancel generation confirmation
+  const handleGenerateConfirmCancel = useCallback(() => {
+    setShowGenerateConfirmDialog(false);
+  }, []);
 
   // Save handler
   const handleSave = async () => {
@@ -526,6 +601,47 @@ export function CollectionSettingsDrawer({
                   placeholder="Add a description..."
                 />
               </div>
+
+              {/* LLM Description Generator */}
+              {isLLMAvailable && (
+                <div className="form-group generate-description-section">
+                  <button
+                    type="button"
+                    className="generate-description-btn"
+                    onClick={handleGenerateDescriptionClick}
+                    disabled={isGeneratingDescription || localItems.length === 0}
+                  >
+                    {isGeneratingDescription ? (
+                      <>
+                        <span className="spinner-small" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                          <path d="M2 17l10 5 10-5" />
+                          <path d="M2 12l10 5 10-5" />
+                        </svg>
+                        Generate Description
+                      </>
+                    )}
+                  </button>
+                  {localItems.length === 0 && (
+                    <span className="form-hint">Add items to the collection first</span>
+                  )}
+                  {generateError && (
+                    <div className="generation-error">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span>{generateError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Icon</label>
@@ -1002,6 +1118,34 @@ export function CollectionSettingsDrawer({
             {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
+
+        {/* Generate Description Confirmation Dialog */}
+        {showGenerateConfirmDialog && (
+          <div className="confirm-dialog-overlay" onClick={handleGenerateConfirmCancel}>
+            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+              <h3>Replace Existing Content?</h3>
+              <p>
+                This collection already has a description or tagline. Generating a new one will replace the existing content.
+              </p>
+              <div className="confirm-dialog-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleGenerateConfirmCancel}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={performGenerateDescription}
+                >
+                  Replace
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     portalTarget

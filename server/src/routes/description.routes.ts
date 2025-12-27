@@ -21,6 +21,10 @@ import {
   generateSeriesMetadata,
   type MetadataGenerationContext,
 } from '../services/metadata-generator.service.js';
+import {
+  isCollectionDescriptionGeneratorAvailable,
+  generateCollectionDescription,
+} from '../services/collection-description-generator.service.js';
 import { getLLMModel } from '../services/config.service.js';
 import {
   sendSuccess,
@@ -29,6 +33,7 @@ import {
   asyncHandler,
 } from '../middleware/response.middleware.js';
 import { createServiceLogger } from '../services/logger.service.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
 const logger = createServiceLogger('description-routes');
@@ -264,6 +269,60 @@ router.post('/files/:id/generate-summary', asyncHandler(async (req: Request, res
 
   sendSuccess(res, {
     summary: result.description,
+    tokensUsed: result.tokensUsed,
+  });
+}));
+
+// =============================================================================
+// Collection Description Generation
+// =============================================================================
+
+/**
+ * GET /api/description/collection/status
+ * Check if LLM-based collection description generation is available
+ */
+router.get('/collection/status', (_req: Request, res: Response) => {
+  const available = isCollectionDescriptionGeneratorAvailable();
+  const model = available ? getLLMModel() : null;
+
+  sendSuccess(res, {
+    available,
+    model,
+  });
+});
+
+/**
+ * POST /api/description/collection/:id/generate
+ * Generate a description for a collection using LLM
+ *
+ * Returns: { description: string, deck: string, tokensUsed?: number }
+ */
+router.post('/collection/:id/generate', asyncHandler(async (req: Request, res: Response) => {
+  const collectionId = req.params.id!;
+  const userId = req.user!.id;
+
+  // Check if LLM is available
+  if (!isCollectionDescriptionGeneratorAvailable()) {
+    sendBadRequest(res, 'LLM description generation is not available. Please configure an Anthropic API key.');
+    return;
+  }
+
+  logger.info({ collectionId, userId }, 'Generating description for collection');
+
+  // Generate description
+  const result = await generateCollectionDescription(collectionId, userId);
+
+  if (!result.success) {
+    logger.error({ collectionId, error: result.error }, 'Failed to generate collection description');
+    sendBadRequest(res, result.error || 'Failed to generate description');
+    return;
+  }
+
+  logger.info({ collectionId, tokensUsed: result.tokensUsed }, 'Generated collection description');
+
+  sendSuccess(res, {
+    description: result.description,
+    deck: result.deck,
     tokensUsed: result.tokensUsed,
   });
 }));

@@ -1314,6 +1314,13 @@
   flex-shrink: 0;
 }
 
+/* Override width: 100% from SeriesMetadataSearchModal.css that bleeds into this component */
+.series-approval-step .result-actions,
+.series-result .result-actions {
+  width: auto;
+  flex-direction: row;
+}
+
 /* Expand result button (per-result expand to all sources) */
 .expand-result-btn {
   background: var(--color-bg-secondary);

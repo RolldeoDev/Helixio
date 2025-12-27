@@ -155,6 +155,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     genres: req.query.genres ? (req.query.genres as string).split(',') : undefined,
     hasUnread: req.query.hasUnread ? req.query.hasUnread === 'true' : undefined,
     libraryId: req.query.libraryId as string | undefined,
+    includeHidden: req.query.includeHidden === 'true' ? true : undefined,
   };
 
   const result = await getSeriesList(options);
@@ -202,6 +203,7 @@ router.get('/grid', requireAuth, asyncHandler(async (req: Request, res: Response
     libraryId: req.query.libraryId as string | undefined,
     userId,
     includePromotedCollections: req.query.includePromotedCollections !== 'false', // Default true
+    includeHidden: req.query.includeHidden === 'true' ? true : undefined,
   };
 
   const result = await getUnifiedGridItems(options);
