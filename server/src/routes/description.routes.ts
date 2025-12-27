@@ -297,7 +297,7 @@ router.get('/collection/status', (_req: Request, res: Response) => {
  *
  * Returns: { description: string, deck: string, tokensUsed?: number }
  */
-router.post('/collection/:id/generate', asyncHandler(async (req: Request, res: Response) => {
+router.post('/collection/:id/generate', requireAuth, asyncHandler(async (req: Request, res: Response) => {
   const collectionId = req.params.id!;
   const userId = req.user!.id;
 
