@@ -75,6 +75,7 @@ export const helixDarkTheme: ThemeDefinition = {
     colorPrimary: '#22D3EE',           // Cyan - main interactive color
     colorPrimaryHover: '#67E8F9',      // Lighter cyan on hover
     colorPrimaryMuted: 'rgba(34, 211, 238, 0.15)',
+    colorPrimaryText: '#0F172A',       // Dark text on bright cyan backgrounds
     colorSecondary: '#FACC15',         // Yellow - warm secondary accent
     colorAccent: '#E91E8C',            // Magenta - special highlights
 

@@ -20,7 +20,7 @@ export interface GlobalSearchResult {
   title: string;
   subtitle: string;
   thumbnailId: string | null;
-  thumbnailType: 'file' | 'series' | 'none';
+  thumbnailType: 'file' | 'series' | 'custom' | 'collection' | 'none';
   navigationPath: string;
   relevanceScore: number;
   metadata: {
@@ -351,14 +351,59 @@ async function searchCollections(
     where: whereClause,
     include: {
       _count: { select: { items: true } },
+      items: {
+        select: {
+          seriesId: true,
+          fileId: true,
+        },
+      },
     },
     take: limit * 2,
   });
 
+  // Get issue counts for collections that need it
+  const collectionsNeedingCounts = collections.filter(c => c.derivedIssueCount === null || c.derivedIssueCount === 0);
+  const issueCountsMap = new Map<string, number>();
+
+  if (collectionsNeedingCounts.length > 0) {
+    // Get all series IDs across these collections
+    const seriesIdsToCount = new Set<string>();
+    for (const c of collectionsNeedingCounts) {
+      for (const item of c.items) {
+        if (item.seriesId) seriesIdsToCount.add(item.seriesId);
+      }
+    }
+
+    // Batch query series issue counts
+    if (seriesIdsToCount.size > 0) {
+      const seriesWithCounts = await db.series.findMany({
+        where: { id: { in: Array.from(seriesIdsToCount) } },
+        select: { id: true, _count: { select: { issues: true } } },
+      });
+
+      const seriesIssueMap = new Map(
+        seriesWithCounts.map(s => [s.id, s._count.issues])
+      );
+
+      // Calculate total issues per collection
+      for (const c of collectionsNeedingCounts) {
+        let total = 0;
+        for (const item of c.items) {
+          if (item.seriesId) {
+            total += seriesIssueMap.get(item.seriesId) || 0;
+          } else if (item.fileId) {
+            total += 1; // File-only items count as 1 issue
+          }
+        }
+        issueCountsMap.set(c.id, total);
+      }
+    }
+  }
+
   return collections.map((c) => {
-    // Use cached derived metadata for performance
+    // Use cached derived metadata if available, otherwise use calculated value
     const seriesCount = c._count.items;
-    const totalIssues = c.derivedIssueCount ?? 0;
+    const totalIssues = c.derivedIssueCount ?? issueCountsMap.get(c.id) ?? 0;
 
     // Build subtitle
     const subtitleParts: string[] = [];
@@ -366,13 +411,33 @@ async function searchCollections(
     subtitleParts.push(`${totalIssues} issues`);
     const subtitle = subtitleParts.join(' \u2022 ');
 
+    // Determine thumbnail based on collection cover settings
+    let thumbnailId: string | null = null;
+    let thumbnailType: 'file' | 'series' | 'custom' | 'collection' | 'none' = 'none';
+
+    if (c.coverType === 'auto' && c.coverHash) {
+      // Server-generated mosaic cover
+      thumbnailId = c.coverHash;
+      thumbnailType = 'collection';
+    } else if (c.coverType === 'custom' && c.coverHash) {
+      thumbnailId = c.coverHash;
+      thumbnailType = 'custom';
+    } else if (c.coverType === 'issue' && c.coverFileId) {
+      thumbnailId = c.coverFileId;
+      thumbnailType = 'file';
+    } else if (c.coverType === 'series' && c.coverSeriesId) {
+      thumbnailId = c.coverSeriesId;
+      thumbnailType = 'series';
+    }
+    // 'auto' mode without coverHash = empty or not yet generated, stays 'none'
+
     return {
       id: c.id,
       type: 'collection' as const,
       title: c.name,
       subtitle,
-      thumbnailId: null, // Collections use mosaic covers generated client-side
-      thumbnailType: 'none' as const,
+      thumbnailId,
+      thumbnailType,
       navigationPath: `/collections/${c.id}`,
       relevanceScore: calculateRelevance(c.name, queryLower, 'collection'),
       metadata: {

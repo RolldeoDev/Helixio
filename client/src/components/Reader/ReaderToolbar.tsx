@@ -14,6 +14,42 @@ interface ReaderToolbarProps {
   isQueueOpen?: boolean;
 }
 
+/**
+ * Build a display title from file metadata.
+ * Falls back to filename if insufficient metadata.
+ */
+function buildDisplayTitle(metadata: { series: string | null; number: string | null; volume: number | null; title: string | null } | null, filename: string): string {
+  if (!metadata) {
+    return filename;
+  }
+
+  const { series, number, volume, title } = metadata;
+
+  // Need series AND (number OR title) to use metadata
+  if (!series || (!number && !title)) {
+    return filename;
+  }
+
+  let displayTitle = series;
+
+  // Add volume if present
+  if (volume !== null) {
+    displayTitle += ` Vol. ${volume}`;
+  }
+
+  // Add issue number if present
+  if (number) {
+    displayTitle += ` #${number}`;
+  }
+
+  // Add title if present
+  if (title) {
+    displayTitle += ` - ${title}`;
+  }
+
+  return displayTitle;
+}
+
 export function ReaderToolbar({
   onClose,
   visible,
@@ -38,6 +74,7 @@ export function ReaderToolbar({
   } = useReader();
 
   const currentPageBookmarked = isBookmarked(state.currentPage);
+  const displayTitle = buildDisplayTitle(state.metadata, state.filename);
 
   const handleBookmarkClick = () => {
     addBookmark();
@@ -74,8 +111,8 @@ export function ReaderToolbar({
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <span className="reader-toolbar-title" title={state.filename}>
-          {state.filename}
+        <span className="reader-toolbar-title" title={displayTitle}>
+          {displayTitle}
         </span>
       </div>
 

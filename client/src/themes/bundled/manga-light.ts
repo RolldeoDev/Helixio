@@ -41,6 +41,7 @@ export const mangaLightTheme: ThemeDefinition = {
     colorPrimary: '#d47a8c',
     colorPrimaryHover: '#c46878',
     colorPrimaryMuted: 'rgba(212, 122, 140, 0.12)',
+    colorPrimaryText: '#FFFFFF',       // White text on darker sakura pink
     colorSecondary: '#f8f0f2',
     colorAccent: '#9b72cf',
 

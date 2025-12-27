@@ -381,6 +381,54 @@
 }
 
 /* =============================================================================
+   Selection Checkbox
+   ============================================================================= */
+
+.series-cover-card__checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity var(--series-card-transition);
+}
+
+.series-cover-card__checkbox input {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: var(--color-primary, #6366f1);
+}
+
+/* Checkbox visibility modes */
+.series-cover-card--checkbox-always .series-cover-card__checkbox {
+  opacity: 1;
+}
+
+.series-cover-card--checkbox-hover:hover .series-cover-card__checkbox {
+  opacity: 1;
+}
+
+.series-cover-card--checkbox-selected .series-cover-card__checkbox--checked {
+  opacity: 1;
+}
+
+.series-cover-card--selected .series-cover-card__checkbox {
+  opacity: 1;
+}
+
+/* Selected state styling - uses pseudo-element to draw border above image */
+.series-cover-card--selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--color-selection, #eab308);
+  border-radius: var(--series-card-radius);
+  pointer-events: none;
+  z-index: 20; /* Above everything including the image */
+}
+
+/* =============================================================================
    Reduced Motion
    ============================================================================= */
 

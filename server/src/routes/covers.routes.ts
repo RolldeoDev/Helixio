@@ -24,6 +24,8 @@ import {
   clearMemoryCache,
   getSeriesCoverData,
   seriesCoverExists,
+  getCollectionCoverData,
+  collectionCoverExists,
 } from '../services/cover.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { loadConfig } from '../services/config.service.js';
@@ -82,6 +84,63 @@ router.get('/series/:coverHash', async (req: Request, res: Response): Promise<vo
     console.error('Error serving series cover:', err);
     res.status(500).json({
       error: 'Failed to serve series cover',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// =============================================================================
+// Collection Mosaic Covers
+// =============================================================================
+
+/**
+ * GET /api/covers/collection/:coverHash
+ * Get collection mosaic cover image.
+ * Returns WebP by default (if supported), falls back to JPEG.
+ * Includes blur placeholder in X-Blur-Placeholder header.
+ */
+router.get('/collection/:coverHash', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { coverHash } = req.params;
+
+    if (!coverHash) {
+      res.status(400).json({ error: 'Cover hash is required' });
+      return;
+    }
+
+    // Check Accept header for WebP support
+    const acceptHeader = req.get('Accept') || '';
+    const acceptWebP = acceptHeader.includes('image/webp');
+
+    // Try to get cover data (from memory cache or disk)
+    const coverData = await getCollectionCoverData(coverHash, acceptWebP);
+
+    if (!coverData) {
+      res.status(404).json({
+        error: 'Cover not found',
+        message: 'Collection cover not found in cache. It may need to be regenerated.',
+      });
+      return;
+    }
+
+    // Set response headers
+    res.set({
+      'Content-Type': coverData.contentType,
+      'Content-Length': coverData.data.length.toString(),
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Vary': 'Accept',
+    });
+
+    // Include blur placeholder for instant perceived load
+    if (coverData.blurPlaceholder) {
+      res.set('X-Blur-Placeholder', coverData.blurPlaceholder);
+    }
+
+    res.send(coverData.data);
+  } catch (err) {
+    console.error('Error serving collection cover:', err);
+    res.status(500).json({
+      error: 'Failed to serve collection cover',
       message: err instanceof Error ? err.message : String(err),
     });
   }

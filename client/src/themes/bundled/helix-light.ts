@@ -44,6 +44,7 @@ export const helixLightTheme: ThemeDefinition = {
     colorPrimary: '#0891B2',           // Cyan-600 - main interactive color
     colorPrimaryHover: '#0E7490',      // Cyan-700 on hover
     colorPrimaryMuted: 'rgba(8, 145, 178, 0.12)',
+    colorPrimaryText: '#FFFFFF',       // White text on dark cyan backgrounds
     colorSecondary: '#B45309',         // Amber-700 - warm secondary accent
     colorAccent: '#DB2777',            // Pink-600 - special highlights
 

@@ -48,6 +48,7 @@ export function MetadataApprovalModal() {
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const logContainerRef = useRef<HTMLDivElement>(null);
+  const isUserAtBottomRef = useRef(true); // Track if user is scrolled to bottom
 
   // Indexed files state for the re-search option
   const [indexedFilesInfo, setIndexedFilesInfo] = useState<IndexedFilesInfo | null>(null);
@@ -143,9 +144,19 @@ export function MetadataApprovalModal() {
 
   const currentLogs = getCurrentLogs();
 
-  // Auto-scroll logs to bottom
+  // Handle scroll in log container to track if user is at bottom
+  const handleLogScroll = useCallback(() => {
+    if (logContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
+      // Consider "at bottom" if within 50px of the bottom
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      isUserAtBottomRef.current = isAtBottom;
+    }
+  }, []);
+
+  // Auto-scroll logs to bottom only if user is already at bottom
   useEffect(() => {
-    if (logContainerRef.current && logsExpanded) {
+    if (logContainerRef.current && logsExpanded && isUserAtBottomRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [currentLogs, logsExpanded]);
@@ -698,7 +709,7 @@ export function MetadataApprovalModal() {
                   </span>
                 </button>
                 {logsExpanded && (
-                  <div className="log-panel-content" ref={logContainerRef}>
+                  <div className="log-panel-content" ref={logContainerRef} onScroll={handleLogScroll}>
                     {currentLogs.map((log, index) => (
                       <div key={index} className={`log-entry ${log.type || 'info'}`}>
                         <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>

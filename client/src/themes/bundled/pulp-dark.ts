@@ -89,6 +89,7 @@ export const pulpDarkTheme: ThemeDefinition = {
     colorPrimary: '#c9a227',               // Brass desk lamp
     colorPrimaryHover: '#dab632',          // Polished brass
     colorPrimaryMuted: 'rgba(201, 162, 39, 0.15)',
+    colorPrimaryText: '#1a1512',           // Dark text on brass backgrounds
     colorSecondary: '#2d2620',             // Tobacco brown
     colorAccent: '#8b2500',                // Dried blood / danger
 

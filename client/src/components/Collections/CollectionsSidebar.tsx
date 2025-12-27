@@ -7,6 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import { useCollections, Collection } from '../../contexts/CollectionsContext';
+import { CollectionIcon } from '../CollectionIcon';
 import './Collections.css';
 
 interface CollectionsSidebarProps {
@@ -57,29 +58,6 @@ export function CollectionsSidebar({
   const systemCollections = collections.filter((c) => c.isSystem);
   const userCollections = collections.filter((c) => !c.isSystem);
 
-  // Get icon for system collections
-  const getSystemIcon = (collection: Collection) => {
-    if (collection.iconName === 'heart') {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      );
-    }
-    if (collection.iconName === 'bookmark') {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-        </svg>
-      );
-    }
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      </svg>
-    );
-  };
-
   if (isLoading) {
     return (
       <div className="collections-sidebar">
@@ -120,7 +98,11 @@ export function CollectionsSidebar({
                   onClick={() => onSelectCollection?.(collection)}
                 >
                   <div className="collection-icon system-icon">
-                    {getSystemIcon(collection)}
+                    <CollectionIcon
+                      iconName={collection.iconName}
+                      color={collection.color}
+                      size={16}
+                    />
                   </div>
                   <div className="collection-info">
                     <span className="collection-name">{collection.name}</span>
@@ -203,9 +185,11 @@ export function CollectionsSidebar({
                 onClick={() => onSelectCollection?.(collection)}
               >
                 <div className="collection-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  </svg>
+                  <CollectionIcon
+                    iconName={collection.iconName}
+                    color={collection.color}
+                    size={16}
+                  />
                 </div>
                 <div className="collection-info">
                   <span className="collection-name">{collection.name}</span>

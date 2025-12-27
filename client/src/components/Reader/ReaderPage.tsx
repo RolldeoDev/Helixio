@@ -74,8 +74,8 @@ export function ReaderPage() {
         }
       }
 
-      // Reverse order for manga mode
-      if (state.mode === 'doubleManga' && pages.length === 2) {
+      // Reverse order for manga mode OR when RTL direction is set in double mode
+      if ((state.mode === 'doubleManga' || (state.mode === 'double' && state.direction === 'rtl')) && pages.length === 2) {
         pages.reverse();
       }
     } else if (state.mode === 'continuous' || state.mode === 'webtoon') {
@@ -86,7 +86,7 @@ export function ReaderPage() {
     }
 
     return pages;
-  }, [state.currentPage, state.mode, state.totalPages, isLandscape]);
+  }, [state.currentPage, state.mode, state.totalPages, state.direction, isLandscape]);
 
   // Pages to preload - adjusted based on network conditions
   const preloadPages = useMemo(() => {
@@ -513,19 +513,17 @@ export function ReaderPage() {
         return;
       }
 
-      // Horizontal scroll for page navigation
+      // Horizontal scroll for page navigation - always matches physical direction
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault();
         if (e.deltaX > 30) {
-          if (state.direction === 'rtl') prevPage();
-          else nextPage();
+          nextPage();
         } else if (e.deltaX < -30) {
-          if (state.direction === 'rtl') nextPage();
-          else prevPage();
+          prevPage();
         }
       }
     },
-    [state.zoom, state.mode, state.direction, setZoom, nextPage, prevPage]
+    [state.zoom, state.mode, setZoom, nextPage, prevPage]
   );
 
   // Track scroll position for drag-to-scroll

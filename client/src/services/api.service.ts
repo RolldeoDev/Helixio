@@ -560,6 +560,22 @@ export function getApiCoverUrl(coverHash: string): string {
   return `${API_BASE}/covers/series/${coverHash}`;
 }
 
+/**
+ * Get URL for a collection mosaic cover by its hash
+ * Used when collection has coverType='auto' with a cached mosaic
+ */
+export function getCollectionCoverUrl(coverHash: string): string {
+  return `${API_BASE}/covers/collection/${coverHash}`;
+}
+
+/**
+ * Get preview URL for a collection's auto-generated mosaic
+ * Returns the image directly for settings drawer preview
+ */
+export function getCollectionCoverPreviewUrl(collectionId: string): string {
+  return `${API_BASE}/collections/${collectionId}/cover/preview`;
+}
+
 // =============================================================================
 // ComicInfo
 // =============================================================================
@@ -3105,6 +3121,112 @@ export interface SeriesIssue extends ComicFile {
   };
 }
 
+// =============================================================================
+// Unified Grid Types (Series + Promoted Collections)
+// =============================================================================
+
+/**
+ * Collection data for grid display.
+ * Includes derived/override metadata and aggregated reading progress.
+ */
+export interface PromotedCollectionGridItem {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  iconName: string | null;
+  color: string | null;
+  isPromoted: boolean;
+  promotedOrder: number | null;
+  coverType: string;
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  // Effective metadata (override ?? derived ?? default)
+  publisher: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  genres: string | null;
+  // Aggregated counts
+  totalIssues: number;
+  readIssues: number;
+  seriesCount: number;
+  // For mosaic cover
+  seriesCovers: Array<{
+    seriesId: string;
+    coverHash: string | null;
+    coverUrl: string | null;
+    coverFileId: string | null;
+    name: string;
+  }>;
+  // For library filtering
+  libraryIds: string[];
+  // For "Recently Updated" sort
+  contentUpdatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Series item in the unified grid.
+ */
+export interface SeriesGridItem {
+  itemType: 'series';
+  id: string;
+  name: string;
+  startYear: number | null;
+  publisher: string | null;
+  genres: string | null;
+  issueCount: number;
+  readCount: number;
+  updatedAt: string;
+  createdAt: string;
+  series: Series;
+}
+
+/**
+ * Collection item in the unified grid.
+ */
+export interface CollectionGridItem {
+  itemType: 'collection';
+  id: string;
+  name: string;
+  startYear: number | null;
+  publisher: string | null;
+  genres: string | null;
+  issueCount: number;
+  readCount: number;
+  updatedAt: string;
+  createdAt: string;
+  collection: PromotedCollectionGridItem;
+}
+
+/**
+ * Discriminated union for grid items.
+ * The `itemType` field determines whether this is a series or collection.
+ */
+export type GridItem = SeriesGridItem | CollectionGridItem;
+
+/**
+ * Options for fetching unified grid items.
+ */
+export interface UnifiedGridOptions extends SeriesListOptions {
+  includePromotedCollections?: boolean;
+}
+
+/**
+ * Result of the unified grid query.
+ */
+export interface UnifiedGridResult {
+  items: GridItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
 /**
  * Get paginated list of series
  */
@@ -3124,6 +3246,31 @@ export async function getSeriesList(
   if (options.hasUnread !== undefined) params.set('hasUnread', options.hasUnread.toString());
   if (options.libraryId) params.set('libraryId', options.libraryId);
   return get<SeriesListResult>(`/series?${params}`);
+}
+
+/**
+ * Get unified grid items (series + promoted collections).
+ * Requires authentication. Collections are mixed with series based on sort criteria.
+ */
+export async function getUnifiedGridItems(
+  options: UnifiedGridOptions = {}
+): Promise<UnifiedGridResult> {
+  const params = new URLSearchParams();
+  if (options.all) params.set('all', 'true');
+  if (options.page) params.set('page', options.page.toString());
+  if (options.limit) params.set('limit', options.limit.toString());
+  if (options.sortBy) params.set('sortBy', options.sortBy);
+  if (options.sortOrder) params.set('sortOrder', options.sortOrder);
+  if (options.search) params.set('search', options.search);
+  if (options.publisher) params.set('publisher', options.publisher);
+  if (options.type) params.set('type', options.type);
+  if (options.genres) params.set('genres', options.genres.join(','));
+  if (options.hasUnread !== undefined) params.set('hasUnread', options.hasUnread.toString());
+  if (options.libraryId) params.set('libraryId', options.libraryId);
+  if (options.includePromotedCollections !== undefined) {
+    params.set('includePromotedCollections', options.includePromotedCollections.toString());
+  }
+  return get<UnifiedGridResult>(`/series/grid?${params}`);
 }
 
 /**
@@ -3152,7 +3299,7 @@ export interface GlobalSearchResult {
   title: string;
   subtitle: string;
   thumbnailId: string | null;
-  thumbnailType: 'file' | 'series' | 'none';
+  thumbnailType: 'file' | 'series' | 'custom' | 'collection' | 'none';
   navigationPath: string;
   relevanceScore: number;
   metadata: {
@@ -4437,6 +4584,26 @@ export interface Collection {
   itemCount: number;
   createdAt: string;
   updatedAt: string;
+  // Promotion fields
+  isPromoted?: boolean;
+  promotedOrder?: number | null;
+  // Cover customization
+  coverType?: 'auto' | 'series' | 'issue' | 'custom';
+  coverSeriesId?: string | null;
+  coverFileId?: string | null;
+  coverHash?: string | null;
+  // Derived metadata
+  derivedPublisher?: string | null;
+  derivedStartYear?: number | null;
+  derivedEndYear?: number | null;
+  derivedGenres?: string | null;
+  derivedIssueCount?: number | null;
+  derivedReadCount?: number | null;
+  // Override metadata
+  overridePublisher?: string | null;
+  overrideStartYear?: number | null;
+  overrideEndYear?: number | null;
+  overrideGenres?: string | null;
 }
 
 export interface CollectionItem {
@@ -4451,6 +4618,8 @@ export interface CollectionItem {
     id: string;
     name: string;
     coverHash: string | null;
+    coverFileId: string | null;
+    firstIssueId: string | null;
     startYear: number | null;
     publisher: string | null;
   };
@@ -4548,6 +4717,16 @@ export async function removeFromCollection(
 }
 
 /**
+ * Reorder items within a collection
+ */
+export async function reorderCollectionItems(
+  collectionId: string,
+  itemIds: string[]
+): Promise<{ success: boolean }> {
+  return put<{ success: boolean }>(`/collections/${collectionId}/items/reorder`, { itemIds });
+}
+
+/**
  * Get all collections containing a specific series or file
  */
 export async function getCollectionsForItem(
@@ -4592,6 +4771,80 @@ export async function toggleWantToRead(
   fileId?: string
 ): Promise<{ added: boolean }> {
   return post<{ added: boolean }>('/collections/toggle-want-to-read', { seriesId, fileId });
+}
+
+// =============================================================================
+// Bulk Series Operations
+// =============================================================================
+
+export interface BulkOperationResult {
+  total: number;
+  successful: number;
+  failed: number;
+  results: Array<{ seriesId: string; success: boolean; error?: string }>;
+}
+
+export interface BulkSeriesUpdateInput {
+  publisher?: string | null;
+  type?: 'western' | 'manga';
+  genres?: string | null;
+  tags?: string | null;
+  ageRating?: string | null;
+  languageISO?: string | null;
+}
+
+/**
+ * Bulk add or remove series from Favorites
+ */
+export async function bulkToggleFavorite(
+  seriesIds: string[],
+  action: 'add' | 'remove'
+): Promise<{ updated: number; results: Array<{ seriesId: string; success: boolean; error?: string }> }> {
+  return post<{ updated: number; results: Array<{ seriesId: string; success: boolean; error?: string }> }>(
+    '/collections/bulk-toggle-favorite',
+    { seriesIds, action }
+  );
+}
+
+/**
+ * Bulk add or remove series from Want to Read
+ */
+export async function bulkToggleWantToRead(
+  seriesIds: string[],
+  action: 'add' | 'remove'
+): Promise<{ updated: number; results: Array<{ seriesId: string; success: boolean; error?: string }> }> {
+  return post<{ updated: number; results: Array<{ seriesId: string; success: boolean; error?: string }> }>(
+    '/collections/bulk-toggle-want-to-read',
+    { seriesIds, action }
+  );
+}
+
+/**
+ * Bulk update metadata across multiple series
+ */
+export async function bulkUpdateSeries(
+  seriesIds: string[],
+  updates: BulkSeriesUpdateInput
+): Promise<BulkOperationResult> {
+  return patch<BulkOperationResult>('/series/bulk', { seriesIds, updates });
+}
+
+/**
+ * Mark all issues in the specified series as read
+ */
+export async function bulkMarkSeriesRead(
+  seriesIds: string[]
+): Promise<BulkOperationResult> {
+  return post<BulkOperationResult>('/series/bulk-mark-read', { seriesIds });
+}
+
+/**
+ * Mark all issues in the specified series as unread
+ */
+export async function bulkMarkSeriesUnread(
+  seriesIds: string[]
+): Promise<BulkOperationResult> {
+  return post<BulkOperationResult>('/series/bulk-mark-unread', { seriesIds });
 }
 
 // =============================================================================
@@ -5055,6 +5308,56 @@ export async function updateCollectionCover(
 }
 
 /**
+ * Upload a custom cover image for a collection
+ */
+export async function uploadCollectionCover(
+  collectionId: string,
+  file: File
+): Promise<{ collection: Collection; coverHash: string }> {
+  const formData = new FormData();
+  formData.append('cover', file);
+
+  const response = await fetch(`${API_BASE}/collections/${collectionId}/cover/upload`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(error.error || error.message || 'Failed to upload cover');
+  }
+
+  const data = await response.json();
+  return data;
+}
+
+/**
+ * Set collection cover from a URL
+ */
+export async function setCollectionCoverFromUrl(
+  collectionId: string,
+  url: string
+): Promise<{ collection: Collection; coverHash: string }> {
+  const response = await fetch(`${API_BASE}/collections/${collectionId}/cover/url`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Failed to set cover from URL' }));
+    throw new Error(error.error || error.message || 'Failed to set cover from URL');
+  }
+
+  const data = await response.json();
+  return data;
+}
+
+/**
  * Get aggregate reading progress for a collection
  */
 export async function getCollectionProgress(
@@ -5063,6 +5366,72 @@ export async function getCollectionProgress(
   return get<{ totalIssues: number; readIssues: number }>(
     `/collections/${collectionId}/progress`
   );
+}
+
+/**
+ * Expanded issue data for collection detail page
+ */
+export interface CollectionExpandedIssue {
+  id: string;
+  filename: string;
+  relativePath: string;
+  size: number;
+  seriesId: string;
+  seriesName: string;
+  collectionPosition: number;
+  metadata: {
+    number: string | null;
+    title: string | null;
+    writer: string | null;
+  } | null;
+  readingProgress: {
+    currentPage: number;
+    totalPages: number;
+    completed: boolean;
+    lastReadAt: string | null;
+  } | null;
+}
+
+/**
+ * Aggregate stats for collection
+ */
+export interface CollectionAggregateStats {
+  totalIssues: number;
+  readIssues: number;
+  inProgressIssues: number;
+  totalPages: number;
+  pagesRead: number;
+  seriesCount: number;
+}
+
+/**
+ * Next issue info for continue reading
+ */
+export interface CollectionNextIssue {
+  fileId: string;
+  filename: string;
+  seriesId: string;
+  seriesName: string;
+}
+
+/**
+ * Full expanded collection response
+ */
+export interface CollectionExpandedData {
+  collection: CollectionWithItems;
+  expandedIssues: CollectionExpandedIssue[];
+  aggregateStats: CollectionAggregateStats;
+  nextIssue: CollectionNextIssue | null;
+}
+
+/**
+ * Get expanded collection data with all issues, stats, and next issue.
+ * This is optimized for the collection detail page - fetches everything in one request.
+ */
+export async function getCollectionExpanded(
+  collectionId: string
+): Promise<CollectionExpandedData> {
+  return get<CollectionExpandedData>(`/collections/${collectionId}/expanded`);
 }
 
 /**

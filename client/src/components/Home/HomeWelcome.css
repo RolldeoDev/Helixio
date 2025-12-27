@@ -424,34 +424,60 @@
 }
 
 /* =============================================================================
-   Stats Link
+   Quick Action Links
    ============================================================================= */
 
-.welcome-stats-link {
+.welcome-action-links {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.welcome-action-link {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-sm) 0;
+  padding: 10px 16px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   color: var(--color-text-muted);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.2s ease;
-  align-self: flex-start;
 }
 
-.welcome-stats-link:hover {
-  color: var(--color-primary);
+.welcome-action-link:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
-.welcome-stats-link svg {
-  width: 15px;
-  height: 15px;
-  transition: transform 0.2s ease;
+.welcome-action-link svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
-.welcome-stats-link:hover svg {
-  transform: translate(3px, -3px);
+/* Primary action link style */
+.welcome-action-link--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.welcome-action-link--primary:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: var(--color-primary-text);
+  box-shadow: 0 4px 16px rgba(212, 165, 116, 0.3);
+}
+
+.welcome-action-link--primary svg {
+  color: var(--color-primary-text);
 }
 
 /* =============================================================================

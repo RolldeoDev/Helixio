@@ -478,44 +478,48 @@ export function IssueDetailPage() {
               seriesName={series}
             />
 
-            {/* Summary/Description */}
-            {hasSummary && (
+            {/* Summary/Description & Creators - Combined Section */}
+            {(hasSummary || hasCreators) && (
               <div className="issue-description-section">
-                <h3 className="issue-section-title">About</h3>
-                <div
-                  ref={summaryRef}
-                  className={`issue-description-content ${isSummaryExpanded ? 'expanded' : summaryNeedsTruncation ? 'clamped' : ''}`}
-                >
-                  <MarkdownContent content={summary} />
-                </div>
-                {summaryNeedsTruncation && (
-                  <button
-                    className="issue-description-toggle"
-                    onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-                    aria-expanded={isSummaryExpanded}
-                  >
-                    {isSummaryExpanded ? 'Show less' : 'Read more'}
-                  </button>
+                {hasSummary && (
+                  <>
+                    <h3 className="issue-section-title">About</h3>
+                    <div
+                      ref={summaryRef}
+                      className={`issue-description-content ${isSummaryExpanded ? 'expanded' : summaryNeedsTruncation ? 'clamped' : ''}`}
+                    >
+                      <MarkdownContent content={summary} />
+                    </div>
+                    {summaryNeedsTruncation && (
+                      <button
+                        className="issue-description-toggle"
+                        onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                        aria-expanded={isSummaryExpanded}
+                      >
+                        {isSummaryExpanded ? 'Show less' : 'Read more'}
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {/* Creators */}
+                {hasCreators && (
+                  <div className="issue-creators-section">
+                    <CreatorCredits
+                      creatorsWithRoles={creatorsWithRoles}
+                      creators={null}
+                      expandable={true}
+                      maxPrimary={6}
+                    />
+                  </div>
                 )}
               </div>
             )}
 
-            {/* Notes - integrated after summary */}
+            {/* Notes - separate section */}
             {hasNotes && (
               <div className="issue-notes-section">
                 <p className="issue-notes-content">{notes}</p>
-              </div>
-            )}
-
-            {/* Creators */}
-            {hasCreators && (
-              <div className="issue-creators-section">
-                <CreatorCredits
-                  creatorsWithRoles={creatorsWithRoles}
-                  creators={null}
-                  expandable={true}
-                  maxPrimary={6}
-                />
               </div>
             )}
           </div>

@@ -494,6 +494,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
         dispatch({ type: 'UPDATE_FIELD', field: 'editor', value: creatorsWithRoles.editor.join(', ') });
       }
 
+      // Update creatorsJson with the structured data - this is what SeriesDetailPage reads
+      dispatch({ type: 'UPDATE_FIELD', field: 'creatorsJson', value: JSON.stringify(creatorsWithRoles) });
+
       // Also update the creatorSource field so it persists
       dispatch({ type: 'UPDATE_FIELD', field: 'creatorSource', value: creatorSourceSelection });
     } catch (err) {

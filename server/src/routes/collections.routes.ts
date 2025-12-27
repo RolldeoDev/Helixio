@@ -11,10 +11,12 @@
  */
 
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   getCollections,
   getCollection,
+  getCollectionExpanded,
   createCollection,
   updateCollection,
   deleteCollection,
@@ -24,6 +26,7 @@ import {
   getCollectionsForItem,
   isInCollection,
   toggleSystemCollection,
+  bulkToggleSystemCollection,
   getSystemCollection,
   getUnavailableItemCount,
   removeUnavailableItems,
@@ -36,6 +39,24 @@ import {
 } from '../services/collection.service.js';
 
 const router = Router();
+
+// Configure multer for cover image uploads
+const coverUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: multer.FileFilterCallback
+  ) => {
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (validTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed.'));
+    }
+  },
+});
 
 // All collection routes require authentication
 router.use(requireAuth);
@@ -108,6 +129,51 @@ router.get('/system/:systemKey', async (req: Request, res: Response) => {
     console.error('Error getting system collection:', error);
     res.status(500).json({
       error: 'Failed to get system collection',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/collections/promoted
+ * Get all promoted collections for the current user (for Series page display).
+ * Returns collections with aggregated metadata and series covers for mosaic.
+ */
+router.get('/promoted', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const collections = await getPromotedCollections(userId);
+    res.json({ collections });
+  } catch (error) {
+    console.error('Error getting promoted collections:', error);
+    res.status(500).json({
+      error: 'Failed to get promoted collections',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/collections/:id/expanded
+ * Get a collection with all expanded issues, aggregate stats, and next issue.
+ * This is optimized for the collection detail page.
+ */
+router.get('/:id/expanded', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+    const data = await getCollectionExpanded(userId, id!);
+
+    if (!data) {
+      res.status(404).json({ error: 'Collection not found' });
+      return;
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting expanded collection:', error);
+    res.status(500).json({
+      error: 'Failed to get expanded collection',
       message: error instanceof Error ? error.message : String(error),
     });
   }
@@ -375,6 +441,66 @@ router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/collections/bulk-toggle-favorite
+ * Bulk add or remove multiple series from the Favorites collection
+ */
+router.post('/bulk-toggle-favorite', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { seriesIds, action } = req.body as { seriesIds: string[]; action: 'add' | 'remove' };
+
+    if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+      res.status(400).json({ error: 'seriesIds must be a non-empty array' });
+      return;
+    }
+
+    if (action !== 'add' && action !== 'remove') {
+      res.status(400).json({ error: 'action must be "add" or "remove"' });
+      return;
+    }
+
+    const result = await bulkToggleSystemCollection(userId, 'favorites', seriesIds, action);
+    res.json(result);
+  } catch (error) {
+    console.error('Error bulk toggling favorites:', error);
+    res.status(400).json({
+      error: 'Failed to bulk toggle favorites',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/bulk-toggle-want-to-read
+ * Bulk add or remove multiple series from the Want to Read collection
+ */
+router.post('/bulk-toggle-want-to-read', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { seriesIds, action } = req.body as { seriesIds: string[]; action: 'add' | 'remove' };
+
+    if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+      res.status(400).json({ error: 'seriesIds must be a non-empty array' });
+      return;
+    }
+
+    if (action !== 'add' && action !== 'remove') {
+      res.status(400).json({ error: 'action must be "add" or "remove"' });
+      return;
+    }
+
+    const result = await bulkToggleSystemCollection(userId, 'want-to-read', seriesIds, action);
+    res.json(result);
+  } catch (error) {
+    console.error('Error bulk toggling want to read:', error);
+    res.status(400).json({
+      error: 'Failed to bulk toggle want to read',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // =============================================================================
 // Unavailable Items Management
 // =============================================================================
@@ -412,29 +538,6 @@ router.delete('/unavailable', async (req: Request, res: Response) => {
     console.error('Error removing unavailable items:', error);
     res.status(500).json({
       error: 'Failed to remove unavailable items',
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-// =============================================================================
-// Promoted Collections (Show in Series View)
-// =============================================================================
-
-/**
- * GET /api/collections/promoted
- * Get all promoted collections for the current user (for Series page display).
- * Returns collections with aggregated metadata and series covers for mosaic.
- */
-router.get('/promoted', async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const collections = await getPromotedCollections(userId);
-    res.json({ collections });
-  } catch (error) {
-    console.error('Error getting promoted collections:', error);
-    res.status(500).json({
-      error: 'Failed to get promoted collections',
       message: error instanceof Error ? error.message : String(error),
     });
   }
@@ -507,6 +610,205 @@ router.put('/:id/cover', async (req: Request, res: Response) => {
     }
     return res.status(500).json({
       error: 'Failed to update collection cover',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/cover/upload
+ * Upload a custom cover image from file.
+ * Multipart form data with 'cover' field.
+ */
+router.post('/:id/cover/upload', coverUpload.single('cover'), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Import cover service dynamically to avoid circular dependencies
+    const { saveUploadedCover } = await import('../services/cover.service.js');
+
+    // Save the uploaded image
+    const result = await saveUploadedCover(file.buffer);
+
+    if (!result.success || !result.coverHash) {
+      return res.status(400).json({ error: result.error || 'Failed to process uploaded image' });
+    }
+
+    // Update collection with the new cover hash
+    const collection = await setCollectionCoverHash(userId, collectionId, result.coverHash);
+
+    console.log(`Uploaded custom cover for collection ${collectionId}: ${result.coverHash}`);
+    return res.json({ collection, coverHash: result.coverHash });
+  } catch (error) {
+    console.error('Error uploading collection cover:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to upload collection cover',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/cover/url
+ * Set collection cover from a URL.
+ * Body: { url: string }
+ */
+router.post('/:id/cover/url', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { url } = req.body;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Validate URL format
+    try {
+      new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+
+    // Import cover service dynamically
+    const { downloadApiCover } = await import('../services/cover.service.js');
+
+    // Download and save the cover from URL
+    const result = await downloadApiCover(url);
+
+    if (!result.success || !result.coverHash) {
+      return res.status(400).json({ error: result.error || 'Failed to download cover from URL' });
+    }
+
+    // Update collection with the new cover hash
+    const collection = await setCollectionCoverHash(userId, collectionId, result.coverHash);
+
+    console.log(`Set cover from URL for collection ${collectionId}: ${result.coverHash}`);
+    return res.json({ collection, coverHash: result.coverHash });
+  } catch (error) {
+    console.error('Error setting collection cover from URL:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to set collection cover from URL',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/collections/:id/cover/preview
+ * Generate a preview of the auto-mosaic cover for this collection.
+ * Returns the image directly (not cached) for settings drawer preview.
+ */
+router.get('/:id/cover/preview', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    // Get collection to verify ownership
+    const collection = await getCollection(userId, collectionId);
+    if (!collection) {
+      return res.status(404).json({ error: 'Collection not found' });
+    }
+
+    // Import cover service dynamically
+    const { generateMosaicPreview } = await import('../services/cover.service.js');
+    const { getDatabase } = await import('../services/database.service.js');
+    const db = getDatabase();
+
+    // Get first 4 series from collection items
+    const seriesItems = await db.collectionItem.findMany({
+      where: {
+        collectionId,
+        seriesId: { not: null },
+        isAvailable: true,
+      },
+      orderBy: { position: 'asc' },
+      take: 4,
+      select: { seriesId: true },
+    });
+
+    // Get series cover data for each
+    const seriesCovers: Array<{
+      id: string;
+      coverHash?: string | null;
+      coverFileId?: string | null;
+      firstIssueId?: string | null;
+    }> = [];
+
+    for (const item of seriesItems) {
+      if (item.seriesId) {
+        const series = await db.series.findUnique({
+          where: { id: item.seriesId },
+          select: {
+            id: true,
+            coverHash: true,
+            coverFileId: true,
+          },
+        });
+
+        if (series) {
+          // Get first issue separately (ordered by filename)
+          const firstIssue = await db.comicFile.findFirst({
+            where: { seriesId: item.seriesId },
+            orderBy: [{ filename: 'asc' }],
+            select: { id: true },
+          });
+
+          seriesCovers.push({
+            id: series.id,
+            coverHash: series.coverHash,
+            coverFileId: series.coverFileId,
+            firstIssueId: firstIssue?.id ?? null,
+          });
+        }
+      }
+    }
+
+    // Generate preview
+    const previewBuffer = await generateMosaicPreview(seriesCovers);
+
+    if (!previewBuffer) {
+      return res.status(404).json({ error: 'No series covers available for preview' });
+    }
+
+    // Return image directly
+    res.set({
+      'Content-Type': 'image/jpeg',
+      'Content-Length': previewBuffer.length.toString(),
+      'Cache-Control': 'no-store', // Don't cache preview
+    });
+    return res.send(previewBuffer);
+  } catch (error) {
+    console.error('Error generating collection cover preview:', error);
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to generate collection cover preview',
       message: error instanceof Error ? error.message : String(error),
     });
   }

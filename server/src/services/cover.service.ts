@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'fs';
 import { mkdir, readdir, rm, stat, copyFile, rename, unlink, readFile, writeFile } from 'fs/promises';
 import { join, extname, dirname } from 'path';
 import sharp from 'sharp';
-import { getCoverPath, getLibraryCoverDir, getCoversDir, getSeriesCoversDir, getSeriesCoverPath } from './app-paths.service.js';
+import { getCoverPath, getLibraryCoverDir, getCoversDir, getSeriesCoversDir, getSeriesCoverPath, getCollectionCoversDir } from './app-paths.service.js';
 import { createHash } from 'crypto';
 import {
   listArchiveContents,
@@ -1494,4 +1494,387 @@ export async function getFileCover(fileId: string): Promise<CoverExtractionResul
   }
 
   return extractCover(file.path, file.libraryId, file.hash);
+}
+
+// =============================================================================
+// Collection Mosaic Covers
+// =============================================================================
+
+/**
+ * Mosaic configuration matching client-side MosaicCover component
+ */
+const MOSAIC_WIDTH = 320;
+const MOSAIC_HEIGHT = 480; // 2:3 aspect ratio
+const MOSAIC_GAP = 2;
+const MOSAIC_BORDER_RADIUS = 8;
+const MOSAIC_BACKGROUND = { r: 26, g: 26, b: 46, alpha: 1 }; // #1a1a2e from CSS
+
+/**
+ * Series cover data needed for mosaic generation
+ */
+export interface SeriesCoverForMosaic {
+  id: string;
+  coverHash?: string | null;
+  coverFileId?: string | null;
+  firstIssueId?: string | null;
+}
+
+/**
+ * Get paths for a collection mosaic cover
+ */
+function getCollectionCoverPaths(coverHash: string): {
+  webp: string;
+  jpeg: string;
+  blur: string;
+} {
+  const baseDir = getCollectionCoversDir();
+  return {
+    webp: join(baseDir, `${coverHash}.webp`),
+    jpeg: join(baseDir, `${coverHash}.jpg`),
+    blur: join(baseDir, `${coverHash}.blur`),
+  };
+}
+
+/**
+ * Load a series cover image buffer for compositing
+ */
+async function loadSeriesCoverBuffer(
+  series: SeriesCoverForMosaic,
+  width: number,
+  height: number
+): Promise<Buffer | null> {
+  try {
+    // Priority: coverHash (API cover) > coverFileId > firstIssueId
+    let coverData: CoverData | null = null;
+
+    if (series.coverHash) {
+      coverData = await getSeriesCoverData(series.coverHash, true);
+    }
+
+    if (!coverData && series.coverFileId) {
+      // Get the file's library and hash to load the cover
+      const prisma = getDatabase();
+      const file = await prisma.comicFile.findUnique({
+        where: { id: series.coverFileId },
+        select: { libraryId: true, hash: true },
+      });
+      if (file?.hash) {
+        coverData = await getCoverData(file.libraryId, file.hash, true);
+      }
+    }
+
+    if (!coverData && series.firstIssueId) {
+      // Get the first issue's library and hash
+      const prisma = getDatabase();
+      const file = await prisma.comicFile.findUnique({
+        where: { id: series.firstIssueId },
+        select: { libraryId: true, hash: true },
+      });
+      if (file?.hash) {
+        coverData = await getCoverData(file.libraryId, file.hash, true);
+      }
+    }
+
+    if (!coverData) {
+      return null;
+    }
+
+    // Resize to target dimensions with cover fit
+    const resizedBuffer = await sharp(coverData.data)
+      .resize(width, height, { fit: 'cover', position: 'center' })
+      .toBuffer();
+
+    return resizedBuffer;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generate an SVG rounded rectangle mask for the mosaic
+ */
+function generateRoundedRectMask(width: number, height: number, radius: number): Buffer {
+  return Buffer.from(
+    `<svg width="${width}" height="${height}">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="white"/>
+    </svg>`
+  );
+}
+
+/**
+ * Generate a placeholder tile for missing covers
+ */
+async function generatePlaceholderTile(width: number, height: number): Promise<Buffer> {
+  // Create a darker background tile with a simple icon placeholder
+  const svg = `
+    <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="${height}" fill="#2a2a4a"/>
+      <g transform="translate(${width / 2 - 16}, ${height / 2 - 16})">
+        <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z" fill="#555"/>
+      </g>
+    </svg>
+  `;
+
+  return sharp(Buffer.from(svg))
+    .resize(width, height)
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Generate a mosaic cover image from series covers
+ * Returns null for empty collections (0 series)
+ */
+export async function generateCollectionMosaicCover(
+  seriesCovers: SeriesCoverForMosaic[]
+): Promise<{ coverHash: string; buffer: Buffer } | null> {
+  const count = seriesCovers.length;
+
+  // Empty collection - no mosaic
+  if (count === 0) {
+    return null;
+  }
+
+  // Create base canvas with background color
+  let canvas = sharp({
+    create: {
+      width: MOSAIC_WIDTH,
+      height: MOSAIC_HEIGHT,
+      channels: 4,
+      background: MOSAIC_BACKGROUND,
+    },
+  });
+
+  const composites: sharp.OverlayOptions[] = [];
+
+  if (count === 1) {
+    // Single cover - full frame
+    const coverBuffer = await loadSeriesCoverBuffer(seriesCovers[0]!, MOSAIC_WIDTH, MOSAIC_HEIGHT);
+    if (coverBuffer) {
+      composites.push({ input: coverBuffer, top: 0, left: 0 });
+    } else {
+      const placeholder = await generatePlaceholderTile(MOSAIC_WIDTH, MOSAIC_HEIGHT);
+      composites.push({ input: placeholder, top: 0, left: 0 });
+    }
+  } else if (count <= 3) {
+    // 2x1 side-by-side layout
+    const tileWidth = Math.floor((MOSAIC_WIDTH - MOSAIC_GAP) / 2);
+    const tileHeight = MOSAIC_HEIGHT;
+
+    for (let i = 0; i < Math.min(2, count); i++) {
+      const coverBuffer = await loadSeriesCoverBuffer(seriesCovers[i]!, tileWidth, tileHeight);
+      const left = i === 0 ? 0 : tileWidth + MOSAIC_GAP;
+
+      if (coverBuffer) {
+        composites.push({ input: coverBuffer, top: 0, left });
+      } else {
+        const placeholder = await generatePlaceholderTile(tileWidth, tileHeight);
+        composites.push({ input: placeholder, top: 0, left });
+      }
+    }
+  } else {
+    // 2x2 grid layout (4+ series, use first 4)
+    const tileWidth = Math.floor((MOSAIC_WIDTH - MOSAIC_GAP) / 2);
+    const tileHeight = Math.floor((MOSAIC_HEIGHT - MOSAIC_GAP) / 2);
+
+    const positions = [
+      { top: 0, left: 0 },
+      { top: 0, left: tileWidth + MOSAIC_GAP },
+      { top: tileHeight + MOSAIC_GAP, left: 0 },
+      { top: tileHeight + MOSAIC_GAP, left: tileWidth + MOSAIC_GAP },
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const coverBuffer = await loadSeriesCoverBuffer(seriesCovers[i]!, tileWidth, tileHeight);
+      const pos = positions[i]!;
+
+      if (coverBuffer) {
+        composites.push({ input: coverBuffer, ...pos });
+      } else {
+        const placeholder = await generatePlaceholderTile(tileWidth, tileHeight);
+        composites.push({ input: placeholder, ...pos });
+      }
+    }
+  }
+
+  // Composite all tiles onto canvas
+  const composited = await canvas.composite(composites).png().toBuffer();
+
+  // Apply rounded corners using SVG mask
+  const roundedResult = await sharp(composited)
+    .composite([
+      {
+        input: generateRoundedRectMask(MOSAIC_WIDTH, MOSAIC_HEIGHT, MOSAIC_BORDER_RADIUS),
+        blend: 'dest-in',
+      },
+    ])
+    .png()
+    .toBuffer();
+
+  // Generate hash from content for deduplication
+  const coverHash = createHash('md5').update(roundedResult).digest('hex');
+
+  return { coverHash, buffer: roundedResult };
+}
+
+/**
+ * Save a generated mosaic cover to disk
+ */
+export async function saveCollectionMosaicCover(
+  buffer: Buffer,
+  coverHash: string
+): Promise<DownloadCoverResult> {
+  const paths = getCollectionCoverPaths(coverHash);
+
+  try {
+    // Ensure directory exists
+    await mkdir(getCollectionCoversDir(), { recursive: true });
+
+    // Generate WebP (primary format)
+    await sharp(buffer)
+      .webp({ quality: COVER_QUALITY_WEBP })
+      .toFile(paths.webp);
+
+    // Generate JPEG fallback
+    await sharp(buffer)
+      .jpeg({ quality: COVER_QUALITY_JPEG })
+      .toFile(paths.jpeg);
+
+    // Generate tiny blur placeholder
+    const blurBuffer = await sharp(buffer)
+      .resize(BLUR_PLACEHOLDER_WIDTH, null, { withoutEnlargement: true })
+      .blur(2)
+      .jpeg({ quality: BLUR_PLACEHOLDER_QUALITY })
+      .toBuffer();
+
+    const blurPlaceholder = `data:image/jpeg;base64,${blurBuffer.toString('base64')}`;
+    await writeFile(paths.blur, blurPlaceholder, 'utf-8');
+
+    return {
+      success: true,
+      coverHash,
+      webpPath: paths.webp,
+      jpegPath: paths.jpeg,
+      blurPlaceholder,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
+ * Get collection cover data for serving, with format negotiation
+ */
+export async function getCollectionCoverData(
+  coverHash: string,
+  acceptWebP: boolean = true
+): Promise<CoverData | null> {
+  const paths = getCollectionCoverPaths(coverHash);
+  const cacheKey = `collection/${coverHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+
+  // Check memory cache first
+  const cached = getFromMemoryCache(cacheKey);
+  if (cached) {
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+    return { ...cached, blurPlaceholder };
+  }
+
+  // Determine which format to serve
+  let coverPath: string;
+  let contentType: string;
+
+  if (acceptWebP && existsSync(paths.webp)) {
+    coverPath = paths.webp;
+    contentType = 'image/webp';
+  } else if (existsSync(paths.jpeg)) {
+    coverPath = paths.jpeg;
+    contentType = 'image/jpeg';
+  } else {
+    return null;
+  }
+
+  try {
+    const data = await readFile(coverPath);
+
+    // Add to memory cache
+    addToMemoryCache(cacheKey, data, contentType);
+
+    // Get blur placeholder
+    let blurPlaceholder: string | undefined;
+    if (existsSync(paths.blur)) {
+      try {
+        blurPlaceholder = await readFile(paths.blur, 'utf-8');
+      } catch {
+        // Ignore
+      }
+    }
+
+    return { data, contentType, blurPlaceholder };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if a collection cover exists in cache
+ */
+export function collectionCoverExists(coverHash: string): boolean {
+  const paths = getCollectionCoverPaths(coverHash);
+  return existsSync(paths.webp) || existsSync(paths.jpeg);
+}
+
+/**
+ * Delete a cached collection cover
+ */
+export async function deleteCollectionCover(coverHash: string): Promise<boolean> {
+  const paths = getCollectionCoverPaths(coverHash);
+  const cacheKeyWebP = `collection/${coverHash}/webp`;
+  const cacheKeyJpeg = `collection/${coverHash}/jpeg`;
+
+  // Remove from memory cache
+  coverMemoryCache.delete(cacheKeyWebP);
+  coverMemoryCache.delete(cacheKeyJpeg);
+
+  let success = true;
+
+  // Delete all cover files
+  for (const path of [paths.webp, paths.jpeg, paths.blur]) {
+    if (existsSync(path)) {
+      try {
+        await unlink(path);
+      } catch {
+        success = false;
+      }
+    }
+  }
+
+  return success;
+}
+
+/**
+ * Generate a mosaic preview without saving to disk
+ * Used for settings drawer preview
+ */
+export async function generateMosaicPreview(
+  seriesCovers: SeriesCoverForMosaic[]
+): Promise<Buffer | null> {
+  const result = await generateCollectionMosaicCover(seriesCovers);
+  if (!result) {
+    return null;
+  }
+
+  // Convert to WebP for serving
+  return sharp(result.buffer)
+    .webp({ quality: COVER_QUALITY_WEBP })
+    .toBuffer();
 }

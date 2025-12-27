@@ -117,6 +117,7 @@ export function tokensToCSSVariables(tokens: ThemeTokens): Record<string, string
     colorPrimary: '--color-primary',
     colorPrimaryHover: '--color-primary-hover',
     colorPrimaryMuted: '--color-primary-muted',
+    colorPrimaryText: '--color-primary-text',
     colorSecondary: '--color-secondary',
     colorAccent: '--color-accent',
     colorText: '--color-text',

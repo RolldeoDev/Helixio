@@ -83,6 +83,7 @@ export const synthwaveDarkTheme: ThemeDefinition = {
     colorPrimary: '#ff00ff',           // Hot magenta/neon pink
     colorPrimaryHover: '#ff44ff',      // Brighter magenta
     colorPrimaryMuted: 'rgba(255, 0, 255, 0.15)',
+    colorPrimaryText: '#0a0a12',       // Dark text on neon magenta backgrounds
     colorSecondary: '#14142a',         // Deep purple for secondary surfaces
     colorAccent: '#00ffff',            // Cyan/aqua
 

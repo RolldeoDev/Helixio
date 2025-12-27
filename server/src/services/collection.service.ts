@@ -10,6 +10,12 @@
  */
 
 import { getDatabase } from './database.service.js';
+import {
+  generateCollectionMosaicCover,
+  saveCollectionMosaicCover,
+  deleteCollectionCover,
+  type SeriesCoverForMosaic,
+} from './cover.service.js';
 
 // =============================================================================
 // Types
@@ -28,6 +34,38 @@ export interface Collection {
   createdAt: Date;
   updatedAt: Date;
   itemCount?: number;
+  // Promotion fields
+  isPromoted?: boolean;
+  promotedOrder?: number | null;
+  // Cover customization
+  coverType?: 'auto' | 'series' | 'issue' | 'custom';
+  coverSeriesId?: string | null;
+  coverFileId?: string | null;
+  coverHash?: string | null;
+  // Derived metadata
+  derivedPublisher?: string | null;
+  derivedStartYear?: number | null;
+  derivedEndYear?: number | null;
+  derivedGenres?: string | null;
+  derivedIssueCount?: number | null;
+  derivedReadCount?: number | null;
+  // Override metadata
+  overridePublisher?: string | null;
+  overrideStartYear?: number | null;
+  overrideEndYear?: number | null;
+  overrideGenres?: string | null;
+}
+
+// Type alias for cover type
+type CoverType = 'auto' | 'series' | 'issue' | 'custom';
+
+// Helper to cast cover type from database string
+function castCoverType(coverType: string | null): CoverType | undefined {
+  if (!coverType) return undefined;
+  if (['auto', 'series', 'issue', 'custom'].includes(coverType)) {
+    return coverType as CoverType;
+  }
+  return undefined;
 }
 
 export interface CollectionItem {
@@ -44,6 +82,8 @@ export interface CollectionItem {
     id: string;
     name: string;
     coverHash: string | null;
+    coverFileId: string | null;
+    firstIssueId: string | null;
     startYear: number | null;
     publisher: string | null;
   };
@@ -160,7 +200,246 @@ export async function getSystemCollection(
   return {
     ...collection,
     itemCount: collection._count.items,
+    coverType: castCoverType(collection.coverType),
   };
+}
+
+// =============================================================================
+// Mosaic Cover Regeneration
+// =============================================================================
+
+/**
+ * Pending mosaic regeneration jobs, keyed by collectionId.
+ * Uses debouncing to avoid regenerating multiple times when items change rapidly.
+ */
+const pendingMosaicJobs = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Schedule mosaic regeneration for a collection.
+ * Debounced to avoid multiple regenerations when items change rapidly.
+ */
+export function scheduleMosaicRegeneration(collectionId: string): void {
+  // Cancel any existing scheduled job
+  const existing = pendingMosaicJobs.get(collectionId);
+  if (existing) {
+    clearTimeout(existing);
+  }
+
+  // Schedule new job with 1 second debounce
+  const timeout = setTimeout(async () => {
+    pendingMosaicJobs.delete(collectionId);
+    try {
+      await regenerateCollectionMosaic(collectionId);
+    } catch (err) {
+      console.error(`[MosaicRegeneration] Error regenerating mosaic for collection ${collectionId}:`, err);
+    }
+  }, 1000);
+
+  pendingMosaicJobs.set(collectionId, timeout);
+}
+
+/**
+ * Regenerate the mosaic cover for a collection.
+ * Only regenerates if the collection is using 'auto' cover type.
+ */
+export async function regenerateCollectionMosaic(collectionId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Get collection with cover settings
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    select: {
+      id: true,
+      coverType: true,
+      coverHash: true,
+    },
+  });
+
+  if (!collection) {
+    console.log(`[MosaicRegeneration] Collection ${collectionId} not found`);
+    return;
+  }
+
+  // Only regenerate for 'auto' cover type
+  if (collection.coverType !== 'auto') {
+    return;
+  }
+
+  console.log(`[MosaicRegeneration] Regenerating mosaic for collection ${collectionId}`);
+
+  // Get first 4 series items in the collection
+  const seriesItems = await db.collectionItem.findMany({
+    where: {
+      collectionId,
+      seriesId: { not: null },
+      isAvailable: true,
+    },
+    orderBy: { position: 'asc' },
+    take: 4,
+    select: {
+      seriesId: true,
+    },
+  });
+
+  // Get series data for the items
+  const seriesIds = seriesItems
+    .map((item) => item.seriesId)
+    .filter((id): id is string => id !== null);
+
+  // Map to SeriesCoverForMosaic format, including firstIssueId
+  const seriesCovers: SeriesCoverForMosaic[] = [];
+  for (const seriesId of seriesIds) {
+    const series = await db.series.findUnique({
+      where: { id: seriesId },
+      select: {
+        id: true,
+        coverHash: true,
+        coverFileId: true,
+      },
+    });
+
+    if (series) {
+      // Get first issue for fallback
+      const firstIssue = await db.comicFile.findFirst({
+        where: { seriesId: series.id },
+        orderBy: [{ filename: 'asc' }],
+        select: { id: true },
+      });
+
+      seriesCovers.push({
+        id: series.id,
+        coverHash: series.coverHash,
+        coverFileId: series.coverFileId,
+        firstIssueId: firstIssue?.id ?? null,
+      });
+    }
+  }
+
+  // Delete old mosaic if it exists
+  if (collection.coverHash) {
+    await deleteCollectionCover(collection.coverHash);
+  }
+
+  // Generate new mosaic
+  if (seriesCovers.length === 0) {
+    // Empty collection - set coverHash to null
+    await db.collection.update({
+      where: { id: collectionId },
+      data: { coverHash: null },
+    });
+    console.log(`[MosaicRegeneration] Collection ${collectionId} is empty, cleared coverHash`);
+    return;
+  }
+
+  const result = await generateCollectionMosaicCover(seriesCovers);
+  if (!result) {
+    await db.collection.update({
+      where: { id: collectionId },
+      data: { coverHash: null },
+    });
+    console.log(`[MosaicRegeneration] Failed to generate mosaic for collection ${collectionId}`);
+    return;
+  }
+
+  // Save the mosaic to disk
+  const saveResult = await saveCollectionMosaicCover(result.buffer, result.coverHash);
+  if (!saveResult.success) {
+    console.error(`[MosaicRegeneration] Failed to save mosaic: ${saveResult.error}`);
+    return;
+  }
+
+  // Update the collection with the new coverHash
+  await db.collection.update({
+    where: { id: collectionId },
+    data: { coverHash: result.coverHash },
+  });
+
+  console.log(`[MosaicRegeneration] Successfully regenerated mosaic for collection ${collectionId}, hash: ${result.coverHash}`);
+}
+
+/**
+ * Get the first 4 series IDs in a collection (for mosaic comparison).
+ */
+async function getFirst4SeriesIds(collectionId: string): Promise<string[]> {
+  const db = getDatabase();
+
+  const items = await db.collectionItem.findMany({
+    where: {
+      collectionId,
+      seriesId: { not: null },
+      isAvailable: true,
+    },
+    orderBy: { position: 'asc' },
+    take: 4,
+    select: { seriesId: true },
+  });
+
+  return items
+    .map((item) => item.seriesId)
+    .filter((id): id is string => id !== null);
+}
+
+/**
+ * Check if changes to collection items affect the first 4 series.
+ * If so, schedule mosaic regeneration.
+ */
+export async function checkAndScheduleMosaicRegeneration(
+  collectionId: string,
+  changedSeriesIds: string[]
+): Promise<void> {
+  const db = getDatabase();
+
+  // Get collection to check coverType
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    select: { coverType: true },
+  });
+
+  if (!collection || collection.coverType !== 'auto') {
+    return;
+  }
+
+  // Get current first 4 series
+  const first4 = await getFirst4SeriesIds(collectionId);
+
+  // Check if any changed series is in the first 4
+  const affectsFirst4 = changedSeriesIds.some((id) => first4.includes(id));
+
+  // Also regenerate if the first 4 has fewer items than before (item removed)
+  // or if items were added that might be in the first 4
+  if (affectsFirst4 || changedSeriesIds.length > 0) {
+    scheduleMosaicRegeneration(collectionId);
+  }
+}
+
+/**
+ * Regenerate mosaics for all collections containing a series.
+ * Called when a series cover changes.
+ */
+export async function onSeriesCoverChanged(seriesId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Find all collections with coverType='auto' containing this series in first 4
+  const collections = await db.collection.findMany({
+    where: {
+      coverType: 'auto',
+      items: {
+        some: {
+          seriesId,
+          isAvailable: true,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  for (const collection of collections) {
+    // Check if this series is in the first 4
+    const first4 = await getFirst4SeriesIds(collection.id);
+    if (first4.includes(seriesId)) {
+      scheduleMosaicRegeneration(collection.id);
+    }
+  }
 }
 
 // =============================================================================
@@ -197,6 +476,20 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     itemCount: c._count.items,
+    isPromoted: c.isPromoted,
+    promotedOrder: c.promotedOrder,
+    coverType: castCoverType(c.coverType),
+    coverSeriesId: c.coverSeriesId,
+    coverFileId: c.coverFileId,
+    coverHash: c.coverHash,
+    overridePublisher: c.overridePublisher,
+    overrideStartYear: c.overrideStartYear,
+    overrideEndYear: c.overrideEndYear,
+    overrideGenres: c.overrideGenres,
+    derivedPublisher: c.derivedPublisher,
+    derivedStartYear: c.derivedStartYear,
+    derivedEndYear: c.derivedEndYear,
+    derivedGenres: c.derivedGenres,
   }));
 }
 
@@ -230,8 +523,18 @@ export async function getCollection(userId: string, id: string): Promise<Collect
             id: true,
             name: true,
             coverHash: true,
+            coverFileId: true,
             startYear: true,
             publisher: true,
+            // Include first issue for cover fallback
+            issues: {
+              take: 1,
+              orderBy: [
+                { metadata: { number: 'asc' } },
+                { filename: 'asc' },
+              ],
+              select: { id: true },
+            },
           },
         })
       : [],
@@ -259,18 +562,34 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     fileMap.set(f.id, f);
   }
 
-  const items: CollectionItem[] = collection.items.map((item) => ({
-    id: item.id,
-    collectionId: item.collectionId,
-    seriesId: item.seriesId,
-    fileId: item.fileId,
-    position: item.position,
-    addedAt: item.addedAt,
-    notes: item.notes,
-    isAvailable: item.isAvailable,
-    series: item.seriesId ? seriesMap.get(item.seriesId) ?? undefined : undefined,
-    file: item.fileId ? fileMap.get(item.fileId) ?? undefined : undefined,
-  }));
+  const items: CollectionItem[] = collection.items.map((item) => {
+    const seriesRaw = item.seriesId ? seriesMap.get(item.seriesId) : undefined;
+    // Transform series data to include firstIssueId from the issues array
+    const series = seriesRaw
+      ? {
+          id: seriesRaw.id,
+          name: seriesRaw.name,
+          coverHash: seriesRaw.coverHash,
+          coverFileId: seriesRaw.coverFileId,
+          firstIssueId: seriesRaw.issues[0]?.id ?? null,
+          startYear: seriesRaw.startYear,
+          publisher: seriesRaw.publisher,
+        }
+      : undefined;
+
+    return {
+      id: item.id,
+      collectionId: item.collectionId,
+      seriesId: item.seriesId,
+      fileId: item.fileId,
+      position: item.position,
+      addedAt: item.addedAt,
+      notes: item.notes,
+      isAvailable: item.isAvailable,
+      series,
+      file: item.fileId ? fileMap.get(item.fileId) ?? undefined : undefined,
+    };
+  });
 
   return {
     id: collection.id,
@@ -285,6 +604,22 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     createdAt: collection.createdAt,
     updatedAt: collection.updatedAt,
     itemCount: collection._count.items,
+    isPromoted: collection.isPromoted,
+    promotedOrder: collection.promotedOrder,
+    coverType: castCoverType(collection.coverType),
+    coverSeriesId: collection.coverSeriesId,
+    coverFileId: collection.coverFileId,
+    coverHash: collection.coverHash,
+    derivedPublisher: collection.derivedPublisher,
+    derivedStartYear: collection.derivedStartYear,
+    derivedEndYear: collection.derivedEndYear,
+    derivedGenres: collection.derivedGenres,
+    derivedIssueCount: collection.derivedIssueCount,
+    derivedReadCount: collection.derivedReadCount,
+    overridePublisher: collection.overridePublisher,
+    overrideStartYear: collection.overrideStartYear,
+    overrideEndYear: collection.overrideEndYear,
+    overrideGenres: collection.overrideGenres,
     items,
   };
 }
@@ -317,6 +652,7 @@ export async function createCollection(userId: string, input: CreateCollectionIn
   return {
     ...collection,
     itemCount: 0,
+    coverType: castCoverType(collection.coverType),
   };
 }
 
@@ -350,6 +686,7 @@ export async function updateCollection(
   return {
     ...collection,
     itemCount: collection._count.items,
+    coverType: castCoverType(collection.coverType),
   };
 }
 
@@ -451,6 +788,22 @@ export async function addItemsToCollection(
     });
   }
 
+  // Schedule mosaic regeneration if any series items were added
+  const addedSeriesIds = addedItems
+    .filter((item) => item.seriesId)
+    .map((item) => item.seriesId!);
+  if (addedSeriesIds.length > 0) {
+    checkAndScheduleMosaicRegeneration(collectionId, addedSeriesIds);
+  }
+
+  // Recalculate derived metadata if items were added
+  if (addedItems.length > 0) {
+    // Fire and forget - don't block the response
+    recalculateCollectionMetadata(collectionId, userId).catch((err) => {
+      console.error(`Failed to recalculate metadata for collection ${collectionId}:`, err);
+    });
+  }
+
   return addedItems;
 }
 
@@ -506,6 +859,22 @@ export async function removeItemsFromCollection(
     )
   );
 
+  // Schedule mosaic regeneration if any series items were removed
+  const removedSeriesIds = items
+    .filter((item) => item.seriesId)
+    .map((item) => item.seriesId!);
+  if (removedSeriesIds.length > 0) {
+    checkAndScheduleMosaicRegeneration(collectionId, removedSeriesIds);
+  }
+
+  // Recalculate derived metadata if items were removed
+  if (removedCount > 0) {
+    // Fire and forget - don't block the response
+    recalculateCollectionMetadata(collectionId, userId).catch((err) => {
+      console.error(`Failed to recalculate metadata for collection ${collectionId}:`, err);
+    });
+  }
+
   return removedCount;
 }
 
@@ -532,6 +901,9 @@ export async function reorderItems(userId: string, collectionId: string, ordered
       })
     )
   );
+
+  // Schedule mosaic regeneration (reorder always potentially affects the mosaic)
+  scheduleMosaicRegeneration(collectionId);
 }
 
 // =============================================================================
@@ -584,6 +956,12 @@ export async function getCollectionsForItem(
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     itemCount: c._count.items,
+    isPromoted: c.isPromoted,
+    promotedOrder: c.promotedOrder,
+    coverType: castCoverType(c.coverType),
+    coverSeriesId: c.coverSeriesId,
+    coverFileId: c.coverFileId,
+    coverHash: c.coverHash,
   }));
 }
 
@@ -684,6 +1062,69 @@ export async function toggleSystemCollection(
     await addItemsToCollection(userId, collection.id, [{ seriesId, fileId }]);
     return { added: true };
   }
+}
+
+/**
+ * Bulk add or remove multiple series from a system collection.
+ * Unlike toggleSystemCollection, this uses a deterministic action ('add' or 'remove')
+ * to ensure consistent behavior for bulk operations.
+ */
+export async function bulkToggleSystemCollection(
+  userId: string,
+  systemKey: 'favorites' | 'want-to-read',
+  seriesIds: string[],
+  action: 'add' | 'remove'
+): Promise<{ updated: number; results: Array<{ seriesId: string; success: boolean; error?: string }> }> {
+  const db = getDatabase();
+
+  // Ensure system collections exist
+  await ensureSystemCollections(userId);
+
+  const collection = await db.collection.findUnique({
+    where: {
+      userId_systemKey: { userId, systemKey },
+    },
+  });
+
+  if (!collection) {
+    throw new Error(`System collection not found: ${systemKey}`);
+  }
+
+  const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
+  let updated = 0;
+
+  for (const seriesId of seriesIds) {
+    try {
+      if (action === 'add') {
+        // Check if already in collection to avoid duplicates
+        const existing = await db.collectionItem.findUnique({
+          where: {
+            collectionId_seriesId: { collectionId: collection.id, seriesId },
+          },
+        });
+
+        if (!existing) {
+          await addItemsToCollection(userId, collection.id, [{ seriesId }]);
+          updated++;
+        }
+      } else {
+        // Remove from collection
+        const removed = await removeItemsFromCollection(userId, collection.id, [{ seriesId }]);
+        if (removed > 0) {
+          updated++;
+        }
+      }
+      results.push({ seriesId, success: true });
+    } catch (error) {
+      results.push({
+        seriesId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return { updated, results };
 }
 
 // =============================================================================
@@ -957,6 +1398,510 @@ export async function getPromotedCollections(
 }
 
 /**
+ * Filter options for promoted collections in grid view.
+ */
+export interface PromotedCollectionGridFilters {
+  search?: string;
+  publisher?: string;
+  type?: 'western' | 'manga';
+  genres?: string[];
+  hasUnread?: boolean;
+  libraryId?: string;
+}
+
+/**
+ * Collection data for grid display.
+ * Extended version with library info and content timestamps.
+ */
+export interface PromotedCollectionForGrid {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  iconName: string | null;
+  color: string | null;
+  isPromoted: boolean;
+  promotedOrder: number | null;
+  coverType: string;
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  // Effective metadata (override ?? derived ?? default)
+  publisher: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  genres: string | null;
+  // Aggregated counts
+  totalIssues: number;
+  readIssues: number;
+  seriesCount: number;
+  // For mosaic cover
+  seriesCovers: Array<{
+    seriesId: string;
+    coverHash: string | null;
+    coverUrl: string | null;
+    coverFileId: string | null;
+    name: string;
+  }>;
+  // For library filtering
+  libraryIds: string[];
+  // For "Recently Updated" sort
+  contentUpdatedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Get promoted collections for grid display with filtering support.
+ * Filters are applied based on derived/override metadata.
+ * Collections are returned with library IDs for library filtering.
+ */
+export async function getPromotedCollectionsForGrid(
+  userId: string,
+  filters: PromotedCollectionGridFilters = {}
+): Promise<PromotedCollectionForGrid[]> {
+  const db = getDatabase();
+
+  // Get promoted collections with their items
+  const collections = await db.collection.findMany({
+    where: {
+      userId,
+      isPromoted: true,
+    },
+    orderBy: [{ promotedOrder: 'asc' }, { name: 'asc' }],
+    include: {
+      items: {
+        where: { isAvailable: true },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+
+  // Transform and filter collections
+  const result: PromotedCollectionForGrid[] = [];
+
+  for (const collection of collections) {
+    // Get series IDs and file IDs from collection items
+    const seriesIds = collection.items
+      .filter((item) => item.seriesId !== null)
+      .map((item) => item.seriesId!);
+
+    const fileIds = collection.items
+      .filter((item) => item.fileId !== null)
+      .map((item) => item.fileId!);
+
+    // Fetch series data
+    const seriesItems = seriesIds.length > 0
+      ? await db.series.findMany({
+          where: { id: { in: seriesIds } },
+          select: {
+            id: true,
+            name: true,
+            publisher: true,
+            startYear: true,
+            endYear: true,
+            genres: true,
+            coverHash: true,
+            coverUrl: true,
+            coverFileId: true,
+            updatedAt: true,
+            _count: { select: { issues: true } },
+            issues: {
+              select: { libraryId: true },
+              take: 1,
+            },
+          },
+        })
+      : [];
+
+    // Fetch file data
+    const fileItems = fileIds.length > 0
+      ? await db.comicFile.findMany({
+          where: { id: { in: fileIds } },
+          select: {
+            id: true,
+            libraryId: true,
+            updatedAt: true,
+            metadata: {
+              select: {
+                publisher: true,
+                year: true,
+                genre: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    // Calculate derived metadata from series
+    const publishers = seriesItems
+      .map(s => s.publisher)
+      .filter((p): p is string => !!p);
+    const mostCommonPublisher = publishers.length > 0
+      ? getMostCommon(publishers)
+      : null;
+
+    const years = seriesItems
+      .map(s => s.startYear)
+      .filter((y): y is number => y !== null);
+    const minYear = years.length > 0 ? Math.min(...years) : null;
+
+    const endYears = seriesItems
+      .map(s => s.endYear)
+      .filter((y): y is number => y !== null);
+    const maxYear = endYears.length > 0 ? Math.max(...endYears) : null;
+
+    const allGenres = seriesItems
+      .flatMap(s => (s.genres || '').split(',').map(g => g.trim()))
+      .filter(g => g.length > 0);
+    const uniqueGenres = [...new Set(allGenres)].slice(0, 5).join(', ');
+
+    // Effective metadata (override takes precedence)
+    // Default publisher to "Collections" if not derived or overridden
+    const effectivePublisher = collection.overridePublisher ?? mostCommonPublisher ?? 'Collections';
+    const effectiveStartYear = collection.overrideStartYear ?? minYear;
+    const effectiveEndYear = collection.overrideEndYear ?? maxYear;
+    const effectiveGenres = collection.overrideGenres ?? (uniqueGenres || null);
+
+    // Calculate aggregate issue count
+    const totalIssues = seriesItems.reduce(
+      (sum, s) => sum + (s._count?.issues || 0),
+      0
+    ) + fileItems.length; // Each file counts as 1 issue
+
+    // Calculate read count for this user
+    let readIssues = 0;
+    const seriesIdsForProgress = seriesItems.map(s => s.id);
+    if (seriesIdsForProgress.length > 0) {
+      const progressRecords = await db.seriesProgress.findMany({
+        where: {
+          userId,
+          seriesId: { in: seriesIdsForProgress },
+        },
+        select: { totalRead: true },
+      });
+      readIssues = progressRecords.reduce((sum, p) => sum + p.totalRead, 0);
+    }
+
+    // Count read files
+    if (fileItems.length > 0) {
+      const readFileIds = fileItems.map(f => f.id);
+      const readFiles = await db.userReadingProgress.count({
+        where: {
+          userId,
+          fileId: { in: readFileIds },
+          completed: true,
+        },
+      });
+      readIssues += readFiles;
+    }
+
+    // Collect library IDs from series and files
+    const libraryIds = new Set<string>();
+    for (const series of seriesItems) {
+      if (series.issues?.[0]?.libraryId) {
+        libraryIds.add(series.issues[0].libraryId);
+      }
+    }
+    for (const file of fileItems) {
+      libraryIds.add(file.libraryId);
+    }
+
+    // Find the most recent update time
+    let contentUpdatedAt: Date | null = null;
+    for (const series of seriesItems) {
+      if (!contentUpdatedAt || series.updatedAt > contentUpdatedAt) {
+        contentUpdatedAt = series.updatedAt;
+      }
+    }
+    for (const file of fileItems) {
+      if (!contentUpdatedAt || file.updatedAt > contentUpdatedAt) {
+        contentUpdatedAt = file.updatedAt;
+      }
+    }
+
+    // Apply filters
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      if (!collection.name.toLowerCase().includes(searchLower)) {
+        continue; // Skip this collection
+      }
+    }
+
+    // Publisher filter
+    if (filters.publisher && effectivePublisher !== filters.publisher) {
+      continue;
+    }
+
+    // Type filter (only applies if collection has series - file-only collections pass)
+    // Note: Collections don't have a type field, so we skip this filter
+    // or could check if majority of series match the type
+
+    // Genres filter (must match ALL selected genres)
+    if (filters.genres && filters.genres.length > 0) {
+      const collectionGenres = (effectiveGenres || '')
+        .split(',')
+        .map(g => g.trim().toLowerCase())
+        .filter(g => g.length > 0);
+
+      const hasAllGenres = filters.genres.every(g =>
+        collectionGenres.some(cg => cg.includes(g.toLowerCase()))
+      );
+      if (!hasAllGenres) {
+        continue;
+      }
+    }
+
+    // Has unread filter (any unread content)
+    if (filters.hasUnread !== undefined) {
+      const hasUnreadContent = readIssues < totalIssues;
+      if (filters.hasUnread !== hasUnreadContent) {
+        continue;
+      }
+    }
+
+    // Library filter (any content from selected library)
+    if (filters.libraryId && !libraryIds.has(filters.libraryId)) {
+      continue;
+    }
+
+    // Get cover series info for mosaic
+    const seriesCovers = seriesItems.slice(0, 6).map(s => ({
+      seriesId: s.id,
+      coverHash: s.coverHash,
+      coverUrl: s.coverUrl,
+      coverFileId: s.coverFileId,
+      name: s.name,
+    }));
+
+    result.push({
+      id: collection.id,
+      userId: collection.userId,
+      name: collection.name,
+      description: collection.description,
+      iconName: collection.iconName,
+      color: collection.color,
+      isPromoted: collection.isPromoted,
+      promotedOrder: collection.promotedOrder,
+      coverType: collection.coverType,
+      coverSeriesId: collection.coverSeriesId,
+      coverFileId: collection.coverFileId,
+      coverHash: collection.coverHash,
+      publisher: effectivePublisher,
+      startYear: effectiveStartYear,
+      endYear: effectiveEndYear,
+      genres: effectiveGenres,
+      totalIssues,
+      readIssues,
+      seriesCount: seriesItems.length,
+      seriesCovers,
+      libraryIds: Array.from(libraryIds),
+      contentUpdatedAt,
+      createdAt: collection.createdAt,
+      updatedAt: collection.updatedAt,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Helper to get the most common value in an array.
+ */
+function getMostCommon<T>(arr: T[]): T | null {
+  if (arr.length === 0) return null;
+
+  const counts = new Map<T, number>();
+  for (const item of arr) {
+    counts.set(item, (counts.get(item) || 0) + 1);
+  }
+
+  let maxCount = 0;
+  let mostCommon: T | null = null;
+  for (const [item, count] of counts) {
+    if (count > maxCount) {
+      maxCount = count;
+      mostCommon = item;
+    }
+  }
+
+  return mostCommon;
+}
+
+/**
+ * Recalculate derived metadata for a collection.
+ * Call this when items are added/removed from the collection.
+ * Updates: derivedPublisher, derivedStartYear, derivedEndYear, derivedGenres,
+ *          derivedIssueCount, derivedReadCount, contentUpdatedAt, metadataUpdatedAt
+ */
+export async function recalculateCollectionMetadata(
+  collectionId: string,
+  userId: string
+): Promise<void> {
+  const db = getDatabase();
+
+  // Get all items in the collection
+  const items = await db.collectionItem.findMany({
+    where: {
+      collectionId,
+      isAvailable: true,
+    },
+  });
+
+  // Get series IDs and file IDs
+  const seriesIds = items
+    .filter((item) => item.seriesId !== null)
+    .map((item) => item.seriesId!);
+
+  const fileIds = items
+    .filter((item) => item.fileId !== null)
+    .map((item) => item.fileId!);
+
+  // Fetch series data
+  const seriesItems = seriesIds.length > 0
+    ? await db.series.findMany({
+        where: { id: { in: seriesIds } },
+        select: {
+          id: true,
+          publisher: true,
+          startYear: true,
+          endYear: true,
+          genres: true,
+          updatedAt: true,
+          _count: { select: { issues: true } },
+        },
+      })
+    : [];
+
+  // Fetch file data
+  const fileItems = fileIds.length > 0
+    ? await db.comicFile.findMany({
+        where: { id: { in: fileIds } },
+        select: {
+          id: true,
+          updatedAt: true,
+          metadata: {
+            select: {
+              publisher: true,
+              year: true,
+              genre: true,
+            },
+          },
+        },
+      })
+    : [];
+
+  // Calculate derived publisher
+  const publishers = seriesItems
+    .map(s => s.publisher)
+    .filter((p): p is string => !!p);
+
+  // Also include file publishers
+  for (const f of fileItems) {
+    if (f.metadata?.publisher) {
+      publishers.push(f.metadata.publisher);
+    }
+  }
+
+  const derivedPublisher = getMostCommon(publishers);
+
+  // Calculate derived years
+  const startYears = seriesItems
+    .map(s => s.startYear)
+    .filter((y): y is number => y !== null);
+
+  // Also include file years
+  for (const f of fileItems) {
+    if (f.metadata?.year) {
+      startYears.push(f.metadata.year);
+    }
+  }
+
+  const derivedStartYear = startYears.length > 0 ? Math.min(...startYears) : null;
+
+  const endYears = seriesItems
+    .map(s => s.endYear)
+    .filter((y): y is number => y !== null);
+  const derivedEndYear = endYears.length > 0 ? Math.max(...endYears) : null;
+
+  // Calculate derived genres
+  const allGenres = seriesItems
+    .flatMap(s => (s.genres || '').split(',').map(g => g.trim()))
+    .filter(g => g.length > 0);
+
+  // Also include file genres
+  for (const f of fileItems) {
+    if (f.metadata?.genre) {
+      allGenres.push(...f.metadata.genre.split(',').map(g => g.trim()).filter(g => g.length > 0));
+    }
+  }
+
+  const uniqueGenres = [...new Set(allGenres)];
+  const derivedGenres = uniqueGenres.length > 0 ? uniqueGenres.join(', ') : null;
+
+  // Calculate issue counts
+  const derivedIssueCount = seriesItems.reduce(
+    (sum, s) => sum + (s._count?.issues || 0),
+    0
+  ) + fileItems.length;
+
+  // Calculate read count
+  let derivedReadCount = 0;
+
+  // Use existing seriesIds from earlier query
+  if (seriesIds.length > 0) {
+    const progressRecords = await db.seriesProgress.findMany({
+      where: {
+        userId,
+        seriesId: { in: seriesIds },
+      },
+      select: { totalRead: true },
+    });
+    derivedReadCount = progressRecords.reduce((sum, p) => sum + p.totalRead, 0);
+  }
+
+  if (fileIds.length > 0) {
+    const readFiles = await db.userReadingProgress.count({
+      where: {
+        userId,
+        fileId: { in: fileIds },
+        completed: true,
+      },
+    });
+    derivedReadCount += readFiles;
+  }
+
+  // Find most recent content update
+  let contentUpdatedAt: Date | null = null;
+  for (const s of seriesItems) {
+    if (!contentUpdatedAt || s.updatedAt > contentUpdatedAt) {
+      contentUpdatedAt = s.updatedAt;
+    }
+  }
+  for (const f of fileItems) {
+    if (!contentUpdatedAt || f.updatedAt > contentUpdatedAt) {
+      contentUpdatedAt = f.updatedAt;
+    }
+  }
+
+  // Update the collection
+  await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      derivedPublisher,
+      derivedStartYear,
+      derivedEndYear,
+      derivedGenres,
+      derivedIssueCount,
+      derivedReadCount,
+      contentUpdatedAt,
+      metadataUpdatedAt: new Date(),
+    },
+  });
+}
+
+/**
  * Toggle collection promotion status.
  */
 export async function toggleCollectionPromotion(
@@ -1005,6 +1950,22 @@ export async function toggleCollectionPromotion(
     sortOrder: updated.sortOrder,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
+    isPromoted: updated.isPromoted,
+    promotedOrder: updated.promotedOrder,
+    coverType: updated.coverType as 'auto' | 'series' | 'issue' | 'custom' | undefined,
+    coverSeriesId: updated.coverSeriesId,
+    coverFileId: updated.coverFileId,
+    coverHash: updated.coverHash,
+    derivedPublisher: updated.derivedPublisher,
+    derivedStartYear: updated.derivedStartYear,
+    derivedEndYear: updated.derivedEndYear,
+    derivedGenres: updated.derivedGenres,
+    derivedIssueCount: updated.derivedIssueCount,
+    derivedReadCount: updated.derivedReadCount,
+    overridePublisher: updated.overridePublisher,
+    overrideStartYear: updated.overrideStartYear,
+    overrideEndYear: updated.overrideEndYear,
+    overrideGenres: updated.overrideGenres,
   };
 }
 
@@ -1045,6 +2006,11 @@ export async function updateCollectionCover(
     where: { id: collectionId },
     data: updateData,
   });
+
+  // If switching to 'auto' mode, regenerate the mosaic
+  if (coverType === 'auto') {
+    scheduleMosaicRegeneration(collectionId);
+  }
 
   return {
     id: updated.id,
@@ -1211,5 +2177,293 @@ export async function getCollectionReadingProgress(
   return {
     totalIssues: issueCountResult,
     readIssues,
+  };
+}
+
+// =============================================================================
+// Collection Detail Expanded Data
+// =============================================================================
+
+/**
+ * Issue data for collection detail page
+ */
+export interface ExpandedIssue {
+  id: string;
+  filename: string;
+  relativePath: string;
+  size: number;
+  seriesId: string;
+  seriesName: string;
+  collectionPosition: number;
+  metadata: {
+    number: string | null;
+    title: string | null;
+    writer: string | null;
+  } | null;
+  readingProgress: {
+    currentPage: number;
+    totalPages: number;
+    completed: boolean;
+    lastReadAt: string | null;
+  } | null;
+}
+
+/**
+ * Aggregate stats for collection
+ */
+export interface CollectionAggregateStats {
+  totalIssues: number;
+  readIssues: number;
+  inProgressIssues: number;
+  totalPages: number;
+  pagesRead: number;
+  seriesCount: number;
+}
+
+/**
+ * Next issue info for continue reading
+ */
+export interface CollectionNextIssue {
+  fileId: string;
+  filename: string;
+  seriesId: string;
+  seriesName: string;
+}
+
+/**
+ * Full expanded collection response
+ */
+export interface CollectionExpandedData {
+  collection: CollectionWithItems;
+  expandedIssues: ExpandedIssue[];
+  aggregateStats: CollectionAggregateStats;
+  nextIssue: CollectionNextIssue | null;
+}
+
+/**
+ * Get expanded collection data with all issues, stats, and next issue.
+ * This fetches all data in one request for better performance.
+ */
+export async function getCollectionExpanded(
+  userId: string,
+  collectionId: string
+): Promise<CollectionExpandedData | null> {
+  const db = getDatabase();
+
+  // Get collection with items
+  const collection = await getCollection(userId, collectionId);
+  if (!collection) {
+    return null;
+  }
+
+  // Collect series IDs and individual file IDs
+  const seriesIds: string[] = [];
+  const fileIds: string[] = [];
+
+  for (const item of collection.items) {
+    if (item.seriesId) {
+      seriesIds.push(item.seriesId);
+    }
+    if (item.fileId) {
+      fileIds.push(item.fileId);
+    }
+  }
+
+  // Fetch all issues for all series in one query
+  const [allSeriesIssues, individualFiles] = await Promise.all([
+    seriesIds.length > 0
+      ? db.comicFile.findMany({
+          where: { seriesId: { in: seriesIds } },
+          include: {
+            metadata: {
+              select: {
+                number: true,
+                title: true,
+                writer: true,
+              },
+            },
+            userReadingProgress: {
+              where: { userId },
+              select: {
+                currentPage: true,
+                totalPages: true,
+                completed: true,
+                lastReadAt: true,
+              },
+            },
+            series: {
+              select: {
+                name: true,
+              },
+            },
+          },
+          orderBy: [
+            { seriesId: 'asc' },
+            { filename: 'asc' },
+          ],
+        })
+      : [],
+    fileIds.length > 0
+      ? db.comicFile.findMany({
+          where: { id: { in: fileIds } },
+          include: {
+            metadata: {
+              select: {
+                number: true,
+                title: true,
+                writer: true,
+              },
+            },
+            userReadingProgress: {
+              where: { userId },
+              select: {
+                currentPage: true,
+                totalPages: true,
+                completed: true,
+                lastReadAt: true,
+              },
+            },
+            series: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        })
+      : [],
+  ]);
+
+  // Create a map of seriesId -> position for sorting
+  const seriesPositionMap = new Map<string, number>();
+  for (const item of collection.items) {
+    if (item.seriesId && !seriesPositionMap.has(item.seriesId)) {
+      seriesPositionMap.set(item.seriesId, item.position);
+    }
+  }
+
+  // Create a map of fileId -> position for individual files
+  const filePositionMap = new Map<string, number>();
+  for (const item of collection.items) {
+    if (item.fileId) {
+      filePositionMap.set(item.fileId, item.position);
+    }
+  }
+
+  // Parse issue number for sorting
+  const parseIssueNum = (num: string | null | undefined): number => {
+    if (!num) return Infinity;
+    const parsed = parseFloat(num);
+    return isNaN(parsed) ? Infinity : parsed;
+  };
+
+  // Transform and combine issues
+  const expandedIssues: ExpandedIssue[] = [];
+
+  // Add series issues
+  for (const issue of allSeriesIssues) {
+    const progress = issue.userReadingProgress[0] ?? null;
+    expandedIssues.push({
+      id: issue.id,
+      filename: issue.filename,
+      relativePath: issue.relativePath,
+      size: Number(issue.size),
+      seriesId: issue.seriesId!,
+      seriesName: issue.series?.name ?? 'Unknown Series',
+      collectionPosition: seriesPositionMap.get(issue.seriesId!) ?? 999,
+      metadata: issue.metadata,
+      readingProgress: progress ? {
+        currentPage: progress.currentPage,
+        totalPages: progress.totalPages,
+        completed: progress.completed,
+        lastReadAt: progress.lastReadAt?.toISOString() ?? null,
+      } : null,
+    });
+  }
+
+  // Add individual files
+  for (const file of individualFiles) {
+    const progress = file.userReadingProgress[0] ?? null;
+    expandedIssues.push({
+      id: file.id,
+      filename: file.filename,
+      relativePath: file.relativePath,
+      size: Number(file.size),
+      seriesId: file.seriesId ?? '',
+      seriesName: file.series?.name ?? 'Unknown Series',
+      collectionPosition: filePositionMap.get(file.id) ?? 999,
+      metadata: file.metadata,
+      readingProgress: progress ? {
+        currentPage: progress.currentPage,
+        totalPages: progress.totalPages,
+        completed: progress.completed,
+        lastReadAt: progress.lastReadAt?.toISOString() ?? null,
+      } : null,
+    });
+  }
+
+  // Sort by collection position, then by issue number
+  expandedIssues.sort((a, b) => {
+    if (a.collectionPosition !== b.collectionPosition) {
+      return a.collectionPosition - b.collectionPosition;
+    }
+    // Within same series, sort by issue number
+    const numA = parseIssueNum(a.metadata?.number);
+    const numB = parseIssueNum(b.metadata?.number);
+    if (numA !== numB) {
+      return numA - numB;
+    }
+    // Fallback to filename
+    return a.filename.localeCompare(b.filename);
+  });
+
+  // Calculate aggregate stats
+  let totalPages = 0;
+  let pagesRead = 0;
+  let readIssues = 0;
+  let inProgressIssues = 0;
+
+  for (const issue of expandedIssues) {
+    const progress = issue.readingProgress;
+    if (progress) {
+      totalPages += progress.totalPages;
+      if (progress.completed) {
+        readIssues++;
+        pagesRead += progress.totalPages;
+      } else if (progress.currentPage > 0) {
+        inProgressIssues++;
+        pagesRead += progress.currentPage;
+      }
+    }
+  }
+
+  const aggregateStats: CollectionAggregateStats = {
+    totalIssues: expandedIssues.length,
+    readIssues,
+    inProgressIssues,
+    totalPages,
+    pagesRead,
+    seriesCount: new Set(expandedIssues.map((i) => i.seriesId).filter(Boolean)).size,
+  };
+
+  // Find next unread issue (following collection order)
+  let nextIssue: CollectionNextIssue | null = null;
+  for (const issue of expandedIssues) {
+    const progress = issue.readingProgress;
+    if (!progress?.completed) {
+      nextIssue = {
+        fileId: issue.id,
+        filename: issue.filename,
+        seriesId: issue.seriesId,
+        seriesName: issue.seriesName,
+      };
+      break;
+    }
+  }
+
+  return {
+    collection,
+    expandedIssues,
+    aggregateStats,
+    nextIssue,
   };
 }

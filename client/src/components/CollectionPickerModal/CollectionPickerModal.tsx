@@ -7,7 +7,9 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useCollections } from '../../contexts/CollectionsContext';
+import { useToast } from '../../contexts/ToastContext';
 import { getCollectionsForItem } from '../../services/api.service';
+import { CollectionIcon } from '../CollectionIcon';
 import './CollectionPickerModal.css';
 
 interface CollectionPickerModalProps {
@@ -32,6 +34,7 @@ export function CollectionPickerModal({
     createCollection,
     isLoading: collectionsLoading,
   } = useCollections();
+  const { addToast } = useToast();
 
   const [itemCollectionIds, setItemCollectionIds] = useState<Set<string>>(new Set());
   const [isLoadingMemberships, setIsLoadingMemberships] = useState(false);
@@ -83,6 +86,9 @@ export function CollectionPickerModal({
 
     const isInCollection = itemCollectionIds.has(collectionId);
     const items = getItems();
+    const itemCount = items.length;
+    const collection = collections.find(c => c.id === collectionId);
+    const collectionName = collection?.name || 'collection';
 
     try {
       if (isInCollection && !isBulkMode) {
@@ -92,12 +98,22 @@ export function CollectionPickerModal({
           next.delete(collectionId);
           return next;
         });
+        addToast('success', `Removed from ${collectionName}`);
       } else {
         await addToCollection(collectionId, items);
         setItemCollectionIds((prev) => new Set(prev).add(collectionId));
+        addToast('success', isBulkMode
+          ? `Added ${itemCount} items to ${collectionName}`
+          : `Added to ${collectionName}`
+        );
+        // In bulk mode, close the modal after adding since there's no checkbox feedback
+        if (isBulkMode) {
+          onClose();
+        }
       }
     } catch (err) {
       console.error('Error toggling collection:', err);
+      addToast('error', 'Failed to update collection');
     } finally {
       setPendingToggles((prev) => {
         const next = new Set(prev);
@@ -105,7 +121,7 @@ export function CollectionPickerModal({
         return next;
       });
     }
-  }, [itemCollectionIds, getItems, addToCollection, removeFromCollection, pendingToggles, isBulkMode]);
+  }, [itemCollectionIds, getItems, addToCollection, removeFromCollection, pendingToggles, isBulkMode, collections, addToast, onClose]);
 
   const handleCreateNew = useCallback(async () => {
     if (!newCollectionName.trim()) return;
@@ -113,14 +129,25 @@ export function CollectionPickerModal({
     const collection = await createCollection(newCollectionName.trim());
     if (collection) {
       const items = getItems();
+      const itemCount = items.length;
       if (items.length > 0) {
         await addToCollection(collection.id, items);
         setItemCollectionIds((prev) => new Set(prev).add(collection.id));
+        addToast('success', isBulkMode
+          ? `Created "${collection.name}" and added ${itemCount} items`
+          : `Created "${collection.name}" and added item`
+        );
+        // In bulk mode, close after creating and adding
+        if (isBulkMode) {
+          onClose();
+        }
+      } else {
+        addToast('success', `Created collection "${collection.name}"`);
       }
       setNewCollectionName('');
       setIsCreating(false);
     }
-  }, [newCollectionName, createCollection, getItems, addToCollection]);
+  }, [newCollectionName, createCollection, getItems, addToCollection, isBulkMode, addToast, onClose]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -198,19 +225,11 @@ export function CollectionPickerModal({
                   disabled={pendingToggles.has(collection.id)}
                 >
                   <span className="collection-picker-item-icon">
-                    {collection.iconName === 'heart' ? (
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                      </svg>
-                    ) : collection.iconName === 'bookmark' ? (
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                    )}
+                    <CollectionIcon
+                      iconName={collection.iconName}
+                      color={collection.color}
+                      size={18}
+                    />
                   </span>
                   <span className="collection-picker-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (
@@ -238,9 +257,11 @@ export function CollectionPickerModal({
                   disabled={pendingToggles.has(collection.id)}
                 >
                   <span className="collection-picker-item-icon">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
+                    <CollectionIcon
+                      iconName={collection.iconName}
+                      color={collection.color}
+                      size={18}
+                    />
                   </span>
                   <span className="collection-picker-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (

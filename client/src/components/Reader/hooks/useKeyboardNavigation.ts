@@ -84,25 +84,18 @@ export function useKeyboardNavigation(
       const handled = true;
 
       switch (e.key) {
-        // Navigation
+        // Navigation - arrow keys always match their physical direction
+        // (right = next, left = prev) regardless of reading direction setting
         case 'ArrowRight':
         case 'd':
         case 'D':
-          if (state.direction === 'rtl') {
-            prevPage();
-          } else {
-            handleNextWithAutoAdvance();
-          }
+          handleNextWithAutoAdvance();
           break;
 
         case 'ArrowLeft':
         case 'a':
         case 'A':
-          if (state.direction === 'rtl') {
-            handleNextWithAutoAdvance();
-          } else {
-            prevPage();
-          }
+          prevPage();
           break;
 
         case 'ArrowDown':

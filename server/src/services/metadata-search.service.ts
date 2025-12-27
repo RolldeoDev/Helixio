@@ -742,6 +742,13 @@ export async function searchIssues(
 
     if (source === 'metron') {
       try {
+        // Check if Metron credentials are configured
+        if (!isMetronAvailable()) {
+          results.sources.metron.searched = false;
+          results.sources.metron.error = 'Metron credentials not configured. Add metronUsername and metronPassword in settings.';
+          continue;
+        }
+
         results.sources.metron.searched = true;
 
         const searchOptions: {
@@ -872,6 +879,10 @@ export async function getSeriesMetadata(
   }
 
   if (source === 'metron') {
+    // Check if Metron credentials are configured
+    if (!isMetronAvailable()) {
+      return null;
+    }
     const series = await metron.getSeries(id, sessionId);
     if (!series) return null;
     return metron.seriesToSeriesMetadata(series);
@@ -946,6 +957,10 @@ export async function getIssueMetadata(
   }
 
   if (source === 'metron') {
+    // Check if Metron credentials are configured
+    if (!isMetronAvailable()) {
+      return null;
+    }
     const issue = await metron.getIssue(id, sessionId);
     if (!issue) return null;
 
@@ -1004,6 +1019,10 @@ export async function getSeriesIssues(
   }
 
   if (source === 'metron') {
+    // Check if Metron credentials are configured
+    if (!isMetronAvailable()) {
+      return { issues: [], total: 0, hasMore: false };
+    }
     const result = await metron.getSeriesIssues(id, { page: options.page, sessionId });
 
     return {

@@ -44,6 +44,7 @@ export const pulpLightTheme: ThemeDefinition = {
     colorPrimary: '#5c4a32',               // Sepia brown ink
     colorPrimaryHover: '#4a3c28',          // Darker ink
     colorPrimaryMuted: 'rgba(92, 74, 50, 0.12)',
+    colorPrimaryText: '#f4ece0',           // Aged paper text on sepia backgrounds
     colorSecondary: '#d4c4a8',             // Aged highlight
     colorAccent: '#8b2500',                // Blood red accent
 

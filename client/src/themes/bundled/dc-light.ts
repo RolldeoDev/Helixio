@@ -32,6 +32,7 @@ export const dcLightTheme: ThemeDefinition = {
     colorPrimary: '#0066cc',
     colorPrimaryHover: '#0080ff',
     colorPrimaryMuted: 'rgba(0, 102, 204, 0.1)',
+    colorPrimaryText: '#FFFFFF',       // White text on blue backgrounds
     colorSecondary: '#e8e8f0',
     colorAccent: '#c41e24',
 

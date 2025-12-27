@@ -40,6 +40,7 @@ export const highContrastLightTheme: ThemeDefinition = {
     colorPrimary: '#0050A0',
     colorPrimaryHover: '#003D7A',
     colorPrimaryMuted: '#E0EFFF',
+    colorPrimaryText: '#FFFFFF',       // White text on dark blue (AAA compliant)
     colorSecondary: '#F0F0F0',
     // Dark gold for accent - visible against white
     colorAccent: '#8B6914',

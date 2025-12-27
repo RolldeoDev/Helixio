@@ -15,6 +15,7 @@ interface ThumbnailStripProps {
 
 export function ThumbnailStrip({ visible }: ThumbnailStripProps) {
   const { state, goToPage, isBookmarked, isLandscape } = useReader();
+  const isRtl = state.direction === 'rtl';
   const stripRef = useRef<HTMLDivElement>(null);
   const currentThumbRef = useRef<HTMLButtonElement>(null);
 
@@ -43,7 +44,7 @@ export function ThumbnailStrip({ visible }: ThumbnailStripProps) {
   };
 
   return (
-    <div className={`thumbnail-strip ${visible ? 'visible' : 'hidden'}`}>
+    <div className={`thumbnail-strip ${visible ? 'visible' : 'hidden'}`} dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="thumbnail-strip-inner" ref={stripRef}>
         {state.pages.map((page, index) => {
           const isCurrent = index === state.currentPage;

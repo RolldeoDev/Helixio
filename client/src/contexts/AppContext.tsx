@@ -54,6 +54,9 @@ interface AppState {
     pages: number;
   };
 
+  // Series selection (for bulk operations on SeriesPage)
+  selectedSeries: Set<string>;
+
   // Filters
   statusFilter: string | null;
   sortField: string;
@@ -85,6 +88,13 @@ interface AppContextValue extends AppState {
   selectFiles: (fileIds: string[], selected: boolean) => void;
   clearSelection: () => void;
   lastSelectedFileId: string | null;
+
+  // Series selection actions (for bulk operations on SeriesPage)
+  selectSeries: (seriesId: string, multi?: boolean) => void;
+  selectSeriesRange: (seriesIds: string[], fromId: string, toId: string) => void;
+  selectAllSeries: (seriesIds: string[]) => void;
+  clearSeriesSelection: () => void;
+  lastSelectedSeriesId: string | null;
 
   // Filter actions
   setStatusFilter: (status: string | null) => void;
@@ -158,6 +168,10 @@ export function AppProvider({ children }: AppProviderProps) {
     total: 0,
     pages: 0,
   });
+
+  // Series selection (for bulk operations on SeriesPage)
+  const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set());
+  const [lastSelectedSeriesId, setLastSelectedSeriesId] = useState<string | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -423,6 +437,60 @@ export function AppProvider({ children }: AppProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Series Selection Actions
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Select or deselect a series.
+   * @param seriesId - The series ID to select/deselect
+   * @param selected - true to select, false to deselect. If undefined, toggles.
+   */
+  const selectSeries = useCallback((seriesId: string, selected?: boolean) => {
+    setSelectedSeries((prev) => {
+      const next = new Set(prev);
+      const isCurrentlySelected = next.has(seriesId);
+
+      // If selected is explicitly provided, use it; otherwise toggle
+      const shouldSelect = selected !== undefined ? selected : !isCurrentlySelected;
+
+      if (shouldSelect) {
+        next.add(seriesId);
+      } else {
+        next.delete(seriesId);
+      }
+      return next;
+    });
+    setLastSelectedSeriesId(seriesId);
+  }, []);
+
+  const selectSeriesRange = useCallback((seriesIds: string[], fromId: string, toId: string) => {
+    const fromIndex = seriesIds.findIndex((id) => id === fromId);
+    const toIndex = seriesIds.findIndex((id) => id === toId);
+
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const start = Math.min(fromIndex, toIndex);
+    const end = Math.max(fromIndex, toIndex);
+
+    const rangeIds = seriesIds.slice(start, end + 1);
+    setSelectedSeries((prev) => {
+      const next = new Set(prev);
+      rangeIds.forEach((id) => next.add(id));
+      return next;
+    });
+    setLastSelectedSeriesId(toId);
+  }, []);
+
+  const selectAllSeries = useCallback((seriesIds: string[]) => {
+    setSelectedSeries(new Set(seriesIds));
+  }, []);
+
+  const clearSeriesSelection = useCallback(() => {
+    setSelectedSeries(new Set());
+    setLastSelectedSeriesId(null);
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Filter Actions
   // ---------------------------------------------------------------------------
 
@@ -488,6 +556,7 @@ export function AppProvider({ children }: AppProviderProps) {
     loadingFiles,
     filesError,
     pagination,
+    selectedSeries,
     statusFilter,
     sortField,
     sortOrder,
@@ -508,6 +577,12 @@ export function AppProvider({ children }: AppProviderProps) {
     selectFiles,
     clearSelection,
     lastSelectedFileId,
+    // Series selection actions
+    selectSeries,
+    selectSeriesRange,
+    selectAllSeries,
+    clearSeriesSelection,
+    lastSelectedSeriesId,
     setStatusFilter: handleSetStatusFilter,
     setSort,
     setGroupField,

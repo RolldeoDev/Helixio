@@ -38,6 +38,7 @@ export const synthwaveLightTheme: ThemeDefinition = {
     colorPrimary: '#cc00cc',           // Deep magenta (readable on light)
     colorPrimaryHover: '#dd22dd',      // Brighter on hover
     colorPrimaryMuted: 'rgba(204, 0, 204, 0.12)',
+    colorPrimaryText: '#FFFFFF',       // White text on magenta backgrounds
     colorSecondary: '#e8e0f0',         // Light purple surface
     colorAccent: '#0099aa',            // Teal (darker cyan for contrast)
 

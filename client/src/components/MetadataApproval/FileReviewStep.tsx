@@ -167,7 +167,7 @@ export function FileReviewStep({
   const rowVirtualizer = useVirtualizer({
     count: filteredFiles.length,
     getScrollElement: () => fileListRef.current,
-    estimateSize: () => 52,
+    estimateSize: () => 40, // Compact row height for better density
     overscan: 5,
   });
 

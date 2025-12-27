@@ -20,6 +20,7 @@ import {
   createSeries,
   getSeries,
   getSeriesList,
+  getUnifiedGridItems,
   updateSeries,
   deleteSeries,
   searchSeries,
@@ -49,8 +50,13 @@ import {
   toggleSeriesHidden,
   setSeriesHidden,
   getHiddenSeries,
+  bulkUpdateSeries,
+  bulkMarkSeriesRead,
+  bulkMarkSeriesUnread,
   SeriesListOptions,
+  type UnifiedGridOptions,
   type DuplicateConfidence,
+  type BulkSeriesUpdateInput,
 } from '../services/series.service.js';
 import {
   linkFileToSeries,
@@ -96,6 +102,7 @@ import {
   hasAnyCreators,
 } from '../services/creator-aggregation.service.js';
 import { processExistingFiles } from '../services/scanner.service.js';
+import { onSeriesCoverChanged } from '../services/collection.service.js';
 import { createServiceLogger } from '../services/logger.service.js';
 import {
   sendSuccess,
@@ -159,6 +166,54 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
   }, 'Listed series');
 
   sendSuccess(res, { series: result.series }, {
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.total,
+      pages: result.totalPages,
+    },
+  });
+}));
+
+/**
+ * GET /api/series/grid
+ * Get unified grid items (series + promoted collections) with filtering and sorting.
+ * Requires authentication to get user-specific promoted collections.
+ */
+router.get('/grid', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    sendBadRequest(res, 'User ID required');
+    return;
+  }
+
+  const fetchAll = req.query.all === 'true';
+  const options: UnifiedGridOptions = {
+    page: fetchAll ? 1 : (parseInt(req.query.page as string) || 1),
+    limit: fetchAll ? undefined : (parseInt(req.query.limit as string) || 50),
+    sortBy: (req.query.sortBy as SeriesListOptions['sortBy']) || 'name',
+    sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'asc',
+    search: req.query.search as string | undefined,
+    publisher: req.query.publisher as string | undefined,
+    type: req.query.type as 'western' | 'manga' | undefined,
+    genres: req.query.genres ? (req.query.genres as string).split(',') : undefined,
+    hasUnread: req.query.hasUnread ? req.query.hasUnread === 'true' : undefined,
+    libraryId: req.query.libraryId as string | undefined,
+    userId,
+    includePromotedCollections: req.query.includePromotedCollections !== 'false', // Default true
+  };
+
+  const result = await getUnifiedGridItems(options);
+
+  logger.debug({
+    page: options.page,
+    limit: options.limit,
+    total: result.total,
+    fetchAll,
+    includeCollections: options.includePromotedCollections,
+  }, 'Listed unified grid items');
+
+  sendSuccess(res, { items: result.items }, {
     pagination: {
       page: result.page,
       limit: result.limit,
@@ -726,6 +781,12 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
 
   const cover = await getSeriesCover(seriesId);
   logger.info({ seriesId, source, fileId: fileId || null, url: url ? '[provided]' : null }, 'Updated series cover');
+
+  // Trigger cascade refresh for collection mosaics that include this series
+  onSeriesCoverChanged(seriesId).catch((err) => {
+    logger.warn({ seriesId, error: err }, 'Failed to trigger collection mosaic refresh');
+  });
+
   sendSuccess(res, { cover });
 }));
 
@@ -738,10 +799,10 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), asyncHandler(async
   const seriesId = req.params.id!;
   const db = getDatabase();
 
-  // Check series exists
+  // Check series exists and get current cover hash
   const series = await db.series.findUnique({
     where: { id: seriesId },
-    select: { id: true },
+    select: { id: true, coverHash: true },
   });
 
   if (!series) {
@@ -755,8 +816,17 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), asyncHandler(async
     return;
   }
 
-  // Import the save function
-  const { saveUploadedCover } = await import('../services/cover.service.js');
+  // Import cover functions
+  const { saveUploadedCover, deleteSeriesCover } = await import('../services/cover.service.js');
+
+  // Delete old cover if exists to prevent stale cache
+  if (series.coverHash) {
+    try {
+      await deleteSeriesCover(series.coverHash);
+    } catch {
+      // Log but continue - old cover cleanup is not critical
+    }
+  }
 
   // Save the uploaded image
   const result = await saveUploadedCover(file.buffer);
@@ -779,6 +849,12 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), asyncHandler(async
 
   const cover = await getSeriesCover(seriesId);
   logger.info({ seriesId, coverHash: result.coverHash }, 'Uploaded custom series cover');
+
+  // Trigger cascade refresh for collection mosaics that include this series
+  onSeriesCoverChanged(seriesId).catch((err) => {
+    logger.warn({ seriesId, error: err }, 'Failed to trigger collection mosaic refresh');
+  });
+
   sendSuccess(res, { cover, coverHash: result.coverHash });
 }));
 
@@ -1768,6 +1844,68 @@ router.patch('/:id/children/:childId', asyncHandler(async (req: Request, res: Re
     }
     throw error;
   }
+}));
+
+// =============================================================================
+// Bulk Operations
+// =============================================================================
+
+/**
+ * PATCH /api/series/bulk
+ * Bulk update metadata fields across multiple series.
+ * Only updates fields that are explicitly provided.
+ */
+router.patch('/bulk', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const { seriesIds, updates } = req.body as {
+    seriesIds: string[];
+    updates: BulkSeriesUpdateInput;
+  };
+
+  if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+    return sendBadRequest(res, 'seriesIds must be a non-empty array');
+  }
+
+  if (!updates || typeof updates !== 'object') {
+    return sendBadRequest(res, 'updates must be an object');
+  }
+
+  const result = await bulkUpdateSeries(seriesIds, updates);
+  logger.info({ count: seriesIds.length, successful: result.successful }, 'Bulk updated series');
+  sendSuccess(res, result);
+}));
+
+/**
+ * POST /api/series/bulk-mark-read
+ * Mark all issues in the specified series as read for the current user.
+ */
+router.post('/bulk-mark-read', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const { seriesIds } = req.body as { seriesIds: string[] };
+
+  if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+    return sendBadRequest(res, 'seriesIds must be a non-empty array');
+  }
+
+  const result = await bulkMarkSeriesRead(seriesIds, userId);
+  logger.info({ userId, count: seriesIds.length, successful: result.successful }, 'Bulk marked series as read');
+  sendSuccess(res, result);
+}));
+
+/**
+ * POST /api/series/bulk-mark-unread
+ * Mark all issues in the specified series as unread for the current user.
+ */
+router.post('/bulk-mark-unread', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const { seriesIds } = req.body as { seriesIds: string[] };
+
+  if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+    return sendBadRequest(res, 'seriesIds must be a non-empty array');
+  }
+
+  const result = await bulkMarkSeriesUnread(seriesIds, userId);
+  logger.info({ userId, count: seriesIds.length, successful: result.successful }, 'Bulk marked series as unread');
+  sendSuccess(res, result);
 }));
 
 export default router;

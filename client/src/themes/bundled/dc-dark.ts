@@ -32,6 +32,7 @@ export const dcDarkTheme: ThemeDefinition = {
     colorPrimary: '#ffd700',
     colorPrimaryHover: '#ffe44d',
     colorPrimaryMuted: 'rgba(255, 215, 0, 0.12)',
+    colorPrimaryText: '#1a1a1a',       // Dark text on bright yellow backgrounds
     colorSecondary: '#1a1a2e',
     colorAccent: '#0066cc',
 

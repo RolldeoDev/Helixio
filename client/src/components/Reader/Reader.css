@@ -315,6 +315,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   align-items: center;
+  justify-content: flex-start; /* Override center to allow scrolling to top */
   gap: 16px;
   padding: 16px;
   /* Removed scroll-snap-type: y proximity - causes jumpy scrolling */
@@ -327,6 +328,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   align-items: center;
+  justify-content: flex-start; /* Override center to allow scrolling to top */
   gap: var(--webtoon-gap, 0);
   padding: 0;
   /* Removed scroll-behavior: smooth - conflicts with programmatic scrolling */

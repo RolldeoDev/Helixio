@@ -38,6 +38,7 @@ export const retroLightTheme: ThemeDefinition = {
     colorPrimary: '#306850',          // Mid-dark green
     colorPrimaryHover: '#0f380f',     // Darkest shade
     colorPrimaryMuted: 'rgba(48, 104, 80, 0.25)',
+    colorPrimaryText: '#9bbc0f',      // LCD green text on dark green backgrounds
     colorSecondary: '#8bac0f',
     colorAccent: '#0f380f',           // Darkest green (sprites/text)
 

@@ -71,6 +71,14 @@ export function getSeriesCoversDir(): string {
 }
 
 /**
+ * Get the path to the collection covers cache directory
+ * These are server-generated mosaic covers for collections
+ */
+export function getCollectionCoversDir(): string {
+  return join(getCacheDir(), 'collection-covers');
+}
+
+/**
  * Get the path to a cached series cover image
  */
 export function getSeriesCoverPath(coverHash: string): string {
@@ -157,6 +165,7 @@ export function ensureAppDirectories(): void {
     getCacheDir(),
     getCoversDir(),
     getSeriesCoversDir(),
+    getCollectionCoversDir(),
     getThumbnailsDir(),
     getAvatarsDir(),
     getSeriesCacheDir(),

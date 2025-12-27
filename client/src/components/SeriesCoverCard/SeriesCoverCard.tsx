@@ -16,6 +16,9 @@ import './SeriesCoverCard.css';
 
 export type SeriesCoverCardSize = 'small' | 'medium' | 'large';
 
+/** Checkbox visibility mode */
+export type CheckboxVisibility = 'always' | 'hover' | 'selected';
+
 /** Menu item preset identifiers for series context menu */
 export type SeriesMenuItemPreset = 'view' | 'fetchMetadata' | 'markAllRead' | 'markAllUnread' | 'mergeWith';
 
@@ -51,6 +54,18 @@ export interface SeriesCoverCardProps {
   /** Show publisher in info section */
   showPublisher?: boolean;
 
+  /** Enable selection checkbox */
+  selectable?: boolean;
+
+  /** Whether this series is currently selected */
+  isSelected?: boolean;
+
+  /** When to show the checkbox */
+  checkboxVisibility?: CheckboxVisibility;
+
+  /** Selection change handler - called when checkbox is toggled */
+  onSelectionChange?: (seriesId: string, selected: boolean, shiftKey?: boolean) => void;
+
   /** Custom class name */
   className?: string;
 
@@ -85,6 +100,10 @@ export function SeriesCoverCard({
   contextMenuEnabled = false,
   showYear = true,
   showPublisher = true,
+  selectable = false,
+  isSelected = false,
+  checkboxVisibility = 'hover',
+  onSelectionChange,
   className = '',
   animationIndex,
   tabIndex = 0,
@@ -165,9 +184,35 @@ export function SeriesCoverCard({
   const isComplete = totalOwned > 0 && totalRead >= totalOwned;
 
   // Handle click
-  const handleClick = useCallback(() => {
-    onClick?.(series.id);
-  }, [series.id, onClick]);
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      // If selectable and clicking anywhere on card (not checkbox), trigger selection
+      if (selectable && onSelectionChange) {
+        // Ctrl/Cmd click or Shift click triggers selection mode
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          e.preventDefault();
+          onSelectionChange(series.id, !isSelected, e.shiftKey);
+          return;
+        }
+      }
+      onClick?.(series.id);
+    },
+    [series.id, onClick, selectable, isSelected, onSelectionChange]
+  );
+
+  // Handle checkbox change
+  const handleCheckboxChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      e.stopPropagation();
+      onSelectionChange?.(series.id, e.target.checked, false);
+    },
+    [series.id, onSelectionChange]
+  );
+
+  // Handle checkbox click (prevent propagation)
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
 
   // Handle keyboard
   const handleKeyDown = useCallback(
@@ -252,9 +297,18 @@ export function SeriesCoverCard({
     ? { '--animation-index': animationIndex } as React.CSSProperties
     : undefined;
 
+  // Build class name with selection states
+  const classNames = [
+    'series-cover-card',
+    `series-cover-card--${size}`,
+    selectable && `series-cover-card--checkbox-${checkboxVisibility}`,
+    isSelected && 'series-cover-card--selected',
+    className,
+  ].filter(Boolean).join(' ');
+
   return (
     <div
-      className={`series-cover-card series-cover-card--${size} ${className}`}
+      className={classNames}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
@@ -318,6 +372,19 @@ export function SeriesCoverCard({
         <div className="series-cover-card__count-badge">
           {totalRead}/{totalOwned}
         </div>
+
+        {/* Selection checkbox */}
+        {selectable && (
+          <div className={`series-cover-card__checkbox ${isSelected ? 'series-cover-card__checkbox--checked' : ''}`}>
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={handleCheckboxChange}
+              onClick={handleCheckboxClick}
+              aria-label={`Select ${series.name}`}
+            />
+          </div>
+        )}
       </div>
 
       {/* Info */}

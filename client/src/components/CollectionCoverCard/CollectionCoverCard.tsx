@@ -2,12 +2,11 @@
  * CollectionCoverCard Component
  *
  * Cover card for displaying promoted collections in the series grid.
- * Shows mosaic or custom cover with aggregate reading progress.
+ * Shows server-generated mosaic or custom cover with aggregate reading progress.
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { MosaicCover, type SeriesCoverInfo } from '../MosaicCover';
-import { getCoverUrl, getApiCoverUrl } from '../../services/api.service';
+import { getCoverUrl, getApiCoverUrl, getCollectionCoverUrl } from '../../services/api.service';
 import './CollectionCoverCard.css';
 
 // =============================================================================
@@ -15,6 +14,15 @@ import './CollectionCoverCard.css';
 // =============================================================================
 
 export type CollectionCoverCardSize = 'small' | 'medium' | 'large';
+
+/** Series cover info for fallback cover resolution */
+export interface SeriesCoverInfo {
+  id: string;
+  name: string;
+  coverHash?: string | null;
+  coverFileId?: string | null;
+  firstIssueId?: string | null;
+}
 
 export interface PromotedCollectionData {
   id: string;
@@ -38,6 +46,8 @@ export interface PromotedCollectionData {
   totalIssues: number;
   readIssues: number;
   seriesCovers: SeriesCoverInfo[];
+  /** Number of series in the collection (for placeholder display) */
+  seriesCount?: number;
 }
 
 export interface CollectionCoverCardProps {
@@ -81,13 +91,24 @@ export function CollectionCoverCard({
   tabIndex = 0,
 }: CollectionCoverCardProps) {
   // Determine cover display
-  const customCoverUrl = useMemo(() => {
+  const coverUrl = useMemo(() => {
+    // Auto mode: use server-generated mosaic cover
+    if (collection.coverType === 'auto') {
+      if (collection.coverHash) {
+        return getCollectionCoverUrl(collection.coverHash);
+      }
+      // No coverHash = empty collection or not yet generated, show placeholder
+      return null;
+    }
+    // Custom uploaded cover
     if (collection.coverType === 'custom' && collection.coverHash) {
       return getApiCoverUrl(collection.coverHash);
     }
+    // Issue cover
     if (collection.coverType === 'issue' && collection.coverFileId) {
       return getCoverUrl(collection.coverFileId);
     }
+    // Series cover
     if (collection.coverType === 'series' && collection.coverSeriesId) {
       // Find the series cover URL from seriesCovers
       const series = collection.seriesCovers.find((s) => s.id === collection.coverSeriesId);
@@ -100,38 +121,38 @@ export function CollectionCoverCard({
     return null;
   }, [collection]);
 
-  const showMosaic = collection.coverType === 'auto' || !customCoverUrl;
+  const showPlaceholder = !coverUrl;
 
-  // Custom cover state
-  const [customCoverStatus, setCustomCoverStatus] = useState<'loading' | 'loaded' | 'error'>(
-    customCoverUrl ? 'loading' : 'error'
+  // Cover loading state
+  const [coverStatus, setCoverStatus] = useState<'loading' | 'loaded' | 'error'>(
+    coverUrl ? 'loading' : 'error'
   );
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    if (!customCoverUrl) {
-      setCustomCoverStatus('error');
+    if (!coverUrl) {
+      setCoverStatus('error');
       return;
     }
 
     const img = imgRef.current;
     if (img && img.complete) {
       if (img.naturalWidth > 0) {
-        setCustomCoverStatus('loaded');
+        setCoverStatus('loaded');
       } else {
-        setCustomCoverStatus('error');
+        setCoverStatus('error');
       }
     } else {
-      setCustomCoverStatus('loading');
+      setCoverStatus('loading');
     }
-  }, [customCoverUrl]);
+  }, [coverUrl]);
 
   const handleLoad = useCallback(() => {
-    setCustomCoverStatus('loaded');
+    setCoverStatus('loaded');
   }, []);
 
   const handleError = useCallback(() => {
-    setCustomCoverStatus('error');
+    setCoverStatus('error');
   }, []);
 
   // Calculate progress
@@ -185,42 +206,45 @@ export function CollectionCoverCard({
 
       {/* Cover */}
       <div className="collection-cover-card__cover">
-        {/* Mosaic cover (auto mode or custom cover failed) */}
-        {showMosaic && (
-          <MosaicCover
-            seriesCovers={collection.seriesCovers}
-            alt={collection.name}
-            size={size}
-          />
+        {/* Placeholder for empty collections or cover not yet generated */}
+        {showPlaceholder && (
+          <div className="collection-cover-card__placeholder">
+            <svg className="collection-cover-card__placeholder-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+            </svg>
+            <span className="collection-cover-card__placeholder-text">
+              {collection.seriesCovers?.length === 0 ? 'Empty' : 'Loading...'}
+            </span>
+          </div>
         )}
 
-        {/* Custom cover */}
-        {!showMosaic && customCoverUrl && (
-          <div className="collection-cover-card__custom-cover">
-            {customCoverStatus === 'loading' && (
+        {/* Cover image (server-side mosaic, custom, issue, or series cover) */}
+        {coverUrl && (
+          <div className="collection-cover-card__cover-container">
+            {coverStatus === 'loading' && (
               <div className="collection-cover-card__loading">
                 <div className="collection-cover-card__spinner" />
               </div>
             )}
 
-            {customCoverStatus === 'error' && (
-              <MosaicCover
-                seriesCovers={collection.seriesCovers}
-                alt={collection.name}
-                size={size}
-              />
+            {coverStatus === 'error' && (
+              <div className="collection-cover-card__placeholder">
+                <svg className="collection-cover-card__placeholder-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+                </svg>
+              </div>
             )}
 
             <img
               ref={imgRef}
-              src={customCoverUrl}
+              src={coverUrl}
               alt={collection.name}
               loading="lazy"
               decoding="async"
               onLoad={handleLoad}
               onError={handleError}
               className={`collection-cover-card__image ${
-                customCoverStatus === 'loaded' ? 'collection-cover-card__image--loaded' : ''
+                coverStatus === 'loaded' ? 'collection-cover-card__image--loaded' : ''
               }`}
             />
           </div>

@@ -82,6 +82,7 @@ export const retroDarkTheme: ThemeDefinition = {
     colorPrimary: '#e63946',           // Nintendo/Mario red
     colorPrimaryHover: '#ff4d5a',      // Brighter red
     colorPrimaryMuted: 'rgba(230, 57, 70, 0.2)',
+    colorPrimaryText: '#FFFFFF',       // White text on red backgrounds
     colorSecondary: '#232538',         // Deep blue surface
     colorAccent: '#ffcc00',            // Coin gold / star power
 

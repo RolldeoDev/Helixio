@@ -40,6 +40,7 @@ export const highContrastDarkTheme: ThemeDefinition = {
     colorPrimary: '#00E5FF',
     colorPrimaryHover: '#4DF0FF',
     colorPrimaryMuted: '#003D45',
+    colorPrimaryText: '#000000',       // Black text on bright cyan (AAA compliant)
     colorSecondary: '#1A1A1A',
     // Yellow accent for maximum visibility
     colorAccent: '#FFD600',

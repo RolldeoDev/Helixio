@@ -26,6 +26,7 @@ import {
   initializeDatabase,
   closeDatabase,
   getDatabaseStats,
+  getDatabase,
 } from './services/database.service.js';
 
 // Routes
@@ -526,6 +527,31 @@ async function startServer(): Promise<void> {
 
     // Start stats scheduler for background stat computation
     startStatsScheduler();
+
+    // Queue mosaic generation for promoted collections with coverType='auto' and no coverHash
+    // This runs after everything else so it doesn't delay startup
+    setTimeout(async () => {
+      try {
+        const { scheduleMosaicRegeneration } = await import('./services/collection.service.js');
+        const db = getDatabase();
+        const collectionsNeedingMosaic = await db.collection.findMany({
+          where: {
+            isPromoted: true,
+            coverType: 'auto',
+            coverHash: null,
+          },
+          select: { id: true, name: true },
+        });
+        if (collectionsNeedingMosaic.length > 0) {
+          console.log(`[Startup] Scheduling mosaic generation for ${collectionsNeedingMosaic.length} collection(s)...`);
+          for (const collection of collectionsNeedingMosaic) {
+            scheduleMosaicRegeneration(collection.id);
+          }
+        }
+      } catch (err) {
+        console.error('[Startup] Failed to schedule collection mosaic generation:', err);
+      }
+    }, 2000); // Delay 2s after startup
 
     // Get initial stats
     const stats = await getDatabaseStats();

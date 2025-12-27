@@ -40,6 +40,7 @@ export interface ThemeTokens {
   colorPrimary: string;
   colorPrimaryHover: string;
   colorPrimaryMuted: string;
+  colorPrimaryText: string; // Text color for use on primary-colored backgrounds
   colorSecondary: string;
   colorAccent: string;
 
@@ -216,6 +217,7 @@ export const VARIABLE_GROUPS: VariableGroup[] = [
       { key: 'colorPrimary', label: '--color-primary', type: 'color' },
       { key: 'colorPrimaryHover', label: '--color-primary-hover', type: 'color' },
       { key: 'colorPrimaryMuted', label: '--color-primary-muted', type: 'color' },
+      { key: 'colorPrimaryText', label: '--color-primary-text', type: 'color' },
       { key: 'colorSecondary', label: '--color-secondary', type: 'color' },
       { key: 'colorAccent', label: '--color-accent', type: 'color' },
     ],

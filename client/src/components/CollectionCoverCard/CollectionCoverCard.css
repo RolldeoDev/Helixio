@@ -19,9 +19,9 @@
   --collection-card-bg: var(--color-surface-card, #1a1a2e);
   --collection-card-bg-hover: var(--color-surface-card-hover, #252542);
 
-  /* Borders - Collection accent color */
-  --collection-card-border-color: var(--color-collection-accent, #a855f7);
-  --collection-card-border-width: 2px;
+  /* Borders - subtle, matching series cards */
+  --collection-card-border-color: var(--color-border-subtle, rgba(255, 255, 255, 0.08));
+  --collection-card-border-width: 1px;
   --collection-card-border-focus: var(--color-focus-ring, #818cf8);
 
   /* Text */
@@ -29,19 +29,18 @@
   --collection-card-text-secondary: var(--color-text-secondary, #94a3b8);
   --collection-card-text-muted: var(--color-text-muted, #64748b);
 
-  /* Status indicators */
+  /* Status indicators - use standard accent color */
   --collection-card-progress-bg: var(--color-progress-track, rgba(255, 255, 255, 0.1));
-  --collection-card-progress-fill: var(--color-collection-accent, #a855f7);
+  --collection-card-progress-fill: var(--color-accent, #3b82f6);
   --collection-card-completed-color: var(--color-success, #22c55e);
 
-  /* Badge */
-  --collection-card-badge-bg: var(--color-collection-accent, #a855f7);
-  --collection-card-badge-text: white;
+  /* Badge - subtle indicator */
+  --collection-card-badge-bg: rgba(0, 0, 0, 0.7);
+  --collection-card-badge-text: var(--color-text-secondary, #94a3b8);
 
-  /* Shadows */
+  /* Shadows - match series cards */
   --collection-card-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
   --collection-card-shadow-hover: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
-  --collection-card-glow: var(--shadow-collection-glow, 0 0 20px rgba(168, 85, 247, 0.3));
 
   /* Border radius */
   --collection-card-radius: var(--radius-md, 8px);
@@ -83,13 +82,13 @@
 
 .collection-cover-card:hover {
   transform: translateY(-3px) scale(1.03);
-  box-shadow: var(--collection-card-shadow-hover), var(--collection-card-glow);
+  box-shadow: var(--collection-card-shadow-hover);
   will-change: transform;
 }
 
 .collection-cover-card:focus-visible {
   border-color: var(--collection-card-border-focus);
-  box-shadow: var(--collection-card-shadow-hover), var(--collection-card-glow);
+  box-shadow: var(--collection-card-shadow-hover);
 }
 
 /* =============================================================================
@@ -111,32 +110,32 @@
 }
 
 /* =============================================================================
-   Collection Badge
+   Collection Badge - Small corner indicator
    ============================================================================= */
 
 .collection-cover-card__badge {
   position: absolute;
-  top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 6px;
+  left: 6px;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px 4px;
+  gap: 3px;
+  padding: 3px 6px;
   background: var(--collection-card-badge-bg);
   color: var(--collection-card-badge-text);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-radius: 0 0 6px 6px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  letter-spacing: 0.3px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
 }
 
 .collection-cover-card__badge-icon {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
+  opacity: 0.8;
 }
 
 /* =============================================================================
@@ -152,10 +151,34 @@
   background: var(--collection-card-bg);
 }
 
-/* Custom cover container */
-.collection-cover-card__custom-cover {
+/* Cover container (for all cover types) */
+.collection-cover-card__cover-container {
   position: absolute;
   inset: 0;
+}
+
+/* Placeholder for empty collections */
+.collection-cover-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--collection-card-bg);
+  color: var(--collection-card-text-muted);
+}
+
+.collection-cover-card__placeholder-icon {
+  width: 40px;
+  height: 40px;
+  opacity: 0.4;
+}
+
+.collection-cover-card__placeholder-text {
+  font-size: 11px;
+  opacity: 0.6;
 }
 
 .collection-cover-card__image {
@@ -188,8 +211,8 @@
 .collection-cover-card__spinner {
   width: 24px;
   height: 24px;
-  border: 2px solid var(--collection-card-border-color);
-  border-top-color: var(--collection-card-badge-bg);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--collection-card-text-secondary);
   border-radius: 50%;
   animation: collection-spin 0.8s linear infinite;
 }

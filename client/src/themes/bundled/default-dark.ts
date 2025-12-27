@@ -32,6 +32,7 @@ export const collectorsDarkTheme: ThemeDefinition = {
     colorPrimary: '#d4a574',
     colorPrimaryHover: '#e5bc92',
     colorPrimaryMuted: 'rgba(212, 165, 116, 0.15)',
+    colorPrimaryText: '#1a1a1a',       // Dark text on warm amber backgrounds
     colorSecondary: '#2a3444',
     colorAccent: '#8b7355',
 

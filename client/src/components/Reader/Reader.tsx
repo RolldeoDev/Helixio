@@ -245,14 +245,11 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     onSwipe: (direction) => {
       if (state.mode === 'continuous' || state.mode === 'webtoon') return; // No swipe in scroll modes
 
+      // Swipe direction always matches physical direction regardless of RTL setting
       if (direction === 'left') {
-        // Swipe left = next (or prev in RTL)
-        if (state.direction === 'rtl') prevPage();
-        else nextPage();
+        nextPage();
       } else if (direction === 'right') {
-        // Swipe right = prev (or next in RTL)
-        if (state.direction === 'rtl') nextPage();
-        else prevPage();
+        prevPage();
       }
     },
     onDoubleTap: () => {
@@ -290,15 +287,13 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       const rect = container.getBoundingClientRect();
       const relativeX = (x - rect.left) / rect.width;
 
-      // Same click zone logic as mouse
+      // Tap zones always match physical position regardless of RTL setting
       if (relativeX > 0.33 && relativeX < 0.67) {
         toggleUI();
       } else if (relativeX <= 0.33) {
-        if (state.direction === 'rtl') nextPage();
-        else prevPage();
+        prevPage();
       } else {
-        if (state.direction === 'rtl') prevPage();
-        else nextPage();
+        nextPage();
       }
     },
   }, {
@@ -373,7 +368,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     };
   }, [resetHideTimer, showUI]);
 
-  // Click zones for navigation
+  // Click zones for navigation - always match physical position regardless of RTL setting
   const handlePageClick = useCallback(
     (e: React.MouseEvent) => {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -387,24 +382,16 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         return;
       }
 
-      // Click in left third
+      // Click in left third = previous page
       if (clickPosition <= 0.33) {
-        if (state.direction === 'rtl') {
-          nextPage();
-        } else {
-          prevPage();
-        }
+        prevPage();
       }
-      // Click in right third
+      // Click in right third = next page
       else {
-        if (state.direction === 'rtl') {
-          prevPage();
-        } else {
-          nextPage();
-        }
+        nextPage();
       }
     },
-    [state.direction, toggleUI, nextPage, prevPage]
+    [toggleUI, nextPage, prevPage]
   );
 
   // Background color class
@@ -500,15 +487,14 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       >
         <ReaderPage />
 
-        {/* Edge navigation zones */}
+        {/* Edge navigation zones - always match physical position regardless of RTL setting */}
         {state.mode !== 'continuous' && state.mode !== 'webtoon' && (
           <>
             <div
               className={`reader-edge-zone reader-edge-left ${hoveredEdge === 'left' ? 'active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (state.direction === 'rtl') nextPage();
-                else prevPage();
+                prevPage();
               }}
             >
               <div className="reader-edge-arrow">
@@ -521,8 +507,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
               className={`reader-edge-zone reader-edge-right ${hoveredEdge === 'right' ? 'active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                if (state.direction === 'rtl') prevPage();
-                else nextPage();
+                nextPage();
               }}
             >
               <div className="reader-edge-arrow">

@@ -7,25 +7,42 @@
  * Features:
  * - Promoted collections section at the top
  * - Series grid with filters and search
+ * - Multi-select with bulk actions
  */
 
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { SeriesGrid } from '../components/SeriesGrid';
-import { CollectionCoverCard, type PromotedCollectionData } from '../components/CollectionCoverCard';
+import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
+import { BatchSeriesMetadataModal } from '../components/BatchSeriesMetadataModal';
+import { CollectionPickerModal } from '../components/CollectionPickerModal';
 import {
   getSeriesPublishers,
   getSeriesGenres,
-  getPromotedCollections,
+  getSeriesIssues,
+  bulkToggleFavorite,
+  bulkToggleWantToRead,
+  bulkMarkSeriesRead,
+  bulkMarkSeriesUnread,
   SeriesListOptions,
-  PromotedCollection,
 } from '../services/api.service';
 import { useApp } from '../contexts/AppContext';
+import { useMetadataJob } from '../contexts/MetadataJobContext';
+import { useToast } from '../contexts/ToastContext';
 import './SeriesPage.css';
 
 export function SeriesPage() {
-  const navigate = useNavigate();
-  const { libraries, selectedLibrary, isAllLibraries, selectLibrary } = useApp();
+  const {
+    libraries,
+    selectedLibrary,
+    isAllLibraries,
+    selectLibrary,
+    selectedSeries,
+    selectSeries,
+    selectSeriesRange,
+    clearSeriesSelection,
+  } = useApp();
+  const { startJob } = useMetadataJob();
+  const { addToast } = useToast();
 
   // Filter state
   const [search, setSearch] = useState('');
@@ -43,22 +60,26 @@ export function SeriesPage() {
   const [publishers, setPublishers] = useState<string[]>([]);
   const [_genres, setGenres] = useState<string[]>([]);
 
-  // Promoted collections state
-  const [promotedCollections, setPromotedCollections] = useState<PromotedCollection[]>([]);
-  const [showPromotedCollections, setShowPromotedCollections] = useState(true);
+  // Modal states for bulk actions
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
-  // Fetch filter options and promoted collections
+  // Track all series IDs for range selection
+  const allSeriesIdsRef = useRef<string[]>([]);
+  // Track last selected series ID locally for stable callback
+  const lastSelectedRef = useRef<string | null>(null);
+
+  // Fetch filter options
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [pubResult, genreResult, collectionsResult] = await Promise.all([
+        const [pubResult, genreResult] = await Promise.all([
           getSeriesPublishers(),
           getSeriesGenres(),
-          getPromotedCollections(),
         ]);
         setPublishers(pubResult.publishers);
         setGenres(genreResult.genres);
-        setPromotedCollections(collectionsResult.collections);
       } catch (err) {
         console.error('Failed to load data:', err);
       }
@@ -66,8 +87,128 @@ export function SeriesPage() {
     fetchData();
   }, []);
 
-  // Build options for SeriesGrid
-  const options: SeriesListOptions = {
+  // Clear selection when filters change
+  useEffect(() => {
+    clearSeriesSelection();
+  }, [search, publisher, type, selectedGenres, hasUnread, libraryId, sortBy, sortOrder, clearSeriesSelection]);
+
+  // Clear selection on unmount
+  useEffect(() => {
+    return () => {
+      clearSeriesSelection();
+    };
+  }, [clearSeriesSelection]);
+
+  // Handle series selection with shift support
+  // Uses refs to avoid re-creating callback on every selection change (performance critical)
+  const handleSelectionChange = useCallback((seriesId: string, selected: boolean, shiftKey?: boolean) => {
+    if (shiftKey && allSeriesIdsRef.current.length > 0 && lastSelectedRef.current) {
+      // Range selection - select all between last selected and current
+      selectSeriesRange(allSeriesIdsRef.current, lastSelectedRef.current, seriesId);
+    } else {
+      selectSeries(seriesId, selected);
+    }
+    // Update last selected ref for next shift+click
+    lastSelectedRef.current = seriesId;
+  }, [selectSeries, selectSeriesRange]);
+
+  // Bulk action handlers
+  const handleToggleFavorite = useCallback(async (action: 'add' | 'remove') => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      await bulkToggleFavorite(Array.from(selectedSeries), action);
+      clearSeriesSelection();
+      addToast('success', action === 'add'
+        ? `Added ${count} series to Favorites`
+        : `Removed ${count} series from Favorites`
+      );
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+      addToast('error', 'Failed to update favorites');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, clearSeriesSelection, addToast]);
+
+  const handleToggleWantToRead = useCallback(async (action: 'add' | 'remove') => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      await bulkToggleWantToRead(Array.from(selectedSeries), action);
+      clearSeriesSelection();
+      addToast('success', action === 'add'
+        ? `Added ${count} series to Want to Read`
+        : `Removed ${count} series from Want to Read`
+      );
+    } catch (err) {
+      console.error('Failed to toggle want to read:', err);
+      addToast('error', 'Failed to update Want to Read');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, clearSeriesSelection, addToast]);
+
+  const handleMarkRead = useCallback(async () => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      await bulkMarkSeriesRead(Array.from(selectedSeries));
+      clearSeriesSelection();
+      addToast('success', `Marked all issues in ${count} series as read`);
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+      addToast('error', 'Failed to mark as read');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, clearSeriesSelection, addToast]);
+
+  const handleMarkUnread = useCallback(async () => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      await bulkMarkSeriesUnread(Array.from(selectedSeries));
+      clearSeriesSelection();
+      addToast('success', `Marked all issues in ${count} series as unread`);
+    } catch (err) {
+      console.error('Failed to mark as unread:', err);
+      addToast('error', 'Failed to mark as unread');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, clearSeriesSelection, addToast]);
+
+  const handleFetchMetadata = useCallback(async () => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      // Get all issues from all selected series
+      const allFileIds: string[] = [];
+      for (const seriesId of selectedSeries) {
+        const result = await getSeriesIssues(seriesId, { limit: 1000 });
+        allFileIds.push(...result.issues.map((issue) => issue.id));
+      }
+      if (allFileIds.length > 0) {
+        startJob(allFileIds);
+        addToast('info', `Started metadata fetch for ${allFileIds.length} issues from ${count} series`);
+      }
+      clearSeriesSelection();
+    } catch (err) {
+      console.error('Failed to fetch metadata:', err);
+      addToast('error', 'Failed to start metadata fetch');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, startJob, clearSeriesSelection, addToast]);
+
+  const handleBatchEditComplete = useCallback((updatedCount: number) => {
+    clearSeriesSelection();
+    addToast('success', `Updated ${updatedCount} series`);
+  }, [clearSeriesSelection, addToast]);
+
+  // Build options for SeriesGrid - memoized to prevent unnecessary refetches
+  const options: SeriesListOptions = useMemo(() => ({
     sortBy,
     sortOrder,
     ...(search && { search }),
@@ -76,7 +217,7 @@ export function SeriesPage() {
     ...(selectedGenres.length > 0 && { genres: selectedGenres }),
     ...(hasUnread !== undefined && { hasUnread }),
     ...(libraryId && { libraryId }),
-  };
+  }), [sortBy, sortOrder, search, publisher, type, selectedGenres, hasUnread, libraryId]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -219,78 +360,46 @@ export function SeriesPage() {
         </div>
       </div>
 
-      {/* Promoted Collections Section */}
-      {promotedCollections.length > 0 && showPromotedCollections && !hasActiveFilters && (
-        <div className="series-promoted-collections">
-          <div className="series-promoted-header">
-            <h2>Collections</h2>
-            <button
-              className="series-promoted-toggle"
-              onClick={() => setShowPromotedCollections(false)}
-              aria-label="Hide collections"
-            >
-              Hide
-            </button>
-          </div>
-          <div className="series-promoted-grid">
-            {promotedCollections.map((collection) => {
-              // Convert PromotedCollection to PromotedCollectionData
-              const collectionData: PromotedCollectionData = {
-                id: collection.id,
-                name: collection.name,
-                description: collection.description,
-                isPromoted: collection.isPromoted,
-                coverType: collection.coverType,
-                coverSeriesId: collection.coverSeriesId,
-                coverFileId: collection.coverFileId,
-                coverHash: collection.coverHash,
-                derivedPublisher: collection.derivedPublisher,
-                derivedStartYear: collection.derivedStartYear,
-                derivedEndYear: collection.derivedEndYear,
-                derivedGenres: collection.derivedGenres,
-                derivedIssueCount: collection.derivedIssueCount,
-                derivedReadCount: collection.derivedReadCount,
-                overridePublisher: collection.overridePublisher,
-                overrideStartYear: collection.overrideStartYear,
-                overrideEndYear: collection.overrideEndYear,
-                overrideGenres: collection.overrideGenres,
-                totalIssues: collection.totalIssues,
-                readIssues: collection.readIssues,
-                seriesCovers: collection.seriesCovers.map((s) => ({
-                  id: s.id,
-                  name: s.name,
-                  coverHash: s.coverHash,
-                  coverFileId: s.coverFileId,
-                  firstIssueId: s.firstIssueId,
-                  coverSource: s.coverSource,
-                })),
-              };
+      {/* Series Grid (with integrated promoted collections) */}
+      <SeriesGrid
+        options={options}
+        selectable={true}
+        selectedSeries={selectedSeries}
+        onSelectionChange={handleSelectionChange}
+        useUnifiedGrid={true}
+      />
 
-              return (
-                <CollectionCoverCard
-                  key={collection.id}
-                  collection={collectionData}
-                  size="medium"
-                  onClick={(id) => navigate(`/collections/${id}`)}
-                />
-              );
-            })}
-          </div>
-        </div>
+      {/* Bulk Action Bar */}
+      {selectedSeries.size > 0 && (
+        <BulkSeriesActionBar
+          selectedCount={selectedSeries.size}
+          selectedSeriesIds={Array.from(selectedSeries)}
+          onClearSelection={clearSeriesSelection}
+          onAddToCollection={() => setShowCollectionPicker(true)}
+          onToggleFavorite={handleToggleFavorite}
+          onToggleWantToRead={handleToggleWantToRead}
+          onMarkRead={handleMarkRead}
+          onMarkUnread={handleMarkUnread}
+          onFetchMetadata={handleFetchMetadata}
+          onBatchEdit={() => setShowBatchEditModal(true)}
+          isLoading={isBulkLoading}
+        />
       )}
 
-      {/* Show collapsed collections indicator */}
-      {promotedCollections.length > 0 && !showPromotedCollections && !hasActiveFilters && (
-        <button
-          className="series-promoted-show-btn"
-          onClick={() => setShowPromotedCollections(true)}
-        >
-          Show {promotedCollections.length} Collection{promotedCollections.length !== 1 ? 's' : ''}
-        </button>
-      )}
+      {/* Collection Picker Modal */}
+      <CollectionPickerModal
+        isOpen={showCollectionPicker}
+        onClose={() => setShowCollectionPicker(false)}
+        seriesIds={Array.from(selectedSeries)}
+      />
 
-      {/* Series Grid */}
-      <SeriesGrid options={options} />
+      {/* Batch Edit Modal */}
+      <BatchSeriesMetadataModal
+        isOpen={showBatchEditModal}
+        onClose={() => setShowBatchEditModal(false)}
+        seriesIds={Array.from(selectedSeries)}
+        onComplete={handleBatchEditComplete}
+      />
     </div>
   );
 }

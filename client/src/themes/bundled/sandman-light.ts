@@ -46,6 +46,7 @@ export const sandmanLightTheme: ThemeDefinition = {
     colorPrimary: '#8b6914',               // Gold Leaf - rich antique gold
     colorPrimaryHover: '#a37d1a',          // Burnished Gold - activated
     colorPrimaryMuted: 'rgba(139, 105, 20, 0.12)', // Gold Dust - subtle
+    colorPrimaryText: '#FFFFFF',           // White text on gold backgrounds
     colorSecondary: '#e8e3d9',             // Linen Paper - soft secondary
     colorAccent: '#4a3875',                // Royal Purple - dream binding
 

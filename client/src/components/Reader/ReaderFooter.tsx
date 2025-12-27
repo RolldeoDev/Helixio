@@ -13,6 +13,7 @@ interface ReaderFooterProps {
 
 export function ReaderFooter({ visible }: ReaderFooterProps) {
   const { state, goToPage, prevPage, nextPage, firstPage, lastPage } = useReader();
+  const isRtl = state.direction === 'rtl';
   const [isDragging, setIsDragging] = useState(false);
   const [previewPage, setPreviewPage] = useState<number | null>(null);
   const scrubberRef = useRef<HTMLDivElement>(null);
@@ -22,15 +23,21 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
     : 0;
 
   // Calculate page from scrubber position
+  // In RTL mode, invert the percentage because scaleX(-1) only affects visual rendering,
+  // not DOM coordinates - so clicking on the visually-right side (where page 1 appears)
+  // gives high x values that need to be inverted to get low page numbers
   const getPageFromPosition = useCallback(
     (clientX: number) => {
       if (!scrubberRef.current) return 0;
       const rect = scrubberRef.current.getBoundingClientRect();
       const x = clientX - rect.left;
-      const percentage = Math.max(0, Math.min(1, x / rect.width));
+      let percentage = Math.max(0, Math.min(1, x / rect.width));
+      if (isRtl) {
+        percentage = 1 - percentage;
+      }
       return Math.round(percentage * (state.totalPages - 1));
     },
-    [state.totalPages]
+    [state.totalPages, isRtl]
   );
 
   // Handle scrubber interactions
@@ -97,7 +104,7 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
 
   return (
     <div className={`reader-footer ${visible ? 'visible' : 'hidden'}`}>
-      <div className="reader-footer-controls">
+      <div className="reader-footer-controls" dir={isRtl ? 'rtl' : 'ltr'}>
         {/* First page */}
         <button
           className="reader-nav-btn"
@@ -125,11 +132,11 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
         {/* Progress scrubber */}
         <div
           ref={scrubberRef}
-          className={`reader-scrubber ${isDragging ? 'dragging' : ''}`}
+          className={`reader-scrubber ${isDragging ? 'dragging' : ''} ${isRtl ? 'rtl' : ''}`}
           onClick={handleTrackClick}
           onMouseDown={handleMouseDown}
         >
-          <div className="reader-scrubber-track">
+          <div className="reader-scrubber-track" style={isRtl ? { transform: 'scaleX(-1)' } : undefined}>
             {/* Bookmark indicators */}
             {state.bookmarks.map((bookmark) => {
               const position = state.totalPages > 1
@@ -162,7 +169,10 @@ export function ReaderFooter({ visible }: ReaderFooterProps) {
           {isDragging && previewPage !== null && (
             <div
               className="reader-scrubber-preview"
-              style={{ left: `${(previewPage / (state.totalPages - 1)) * 100}%` }}
+              style={isRtl
+                ? { right: `${(previewPage / (state.totalPages - 1)) * 100}%`, left: 'auto' }
+                : { left: `${(previewPage / (state.totalPages - 1)) * 100}%` }
+              }
             >
               Page {previewPage + 1}
             </div>

@@ -14,7 +14,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from 'rea
  */
 export interface NavigationOrigin {
   /** The source page type */
-  from: 'library' | 'series' | 'folders' | 'collections' | 'search' | 'stats' | 'home';
+  from: 'library' | 'series' | 'folders' | 'collections' | 'collection' | 'search' | 'stats' | 'home';
   /** Optional library ID if coming from a specific library */
   libraryId?: string;
   /** Optional library name for display */

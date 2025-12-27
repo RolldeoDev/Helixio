@@ -5,7 +5,7 @@
  * Displays thumbnail, title, subtitle, and type badge.
  */
 
-import { getCoverUrl, getSeriesCoverUrl, type GlobalSearchResult } from '../../services/api.service';
+import { getCoverUrl, getSeriesCoverUrl, getApiCoverUrl, getCollectionCoverUrl, type GlobalSearchResult } from '../../services/api.service';
 
 interface SearchResultProps {
   result: GlobalSearchResult;
@@ -61,6 +61,13 @@ export function SearchResult({ result, isSelected, onClick, onMouseEnter }: Sear
     }
     if (result.thumbnailType === 'series') {
       return getSeriesCoverUrl(result.thumbnailId);
+    }
+    if (result.thumbnailType === 'custom') {
+      return getApiCoverUrl(result.thumbnailId);
+    }
+    if (result.thumbnailType === 'collection') {
+      // Server-generated mosaic cover
+      return getCollectionCoverUrl(result.thumbnailId);
     }
     return getCoverUrl(result.thumbnailId);
   };

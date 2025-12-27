@@ -32,6 +32,7 @@ export const collectorsLightTheme: ThemeDefinition = {
     colorPrimary: '#8b6914',
     colorPrimaryHover: '#a37d1a',
     colorPrimaryMuted: 'rgba(139, 105, 20, 0.12)',
+    colorPrimaryText: '#FFFFFF',       // White text on dark amber backgrounds
     colorSecondary: '#e8e4de',
     colorAccent: '#6b5344',
 

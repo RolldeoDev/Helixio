@@ -157,6 +157,11 @@
 .issue-description-section {
   display: flex;
   flex-direction: column;
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .issue-description-content {
@@ -173,25 +178,14 @@
 .issue-description-content.clamped {
   max-height: calc(1.7em * 6);
   overflow: hidden;
-}
-
-.issue-description-content.clamped::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2em;
-  background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.5));
-  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 }
 
 .issue-description-content.expanded {
   max-height: none;
-}
-
-.issue-description-content.expanded::after {
-  display: none;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .issue-description-toggle {
@@ -244,8 +238,16 @@
    ============================================================================= */
 
 .issue-creators-section {
+  margin-top: var(--spacing-lg);
   padding-top: var(--spacing-lg);
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* When creators is the only content (no description above), remove the divider */
+.issue-creators-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 /* =============================================================================

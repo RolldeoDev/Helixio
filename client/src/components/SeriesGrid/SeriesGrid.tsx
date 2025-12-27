@@ -14,14 +14,18 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getSeriesList,
+  getUnifiedGridItems,
   getSeriesIssues,
   markAsCompleted,
   markAsIncomplete,
   Series,
   SeriesListOptions,
+  GridItem,
   SeriesForMerge,
+  PromotedCollectionGridItem,
 } from '../../services/api.service';
 import { SeriesCoverCard, type SeriesMenuItemPreset } from '../SeriesCoverCard';
+import { CollectionCoverCard, type PromotedCollectionData } from '../CollectionCoverCard';
 import { CoverSizeSlider } from '../CoverSizeSlider';
 import { SeriesSelectModal } from '../SeriesSelectModal';
 import { MergeSeriesModal } from '../MergeSeriesModal';
@@ -33,6 +37,55 @@ import './SeriesGrid.css';
 interface SeriesGridProps {
   options?: SeriesListOptions;
   onSeriesSelect?: (seriesId: string) => void;
+  /** Enable selection mode with checkboxes */
+  selectable?: boolean;
+  /** Set of selected series IDs */
+  selectedSeries?: Set<string>;
+  /** Called when selection changes */
+  onSelectionChange?: (seriesId: string, selected: boolean, shiftKey?: boolean) => void;
+  /** Use unified grid API to include promoted collections */
+  useUnifiedGrid?: boolean;
+  /** Called when a collection is clicked */
+  onCollectionClick?: (collectionId: string) => void;
+}
+
+// =============================================================================
+// Helper: Convert PromotedCollectionGridItem to PromotedCollectionData
+// =============================================================================
+
+function convertToPromotedCollectionData(item: PromotedCollectionGridItem): PromotedCollectionData {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    isPromoted: item.isPromoted,
+    coverType: item.coverType as 'auto' | 'series' | 'issue' | 'custom',
+    coverSeriesId: item.coverSeriesId,
+    coverFileId: item.coverFileId,
+    coverHash: item.coverHash,
+    // Map effective values to derived fields (CollectionCoverCard prefers overrides but we pre-computed them)
+    derivedPublisher: item.publisher,
+    derivedStartYear: item.startYear,
+    derivedEndYear: item.endYear,
+    derivedGenres: item.genres,
+    derivedIssueCount: item.totalIssues,
+    derivedReadCount: item.readIssues,
+    // No overrides - we've already computed the effective values
+    overridePublisher: null,
+    overrideStartYear: null,
+    overrideEndYear: null,
+    overrideGenres: null,
+    totalIssues: item.totalIssues,
+    readIssues: item.readIssues,
+    seriesCount: item.seriesCount,
+    seriesCovers: item.seriesCovers.map((sc) => ({
+      id: sc.seriesId,
+      name: sc.name,
+      coverHash: sc.coverHash,
+      coverFileId: sc.coverFileId,
+      firstIssueId: null, // Not provided by grid API
+    })),
+  };
 }
 
 // =============================================================================
@@ -40,33 +93,44 @@ interface SeriesGridProps {
 // =============================================================================
 
 interface SeriesGridContentProps {
-  series: Series[];
+  items: GridItem[];
   total: number;
   coverSize: number;
   onCoverSizeChange: (size: number) => void;
   operationMessage: string | null;
   onSeriesClick: (seriesId: string) => void;
+  onCollectionClick?: (collectionId: string) => void;
   onMenuAction: (action: SeriesMenuItemPreset | string, seriesId: string) => void;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  /** Enable selection mode */
+  selectable?: boolean;
+  /** Set of selected series IDs */
+  selectedSeries?: Set<string>;
+  /** Called when selection changes */
+  onSelectionChange?: (seriesId: string, selected: boolean, shiftKey?: boolean) => void;
 }
 
 function SeriesGridContent({
-  series,
+  items,
   total,
   coverSize,
   onCoverSizeChange,
   operationMessage,
   onSeriesClick,
+  onCollectionClick,
   onMenuAction,
   sortBy = 'name',
   sortOrder = 'asc',
+  selectable = false,
+  selectedSeries,
+  onSelectionChange,
 }: SeriesGridContentProps) {
   const gap = 16;
 
   // Virtualization with dynamic sizing that maximizes cover space
   // Uses sliderValue to calculate optimal columns and item width based on container width
-  const { virtualItems, totalHeight, containerRef, isScrolling, scrollTo, visibleRange } = useVirtualGrid(series, {
+  const { virtualItems, totalHeight, containerRef, isScrolling, scrollTo, visibleRange } = useVirtualGrid(items, {
     sliderValue: coverSize,
     gap,
     overscan: 3, // Render 3 extra rows for smooth scrolling
@@ -78,7 +142,7 @@ function SeriesGridContent({
 
   // Create value extractor for navigation sidebar based on sort field
   const getItemValue = useMemo(() => {
-    return (item: Series) => {
+    return (item: GridItem) => {
       switch (sortBy) {
         case 'name':
           return item.name;
@@ -91,7 +155,7 @@ function SeriesGridContent({
         case 'createdAt':
           return item.createdAt;
         case 'issueCount':
-          return item._count?.issues ?? item.issueCount;
+          return item.issueCount;
         default:
           return item.name;
       }
@@ -125,15 +189,29 @@ function SeriesGridContent({
           >
             {virtualItems.map(({ item, style }) => (
               <div key={item.id} style={style} className="series-grid-item">
-                <SeriesCoverCard
-                  series={item}
-                  size="medium"
-                  showYear={true}
-                  showPublisher={true}
-                  onClick={onSeriesClick}
-                  onMenuAction={onMenuAction}
-                  contextMenuEnabled={true}
-                />
+                {item.itemType === 'series' ? (
+                  <SeriesCoverCard
+                    series={item.series}
+                    size="medium"
+                    showYear={true}
+                    showPublisher={true}
+                    onClick={onSeriesClick}
+                    onMenuAction={onMenuAction}
+                    contextMenuEnabled={true}
+                    selectable={selectable}
+                    isSelected={selectedSeries?.has(item.id) ?? false}
+                    checkboxVisibility="hover"
+                    onSelectionChange={onSelectionChange}
+                  />
+                ) : (
+                  <CollectionCoverCard
+                    collection={convertToPromotedCollectionData(item.collection)}
+                    size="medium"
+                    showYear={true}
+                    showPublisher={true}
+                    onClick={onCollectionClick}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -141,7 +219,7 @@ function SeriesGridContent({
 
         {/* Navigation Sidebar - positioned fixed to right edge */}
         <NavigationSidebar
-          items={series}
+          items={items}
           sortField={sortBy}
           sortOrder={sortOrder}
           onNavigate={scrollTo}
@@ -157,10 +235,18 @@ function SeriesGridContent({
 // Main SeriesGrid Component
 // =============================================================================
 
-export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
+export function SeriesGrid({
+  options = {},
+  onSeriesSelect,
+  selectable = false,
+  selectedSeries,
+  onSelectionChange,
+  useUnifiedGrid = false,
+  onCollectionClick,
+}: SeriesGridProps) {
   const navigate = useNavigate();
   const { startJob } = useMetadataJob();
-  const [series, setSeries] = useState<Series[]>([]);
+  const [gridItems, setGridItems] = useState<GridItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -184,29 +270,55 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
     localStorage.setItem('helixio-cover-size', String(size));
   }, []);
 
-  // Fetch all series (no pagination - infinite scroll with navigation sidebar)
-  const fetchSeries = useCallback(async () => {
+  // Fetch all items (no pagination - infinite scroll with navigation sidebar)
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const result = await getSeriesList({
-        ...options,
-        all: true,  // Fetch all series for infinite scroll
-      });
+      if (useUnifiedGrid) {
+        // Use unified grid API to include promoted collections
+        const result = await getUnifiedGridItems({
+          ...options,
+          all: true,
+          includePromotedCollections: true,
+        });
+        setGridItems(result.items);
+        setTotal(result.pagination.total);
+      } else {
+        // Use regular series list API
+        const result = await getSeriesList({
+          ...options,
+          all: true,  // Fetch all series for infinite scroll
+        });
 
-      setSeries(result.series);
-      setTotal(result.pagination.total);
+        // Convert Series[] to GridItem[] for consistent handling
+        const items: GridItem[] = result.series.map((s): GridItem => ({
+          itemType: 'series',
+          id: s.id,
+          name: s.name,
+          startYear: s.startYear ?? null,
+          publisher: s.publisher ?? null,
+          genres: s.genres ?? null,
+          issueCount: s._count?.issues ?? s.issueCount ?? 0,
+          readCount: s.progress?.totalRead ?? 0,
+          updatedAt: s.updatedAt ?? new Date().toISOString(),
+          createdAt: s.createdAt ?? new Date().toISOString(),
+          series: s,
+        }));
+        setGridItems(items);
+        setTotal(result.pagination.total);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load series');
     } finally {
       setLoading(false);
     }
-  }, [options]);
+  }, [options, useUnifiedGrid]);
 
   useEffect(() => {
-    fetchSeries();
-  }, [fetchSeries]);
+    fetchItems();
+  }, [fetchItems]);
 
   const handleSeriesClick = useCallback((seriesId: string) => {
     if (onSeriesSelect) {
@@ -215,6 +327,14 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
       navigate(`/series/${seriesId}`);
     }
   }, [navigate, onSeriesSelect]);
+
+  const handleCollectionClick = useCallback((collectionId: string) => {
+    if (onCollectionClick) {
+      onCollectionClick(collectionId);
+    } else {
+      navigate(`/collection/${collectionId}`);
+    }
+  }, [navigate, onCollectionClick]);
 
   // Handle context menu actions
   const handleMenuAction = useCallback(async (action: SeriesMenuItemPreset | string, seriesId: string) => {
@@ -248,7 +368,7 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
           const result = await getSeriesIssues(seriesId, { limit: 1000 });
           await Promise.all(result.issues.map((issue) => markAsCompleted(issue.id)));
           setOperationMessage('All issues marked as read');
-          fetchSeries();
+          fetchItems();
           setTimeout(() => setOperationMessage(null), 2000);
         } catch (err) {
           setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
@@ -262,7 +382,7 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
           const result = await getSeriesIssues(seriesId, { limit: 1000 });
           await Promise.all(result.issues.map((issue) => markAsIncomplete(issue.id)));
           setOperationMessage('All issues marked as unread');
-          fetchSeries();
+          fetchItems();
           setTimeout(() => setOperationMessage(null), 2000);
         } catch (err) {
           setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
@@ -271,15 +391,15 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
         break;
 
       case 'mergeWith':
-        // Find the series to use as source
-        const sourceSeries = series.find((s) => s.id === seriesId);
-        if (sourceSeries) {
-          setMergeSourceSeries(sourceSeries);
+        // Find the series to use as source (only works for series items)
+        const seriesItem = gridItems.find((item) => item.id === seriesId && item.itemType === 'series');
+        if (seriesItem && seriesItem.itemType === 'series') {
+          setMergeSourceSeries(seriesItem.series);
           setShowSeriesSelectModal(true);
         }
         break;
     }
-  }, [handleSeriesClick, startJob, fetchSeries, series]);
+  }, [handleSeriesClick, startJob, fetchItems, gridItems]);
 
   // Helper to convert Series to SeriesForMerge
   const seriesToMergeFormat = useCallback((s: Series): SeriesForMerge => ({
@@ -323,9 +443,9 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
     setShowMergeModal(false);
     setSelectedMergeSeries([]);
     setMergeSourceSeries(null);
-    // Refresh the series list
-    fetchSeries();
-  }, [fetchSeries]);
+    // Refresh the grid
+    fetchItems();
+  }, [fetchItems]);
 
   return (
     <div className="series-grid-container">
@@ -341,7 +461,7 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
       {error && <div className="error-message">{error}</div>}
 
       {/* Empty State */}
-      {!loading && series.length === 0 && (
+      {!loading && gridItems.length === 0 && (
         <div className="empty-state">
           <h2>No Series Found</h2>
           <p>
@@ -353,17 +473,21 @@ export function SeriesGrid({ options = {}, onSeriesSelect }: SeriesGridProps) {
       )}
 
       {/* Series Grid */}
-      {series.length > 0 && (
+      {gridItems.length > 0 && (
         <SeriesGridContent
-          series={series}
+          items={gridItems}
           total={total}
           coverSize={coverSize}
           onCoverSizeChange={handleCoverSizeChange}
           operationMessage={operationMessage}
           onSeriesClick={handleSeriesClick}
+          onCollectionClick={handleCollectionClick}
           onMenuAction={handleMenuAction}
           sortBy={options.sortBy}
           sortOrder={options.sortOrder}
+          selectable={selectable}
+          selectedSeries={selectedSeries}
+          onSelectionChange={onSelectionChange}
         />
       )}
 

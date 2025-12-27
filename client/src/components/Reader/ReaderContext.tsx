@@ -28,6 +28,7 @@ import {
   getAdjacentFiles,
   generateThumbnails,
   markAsCompleted as apiMarkAsCompleted,
+  getFile,
   ReaderSettings,
   ReadingMode as BaseReadingMode,
   ReadingDirection,
@@ -36,6 +37,7 @@ import {
   BackgroundColor,
   ColorCorrection,
   AdjacentFiles,
+  FileMetadata,
   getPageUrl,
 } from '../../services/api.service';
 
@@ -65,6 +67,7 @@ export interface ReaderState {
   // File info
   fileId: string;
   filename: string;
+  metadata: FileMetadata | null;
   pages: PageInfo[];
   totalPages: number;
   isLoading: boolean;
@@ -123,7 +126,7 @@ export interface ReaderState {
 
 type ReaderAction =
   | { type: 'INIT_START' }
-  | { type: 'INIT_SUCCESS'; payload: { pages: PageInfo[]; progress: { currentPage: number; bookmarks: number[]; completed: boolean } } }
+  | { type: 'INIT_SUCCESS'; payload: { pages: PageInfo[]; progress: { currentPage: number; bookmarks: number[]; completed: boolean }; metadata: FileMetadata | null } }
   | { type: 'INIT_ERROR'; payload: string }
   | { type: 'SET_PAGE'; payload: number }
   | { type: 'NEXT_PAGE' }
@@ -180,6 +183,7 @@ const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const createInitialState = (fileId: string, filename: string): ReaderState => ({
   fileId,
   filename,
+  metadata: null,
   pages: [],
   totalPages: 0,
   isLoading: true,
@@ -232,6 +236,7 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
         currentPage: action.payload.progress.currentPage,
         bookmarks: action.payload.progress.bookmarks,
         completed: action.payload.progress.completed,
+        metadata: action.payload.metadata,
       };
 
     case 'INIT_ERROR':
@@ -539,12 +544,13 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
       dispatch({ type: 'INIT_START' });
 
       try {
-        // Load settings, archive contents, progress, and adjacent files in parallel
-        const [settingsResponse, contentsResponse, progressResponse, adjacentResponse] = await Promise.all([
+        // Load settings, archive contents, progress, adjacent files, and file metadata in parallel
+        const [settingsResponse, contentsResponse, progressResponse, adjacentResponse, fileResponse] = await Promise.all([
           getReaderSettings(),
           getArchiveContents(fileId),
           getReadingProgress(fileId),
           getAdjacentFiles(fileId),
+          getFile(fileId),
         ]);
 
         if (cancelled) return;
@@ -579,6 +585,7 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
               bookmarks: progressResponse.bookmarks || [],
               completed: progressResponse.completed || false,
             },
+            metadata: fileResponse.metadata || null,
           },
         });
 

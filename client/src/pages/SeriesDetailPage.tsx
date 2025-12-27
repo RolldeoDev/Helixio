@@ -781,37 +781,41 @@ export function SeriesDetailPage() {
               onSeriesAction={handleSeriesAction}
             />
 
-            {/* Description */}
-            {hasDescription && (
+            {/* Description & Creators - Combined Section */}
+            {(hasDescription || hasCreators) && (
               <div className="series-description-section">
-                <h3 className="series-section-title">About</h3>
-                <div
-                  ref={descriptionRef}
-                  className={`series-description-content ${isDescriptionExpanded ? 'series-description-content--expanded' : descriptionNeedsTruncation ? 'series-description-content--clamped' : ''}`}
-                >
-                  <MarkdownContent content={series.summary!} className="series-summary-text" />
-                </div>
-                {descriptionNeedsTruncation && (
-                  <button
-                    className="series-description-toggle"
-                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                    aria-expanded={isDescriptionExpanded}
-                  >
-                    {isDescriptionExpanded ? 'Show less' : 'Read more'}
-                  </button>
+                {hasDescription && (
+                  <>
+                    <h3 className="series-section-title">About</h3>
+                    <div
+                      ref={descriptionRef}
+                      className={`series-description-content ${isDescriptionExpanded ? 'series-description-content--expanded' : descriptionNeedsTruncation ? 'series-description-content--clamped' : ''}`}
+                    >
+                      <MarkdownContent content={series.summary!} className="series-summary-text" />
+                    </div>
+                    {descriptionNeedsTruncation && (
+                      <button
+                        className="series-description-toggle"
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        aria-expanded={isDescriptionExpanded}
+                      >
+                        {isDescriptionExpanded ? 'Show less' : 'Read more'}
+                      </button>
+                    )}
+                  </>
                 )}
-              </div>
-            )}
 
-            {/* Creators */}
-            {hasCreators && (
-              <div className="series-creators-section">
-                <CreatorCredits
-                  creatorsWithRoles={creatorsWithRoles}
-                  creators={series.creators}
-                  expandable={true}
-                  maxPrimary={6}
-                />
+                {/* Creators */}
+                {hasCreators && (
+                  <div className="series-creators-section">
+                    <CreatorCredits
+                      creatorsWithRoles={creatorsWithRoles}
+                      creators={series.creators}
+                      expandable={true}
+                      maxPrimary={6}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

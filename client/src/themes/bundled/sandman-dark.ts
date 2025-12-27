@@ -75,6 +75,7 @@ export const sandmanDarkTheme: ThemeDefinition = {
     colorPrimary: '#c9a227',               // Dream Sand - classic gold
     colorPrimaryHover: '#e0b830',          // Bright gold on hover
     colorPrimaryMuted: 'rgba(201, 162, 39, 0.15)', // Subtle gold presence
+    colorPrimaryText: '#1a1a1a',           // Dark text on gold backgrounds
     colorSecondary: '#0a0a0f',             // Deep dark blue-black
     colorAccent: '#b8c8e0',                // Ethereal pale blue
 

@@ -32,6 +32,7 @@ export const marvelDarkTheme: ThemeDefinition = {
     colorPrimary: '#ed1d24',
     colorPrimaryHover: '#ff3b42',
     colorPrimaryMuted: 'rgba(237, 29, 36, 0.15)',
+    colorPrimaryText: '#FFFFFF',       // White text on Marvel red backgrounds
     colorSecondary: '#1c2951',
     colorAccent: '#ffc500',
 

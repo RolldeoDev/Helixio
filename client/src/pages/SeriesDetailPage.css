@@ -129,6 +129,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .series-description-content {
@@ -143,26 +148,15 @@
   -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.series-description-content--clamped::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2em;
-  background: linear-gradient(to bottom, transparent, var(--color-bg));
-  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
 }
 
 .series-description-content--expanded {
   display: block;
   -webkit-line-clamp: unset;
-}
-
-.series-description-content--expanded::after {
-  display: none;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .series-summary-text.markdown-content {
@@ -210,6 +204,16 @@
   /* Container for CreatorCredits component - allow full width */
   width: 100%;
   max-width: none;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* When creators is the only content (no description above), remove the divider */
+.series-creators-section:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 

@@ -16,6 +16,7 @@ import { createServiceLogger } from './logger.service.js';
 import { getSeriesMetadata, type MetadataSource } from './metadata-search.service.js';
 import { writeSeriesJson, type SeriesMetadata } from './series-metadata.service.js';
 import { getSeries, updateSeries, type FieldSourceMap } from './series.service.js';
+import { onSeriesCoverChanged } from './collection.service.js';
 import type { Series } from '@prisma/client';
 
 const logger = createServiceLogger('series-metadata-fetch');
@@ -398,7 +399,18 @@ export async function applyMetadataToSeries(
   // Handle cover separately - download and cache locally
   if (selectedFields.includes('coverUrl') && metadata.coverUrl) {
     try {
-      const { downloadApiCover } = await import('./cover.service.js');
+      const { downloadApiCover, deleteSeriesCover } = await import('./cover.service.js');
+
+      // Delete old cover if exists to prevent stale cache
+      if (series.coverHash) {
+        try {
+          await deleteSeriesCover(series.coverHash);
+          logger.debug({ seriesId, oldHash: series.coverHash }, 'Deleted old cover before downloading new one');
+        } catch (err) {
+          logger.warn({ seriesId, oldHash: series.coverHash, error: err }, 'Failed to delete old cover, continuing with download');
+        }
+      }
+
       const downloadResult = await downloadApiCover(metadata.coverUrl);
 
       if (downloadResult.success && downloadResult.coverHash) {
@@ -442,6 +454,13 @@ export async function applyMetadataToSeries(
     // Sync to series.json if primary folder exists
     if (series.primaryFolder) {
       await syncToSeriesJson(seriesId);
+    }
+
+    // Trigger cascade refresh for collection mosaics if cover was updated
+    if (updateData.coverHash) {
+      onSeriesCoverChanged(seriesId).catch((err) => {
+        logger.warn({ seriesId, error: err }, 'Failed to trigger collection mosaic refresh');
+      });
     }
 
     return {

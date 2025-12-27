@@ -96,6 +96,16 @@ export interface UpdateSeriesInput extends Partial<CreateSeriesInput> {
   customReadingOrder?: string | null;
   lockedFields?: string | null;
   fieldSources?: string | null;
+  // Creator fields
+  writer?: string | null;
+  penciller?: string | null;
+  inker?: string | null;
+  colorist?: string | null;
+  letterer?: string | null;
+  coverArtist?: string | null;
+  editor?: string | null;
+  creatorsJson?: string | null;
+  creatorSource?: 'api' | 'issues';
 }
 
 export interface FieldSource {
@@ -109,6 +119,98 @@ export interface SeriesCoverResult {
   type: 'api' | 'user' | 'firstIssue' | 'none';
   coverHash?: string;  // Hash for API-downloaded cover (local cache)
   fileId?: string;     // File ID for user-selected or first issue cover
+}
+
+// =============================================================================
+// Unified Grid Types (Series + Promoted Collections)
+// =============================================================================
+
+/**
+ * Collection data for grid display.
+ * Includes derived/override metadata and aggregated reading progress.
+ */
+export interface PromotedCollectionGridItem {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  iconName: string | null;
+  color: string | null;
+  isPromoted: boolean;
+  promotedOrder: number | null;
+  coverType: string;
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  // Effective metadata (override ?? derived ?? default)
+  publisher: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  genres: string | null;
+  // Aggregated counts
+  totalIssues: number;
+  readIssues: number;
+  seriesCount: number;
+  // For mosaic cover
+  seriesCovers: Array<{
+    seriesId: string;
+    coverHash: string | null;
+    coverUrl: string | null;
+    coverFileId: string | null;
+    name: string;
+  }>;
+  // For library filtering
+  libraryIds: string[];
+  // For "Recently Updated" sort
+  contentUpdatedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Discriminated union for grid items.
+ * The `itemType` field determines whether this is a series or collection.
+ */
+export interface SeriesGridItem {
+  itemType: 'series';
+  id: string;
+  name: string;
+  startYear: number | null;
+  publisher: string | null;
+  genres: string | null;
+  issueCount: number;
+  readCount: number;
+  updatedAt: Date;
+  createdAt: Date;
+  series: SeriesWithCounts;
+}
+
+export interface CollectionGridItem {
+  itemType: 'collection';
+  id: string;
+  name: string;
+  startYear: number | null;
+  publisher: string | null;
+  genres: string | null;
+  issueCount: number;
+  readCount: number;
+  updatedAt: Date;
+  createdAt: Date;
+  collection: PromotedCollectionGridItem;
+}
+
+export type GridItem = SeriesGridItem | CollectionGridItem;
+
+export interface UnifiedGridOptions extends SeriesListOptions {
+  includePromotedCollections?: boolean;
+}
+
+export interface UnifiedGridResult {
+  items: GridItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 // =============================================================================
@@ -525,8 +627,23 @@ export async function setSeriesCoverFromUrl(
   seriesId: string,
   url: string
 ): Promise<{ success: boolean; coverHash?: string; error?: string }> {
-  const { downloadApiCover } = await import('./cover.service.js');
+  const { downloadApiCover, deleteSeriesCover } = await import('./cover.service.js');
   const db = getDatabase();
+
+  // Get current series to check for existing cover
+  const currentSeries = await db.series.findUnique({
+    where: { id: seriesId },
+    select: { coverHash: true },
+  });
+
+  // Delete old cover if exists to prevent stale cache
+  if (currentSeries?.coverHash) {
+    try {
+      await deleteSeriesCover(currentSeries.coverHash);
+    } catch {
+      // Log but continue - old cover cleanup is not critical
+    }
+  }
 
   // Download and cache the cover
   const downloadResult = await downloadApiCover(url);
@@ -1999,4 +2116,380 @@ export async function getHiddenSeries(): Promise<SeriesWithCounts[]> {
     },
     orderBy: { name: 'asc' },
   });
+}
+
+// =============================================================================
+// Bulk Operations
+// =============================================================================
+
+export interface BulkSeriesUpdateInput {
+  publisher?: string | null;
+  type?: 'western' | 'manga';
+  genres?: string | null;
+  tags?: string | null;
+  ageRating?: string | null;
+  languageISO?: string | null;
+}
+
+export interface BulkOperationResult {
+  total: number;
+  successful: number;
+  failed: number;
+  results: Array<{ seriesId: string; success: boolean; error?: string }>;
+}
+
+/**
+ * Bulk update metadata fields across multiple series.
+ * Only updates fields that are explicitly provided (not undefined).
+ */
+export async function bulkUpdateSeries(
+  seriesIds: string[],
+  updates: BulkSeriesUpdateInput
+): Promise<BulkOperationResult> {
+  const db = getDatabase();
+  const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
+  let successful = 0;
+  let failed = 0;
+
+  // Build the update data, only including fields that are provided
+  const updateData: Prisma.SeriesUpdateInput = {};
+  if (updates.publisher !== undefined) updateData.publisher = updates.publisher;
+  if (updates.type !== undefined) updateData.type = updates.type;
+  if (updates.genres !== undefined) updateData.genres = updates.genres;
+  if (updates.tags !== undefined) updateData.tags = updates.tags;
+  if (updates.ageRating !== undefined) updateData.ageRating = updates.ageRating;
+  if (updates.languageISO !== undefined) updateData.languageISO = updates.languageISO;
+
+  // If no updates provided, return early
+  if (Object.keys(updateData).length === 0) {
+    return {
+      total: seriesIds.length,
+      successful: 0,
+      failed: 0,
+      results: seriesIds.map(seriesId => ({ seriesId, success: true })),
+    };
+  }
+
+  for (const seriesId of seriesIds) {
+    try {
+      await db.series.update({
+        where: { id: seriesId },
+        data: updateData,
+      });
+
+      // Refresh tags for autocomplete
+      await refreshTagsFromSeries(seriesId);
+
+      results.push({ seriesId, success: true });
+      successful++;
+    } catch (error) {
+      results.push({
+        seriesId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      failed++;
+    }
+  }
+
+  return {
+    total: seriesIds.length,
+    successful,
+    failed,
+    results,
+  };
+}
+
+/**
+ * Mark all issues in the specified series as read for a user.
+ */
+export async function bulkMarkSeriesRead(
+  seriesIds: string[],
+  userId: string
+): Promise<BulkOperationResult> {
+  const db = getDatabase();
+  const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
+  let successful = 0;
+  let failed = 0;
+
+  for (const seriesId of seriesIds) {
+    try {
+      // Get all files in the series
+      const files = await db.comicFile.findMany({
+        where: { seriesId },
+        select: { id: true },
+      });
+
+      // Mark each file as completed
+      for (const file of files) {
+        await db.userReadingProgress.upsert({
+          where: {
+            userId_fileId: { userId, fileId: file.id },
+          },
+          create: {
+            userId,
+            fileId: file.id,
+            currentPage: 0,
+            totalPages: 0,
+            completed: true,
+            bookmarks: '[]',
+          },
+          update: {
+            completed: true,
+          },
+        });
+      }
+
+      // Update series progress
+      await updateSeriesProgress(seriesId, userId);
+
+      results.push({ seriesId, success: true });
+      successful++;
+    } catch (error) {
+      results.push({
+        seriesId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      failed++;
+    }
+  }
+
+  return {
+    total: seriesIds.length,
+    successful,
+    failed,
+    results,
+  };
+}
+
+/**
+ * Mark all issues in the specified series as unread for a user.
+ */
+export async function bulkMarkSeriesUnread(
+  seriesIds: string[],
+  userId: string
+): Promise<BulkOperationResult> {
+  const db = getDatabase();
+  const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
+  let successful = 0;
+  let failed = 0;
+
+  for (const seriesId of seriesIds) {
+    try {
+      // Get all files in the series
+      const files = await db.comicFile.findMany({
+        where: { seriesId },
+        select: { id: true },
+      });
+
+      // Delete reading progress for each file (or mark as incomplete)
+      for (const file of files) {
+        await db.userReadingProgress.deleteMany({
+          where: {
+            userId,
+            fileId: file.id,
+          },
+        });
+      }
+
+      // Update series progress
+      await updateSeriesProgress(seriesId, userId);
+
+      results.push({ seriesId, success: true });
+      successful++;
+    } catch (error) {
+      results.push({
+        seriesId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      failed++;
+    }
+  }
+
+  return {
+    total: seriesIds.length,
+    successful,
+    failed,
+    results,
+  };
+}
+
+// =============================================================================
+// Unified Grid (Series + Promoted Collections)
+// =============================================================================
+
+/**
+ * Helper to extract progress stats from progress data.
+ * Handles both array and single object forms.
+ */
+function getProgressStats(progress: SeriesProgress[] | SeriesProgress | null | undefined): {
+  totalOwned: number;
+  totalRead: number;
+} {
+  if (!progress) return { totalOwned: 0, totalRead: 0 };
+  if (Array.isArray(progress)) {
+    const p = progress[0];
+    return p ? { totalOwned: p.totalOwned, totalRead: p.totalRead } : { totalOwned: 0, totalRead: 0 };
+  }
+  return { totalOwned: progress.totalOwned, totalRead: progress.totalRead };
+}
+
+/**
+ * Sort grid items (series + collections) according to specified criteria.
+ * Collections are mixed naturally with series based on the sort field.
+ */
+function sortGridItems(
+  items: GridItem[],
+  sortBy: SeriesListOptions['sortBy'] = 'name',
+  sortOrder: 'asc' | 'desc' = 'asc'
+): GridItem[] {
+  const multiplier = sortOrder === 'asc' ? 1 : -1;
+
+  return [...items].sort((a, b) => {
+    let comparison = 0;
+
+    switch (sortBy) {
+      case 'name':
+        comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        break;
+      case 'startYear':
+        // Null years sort to the end
+        const yearA = a.startYear ?? (sortOrder === 'asc' ? Infinity : -Infinity);
+        const yearB = b.startYear ?? (sortOrder === 'asc' ? Infinity : -Infinity);
+        comparison = (yearA as number) - (yearB as number);
+        break;
+      case 'updatedAt':
+        comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        break;
+      case 'createdAt':
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        break;
+      case 'issueCount':
+        comparison = a.issueCount - b.issueCount;
+        break;
+    }
+
+    // Secondary sort: when primary values are equal and both are collections,
+    // use promotedOrder to maintain collection-specific ordering
+    if (comparison === 0 && a.itemType === 'collection' && b.itemType === 'collection') {
+      const orderA = a.collection.promotedOrder ?? Infinity;
+      const orderB = b.collection.promotedOrder ?? Infinity;
+      comparison = orderA - orderB;
+    }
+
+    // Tertiary sort: by name for stable ordering
+    if (comparison === 0) {
+      comparison = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    }
+
+    return comparison * multiplier;
+  });
+}
+
+/**
+ * Get unified grid items (series + promoted collections) with filtering and sorting.
+ * Collections are treated as "virtual series" for filtering purposes.
+ *
+ * @param options - List options including filters and sort settings
+ * @returns Unified list of series and collections, sorted and optionally paginated
+ */
+export async function getUnifiedGridItems(
+  options: UnifiedGridOptions = {}
+): Promise<UnifiedGridResult> {
+  const { userId, includePromotedCollections = false, ...seriesOptions } = options;
+
+  // 1. Get series using existing logic
+  const seriesResult = await getSeriesList({
+    ...seriesOptions,
+    userId,
+    // Fetch all for client-side merging, then we'll paginate the combined result
+    limit: undefined,
+  });
+
+  // 2. Convert series to GridItem format
+  const seriesItems: GridItem[] = seriesResult.series.map((s) => {
+    const stats = getProgressStats(s.progress);
+    return {
+      itemType: 'series' as const,
+      id: s.id,
+      name: s.name,
+      startYear: s.startYear,
+      publisher: s.publisher,
+      genres: s.genres,
+      issueCount: s._count?.issues || 0,
+      readCount: stats.totalRead,
+      updatedAt: s.updatedAt,
+      createdAt: s.createdAt,
+      series: s,
+    };
+  });
+
+  // 3. If not including collections or no userId, return series only
+  if (!includePromotedCollections || !userId) {
+    const sortedItems = sortGridItems(seriesItems, seriesOptions.sortBy, seriesOptions.sortOrder);
+
+    // Apply pagination if specified
+    const page = seriesOptions.page || 1;
+    const limit = seriesOptions.limit;
+    const paginatedItems = limit
+      ? sortedItems.slice((page - 1) * limit, page * limit)
+      : sortedItems;
+
+    return {
+      items: paginatedItems,
+      total: sortedItems.length,
+      page: limit ? page : 1,
+      limit: limit || sortedItems.length,
+      totalPages: limit ? Math.ceil(sortedItems.length / limit) : 1,
+    };
+  }
+
+  // 4. Get promoted collections with filtering
+  // Import dynamically to avoid circular dependency
+  const { getPromotedCollectionsForGrid } = await import('./collection.service.js');
+
+  const promotedCollections = await getPromotedCollectionsForGrid(userId, {
+    search: seriesOptions.search,
+    publisher: seriesOptions.publisher,
+    type: seriesOptions.type,
+    genres: seriesOptions.genres,
+    hasUnread: seriesOptions.hasUnread,
+    libraryId: seriesOptions.libraryId,
+  });
+
+  // 5. Convert collections to GridItem format
+  const collectionItems: GridItem[] = promotedCollections.map((c) => ({
+    itemType: 'collection' as const,
+    id: c.id,
+    name: c.name,
+    startYear: c.startYear,
+    publisher: c.publisher,
+    genres: c.genres,
+    issueCount: c.totalIssues,
+    readCount: c.readIssues,
+    updatedAt: c.contentUpdatedAt ?? c.updatedAt,
+    createdAt: c.createdAt,
+    collection: c,
+  }));
+
+  // 6. Merge and sort combined list
+  const allItems = [...seriesItems, ...collectionItems];
+  const sortedItems = sortGridItems(allItems, seriesOptions.sortBy, seriesOptions.sortOrder);
+
+  // 7. Apply pagination if specified
+  const page = seriesOptions.page || 1;
+  const limit = seriesOptions.limit;
+  const paginatedItems = limit
+    ? sortedItems.slice((page - 1) * limit, page * limit)
+    : sortedItems;
+
+  return {
+    items: paginatedItems,
+    total: sortedItems.length,
+    page: limit ? page : 1,
+    limit: limit || sortedItems.length,
+    totalPages: limit ? Math.ceil(sortedItems.length / limit) : 1,
+  };
 }

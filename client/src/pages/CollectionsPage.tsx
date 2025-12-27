@@ -6,13 +6,27 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCollections, Collection } from '../contexts/CollectionsContext';
-import { getCoverUrl, getApiCoverUrl, CollectionItem } from '../services/api.service';
+import {
+  getCoverUrl,
+  getApiCoverUrl,
+  getCollectionCoverUrl,
+  CollectionItem,
+  toggleCollectionPromotion,
+  updateCollectionCover,
+  updateCollectionMetadata,
+  removeFromCollection as apiRemoveFromCollection,
+  reorderCollectionItems,
+  updateCollection as apiUpdateCollection,
+} from '../services/api.service';
+import { CollectionSettingsDrawer, CollectionUpdates } from '../components/CollectionSettingsDrawer';
+import { CollectionIcon } from '../components/CollectionIcon';
 import './CollectionsPage.css';
 
 export function CollectionsPage() {
   const navigate = useNavigate();
+  const { collectionId: urlCollectionId } = useParams<{ collectionId?: string }>();
   const {
     collections,
     isLoading,
@@ -29,10 +43,34 @@ export function CollectionsPage() {
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const [collectionItems, setCollectionItems] = useState<CollectionItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Separate system collections from user collections
   const systemCollections = collections.filter((c) => c.isSystem);
   const userCollections = collections.filter((c) => !c.isSystem);
+
+  // Helper to get collection cover URL
+  const getCollectionCover = useCallback((collection: Collection): string | null => {
+    if (!collection.coverType || collection.coverType === 'auto') {
+      // Auto mode: use server-generated mosaic cover if available
+      if (collection.coverHash) {
+        return getCollectionCoverUrl(collection.coverHash);
+      }
+      return null;
+    }
+    if (collection.coverType === 'custom' && collection.coverHash) {
+      return getApiCoverUrl(collection.coverHash);
+    }
+    if (collection.coverType === 'issue' && collection.coverFileId) {
+      return getCoverUrl(collection.coverFileId);
+    }
+    // For series cover type, we'd need the series data which isn't in the list
+    // Fall back to coverHash if available
+    if (collection.coverHash) {
+      return getApiCoverUrl(collection.coverHash);
+    }
+    return null;
+  }, []);
 
   const handleCreate = useCallback(async () => {
     if (!newName.trim()) return;
@@ -80,13 +118,25 @@ export function CollectionsPage() {
     }
   }, [getCollectionWithItems]);
 
-  // Load first collection on mount
+  // Load collection from URL parameter, or first collection on mount
   useEffect(() => {
+    if (collections.length === 0) return;
+
+    // If URL has a collectionId, try to select that collection
+    if (urlCollectionId) {
+      const targetCollection = collections.find(c => c.id === urlCollectionId);
+      if (targetCollection && selectedCollection?.id !== urlCollectionId) {
+        handleSelectCollection(targetCollection);
+        return;
+      }
+    }
+
+    // Otherwise, select first collection if none selected
     const firstCollection = collections[0];
     if (!selectedCollection && firstCollection) {
       handleSelectCollection(firstCollection);
     }
-  }, [collections, selectedCollection, handleSelectCollection]);
+  }, [collections, selectedCollection, handleSelectCollection, urlCollectionId]);
 
   const handleOpenFile = (fileId: string) => {
     navigate(`/read/${fileId}`);
@@ -96,28 +146,110 @@ export function CollectionsPage() {
     navigate(`/series/${seriesId}`);
   };
 
-  // Get icon for system collections
-  const getSystemIcon = (collection: Collection) => {
-    if (collection.iconName === 'heart') {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-        </svg>
-      );
+  // Settings drawer handlers
+  const handleSettingsSave = useCallback(async (updates: CollectionUpdates) => {
+    if (!selectedCollection) return;
+
+    try {
+      // Update basic fields via collection update
+      const basicUpdates: Record<string, unknown> = {};
+      if (updates.name !== undefined) basicUpdates.name = updates.name;
+      if (updates.description !== undefined) basicUpdates.description = updates.description;
+      if (updates.iconName !== undefined) basicUpdates.iconName = updates.iconName;
+      if (updates.color !== undefined) basicUpdates.color = updates.color;
+
+      if (Object.keys(basicUpdates).length > 0) {
+        await apiUpdateCollection(selectedCollection.id, basicUpdates);
+      }
+
+      // Update cover if changed
+      if (updates.coverType !== undefined) {
+        // Determine the sourceId based on cover type
+        const sourceId = updates.coverType === 'series'
+          ? updates.coverSeriesId ?? undefined
+          : updates.coverType === 'issue'
+            ? updates.coverFileId ?? undefined
+            : undefined;
+        await updateCollectionCover(selectedCollection.id, updates.coverType, sourceId);
+      }
+
+      // Update metadata overrides if changed
+      if (
+        updates.overridePublisher !== undefined ||
+        updates.overrideStartYear !== undefined ||
+        updates.overrideEndYear !== undefined ||
+        updates.overrideGenres !== undefined
+      ) {
+        await updateCollectionMetadata(selectedCollection.id, {
+          overridePublisher: updates.overridePublisher,
+          overrideStartYear: updates.overrideStartYear,
+          overrideEndYear: updates.overrideEndYear,
+          overrideGenres: updates.overrideGenres,
+        });
+      }
+
+      // Toggle promotion if changed
+      if (updates.isPromoted !== undefined) {
+        await toggleCollectionPromotion(selectedCollection.id);
+      }
+
+      // Refresh the collection data
+      const data = await getCollectionWithItems(selectedCollection.id);
+      if (data) {
+        // CollectionWithItems extends Collection, so data itself contains all collection fields
+        const { items, ...collectionData } = data;
+        setSelectedCollection(collectionData as Collection);
+        setCollectionItems(items ?? []);
+      }
+    } catch (err) {
+      console.error('Error saving collection settings:', err);
+      throw err;
     }
-    if (collection.iconName === 'bookmark') {
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-          <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-        </svg>
-      );
+  }, [selectedCollection, getCollectionWithItems]);
+
+  const handleRemoveItems = useCallback(async (itemIds: string[]) => {
+    if (!selectedCollection) return;
+
+    try {
+      // Find the items to remove and format them for the API
+      const itemsToRemove = collectionItems
+        .filter(item => itemIds.includes(item.id))
+        .map(item => ({
+          seriesId: item.seriesId || undefined,
+          fileId: item.fileId || undefined,
+        }));
+
+      await apiRemoveFromCollection(selectedCollection.id, itemsToRemove);
+
+      // Refresh items
+      const data = await getCollectionWithItems(selectedCollection.id);
+      if (data) {
+        const { items, ...collectionData } = data;
+        setSelectedCollection(collectionData as Collection);
+        setCollectionItems(items ?? []);
+      }
+    } catch (err) {
+      console.error('Error removing items:', err);
+      throw err;
     }
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      </svg>
-    );
-  };
+  }, [selectedCollection, collectionItems, getCollectionWithItems]);
+
+  const handleReorderItems = useCallback(async (itemIds: string[]) => {
+    if (!selectedCollection) return;
+
+    try {
+      await reorderCollectionItems(selectedCollection.id, itemIds);
+
+      // Refresh items to get new order
+      const data = await getCollectionWithItems(selectedCollection.id);
+      if (data) {
+        setCollectionItems(data.items ?? []);
+      }
+    } catch (err) {
+      console.error('Error reordering items:', err);
+      throw err;
+    }
+  }, [selectedCollection, getCollectionWithItems]);
 
   if (isLoading) {
     return (
@@ -149,21 +281,34 @@ export function CollectionsPage() {
                 <h2>Quick Access</h2>
               </div>
               <div className="items-list">
-                {systemCollections.map(collection => (
-                  <div
-                    key={collection.id}
-                    className={`list-item system-collection ${collection.iconName} ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
-                    onClick={() => handleSelectCollection(collection)}
-                  >
-                    <div className="item-icon system-icon">
-                      {getSystemIcon(collection)}
+                {systemCollections.map(collection => {
+                  const coverUrl = getCollectionCover(collection);
+                  return (
+                    <div
+                      key={collection.id}
+                      className={`list-item system-collection ${collection.iconName} ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
+                      onClick={() => handleSelectCollection(collection)}
+                    >
+                      <div className="item-cover-preview">
+                        {coverUrl ? (
+                          <img src={coverUrl} alt="" />
+                        ) : (
+                          <div className="item-cover-placeholder">
+                            <CollectionIcon
+                              iconName={collection.iconName}
+                              color={collection.color}
+                              size={16}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="item-info">
+                        <span className="item-name">{collection.name}</span>
+                        <span className="item-count">{collection.itemCount ?? 0} items</span>
+                      </div>
                     </div>
-                    <div className="item-info">
-                      <span className="item-name">{collection.name}</span>
-                      <span className="item-count">{collection.itemCount ?? 0} items</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
@@ -215,69 +360,80 @@ export function CollectionsPage() {
               </div>
             )}
 
-            {userCollections.map(collection => (
-              <div
-                key={collection.id}
-                className={`list-item ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
-                onClick={() => handleSelectCollection(collection)}
-              >
-                {editingId === collection.id ? (
-                  <div className="edit-form" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="text"
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveEdit();
-                        if (e.key === 'Escape') setEditingId(null);
-                      }}
-                      onBlur={handleSaveEdit}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className="item-icon">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                      </svg>
-                    </div>
-                    <div className="item-info">
-                      <span className="item-name">{collection.name}</span>
-                      <span className="item-count">{collection.itemCount ?? 0} items</span>
-                    </div>
-                    <div className="item-actions">
-                      <button
-                        className="action-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEdit(collection.id, collection.name);
+            {userCollections.map(collection => {
+              const coverUrl = getCollectionCover(collection);
+              return (
+                <div
+                  key={collection.id}
+                  className={`list-item ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
+                  onClick={() => handleSelectCollection(collection)}
+                >
+                  {editingId === collection.id ? (
+                    <div className="edit-form" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveEdit();
+                          if (e.key === 'Escape') setEditingId(null);
                         }}
-                        title="Rename"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                        </svg>
-                      </button>
-                      <button
-                        className="action-btn delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(collection);
-                        }}
-                        title="Delete"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
+                        onBlur={handleSaveEdit}
+                      />
                     </div>
-                  </>
-                )}
-              </div>
-            ))}
+                  ) : (
+                    <>
+                      <div className="item-cover-preview">
+                        {coverUrl ? (
+                          <img src={coverUrl} alt="" />
+                        ) : (
+                          <div className="item-cover-placeholder">
+                            <CollectionIcon
+                              iconName={collection.iconName}
+                              color={collection.color}
+                              size={16}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <div className="item-info">
+                        <span className="item-name">{collection.name}</span>
+                        <span className="item-count">{collection.itemCount ?? 0} items</span>
+                      </div>
+                      <div className="item-actions">
+                        <button
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEdit(collection.id, collection.name);
+                          }}
+                          title="Rename"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(collection);
+                          }}
+                          title="Delete"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -291,8 +447,35 @@ export function CollectionsPage() {
 
           {selectedCollection && (
             <div className="detail-content">
-              <h2>{selectedCollection.name}</h2>
-              <p className="detail-count">{collectionItems.length} items</p>
+              <div className="detail-header">
+                <div className="detail-header-top">
+                  <div>
+                    <h2>{selectedCollection.name}</h2>
+                    <p className="detail-count">{collectionItems.length} items</p>
+                  </div>
+                  {!selectedCollection.isSystem && (
+                    <button
+                      className="settings-btn"
+                      onClick={() => setIsSettingsOpen(true)}
+                      title="Collection Settings"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Description section */}
+                <div className="detail-description-section">
+                  {selectedCollection.description ? (
+                    <p className="description-text">{selectedCollection.description}</p>
+                  ) : (
+                    <p className="description-placeholder">No description</p>
+                  )}
+                </div>
+              </div>
 
               {loadingItems ? (
                 <div className="detail-loading">Loading items...</div>
@@ -307,10 +490,16 @@ export function CollectionsPage() {
                     const isSeries = !!item.seriesId && item.series;
                     const isFile = !!item.fileId && item.file;
 
-                    // For series: use API cover hash if available
+                    // For series: Smart cover fallback: API > User > First Issue
                     // For files: use file cover endpoint
                     const coverUrl = isSeries
-                      ? (item.series!.coverHash ? getApiCoverUrl(item.series!.coverHash) : null)
+                      ? (item.series!.coverHash
+                          ? getApiCoverUrl(item.series!.coverHash)
+                          : item.series!.coverFileId
+                            ? getCoverUrl(item.series!.coverFileId)
+                            : item.series!.firstIssueId
+                              ? getCoverUrl(item.series!.firstIssueId)
+                              : null)
                       : isFile
                       ? getCoverUrl(item.fileId!)
                       : null;
@@ -380,6 +569,19 @@ export function CollectionsPage() {
           )}
         </div>
       </div>
+
+      {/* Collection Settings Drawer */}
+      {selectedCollection && !selectedCollection.isSystem && (
+        <CollectionSettingsDrawer
+          collection={selectedCollection}
+          collectionItems={collectionItems}
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onSave={handleSettingsSave}
+          onRemoveItems={handleRemoveItems}
+          onReorderItems={handleReorderItems}
+        />
+      )}
     </div>
   );
 }

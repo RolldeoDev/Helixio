@@ -18,6 +18,8 @@ import { ThemeProvider } from './themes/ThemeContext';
 import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffects, PulpEffects } from './themes';
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
+import { ToastProvider } from './contexts/ToastContext';
+import { Toast } from './components/Toast';
 import { DownloadProvider } from './contexts/DownloadContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import { DownloadNotificationBar } from './components/DownloadNotificationBar/DownloadNotificationBar';
@@ -47,6 +49,7 @@ import { SeriesDetailPage } from './pages/SeriesDetailPage';
 import { IssueDetailPage } from './pages/IssueDetailPage';
 import { DuplicatesPage } from './pages/DuplicatesPage';
 import { CollectionsPage } from './pages/CollectionsPage';
+import { CollectionDetailPage } from './pages/CollectionDetailPage';
 import { StatsPage } from './pages/StatsPage';
 import { EntityStatsPage } from './pages/EntityStatsPage';
 import { AchievementsPage } from './pages/AchievementsPage';
@@ -378,6 +381,8 @@ function AppContent() {
           <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
           <Route path="/issue/:fileId" element={<IssueDetailPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/collections/:collectionId" element={<CollectionsPage />} />
+          <Route path="/collection/:collectionId" element={<CollectionDetailPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/stats/:entityType/:entityName" element={<EntityStatsPage />} />
           <Route path="/achievements" element={<AchievementsPage />} />
@@ -428,12 +433,16 @@ function App() {
                     <MetadataJobProvider>
                       <AchievementProvider>
                         <DownloadProvider>
-                          <AppContent />
-                          {/* Achievement notifications */}
-                          <AchievementToast />
-                          {/* Download notifications */}
-                          <DownloadNotificationBar />
-                          <DownloadConfirmationModal />
+                          <ToastProvider>
+                            <AppContent />
+                            {/* Toast notifications */}
+                            <Toast />
+                            {/* Achievement notifications */}
+                            <AchievementToast />
+                            {/* Download notifications */}
+                            <DownloadNotificationBar />
+                            <DownloadConfirmationModal />
+                          </ToastProvider>
                         </DownloadProvider>
                       </AchievementProvider>
                     </MetadataJobProvider>

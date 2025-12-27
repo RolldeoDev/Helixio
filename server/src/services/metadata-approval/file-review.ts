@@ -173,11 +173,119 @@ async function prepareMangaFileChanges(
 // =============================================================================
 
 /**
+ * Check if an issue from the bulk endpoint has credit data.
+ * ComicVine's bulk /issues/ endpoint may not return credit fields even when requested.
+ */
+function issueHasCredits(issue: comicVine.ComicVineIssue): boolean {
+  return !!(
+    (issue.person_credits && issue.person_credits.length > 0) ||
+    (issue.character_credits && issue.character_credits.length > 0) ||
+    (issue.team_credits && issue.team_credits.length > 0) ||
+    (issue.location_credits && issue.location_credits.length > 0) ||
+    (issue.story_arc_credits && issue.story_arc_credits.length > 0)
+  );
+}
+
+/**
+ * Fetch full issue details from API to get complete metadata including credits.
+ * ComicVine's bulk /issues/ endpoint often doesn't return credit fields, so we fetch
+ * individual issues to get person_credits, character_credits, team_credits, etc.
+ *
+ * Optimization: Only fetches issues that don't already have credit data from bulk.
+ *
+ * @param issueIds - Array of issue IDs that need fetching
+ * @param existingIssueMap - Map of issues from bulk endpoint (to check for existing credits)
+ * @param source - Metadata source (comicvine, metron, etc.)
+ * @param onProgress - Progress callback
+ * @returns Map of issueId -> full issue data
+ */
+async function fetchFullIssueDetails(
+  issueIds: number[],
+  existingIssueMap: Map<number, comicVine.ComicVineIssue>,
+  source: MetadataSource,
+  onProgress?: ProgressCallback
+): Promise<Map<number, comicVine.ComicVineIssue>> {
+  const progress = onProgress || (() => {});
+  const fullIssueMap = new Map<number, comicVine.ComicVineIssue>();
+
+  if (issueIds.length === 0) return fullIssueMap;
+
+  // Check which issues already have credits from the bulk endpoint
+  const issuesNeedingFetch: number[] = [];
+  for (const issueId of issueIds) {
+    const existing = existingIssueMap.get(issueId);
+    if (existing && issueHasCredits(existing)) {
+      // Already has credit data, use it directly
+      fullIssueMap.set(issueId, existing);
+    } else {
+      // Needs individual fetch to get credits
+      issuesNeedingFetch.push(issueId);
+    }
+  }
+
+  // If all issues already have credits, we're done
+  if (issuesNeedingFetch.length === 0) {
+    progress('Issue metadata', `All ${issueIds.length} issues have credits from bulk fetch`);
+    return fullIssueMap;
+  }
+
+  progress(
+    'Fetching full issue metadata',
+    `${issueIds.length - issuesNeedingFetch.length} have credits, fetching ${issuesNeedingFetch.length} more...`
+  );
+
+  // Process in batches to avoid overwhelming the API
+  // ComicVine allows up to 200 requests/hour, so we use 10 concurrent with delays
+  const BATCH_SIZE = 10;
+  const DELAY_BETWEEN_BATCHES_MS = 300;
+
+  for (let i = 0; i < issuesNeedingFetch.length; i += BATCH_SIZE) {
+    const batch = issuesNeedingFetch.slice(i, i + BATCH_SIZE);
+
+    // Fetch batch concurrently
+    const results = await Promise.all(
+      batch.map(async (issueId) => {
+        try {
+          if (source === 'comicvine') {
+            return { id: issueId, data: await comicVine.getIssue(issueId) };
+          }
+          // For other sources, add similar handling
+          return { id: issueId, data: null };
+        } catch (err) {
+          logger.warn({ issueId, error: err }, 'Failed to fetch full issue details');
+          return { id: issueId, data: null };
+        }
+      })
+    );
+
+    // Store results
+    for (const result of results) {
+      if (result.data) {
+        fullIssueMap.set(result.id, result.data);
+      }
+    }
+
+    const completed = Math.min(i + BATCH_SIZE, issuesNeedingFetch.length);
+    progress(
+      'Fetching full issue metadata',
+      `${completed} of ${issuesNeedingFetch.length} issues (credits, characters, etc.)`
+    );
+
+    // Add delay between batches to respect rate limits (except for last batch)
+    if (i + BATCH_SIZE < issuesNeedingFetch.length) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+    }
+  }
+
+  progress('Issue metadata fetch complete', `Retrieved full details for ${fullIssueMap.size} issues`);
+  return fullIssueMap;
+}
+
+/**
  * Prepare file changes after all series are approved
  *
- * Uses batch queries and cached issue data to minimize API calls.
- * Note: ComicVine's bulk /issues/ endpoint doesn't return credit fields,
- * so auto-matched issues only get series-inherited creators.
+ * Uses batch queries and cached issue data for initial matching, then fetches
+ * full issue details to get complete metadata including credits.
  */
 export async function prepareFileChanges(
   session: ApprovalSession,
@@ -307,6 +415,18 @@ export async function prepareFileChanges(
 
     progress(`Matching ${group.fileIds.length} files to issues`, 'Analyzing filenames...');
 
+    // Phase 1: Match files to issues using cached data (fast)
+    interface PendingMatch {
+      fileId: string;
+      filename: string;
+      issue: (typeof cachedIssues.issues)[0];
+      confidence: number;
+      parseSource: string;
+      parsedNumber: string;
+      pageCount: number;
+    }
+    const pendingMatches: PendingMatch[] = [];
+
     for (let i = 0; i < group.fileIds.length; i++) {
       const fileId = group.fileIds[i]!;
       const filename = group.filenames[i]!;
@@ -316,57 +436,28 @@ export async function prepareFileChanges(
 
       const parseSource = parsedData?.number ? 'parsed' : 'regex';
       const parsedNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber || '?';
-
-      // Get page count for format classification
       const pageCount = pageCountMap.get(fileId) || 0;
-      const classificationOptions: ComicClassificationOptions = {
-        filename,
-        pageCount,
-      };
 
       if (issue && confidence >= 0.5) {
         matchedCount++;
-        const fullIssue = issueMap.get(issue.id) || issue;
-
-        const fields =
-          issueSource.source === 'comicvine'
-            ? await issueToFieldChanges(
-                fileId,
-                fullIssue as comicVine.ComicVineIssue,
-                metadataSource,
-                classificationOptions
-              )
-            : await metronIssueToFieldChanges(
-                fileId,
-                fullIssue as Parameters<typeof metronIssueToFieldChanges>[1],
-                metadataSource,
-                classificationOptions
-              );
+        pendingMatches.push({
+          fileId,
+          filename,
+          issue,
+          confidence,
+          parseSource,
+          parsedNumber,
+          pageCount,
+        });
 
         const confidencePercent = Math.round(confidence * 100);
         progress(
           `Matched: "${filename.length > 40 ? filename.slice(0, 40) + '...' : filename}"`,
           `-> Issue #${getIssueNumber(issue)} (${confidencePercent}% confidence, ${parseSource} #${parsedNumber})`
         );
-
-        fileChanges.push({
-          fileId,
-          filename,
-          matchedIssue: {
-            source: issueSource.source,
-            sourceId: String(issue.id),
-            number: getIssueNumber(issue),
-            title: getIssueTitle(issue),
-            coverDate: issue.cover_date,
-          },
-          matchConfidence: confidence,
-          fields,
-          status: 'matched',
-        });
       } else {
         unmatchedCount++;
         let bestGuess: FileChange['matchedIssue'] = null;
-        const bestConfidence = 0;
 
         const issueNumberStr = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
         if (issueNumberStr) {
@@ -401,9 +492,80 @@ export async function prepareFileChanges(
           fileId,
           filename,
           matchedIssue: bestGuess,
-          matchConfidence: bestConfidence,
+          matchConfidence: 0,
           fields: {},
           status: 'unmatched',
+        });
+      }
+    }
+
+    // Phase 2: Fetch full issue details for all matched files (to get credits, characters, etc.)
+    // ComicVine's bulk /issues/ endpoint may not return these fields
+    if (pendingMatches.length > 0 && issueSource.source === 'comicvine') {
+      const uniqueIssueIds = [...new Set(pendingMatches.map((m) => m.issue.id))];
+      const fullIssueMap = await fetchFullIssueDetails(uniqueIssueIds, issueMap as Map<number, comicVine.ComicVineIssue>, issueSource.source, progress);
+
+      // Phase 3: Build field changes using full issue data
+      progress('Building field changes', `Processing ${pendingMatches.length} matched files...`);
+
+      for (const match of pendingMatches) {
+        const fullIssue = fullIssueMap.get(match.issue.id) || (match.issue as comicVine.ComicVineIssue);
+        const classificationOptions: ComicClassificationOptions = {
+          filename: match.filename,
+          pageCount: match.pageCount,
+        };
+
+        const fields = await issueToFieldChanges(
+          match.fileId,
+          fullIssue,
+          metadataSource,
+          classificationOptions
+        );
+
+        fileChanges.push({
+          fileId: match.fileId,
+          filename: match.filename,
+          matchedIssue: {
+            source: issueSource.source,
+            sourceId: String(match.issue.id),
+            number: getIssueNumber(match.issue),
+            title: getIssueTitle(match.issue),
+            coverDate: match.issue.cover_date,
+          },
+          matchConfidence: match.confidence,
+          fields,
+          status: 'matched',
+        });
+      }
+    } else if (pendingMatches.length > 0) {
+      // Non-ComicVine source (Metron, etc.) - use cached data directly
+      for (const match of pendingMatches) {
+        const fullIssue = issueMap.get(match.issue.id) || match.issue;
+        const classificationOptions: ComicClassificationOptions = {
+          filename: match.filename,
+          pageCount: match.pageCount,
+        };
+
+        const fields = await metronIssueToFieldChanges(
+          match.fileId,
+          fullIssue as Parameters<typeof metronIssueToFieldChanges>[1],
+          metadataSource,
+          classificationOptions
+        );
+
+        fileChanges.push({
+          fileId: match.fileId,
+          filename: match.filename,
+          matchedIssue: {
+            source: issueSource.source,
+            sourceId: String(match.issue.id),
+            number: getIssueNumber(match.issue),
+            title: getIssueTitle(match.issue),
+            coverDate: match.issue.cover_date,
+          },
+          matchConfidence: match.confidence,
+          fields,
+          status: 'matched',
         });
       }
     }

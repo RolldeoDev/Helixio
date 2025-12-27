@@ -1189,6 +1189,7 @@ model Collection {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name        String
   description String?
+  deck        String?  // Short tagline/subtitle for the collection
 
   // System collection flag (Favorites, Want to Read)
   isSystem    Boolean  @default(false)
@@ -1236,6 +1237,9 @@ model Collection {
   // When derived metadata was last calculated
   metadataUpdatedAt  DateTime?
 
+  // Most recent updatedAt from any contained series (for "Recently Updated" sort)
+  contentUpdatedAt   DateTime?
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1249,6 +1253,7 @@ model Collection {
   @@index([sortOrder])
   @@index([isPromoted])
   @@index([promotedOrder])
+  @@index([userId, isPromoted])  // Efficient query for promoted collections per user
 }
 
 model CollectionItem {
