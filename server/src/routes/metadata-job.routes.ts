@@ -6,6 +6,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { logError } from '../services/logger.service.js';
 import {
   createJob,
   getJob,
@@ -45,7 +46,7 @@ router.get('/', async (_req: Request, res: Response) => {
     const jobs = await listJobs();
     res.json({ jobs });
   } catch (error) {
-    console.error('Failed to list jobs:', error);
+    logError('metadata-job', error, { action: 'list-jobs' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to list jobs',
     });
@@ -61,7 +62,7 @@ router.get('/all', async (_req: Request, res: Response) => {
     const jobs = await listAllJobs();
     res.json({ jobs });
   } catch (error) {
-    console.error('Failed to list all jobs:', error);
+    logError('metadata-job', error, { action: 'list-all-jobs' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to list jobs',
     });
@@ -90,7 +91,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     res.status(201).json({ job });
   } catch (error) {
-    console.error('Failed to create job:', error);
+    logError('metadata-job', error, { action: 'create-job' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to create job',
     });
@@ -112,7 +113,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json({ job });
   } catch (error) {
-    console.error('Failed to get job:', error);
+    logError('metadata-job', error, { action: 'get-job', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to get job',
     });
@@ -133,7 +134,7 @@ router.patch('/:id/options', async (req: Request, res: Response) => {
 
     res.json({ job });
   } catch (error) {
-    console.error('Failed to update job options:', error);
+    logError('metadata-job', error, { action: 'update-job-options', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to update options',
     });
@@ -149,7 +150,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await deleteJob(req.params.id!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete job:', error);
+    logError('metadata-job', error, { action: 'delete-job', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to delete job',
     });
@@ -195,7 +196,7 @@ router.post('/:id/start', async (req: Request, res: Response) => {
       jobId,
     });
   } catch (error) {
-    console.error('Failed to start job:', error);
+    logError('metadata-job', error, { action: 'start-job', jobId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to start job',
     });
@@ -213,7 +214,7 @@ router.post('/:id/cancel', async (req: Request, res: Response) => {
     await cancelJob(req.params.id!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Failed to cancel job:', error);
+    logError('metadata-job', error, { action: 'cancel-job', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to cancel job',
     });
@@ -231,7 +232,7 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
     const result = await abandonJob(req.params.id!);
     res.json(result);
   } catch (error) {
-    console.error('Failed to abandon job:', error);
+    logError('metadata-job', error, { action: 'abandon-job', jobId: req.params.id });
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to abandon job',
@@ -249,10 +250,10 @@ router.post('/:id/abandon', async (req: Request, res: Response) => {
  * Body: { query: string, source?: MetadataSource }
  */
 router.post('/:id/search', async (req: Request, res: Response) => {
-  try {
-    const { query, source } = req.body as { query: string; source?: string };
-    const id = req.params.id!;
+  const { query, source } = req.body as { query: string; source?: string };
+  const id = req.params.id!;
 
+  try {
     if (!query) {
       res.status(400).json({ error: 'query is required' });
       return;
@@ -270,7 +271,7 @@ router.post('/:id/search', async (req: Request, res: Response) => {
 
     res.json({ results, job });
   } catch (error) {
-    console.error('Failed to search:', error);
+    logError('metadata-job', error, { action: 'search-series', jobId: id, query, source });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to search',
     });
@@ -290,7 +291,7 @@ router.post('/:id/load-more', async (req: Request, res: Response) => {
 
     res.json({ results, job });
   } catch (error) {
-    console.error('Failed to load more results:', error);
+    logError('metadata-job', error, { action: 'load-more-results', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to load more results',
     });
@@ -303,14 +304,14 @@ router.post('/:id/load-more', async (req: Request, res: Response) => {
  * Body: { selectedSeriesId: string, issueMatchingSeriesId?: string, applyToRemaining?: boolean }
  */
 router.post('/:id/approve-series', async (req: Request, res: Response) => {
-  try {
-    const { selectedSeriesId, issueMatchingSeriesId, applyToRemaining } = req.body as {
-      selectedSeriesId: string;
-      issueMatchingSeriesId?: string;
-      applyToRemaining?: boolean;
-    };
-    const id = req.params.id!;
+  const { selectedSeriesId, issueMatchingSeriesId, applyToRemaining } = req.body as {
+    selectedSeriesId: string;
+    issueMatchingSeriesId?: string;
+    applyToRemaining?: boolean;
+  };
+  const id = req.params.id!;
 
+  try {
     if (!selectedSeriesId) {
       res.status(400).json({ error: 'selectedSeriesId is required' });
       return;
@@ -321,7 +322,7 @@ router.post('/:id/approve-series', async (req: Request, res: Response) => {
 
     res.json({ ...result, job });
   } catch (error) {
-    console.error('Failed to approve series:', error);
+    logError('metadata-job', error, { action: 'approve-series', jobId: id, selectedSeriesId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to approve series',
     });
@@ -339,7 +340,7 @@ router.post('/:id/skip-series', async (req: Request, res: Response) => {
 
     res.json({ ...result, job });
   } catch (error) {
-    console.error('Failed to skip series:', error);
+    logError('metadata-job', error, { action: 'skip-series', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to skip series',
     });
@@ -370,7 +371,7 @@ router.post('/:id/navigate-series/:index', async (req: Request, res: Response) =
       job,
     });
   } catch (error) {
-    console.error('Failed to navigate to series group:', error);
+    logError('metadata-job', error, { action: 'navigate-series', jobId: req.params.id, index: req.params.index });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to navigate to series group',
     });
@@ -401,7 +402,7 @@ router.post('/:id/reset-series/:index', async (req: Request, res: Response) => {
       job,
     });
   } catch (error) {
-    console.error('Failed to reset series group:', error);
+    logError('metadata-job', error, { action: 'reset-series', jobId: req.params.id, index: req.params.index });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to reset series group',
     });
@@ -433,7 +434,7 @@ router.get('/:id/files/:fileId/available-issues', async (req: Request, res: Resp
       res.status(404).json({ error: 'File not found in session' });
       return;
     }
-    console.error('Failed to get available issues:', error);
+    logError('metadata-job', error, { action: 'get-available-issues', jobId: req.params.id, fileId: req.params.fileId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to get available issues',
     });
@@ -455,7 +456,7 @@ router.patch('/:id/files/:fileId', async (req: Request, res: Response) => {
 
     res.json({ fileChange, job });
   } catch (error) {
-    console.error('Failed to update field approvals:', error);
+    logError('metadata-job', error, { action: 'update-field-approvals', jobId: req.params.id, fileId: req.params.fileId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to update approvals',
     });
@@ -473,7 +474,7 @@ router.post('/:id/files/:fileId/reject', async (req: Request, res: Response) => 
 
     res.json({ fileChange, job });
   } catch (error) {
-    console.error('Failed to reject file:', error);
+    logError('metadata-job', error, { action: 'reject-file', jobId: req.params.id, fileId: req.params.fileId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to reject file',
     });
@@ -491,7 +492,7 @@ router.post('/:id/accept-all', async (req: Request, res: Response) => {
 
     res.json({ job });
   } catch (error) {
-    console.error('Failed to accept all:', error);
+    logError('metadata-job', error, { action: 'accept-all-files', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to accept all',
     });
@@ -509,7 +510,7 @@ router.post('/:id/reject-all', async (req: Request, res: Response) => {
 
     res.json({ job });
   } catch (error) {
-    console.error('Failed to reject all:', error);
+    logError('metadata-job', error, { action: 'reject-all-files', jobId: req.params.id });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to reject all',
     });
@@ -564,7 +565,7 @@ router.post('/:id/apply', async (req: Request, res: Response) => {
       jobId,
     });
   } catch (error) {
-    console.error('Failed to apply changes:', error);
+    logError('metadata-job', error, { action: 'apply-changes', jobId });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to apply changes',
     });

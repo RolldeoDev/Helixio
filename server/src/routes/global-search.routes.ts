@@ -11,6 +11,7 @@ import {
   clearSearchCache,
   getSearchCacheStats,
 } from '../services/global-search.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -70,7 +71,7 @@ router.get('/global', async (req: Request, res: Response): Promise<void> => {
 
     res.json(result);
   } catch (err) {
-    console.error('Error in global search:', err);
+    logError('global-search', err, { action: 'global-search' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -91,7 +92,7 @@ router.delete('/global/cache', async (_req: Request, res: Response): Promise<voi
     clearSearchCache();
     res.json({ success: true, message: 'Search cache cleared' });
   } catch (err) {
-    console.error('Error clearing search cache:', err);
+    logError('global-search', err, { action: 'clear-cache' });
     res.status(500).json({
       error: 'Failed to clear cache',
       message: err instanceof Error ? err.message : String(err),
@@ -108,7 +109,7 @@ router.get('/global/cache/stats', async (_req: Request, res: Response): Promise<
     const stats = getSearchCacheStats();
     res.json(stats);
   } catch (err) {
-    console.error('Error getting cache stats:', err);
+    logError('global-search', err, { action: 'get-cache-stats' });
     res.status(500).json({
       error: 'Failed to get cache stats',
       message: err instanceof Error ? err.message : String(err),

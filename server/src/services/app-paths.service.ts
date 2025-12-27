@@ -8,6 +8,7 @@
 import { existsSync, mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
+import { logInfo } from './logger.service.js';
 
 // Application data root directory
 const APP_DIR_NAME = '.helixio';
@@ -175,7 +176,7 @@ export function ensureAppDirectories(): void {
   for (const dir of directories) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
-      console.log(`Created directory: ${dir}`);
+      logInfo('app-paths', `Created directory: ${dir}`);
     }
   }
 }

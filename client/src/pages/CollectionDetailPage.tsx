@@ -42,6 +42,7 @@ import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useMenuActions, useApiToast } from '../hooks';
 import type { MenuContext } from '../components/UnifiedMenu/types';
+import { ProgressRing, CompletedBadge } from '../components/Progress';
 import './CollectionDetailPage.css';
 
 // =============================================================================
@@ -750,10 +751,20 @@ export function CollectionDetailPage() {
                 {/* Collection badge */}
                 <div className="collection-badge">Collection</div>
                 {/* Progress ring */}
-                {progressPercent > 0 && (
-                  <div className="collection-progress-badge">
-                    {progressPercent === 100 ? '✓' : `${progressPercent}%`}
-                  </div>
+                {progressPercent > 0 && progressPercent < 100 && (
+                  <ProgressRing
+                    progress={progressPercent}
+                    size="lg"
+                    showLabel
+                    className="collection-hero-progress-ring"
+                  />
+                )}
+                {progressPercent === 100 && (
+                  <CompletedBadge
+                    size="lg"
+                    title="Collection complete"
+                    className="collection-hero-complete-badge"
+                  />
                 )}
               </div>
 

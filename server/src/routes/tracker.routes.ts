@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import * as trackerService from '../services/tracker.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({ trackers });
   } catch (error) {
-    console.error('Get trackers error:', error);
+    logError('tracker', error, { action: 'get-trackers' });
     res.status(500).json({ error: 'Failed to get tracker status' });
   }
 });
@@ -88,7 +89,7 @@ router.get('/anilist/auth', async (_req: Request, res: Response) => {
     const url = await trackerService.anilistGetAuthUrl(config);
     res.json({ url });
   } catch (error) {
-    console.error('AniList auth URL error:', error);
+    logError('tracker', error, { action: 'anilist-auth-url' });
     res.status(500).json({ error: 'Failed to generate auth URL' });
   }
 });
@@ -123,7 +124,7 @@ router.post('/anilist/callback', async (req: Request, res: Response) => {
       expiresAt: token.expiresAt,
     });
   } catch (error) {
-    console.error('AniList callback error:', error);
+    logError('tracker', error, { action: 'anilist-callback' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to connect AniList',
     });
@@ -139,7 +140,7 @@ router.delete('/anilist', async (req: Request, res: Response) => {
     await trackerService.deleteTrackerToken(req.user!.id, 'anilist');
     res.json({ success: true });
   } catch (error) {
-    console.error('AniList disconnect error:', error);
+    logError('tracker', error, { action: 'anilist-disconnect' });
     res.status(500).json({ error: 'Failed to disconnect AniList' });
   }
 });
@@ -165,7 +166,7 @@ router.get('/anilist/search', async (req: Request, res: Response) => {
     const results = await trackerService.anilistSearchManga(query, token.accessToken);
     res.json({ results });
   } catch (error) {
-    console.error('AniList search error:', error);
+    logError('tracker', error, { action: 'anilist-search' });
     res.status(500).json({ error: 'Search failed' });
   }
 });
@@ -190,7 +191,7 @@ router.get('/anilist/manga/:mangaId', async (req: Request, res: Response) => {
     const entry = await trackerService.anilistGetEntry(mangaId, token.accessToken);
     res.json({ entry });
   } catch (error) {
-    console.error('AniList get entry error:', error);
+    logError('tracker', error, { action: 'anilist-get-entry' });
     res.status(500).json({ error: 'Failed to get entry' });
   }
 });
@@ -221,7 +222,7 @@ router.patch('/anilist/manga/:mangaId', async (req: Request, res: Response) => {
 
     res.json({ entry });
   } catch (error) {
-    console.error('AniList update error:', error);
+    logError('tracker', error, { action: 'anilist-update-entry' });
     res.status(500).json({ error: 'Failed to update entry' });
   }
 });
@@ -245,7 +246,7 @@ router.get('/mal/auth', async (_req: Request, res: Response) => {
     const url = await trackerService.malGetAuthUrl(config);
     res.json({ url });
   } catch (error) {
-    console.error('MAL auth URL error:', error);
+    logError('tracker', error, { action: 'mal-auth-url' });
     res.status(500).json({ error: 'Failed to generate auth URL' });
   }
 });
@@ -280,7 +281,7 @@ router.post('/mal/callback', async (req: Request, res: Response) => {
       expiresAt: token.expiresAt,
     });
   } catch (error) {
-    console.error('MAL callback error:', error);
+    logError('tracker', error, { action: 'mal-callback' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to connect MyAnimeList',
     });
@@ -296,7 +297,7 @@ router.delete('/mal', async (req: Request, res: Response) => {
     await trackerService.deleteTrackerToken(req.user!.id, 'myanimelist');
     res.json({ success: true });
   } catch (error) {
-    console.error('MAL disconnect error:', error);
+    logError('tracker', error, { action: 'mal-disconnect' });
     res.status(500).json({ error: 'Failed to disconnect MyAnimeList' });
   }
 });
@@ -322,7 +323,7 @@ router.get('/mal/search', async (req: Request, res: Response) => {
     const results = await trackerService.malSearchManga(query, token.accessToken);
     res.json({ results });
   } catch (error) {
-    console.error('MAL search error:', error);
+    logError('tracker', error, { action: 'mal-search' });
     res.status(500).json({ error: 'Search failed' });
   }
 });
@@ -348,7 +349,7 @@ router.get('/mal/manga/:mangaId', async (req: Request, res: Response) => {
     const entry = await trackerService.malGetEntry(mangaId, token.accessToken);
     res.json({ entry });
   } catch (error) {
-    console.error('MAL get entry error:', error);
+    logError('tracker', error, { action: 'mal-get-entry' });
     res.status(500).json({ error: 'Failed to get entry' });
   }
 });
@@ -379,7 +380,7 @@ router.patch('/mal/manga/:mangaId', async (req: Request, res: Response) => {
 
     res.json({ entry });
   } catch (error) {
-    console.error('MAL update error:', error);
+    logError('tracker', error, { action: 'mal-update-entry' });
     res.status(500).json({ error: 'Failed to update entry' });
   }
 });
@@ -410,7 +411,7 @@ router.get('/mapping/:series', async (req: Request, res: Response) => {
     const mapping = await trackerService.getTrackerMapping(series, service);
     res.json({ mapping });
   } catch (error) {
-    console.error('Get mapping error:', error);
+    logError('tracker', error, { action: 'get-mapping' });
     res.status(500).json({ error: 'Failed to get mapping' });
   }
 });
@@ -442,7 +443,7 @@ router.put('/mapping/:series', async (req: Request, res: Response) => {
     await trackerService.setTrackerMapping(series, service, externalId, externalTitle);
     res.json({ success: true });
   } catch (error) {
-    console.error('Set mapping error:', error);
+    logError('tracker', error, { action: 'set-mapping' });
     res.status(500).json({ error: 'Failed to set mapping' });
   }
 });
@@ -469,7 +470,7 @@ router.delete('/mapping/:series', async (req: Request, res: Response) => {
     await trackerService.deleteTrackerMapping(series, service);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete mapping error:', error);
+    logError('tracker', error, { action: 'delete-mapping' });
     res.status(500).json({ error: 'Failed to delete mapping' });
   }
 });

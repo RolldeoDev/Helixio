@@ -366,14 +366,14 @@ async function extractRarFileToBuffer(
       }
     }
 
-    console.log(`[extractRarFileToBuffer] No match found for: ${entryPath}`);
+    logger.debug({ entryPath }, 'No match found for RAR entry');
     // Log first few file names for debugging
     const fileNames = extractedFiles.slice(0, 5).map(f => f.fileHeader.name);
-    console.log(`[extractRarFileToBuffer] Sample files in archive:`, fileNames);
+    logger.debug({ sampleFiles: fileNames }, 'Sample files in RAR archive');
 
     return null;
   } catch (err) {
-    console.error(`[extractRarFileToBuffer] Error:`, err);
+    logger.error({ err, entryPath }, 'RAR file extraction error');
     return null;
   }
 }
@@ -459,18 +459,15 @@ export async function extractFiles(
   outputDir: string,
   files: string[]
 ): Promise<ExtractionResult> {
-  console.log(`[extractFiles] Archive: ${archivePath}`);
-  console.log(`[extractFiles] Output: ${outputDir}`);
-  console.log(`[extractFiles] Files filter: ${files.length > 0 ? files.join(', ') : 'all'}`);
+  logger.debug({ archivePath, outputDir, filesFilter: files.length > 0 ? files : 'all' }, 'Extracting files from archive');
 
   // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
   if (await isRarArchive(archivePath)) {
-    console.log(`[extractFiles] Using RAR extractor`);
+    logger.debug('Using RAR extractor');
     return extractRarFiles(archivePath, outputDir, files);
   }
 
-  console.log(`[extractFiles] Using 7zip extractor`);
-  console.log(`[extractFiles] 7zip binary: ${pathTo7zip}`);
+  logger.debug({ pathTo7zip }, 'Using 7zip extractor');
 
   // Use 7-zip for other formats
   return new Promise((resolve, reject) => {
@@ -490,16 +487,15 @@ export async function extractFiles(
         extractStream.on('data', (data: unknown) => {
           extractedCount++;
           if (extractedCount <= 3) {
-            console.log(`[extractFiles] Extracted file ${extractedCount}:`, data);
+            logger.trace({ fileNum: extractedCount, data }, 'Extracted file');
           }
         });
 
         extractStream.on('end', () => {
-          console.log(`[extractFiles] Extraction complete. Count: ${extractedCount}`);
+          logger.debug({ extractedCount }, 'Extraction complete');
           // If we requested specific files but extracted nothing, treat as failure
           if (files.length > 0 && extractedCount === 0) {
-            console.log(`[extractFiles] Warning: Requested ${files.length} files but extracted none`);
-            console.log(`[extractFiles] Requested files:`, files);
+            logger.warn({ requestedCount: files.length, requestedFiles: files }, 'Requested files but extracted none');
             resolve({
               success: false,
               extractedPath: outputDir,
@@ -517,8 +513,7 @@ export async function extractFiles(
 
         extractStream.on('error', (err: Error) => {
           const errorMessage = err?.message || err?.toString() || 'unknown extraction error';
-          console.error(`[extractFiles] 7zip error:`, err);
-          console.error(`[extractFiles] Error message: ${errorMessage}`);
+          logger.error({ err, errorMessage }, '7zip extraction error');
           resolve({
             success: false,
             extractedPath: outputDir,
@@ -528,11 +523,11 @@ export async function extractFiles(
         });
 
         extractStream.on('info', (info: unknown) => {
-          console.log(`[extractFiles] Info:`, info);
+          logger.trace({ info }, 'Extraction info');
         });
       })
       .catch((err) => {
-        console.error(`[extractFiles] mkdir error:`, err);
+        logger.error({ err }, 'Failed to create extraction directory');
         reject(err);
       });
   });
@@ -560,31 +555,28 @@ export async function extractSingleFile(
   // Check cache first - if file already exists, skip extraction
   try {
     await stat(outputPath);
-    console.log(`[extractSingleFile] Cache hit: ${outputPath}`);
+    logger.trace({ outputPath }, 'Cache hit');
     return { success: true };
   } catch {
     // File doesn't exist, proceed with extraction
   }
 
-  console.log(`[extractSingleFile] Cache miss, extracting...`);
-  console.log(`[extractSingleFile] Archive: ${archivePath}`);
-  console.log(`[extractSingleFile] Entry path: ${entryPath}`);
-  console.log(`[extractSingleFile] Output path: ${outputPath}`);
+  logger.debug({ archivePath, entryPath, outputPath }, 'Cache miss, extracting single file');
 
   // For RAR/CBR files, use direct buffer extraction (more reliable for filtered extraction)
   if (await isRarArchive(archivePath)) {
-    console.log(`[extractSingleFile] Using RAR buffer extraction`);
+    logger.debug('Using RAR buffer extraction');
     try {
       const buffer = await extractRarFileToBuffer(archivePath, entryPath);
       if (buffer) {
         await mkdir(dirname(outputPath), { recursive: true });
         await writeFile(outputPath, buffer);
-        console.log(`[extractSingleFile] Successfully extracted RAR file`);
+        logger.debug('Successfully extracted RAR file');
         return { success: true };
       }
       return { success: false, error: `File not found in RAR archive: ${entryPath}` };
     } catch (err) {
-      console.error(`[extractSingleFile] RAR extraction error:`, err);
+      logger.error({ err, entryPath }, 'RAR extraction error');
       return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
   }
@@ -593,12 +585,12 @@ export async function extractSingleFile(
   // Note: We extract the entire archive because 7zip's include filter doesn't work
   // reliably with paths containing special characters (parentheses, spaces, etc.)
   const tempDir = await createTempDir('extract-');
-  console.log(`[extractSingleFile] Temp dir: ${tempDir}`);
+  logger.trace({ tempDir }, 'Created temp directory');
 
   try {
     // Extract entire archive (filter unreliable with special chars in paths)
     const result = await extractFiles(archivePath, tempDir, []);
-    console.log(`[extractSingleFile] extractFiles result: success=${result.success}, fileCount=${result.fileCount}, error=${result.error}`);
+    logger.debug({ success: result.success, fileCount: result.fileCount, error: result.error }, 'extractFiles result');
 
     if (!result.success) {
       return { success: false, error: result.error };
@@ -612,7 +604,7 @@ export async function extractSingleFile(
       // List what was extracted for debugging
       try {
         const files = await readdir(tempDir, { recursive: true });
-        console.log(`[extractSingleFile] Files in temp dir:`, files);
+        logger.debug({ filesInTempDir: files }, 'Files in temp dir');
       } catch {
         // Ignore
       }
@@ -622,7 +614,7 @@ export async function extractSingleFile(
       };
     }
 
-    console.log(`[extractSingleFile] Found extracted file at: ${foundFile}`);
+    logger.debug({ foundFile }, 'Found extracted file');
 
     // Ensure output directory exists and move file
     await mkdir(dirname(outputPath), { recursive: true });
@@ -638,10 +630,10 @@ export async function extractSingleFile(
       return { success: false, error: `Failed to move extracted file: ${err}` };
     }
 
-    console.log(`[extractSingleFile] Successfully moved to output path`);
+    logger.debug('Successfully moved to output path');
     return { success: true };
   } catch (err) {
-    console.error(`[extractSingleFile] Exception:`, err);
+    logger.error({ err }, 'Single file extraction exception');
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err)
@@ -716,17 +708,15 @@ export async function createCbzArchive(
   const archiver = (await import('archiver')).default;
   const { createWriteStream } = await import('fs');
 
-  console.log(`[createCbzArchive] Starting...`);
-  console.log(`[createCbzArchive] Source dir: ${sourceDir}`);
-  console.log(`[createCbzArchive] Output path: ${outputPath}`);
+  logger.debug({ sourceDir, outputPath }, 'Creating CBZ archive');
 
   // Verify source directory exists and has files
   let sourceFiles: string[];
   try {
     sourceFiles = await readdir(sourceDir);
-    console.log(`[createCbzArchive] Source dir contains ${sourceFiles.length} items:`, sourceFiles.slice(0, 5));
+    logger.debug({ itemCount: sourceFiles.length, sampleFiles: sourceFiles.slice(0, 5) }, 'Source directory contents');
   } catch (err) {
-    console.error(`[createCbzArchive] Failed to read source dir:`, err);
+    logger.error({ err, sourceDir }, 'Failed to read source directory');
     return {
       success: false,
       archivePath: outputPath,
@@ -755,10 +745,10 @@ export async function createCbzArchive(
     let fileCount = 0;
 
     output.on('close', async () => {
-      console.log(`[createCbzArchive] Archive finalized. Total bytes: ${archive.pointer()}`);
+      logger.debug({ totalBytes: archive.pointer() }, 'Archive finalized');
       try {
         const stats = await stat(outputPath);
-        console.log(`[createCbzArchive] Success! File count: ${fileCount}, Size: ${stats.size} bytes`);
+        logger.debug({ fileCount, size: stats.size }, 'CBZ archive created successfully');
         resolve({
           success: true,
           archivePath: outputPath,
@@ -778,16 +768,16 @@ export async function createCbzArchive(
     archive.on('entry', (entry) => {
       fileCount++;
       if (fileCount <= 3) {
-        console.log(`[createCbzArchive] Added entry ${fileCount}: ${entry.name}`);
+        logger.trace({ entryNum: fileCount, entryName: entry.name }, 'Added archive entry');
       }
     });
 
     archive.on('warning', (err) => {
-      console.warn('[createCbzArchive] Archive warning:', err);
+      logger.warn({ err }, 'Archive warning');
     });
 
     archive.on('error', (err) => {
-      console.error('[createCbzArchive] Archive error:', err);
+      logger.error({ err }, 'Archive creation error');
       resolve({
         success: false,
         archivePath: outputPath,
@@ -951,14 +941,14 @@ export async function validateArchive(archivePath: string): Promise<{
   error?: string;
   info?: ArchiveInfo;
 }> {
-  console.log(`[validateArchive] Validating: ${archivePath}`);
+  logger.debug({ archivePath }, 'Validating archive');
   try {
     const info = await listArchiveContents(archivePath);
-    console.log(`[validateArchive] Listed ${info.fileCount} files, ${info.entries.length} entries`);
+    logger.debug({ fileCount: info.fileCount, entryCount: info.entries.length }, 'Archive listing complete');
 
     // Check for minimum requirements
     if (info.fileCount === 0) {
-      console.log(`[validateArchive] Failed: Archive is empty`);
+      logger.debug('Validation failed: Archive is empty');
       return { valid: false, error: 'Archive is empty' };
     }
 
@@ -968,14 +958,14 @@ export async function validateArchive(archivePath: string): Promise<{
     );
 
     if (!hasImages) {
-      console.log(`[validateArchive] Failed: No image files found`);
+      logger.debug('Validation failed: No image files found');
       return { valid: false, error: 'Archive contains no image files' };
     }
 
-    console.log(`[validateArchive] Validation passed`);
+    logger.debug('Validation passed');
     return { valid: true, info };
   } catch (err) {
-    console.error(`[validateArchive] Exception:`, err);
+    logger.error({ err, archivePath }, 'Archive validation exception');
     return {
       valid: false,
       error: err instanceof Error ? err.message : String(err),
@@ -990,14 +980,14 @@ export async function testArchiveExtraction(archivePath: string): Promise<{
   valid: boolean;
   error?: string;
 }> {
-  console.log(`[testArchiveExtraction] Testing: ${archivePath}`);
+  logger.debug({ archivePath }, 'Testing archive extraction');
   const tempDir = await createTempDir('test-');
 
   try {
     // Get archive contents
-    console.log(`[testArchiveExtraction] Listing archive contents...`);
+    logger.debug('Listing archive contents...');
     const info = await listArchiveContents(archivePath);
-    console.log(`[testArchiveExtraction] Found ${info.entries.length} entries`);
+    logger.debug({ entryCount: info.entries.length }, 'Found entries');
 
     if (info.entries.length === 0) {
       return { valid: false, error: 'Archive is empty' };
@@ -1009,18 +999,18 @@ export async function testArchiveExtraction(archivePath: string): Promise<{
       return { valid: false, error: 'No extractable files found' };
     }
 
-    console.log(`[testArchiveExtraction] Attempting to extract: ${firstFile.path}`);
+    logger.debug({ filePath: firstFile.path }, 'Attempting to extract first file');
     const result = await extractFiles(archivePath, tempDir, [firstFile.path]);
-    console.log(`[testArchiveExtraction] Extract result:`, JSON.stringify(result));
+    logger.debug({ result }, 'Extraction result');
 
     if (!result.success) {
       return { valid: false, error: result.error || 'Extraction failed with no error message' };
     }
 
-    console.log(`[testArchiveExtraction] Test passed!`);
+    logger.debug('Extraction test passed');
     return { valid: true };
   } catch (err) {
-    console.error(`[testArchiveExtraction] Exception:`, err);
+    logger.error({ err, archivePath }, 'Archive extraction test exception');
     return {
       valid: false,
       error: err instanceof Error ? err.message : String(err),
@@ -1091,8 +1081,7 @@ export async function deletePagesFromArchive(
   const tempDir = await createTempDir('helixio-delete-pages-');
 
   try {
-    console.log(`[deletePagesFromArchive] Extracting to: ${tempDir}`);
-    console.log(`[deletePagesFromArchive] Pages to delete:`, pagesToDelete);
+    logger.debug({ tempDir, pagesToDelete }, 'Deleting pages from archive');
 
     // Extract the entire archive
     const extractResult = await extractArchive(archivePath, tempDir);
@@ -1116,15 +1105,15 @@ export async function deletePagesFromArchive(
       try {
         await unlink(fullPath);
         deleted = true;
-        console.log(`[deletePagesFromArchive] Deleted: ${fullPath}`);
+        logger.debug({ fullPath }, 'Deleted page');
       } catch {
         // Try flat path
         try {
           await unlink(flatPath);
           deleted = true;
-          console.log(`[deletePagesFromArchive] Deleted (flat): ${flatPath}`);
+          logger.debug({ flatPath }, 'Deleted page (flat path)');
         } catch {
-          console.warn(`[deletePagesFromArchive] Could not find file to delete: ${pagePath}`);
+          logger.warn({ pagePath }, 'Could not find file to delete');
         }
       }
 
@@ -1161,7 +1150,7 @@ export async function deletePagesFromArchive(
       // Remove backup
       await unlink(backupPath);
 
-      console.log(`[deletePagesFromArchive] Successfully deleted ${deletedCount} pages`);
+      logger.info({ deletedCount }, 'Successfully deleted pages from archive');
       return {
         success: true,
         deletedCount,

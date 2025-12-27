@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import * as authService from '../services/auth.service.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
 import { getAvatarsDir } from '../services/app-paths.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.get('/setup-required', async (_req: Request, res: Response) => {
     const hasUsers = await authService.hasAnyUsers();
     res.json({ setupRequired: !hasUsers });
   } catch (error) {
-    console.error('Setup check error:', error);
+    logError('auth', error, { action: 'setup-check' });
     res.status(500).json({ error: 'Failed to check setup status' });
   }
 });
@@ -87,7 +88,7 @@ router.post('/setup', async (req: Request, res: Response) => {
       expiresAt: loginResult.expiresAt,
     });
   } catch (error) {
-    console.error('Setup error:', error);
+    logError('auth', error, { action: 'setup' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Setup failed',
     });
@@ -137,7 +138,7 @@ router.post('/login', async (req: Request, res: Response) => {
       expiresAt: result.expiresAt,
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logError('auth', error, { action: 'login' });
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -155,7 +156,7 @@ router.post('/logout', requireAuth, async (req: Request, res: Response) => {
     res.clearCookie('helixio_token');
     res.json({ success: true });
   } catch (error) {
-    console.error('Logout error:', error);
+    logError('auth', error, { action: 'logout' });
     res.status(500).json({ error: 'Logout failed' });
   }
 });
@@ -170,7 +171,7 @@ router.post('/logout-all', requireAuth, async (req: Request, res: Response) => {
     res.clearCookie('helixio_token');
     res.json({ success: true });
   } catch (error) {
-    console.error('Logout all error:', error);
+    logError('auth', error, { action: 'logout-all' });
     res.status(500).json({ error: 'Logout failed' });
   }
 });
@@ -201,7 +202,7 @@ router.patch('/me', requireAuth, async (req: Request, res: Response) => {
 
     res.json({ user });
   } catch (error) {
-    console.error('Update profile error:', error);
+    logError('auth', error, { action: 'update-profile' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Update failed',
     });
@@ -224,7 +225,7 @@ router.post('/change-password', requireAuth, async (req: Request, res: Response)
     await authService.updatePassword(req.user!.id, currentPassword, newPassword);
     res.json({ success: true });
   } catch (error) {
-    console.error('Change password error:', error);
+    logError('auth', error, { action: 'change-password' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Password change failed',
     });
@@ -247,7 +248,7 @@ router.get('/sessions', requireAuth, async (req: Request, res: Response) => {
       currentToken: req.token,
     });
   } catch (error) {
-    console.error('Get sessions error:', error);
+    logError('auth', error, { action: 'get-sessions' });
     res.status(500).json({ error: 'Failed to get sessions' });
   }
 });
@@ -266,7 +267,7 @@ router.delete('/sessions/:sessionId', requireAuth, async (req: Request, res: Res
     await authService.revokeSession(sessionId, req.user!.id);
     res.json({ success: true });
   } catch (error) {
-    console.error('Revoke session error:', error);
+    logError('auth', error, { action: 'revoke-session' });
     res.status(500).json({ error: 'Failed to revoke session' });
   }
 });
@@ -284,7 +285,7 @@ router.get('/users', requireAdmin, async (_req: Request, res: Response) => {
     const users = await authService.listUsers();
     res.json({ users });
   } catch (error) {
-    console.error('List users error:', error);
+    logError('auth', error, { action: 'list-users' });
     res.status(500).json({ error: 'Failed to list users' });
   }
 });
@@ -312,7 +313,7 @@ router.post('/users', requireAdmin, async (req: Request, res: Response) => {
 
     res.status(201).json({ user });
   } catch (error) {
-    console.error('Create user error:', error);
+    logError('auth', error, { action: 'create-user' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to create user',
     });
@@ -339,7 +340,7 @@ router.get('/users/:userId', requireAdmin, async (req: Request, res: Response) =
 
     res.json({ user });
   } catch (error) {
-    console.error('Get user error:', error);
+    logError('auth', error, { action: 'get-user' });
     res.status(500).json({ error: 'Failed to get user' });
   }
 });
@@ -366,7 +367,7 @@ router.patch('/users/:userId/role', requireAdmin, async (req: Request, res: Resp
     const user = await authService.setUserRole(userId, role);
     res.json({ user });
   } catch (error) {
-    console.error('Update role error:', error);
+    logError('auth', error, { action: 'update-role' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to update role',
     });
@@ -395,7 +396,7 @@ router.patch('/users/:userId/active', requireAdmin, async (req: Request, res: Re
     const user = await authService.setUserActive(userId, isActive);
     res.json({ user });
   } catch (error) {
-    console.error('Update active error:', error);
+    logError('auth', error, { action: 'update-active' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to update user',
     });
@@ -423,7 +424,7 @@ router.delete('/users/:userId', requireAdmin, async (req: Request, res: Response
     await authService.deleteUser(userId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete user error:', error);
+    logError('auth', error, { action: 'delete-user' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to delete user',
     });
@@ -452,7 +453,7 @@ router.put('/users/:userId/role', requireAdmin, async (req: Request, res: Respon
     const user = await authService.setUserRole(userId, role);
     res.json({ user });
   } catch (error) {
-    console.error('Update role error:', error);
+    logError('auth', error, { action: 'update-role' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to update role',
     });
@@ -474,7 +475,7 @@ router.get('/users/:userId/library-access', requireAdmin, async (req: Request, r
     const libraries = await authService.getUserLibraryAccess(userId);
     res.json({ libraries });
   } catch (error) {
-    console.error('Get library access error:', error);
+    logError('auth', error, { action: 'get-library-access' });
     res.status(500).json({ error: 'Failed to get library access' });
   }
 });
@@ -501,7 +502,7 @@ router.put('/users/:userId/library-access/:libraryId', requireAdmin, async (req:
     await authService.setUserLibraryAccess(userId, libraryId, hasAccess, permission);
     res.json({ success: true });
   } catch (error) {
-    console.error('Set library access error:', error);
+    logError('auth', error, { action: 'set-library-access' });
     res.status(500).json({ error: 'Failed to set library access' });
   }
 });
@@ -527,7 +528,7 @@ router.post('/users/:userId/freeze', requireAdmin, async (req: Request, res: Res
     const user = await authService.freezeUser(userId);
     res.json({ user });
   } catch (error) {
-    console.error('Freeze user error:', error);
+    logError('auth', error, { action: 'freeze-user' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to freeze user',
     });
@@ -549,7 +550,7 @@ router.post('/users/:userId/unfreeze', requireAdmin, async (req: Request, res: R
     const user = await authService.unfreezeUser(userId);
     res.json({ user });
   } catch (error) {
-    console.error('Unfreeze user error:', error);
+    logError('auth', error, { action: 'unfreeze-user' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to unfreeze user',
     });
@@ -569,7 +570,7 @@ router.get('/settings', requireAdmin, async (_req: Request, res: Response) => {
     const settings = await authService.getAppSettings();
     res.json(settings);
   } catch (error) {
-    console.error('Get settings error:', error);
+    logError('auth', error, { action: 'get-settings' });
     res.status(500).json({ error: 'Failed to get settings' });
   }
 });
@@ -584,7 +585,7 @@ router.put('/settings', requireAdmin, async (req: Request, res: Response) => {
     const settings = await authService.updateAppSettings({ allowOpenRegistration });
     res.json(settings);
   } catch (error) {
-    console.error('Update settings error:', error);
+    logError('auth', error, { action: 'update-settings' });
     res.status(500).json({ error: 'Failed to update settings' });
   }
 });
@@ -602,7 +603,7 @@ router.get('/registration-allowed', async (_req: Request, res: Response) => {
     const settings = await authService.getAppSettings();
     res.json({ allowed: settings.allowOpenRegistration });
   } catch (error) {
-    console.error('Check registration error:', error);
+    logError('auth', error, { action: 'check-registration' });
     res.json({ allowed: false });
   }
 });
@@ -654,7 +655,7 @@ router.post('/register', async (req: Request, res: Response) => {
       expiresAt: loginResult.expiresAt,
     });
   } catch (error) {
-    console.error('Register error:', error);
+    logError('auth', error, { action: 'register' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Registration failed',
     });
@@ -686,7 +687,7 @@ router.post('/me/avatar', requireAuth, upload.single('avatar'), async (req: Requ
 
     res.json({ avatarUrl });
   } catch (error) {
-    console.error('Upload avatar error:', error);
+    logError('auth', error, { action: 'upload-avatar' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to upload avatar',
     });
@@ -702,7 +703,7 @@ router.delete('/me/avatar', requireAuth, async (req: Request, res: Response) => 
     await authService.removeAvatar(req.user!.id);
     res.json({ success: true });
   } catch (error) {
-    console.error('Remove avatar error:', error);
+    logError('auth', error, { action: 'remove-avatar' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to remove avatar',
     });
@@ -730,7 +731,7 @@ router.get('/avatars/:userId', async (req: Request, res: Response) => {
 
     res.sendFile(avatarPath);
   } catch (error) {
-    console.error('Get avatar error:', error);
+    logError('auth', error, { action: 'get-avatar' });
     res.status(500).json({ error: 'Failed to get avatar' });
   }
 });
@@ -759,7 +760,7 @@ router.delete('/me', requireAuth, async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete account error:', error);
+    logError('auth', error, { action: 'delete-account' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to delete account',
     });

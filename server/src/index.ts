@@ -77,6 +77,7 @@ import { cleanupOldScanJobs } from './services/library-scan-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
 import { ensureBundledPresets } from './services/reader-preset.service.js';
 import { runDownloadCleanup } from './services/download.service.js';
+import { logger, logError } from './services/logger.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -472,32 +473,32 @@ if (process.env.NODE_ENV === 'production') {
 async function startServer(): Promise<void> {
   try {
     // Initialize application directories
-    console.log('Initializing application directories...');
+    logger.info('Initializing application directories...');
     ensureAppDirectories();
 
     // Initialize configuration
-    console.log('Loading configuration...');
+    logger.info('Loading configuration...');
     const config = initializeConfig();
-    console.log(`Configuration loaded (version ${config.version})`);
+    logger.info({ version: config.version }, 'Configuration loaded');
 
     // Initialize database
-    console.log('Connecting to database...');
+    logger.info('Connecting to database...');
     await initializeDatabase();
 
     // Ensure bundled reader presets exist (Western, Manga, Webtoon)
-    console.log('Initializing reader presets...');
+    logger.info('Initializing reader presets...');
     await ensureBundledPresets();
 
     // Startup tasks
-    console.log('Running startup tasks...');
+    logger.info('Running startup tasks...');
     const interruptedBatches = await markInterruptedBatches();
     if (interruptedBatches > 0) {
-      console.log(`Found ${interruptedBatches} interrupted batch(es) - marked as paused`);
+      logger.info({ count: interruptedBatches }, 'Found interrupted batches - marked as paused');
     }
 
     const cleanedLogs = await cleanupOldOperationLogs();
     if (cleanedLogs > 0) {
-      console.log(`Cleaned up ${cleanedLogs} old operation log(s)`);
+      logger.info({ count: cleanedLogs }, 'Cleaned up old operation logs');
     }
 
     // Clean up expired metadata jobs before recovering interrupted ones
@@ -513,7 +514,7 @@ async function startServer(): Promise<void> {
     // Clean up expired/stale download jobs
     const downloadCleanup = await runDownloadCleanup();
     if (downloadCleanup.expired + downloadCleanup.stale + downloadCleanup.orphaned > 0) {
-      console.log(`Cleaned up downloads: ${downloadCleanup.expired} expired, ${downloadCleanup.stale} stale, ${downloadCleanup.orphaned} orphaned`);
+      logger.info({ expired: downloadCleanup.expired, stale: downloadCleanup.stale, orphaned: downloadCleanup.orphaned }, 'Cleaned up downloads');
     }
 
     // Schedule hourly download cleanup
@@ -521,7 +522,7 @@ async function startServer(): Promise<void> {
       try {
         await runDownloadCleanup();
       } catch (err) {
-        console.error('Error during scheduled download cleanup:', err);
+        logError('server', err, { action: 'scheduled-download-cleanup' });
       }
     }, 60 * 60 * 1000); // Every hour
 
@@ -543,13 +544,13 @@ async function startServer(): Promise<void> {
           select: { id: true, name: true },
         });
         if (collectionsNeedingMosaic.length > 0) {
-          console.log(`[Startup] Scheduling mosaic generation for ${collectionsNeedingMosaic.length} collection(s)...`);
+          logger.info({ count: collectionsNeedingMosaic.length }, 'Scheduling mosaic generation for collections');
           for (const collection of collectionsNeedingMosaic) {
             scheduleMosaicRegeneration(collection.id);
           }
         }
       } catch (err) {
-        console.error('[Startup] Failed to schedule collection mosaic generation:', err);
+        logError('server', err, { action: 'startup-mosaic-generation' });
       }
     }, 2000); // Delay 2s after startup
 
@@ -558,7 +559,10 @@ async function startServer(): Promise<void> {
 
     // Start HTTP server
     const server = app.listen(PORT, () => {
-      console.log(`
+      logger.info({ port: PORT, libraries: stats.libraries, files: stats.files }, 'Helixio server started');
+      // Keep the visual banner for console visibility during development
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
 ║   🗃️  Helixio - Comic Book Management                     ║
@@ -569,13 +573,14 @@ async function startServer(): Promise<void> {
 ║   Database: ${stats.libraries} libraries, ${stats.files} files             ║
 ║                                                           ║
 ╚═══════════════════════════════════════════════════════════╝
-      `);
+        `);
+      }
 
       // Open browser in development mode
       if (process.env.NODE_ENV !== 'production' && process.env.NO_OPEN !== 'true') {
         setTimeout(() => {
           open(CLIENT_URL).catch(() => {
-            console.log(`Open ${CLIENT_URL} in your browser to access the application.`);
+            logger.info({ url: CLIENT_URL }, 'Open in your browser to access the application');
           });
         }, 2000);
       }
@@ -583,21 +588,21 @@ async function startServer(): Promise<void> {
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {
-      console.log(`\n${signal} received. Shutting down gracefully...`);
+      logger.info({ signal }, 'Shutting down gracefully...');
 
       // Stop stats scheduler
       stopStatsScheduler();
 
       server.close(async () => {
-        console.log('HTTP server closed');
+        logger.info('HTTP server closed');
         await closeDatabase();
-        console.log('Goodbye!');
+        logger.info('Goodbye!');
         process.exit(0);
       });
 
       // Force exit after 10 seconds
       setTimeout(() => {
-        console.error('Forced shutdown after timeout');
+        logger.error('Forced shutdown after timeout');
         process.exit(1);
       }, 10000);
     };
@@ -605,7 +610,7 @@ async function startServer(): Promise<void> {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logError('server', error, { action: 'startup' });
     process.exit(1);
   }
 }

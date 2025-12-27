@@ -9,6 +9,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { logError } from '../services/logger.service.js';
 import {
   getSettings,
   updateSettings,
@@ -48,7 +49,7 @@ router.get('/', async (_req: Request, res: Response) => {
     const settings = await getSettings();
     res.json(settings);
   } catch (error) {
-    console.error('Error getting reader settings:', error);
+    logError('reader-settings', error, { action: 'get-settings' });
     res.status(500).json({
       error: 'Failed to get reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -66,7 +67,7 @@ router.put('/', async (req: Request, res: Response) => {
     const settings = await updateSettings(input);
     res.json(settings);
   } catch (error) {
-    console.error('Error updating reader settings:', error);
+    logError('reader-settings', error, { action: 'update-settings' });
     res.status(400).json({
       error: 'Failed to update reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -83,7 +84,7 @@ router.post('/reset', async (_req: Request, res: Response) => {
     const settings = await resetSettings();
     res.json(settings);
   } catch (error) {
-    console.error('Error resetting reader settings:', error);
+    logError('reader-settings', error, { action: 'reset-settings' });
     res.status(500).json({
       error: 'Failed to reset reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -107,7 +108,7 @@ router.get('/suggested/:libraryType', (req: Request, res: Response) => {
     const suggested = getSuggestedSettings(libraryType);
     res.json(suggested);
   } catch (error) {
-    console.error('Error getting suggested settings:', error);
+    logError('reader-settings', error, { action: 'get-suggested-settings', libraryType: req.params.libraryType });
     res.status(500).json({
       error: 'Failed to get suggested settings',
       message: error instanceof Error ? error.message : String(error),
@@ -129,7 +130,7 @@ router.get('/library/:libraryId', async (req: Request, res: Response) => {
     const settings = await getLibrarySettings(libraryId!);
     res.json(settings || {});
   } catch (error) {
-    console.error('Error getting library reader settings:', error);
+    logError('reader-settings', error, { action: 'get-library-settings', libraryId: req.params.libraryId });
     res.status(500).json({
       error: 'Failed to get library reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -148,7 +149,7 @@ router.put('/library/:libraryId', async (req: Request, res: Response) => {
     const settings = await updateLibrarySettings(libraryId!, input);
     res.json(settings);
   } catch (error) {
-    console.error('Error updating library reader settings:', error);
+    logError('reader-settings', error, { action: 'update-library-settings', libraryId: req.params.libraryId });
     res.status(400).json({
       error: 'Failed to update library reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -166,7 +167,7 @@ router.delete('/library/:libraryId', async (req: Request, res: Response) => {
     await deleteLibrarySettings(libraryId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting library reader settings:', error);
+    logError('reader-settings', error, { action: 'delete-library-settings', libraryId: req.params.libraryId });
     res.status(500).json({
       error: 'Failed to delete library reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -187,7 +188,7 @@ router.get('/series', async (_req: Request, res: Response) => {
     const series = await getSeriesWithSettings();
     res.json(series);
   } catch (error) {
-    console.error('Error getting series with settings:', error);
+    logError('reader-settings', error, { action: 'get-series-with-settings' });
     res.status(500).json({
       error: 'Failed to get series with settings',
       message: error instanceof Error ? error.message : String(error),
@@ -205,7 +206,7 @@ router.get('/series/:series', async (req: Request, res: Response) => {
     const settings = await getSeriesSettings(series!);
     res.json(settings || {});
   } catch (error) {
-    console.error('Error getting series reader settings:', error);
+    logError('reader-settings', error, { action: 'get-series-settings', series: req.params.series });
     res.status(500).json({
       error: 'Failed to get series reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -224,7 +225,7 @@ router.put('/series/:series', async (req: Request, res: Response) => {
     const settings = await updateSeriesSettings(series!, input);
     res.json(settings);
   } catch (error) {
-    console.error('Error updating series reader settings:', error);
+    logError('reader-settings', error, { action: 'update-series-settings', series: req.params.series });
     res.status(400).json({
       error: 'Failed to update series reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -242,7 +243,7 @@ router.delete('/series/:series', async (req: Request, res: Response) => {
     await deleteSeriesSettings(series!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting series reader settings:', error);
+    logError('reader-settings', error, { action: 'delete-series-settings', series: req.params.series });
     res.status(500).json({
       error: 'Failed to delete series reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -264,7 +265,7 @@ router.get('/resolved/:fileId', async (req: Request, res: Response) => {
     const settings = await getResolvedSettings(fileId!);
     res.json(settings);
   } catch (error) {
-    console.error('Error getting resolved reader settings:', error);
+    logError('reader-settings', error, { action: 'get-resolved-settings', fileId: req.params.fileId });
     res.status(500).json({
       error: 'Failed to get resolved reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -282,7 +283,7 @@ router.get('/resolved/:fileId/with-origin', async (req: Request, res: Response) 
     const result = await getResolvedSettingsWithOrigin(fileId!);
     res.json(result);
   } catch (error) {
-    console.error('Error getting resolved settings with origin:', error);
+    logError('reader-settings', error, { action: 'get-resolved-settings-with-origin', fileId: req.params.fileId });
     res.status(500).json({
       error: 'Failed to get resolved settings with origin',
       message: error instanceof Error ? error.message : String(error),
@@ -304,7 +305,7 @@ router.get('/issue/:fileId', async (req: Request, res: Response) => {
     const settings = await getIssueSettings(fileId!);
     res.json(settings || {});
   } catch (error) {
-    console.error('Error getting issue reader settings:', error);
+    logError('reader-settings', error, { action: 'get-issue-settings', fileId: req.params.fileId });
     res.status(500).json({
       error: 'Failed to get issue reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -323,7 +324,7 @@ router.put('/issue/:fileId', async (req: Request, res: Response) => {
     const settings = await updateIssueSettings(fileId!, input);
     res.json(settings);
   } catch (error) {
-    console.error('Error updating issue reader settings:', error);
+    logError('reader-settings', error, { action: 'update-issue-settings', fileId: req.params.fileId });
     res.status(400).json({
       error: 'Failed to update issue reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -341,7 +342,7 @@ router.delete('/issue/:fileId', async (req: Request, res: Response) => {
     await deleteIssueSettings(fileId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting issue reader settings:', error);
+    logError('reader-settings', error, { action: 'delete-issue-settings', fileId: req.params.fileId });
     res.status(500).json({
       error: 'Failed to delete issue reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -363,7 +364,7 @@ router.get('/series-by-id/:seriesId', async (req: Request, res: Response) => {
     const settings = await getSeriesSettingsById(seriesId!);
     res.json(settings || {});
   } catch (error) {
-    console.error('Error getting series reader settings:', error);
+    logError('reader-settings', error, { action: 'get-series-settings-by-id', seriesId: req.params.seriesId });
     res.status(500).json({
       error: 'Failed to get series reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -382,7 +383,7 @@ router.put('/series-by-id/:seriesId', async (req: Request, res: Response) => {
     const settings = await updateSeriesSettingsById(seriesId!, input);
     res.json(settings);
   } catch (error) {
-    console.error('Error updating series reader settings:', error);
+    logError('reader-settings', error, { action: 'update-series-settings-by-id', seriesId: req.params.seriesId });
     res.status(400).json({
       error: 'Failed to update series reader settings',
       message: error instanceof Error ? error.message : String(error),
@@ -400,7 +401,7 @@ router.delete('/series-by-id/:seriesId', async (req: Request, res: Response) => 
     await deleteSeriesSettingsById(seriesId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting series reader settings:', error);
+    logError('reader-settings', error, { action: 'delete-series-settings-by-id', seriesId: req.params.seriesId });
     res.status(500).json({
       error: 'Failed to delete series reader settings',
       message: error instanceof Error ? error.message : String(error),

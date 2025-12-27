@@ -11,6 +11,7 @@ import {
   getRecommendations,
   getDiscoverComics,
 } from '../services/recommendations.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
     const recommendations = await getRecommendations(limit, libraryId);
     res.json(recommendations);
   } catch (error) {
-    console.error('Error getting recommendations:', error);
+    logError('recommendations', error, { action: 'get-recommendations' });
     res.status(500).json({
       error: 'Failed to get recommendations',
       message: error instanceof Error ? error.message : String(error),
@@ -58,7 +59,7 @@ router.get('/discover', async (req: Request, res: Response) => {
     const result = await getDiscoverComics(limit, libraryId);
     res.json(result);
   } catch (error) {
-    console.error('Error getting discover comics:', error);
+    logError('recommendations', error, { action: 'get-discover-comics' });
     res.status(500).json({
       error: 'Failed to get discover comics',
       message: error instanceof Error ? error.message : String(error),

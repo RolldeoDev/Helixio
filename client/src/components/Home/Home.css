@@ -244,26 +244,12 @@
   transition: width 0.3s ease;
 }
 
-/* Completed checkmark */
+/* Completed checkmark (using shared CompletedBadge component) */
 .comic-card-completed {
   position: absolute;
   top: var(--spacing-xs);
   right: var(--spacing-xs);
-  width: 24px;
-  height: 24px;
-  background: var(--color-success);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 3;
-  box-shadow: var(--home-badge-shadow);
-}
-
-.comic-card-completed svg {
-  width: 14px;
-  height: 14px;
-  color: white;
 }
 
 /* Speech bubble badge for recommendations */

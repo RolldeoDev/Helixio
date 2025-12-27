@@ -22,6 +22,7 @@ import {
   ScanQueueFullError,
 } from '../services/library-scan-queue.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -86,7 +87,7 @@ router.post('/:id/scan/full', async (req: Request, res: Response) => {
       return;
     }
 
-    console.error('Failed to start library scan:', error);
+    logError('library-scan', error, { action: 'start-scan' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to start scan',
     });
@@ -134,7 +135,7 @@ router.get('/:id/scan/:jobId', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Failed to get scan job:', error);
+    logError('library-scan', error, { action: 'get-scan-job' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to get scan job',
     });
@@ -159,7 +160,7 @@ router.get('/:id/scan/active', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Failed to get active scan:', error);
+    logError('library-scan', error, { action: 'get-active-scan' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to get active scan',
     });
@@ -182,7 +183,7 @@ router.get('/:id/scan/history', async (req: Request, res: Response) => {
       data: { jobs },
     });
   } catch (error) {
-    console.error('Failed to get scan history:', error);
+    logError('library-scan', error, { action: 'get-scan-history' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to get scan history',
     });
@@ -230,7 +231,7 @@ router.post('/:id/scan/:jobId/cancel', async (req: Request, res: Response) => {
       message: 'Scan job cancelled',
     });
   } catch (error) {
-    console.error('Failed to cancel scan job:', error);
+    logError('library-scan', error, { action: 'cancel-scan-job' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to cancel scan job',
     });
@@ -276,7 +277,7 @@ router.delete('/:id/scan/:jobId', async (req: Request, res: Response) => {
       message: 'Scan job deleted',
     });
   } catch (error) {
-    console.error('Failed to delete scan job:', error);
+    logError('library-scan', error, { action: 'delete-scan-job' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to delete scan job',
     });
@@ -300,7 +301,7 @@ router.get('/scans/active', async (_req: Request, res: Response) => {
       data: { jobs },
     });
   } catch (error) {
-    console.error('Failed to list active scans:', error);
+    logError('library-scan', error, { action: 'list-active-scans' });
     res.status(500).json({
       error: error instanceof Error ? error.message : 'Failed to list active scans',
     });

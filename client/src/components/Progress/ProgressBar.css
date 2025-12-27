@@ -1,0 +1,24 @@
+/* Progress Bar Component */
+.progress-bar {
+  width: 100%;
+  background: var(--progress-bar-track, rgba(255, 255, 255, 0.1));
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* Height variants */
+.progress-bar--sm {
+  height: 3px;
+}
+
+.progress-bar--md {
+  height: 4px;
+}
+
+/* Fill */
+.progress-bar__fill {
+  height: 100%;
+  background: var(--progress-bar-fill, var(--color-primary, #6366f1));
+  border-radius: 2px;
+  transition: width 250ms ease;
+}

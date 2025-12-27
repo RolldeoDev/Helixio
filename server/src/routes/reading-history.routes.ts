@@ -8,6 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { logError } from '../services/logger.service.js';
 import {
   startSession,
   updateSession,
@@ -45,7 +46,7 @@ router.post('/session/start', async (req: Request, res: Response) => {
     const sessionId = await startSession(fileId, startPage);
     res.json({ sessionId });
   } catch (error) {
-    console.error('Error starting session:', error);
+    logError('reading-history', error, { action: 'start-session' });
     res.status(500).json({
       error: 'Failed to start session',
       message: error instanceof Error ? error.message : String(error),
@@ -73,7 +74,7 @@ router.put('/session/:sessionId', async (req: Request, res: Response) => {
     await updateSession(sessionId!, currentPage, confirmedPagesRead);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error updating session:', error);
+    logError('reading-history', error, { action: 'update-session' });
     res.status(500).json({
       error: 'Failed to update session',
       message: error instanceof Error ? error.message : String(error),
@@ -102,7 +103,7 @@ router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
     const session = await endSession(sessionId!, endPage, completed, confirmedPagesRead);
     res.json(session);
   } catch (error) {
-    console.error('Error ending session:', error);
+    logError('reading-history', error, { action: 'end-session' });
     res.status(500).json({
       error: 'Failed to end session',
       message: error instanceof Error ? error.message : String(error),
@@ -126,7 +127,7 @@ router.get('/', async (req: Request, res: Response) => {
     const history = await getRecentHistory(limit, libraryId);
     res.json({ items: history });
   } catch (error) {
-    console.error('Error getting reading history:', error);
+    logError('reading-history', error, { action: 'get-recent-history' });
     res.status(500).json({
       error: 'Failed to get reading history',
       message: error instanceof Error ? error.message : String(error),
@@ -144,7 +145,7 @@ router.get('/file/:fileId', async (req: Request, res: Response) => {
     const history = await getFileHistory(fileId!);
     res.json({ sessions: history });
   } catch (error) {
-    console.error('Error getting file history:', error);
+    logError('reading-history', error, { action: 'get-file-history' });
     res.status(500).json({
       error: 'Failed to get file history',
       message: error instanceof Error ? error.message : String(error),
@@ -162,7 +163,7 @@ router.delete('/file/:fileId', async (req: Request, res: Response) => {
     await clearFileHistory(fileId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error clearing file history:', error);
+    logError('reading-history', error, { action: 'clear-file-history' });
     res.status(500).json({
       error: 'Failed to clear file history',
       message: error instanceof Error ? error.message : String(error),
@@ -179,7 +180,7 @@ router.delete('/', async (req: Request, res: Response) => {
     await clearAllHistory();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error clearing history:', error);
+    logError('reading-history', error, { action: 'clear-all-history' });
     res.status(500).json({
       error: 'Failed to clear history',
       message: error instanceof Error ? error.message : String(error),
@@ -207,7 +208,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const stats = await getStats(startDate, endDate);
     res.json({ stats });
   } catch (error) {
-    console.error('Error getting stats:', error);
+    logError('reading-history', error, { action: 'get-stats' });
     res.status(500).json({
       error: 'Failed to get stats',
       message: error instanceof Error ? error.message : String(error),
@@ -224,7 +225,7 @@ router.get('/stats/all-time', async (req: Request, res: Response) => {
     const stats = await getAllTimeStats();
     res.json(stats);
   } catch (error) {
-    console.error('Error getting all-time stats:', error);
+    logError('reading-history', error, { action: 'get-all-time-stats' });
     res.status(500).json({
       error: 'Failed to get all-time stats',
       message: error instanceof Error ? error.message : String(error),

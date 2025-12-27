@@ -31,6 +31,7 @@ import {
 } from './metadata-approval.service.js';
 import type { MetadataSource } from './metadata-providers/types.js';
 import { LRUCache } from './lru-cache.service.js';
+import { logError, logInfo } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -156,12 +157,12 @@ export async function cleanupExpiredJobs(): Promise<number> {
     });
 
     if (result.count > 0) {
-      console.log(`Cleaned up ${result.count} expired metadata job(s)`);
+      logInfo('metadata-job', `Cleaned up ${result.count} expired metadata job(s)`);
     }
 
     return result.count;
   } catch (error) {
-    console.error('Failed to cleanup expired jobs:', error);
+    logError('metadata-job', error, { action: 'cleanup-expired-jobs' });
     return 0;
   }
 }

@@ -378,7 +378,7 @@ export function Sidebar() {
 }
 
 // Home View - Library stats and quick access
-function HomeView({ selectedLibrary }: { selectedLibrary: { name: string; stats?: { total: number } } | null }) {
+function HomeView({ selectedLibrary }: { selectedLibrary: { id: string; name: string; stats?: { total: number } } | null }) {
   const navigate = useNavigate();
 
   if (!selectedLibrary) {
@@ -413,7 +413,7 @@ function HomeView({ selectedLibrary }: { selectedLibrary: { name: string; stats?
           </svg>
         </button>
 
-        <button className="quick-link" onClick={() => navigate('/library/' + (selectedLibrary as any)?.id)}>
+        <button className="quick-link" onClick={() => navigate('/library/' + selectedLibrary?.id)}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
           </svg>

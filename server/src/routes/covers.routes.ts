@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import { extname } from 'path';
+import { logError, logInfo } from '../services/logger.service.js';
 import {
   getCoverForFile,
   getCoverInfo,
@@ -81,7 +82,7 @@ router.get('/series/:coverHash', async (req: Request, res: Response): Promise<vo
 
     res.send(coverData.data);
   } catch (err) {
-    console.error('Error serving series cover:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'serve-series-cover' });
     res.status(500).json({
       error: 'Failed to serve series cover',
       message: err instanceof Error ? err.message : String(err),
@@ -138,7 +139,7 @@ router.get('/collection/:coverHash', async (req: Request, res: Response): Promis
 
     res.send(coverData.data);
   } catch (err) {
-    console.error('Error serving collection cover:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'serve-collection-cover' });
     res.status(500).json({
       error: 'Failed to serve collection cover',
       message: err instanceof Error ? err.message : String(err),
@@ -217,7 +218,7 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
 
     res.send(coverData.data);
   } catch (err) {
-    console.error('Error serving cover:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'serve-cover' });
     res.status(500).json({
       error: 'Failed to serve cover',
       message: err instanceof Error ? err.message : String(err),
@@ -266,7 +267,7 @@ router.get('/:fileId/info', async (req: Request, res: Response): Promise<void> =
       ...info,
     });
   } catch (err) {
-    console.error('Error getting cover info:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'get-cover-info' });
     res.status(500).json({
       error: 'Failed to get cover info',
       message: err instanceof Error ? err.message : String(err),
@@ -306,7 +307,7 @@ router.delete('/:fileId', async (req: Request, res: Response): Promise<void> => 
 
     res.json({ deleted });
   } catch (err) {
-    console.error('Error deleting cover:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'delete-cover' });
     res.status(500).json({
       error: 'Failed to delete cover',
       message: err instanceof Error ? err.message : String(err),
@@ -351,7 +352,7 @@ router.post('/batch/extract', async (req: Request, res: Response): Promise<void>
       ...result,
     });
   } catch (err) {
-    console.error('Error in batch extract:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'batch-extract' });
     res.status(500).json({
       error: 'Batch extraction failed',
       message: err instanceof Error ? err.message : String(err),
@@ -376,7 +377,7 @@ router.get('/cache/summary', async (_req: Request, res: Response): Promise<void>
       totalSizeMB: Math.round(summary.totalSize / 1024 / 1024 * 100) / 100,
     });
   } catch (err) {
-    console.error('Error getting cache summary:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'get-cache-summary' });
     res.status(500).json({
       error: 'Failed to get cache summary',
       message: err instanceof Error ? err.message : String(err),
@@ -396,7 +397,7 @@ router.delete('/cache/library/:libraryId', async (req: Request, res: Response): 
 
     res.json(result);
   } catch (err) {
-    console.error('Error deleting library covers:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'delete-library-covers' });
     res.status(500).json({
       error: 'Failed to delete library covers',
       message: err instanceof Error ? err.message : String(err),
@@ -414,7 +415,7 @@ router.post('/cache/cleanup', async (_req: Request, res: Response): Promise<void
 
     res.json(result);
   } catch (err) {
-    console.error('Error cleaning up covers:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'cleanup-covers' });
     res.status(500).json({
       error: 'Cleanup failed',
       message: err instanceof Error ? err.message : String(err),
@@ -452,7 +453,7 @@ router.post('/cache/enforce-limit', async (req: Request, res: Response): Promise
       freedMB: Math.round(result.freedBytes / 1024 / 1024 * 100) / 100,
     });
   } catch (err) {
-    console.error('Error enforcing cache limit:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'enforce-cache-limit' });
     res.status(500).json({
       error: 'Failed to enforce cache limit',
       message: err instanceof Error ? err.message : String(err),
@@ -484,7 +485,7 @@ router.get('/optimization/status', async (req: Request, res: Response): Promise<
         : 100,
     });
   } catch (err) {
-    console.error('Error checking optimization status:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'check-optimization-status' });
     res.status(500).json({
       error: 'Failed to check optimization status',
       message: err instanceof Error ? err.message : String(err),
@@ -502,25 +503,25 @@ router.post('/optimization/rebuild', async (req: Request, res: Response): Promis
   try {
     const { libraryId } = req.body;
 
-    console.log('[CoverOptimization] Starting cover rebuild...');
+    logInfo('covers', 'Starting cover rebuild...', { action: 'optimization-rebuild' });
 
     const result = await rebuildAllCovers(
       typeof libraryId === 'string' ? libraryId : undefined,
       (current, total, filename) => {
         if (current % 10 === 0 || current === total) {
-          console.log(`[CoverOptimization] Progress: ${current}/${total} - ${filename}`);
+          logInfo('covers', `Progress: ${current}/${total} - ${filename}`, { action: 'optimization-rebuild', current, total, filename });
         }
       }
     );
 
-    console.log(`[CoverOptimization] Complete: ${result.success} success, ${result.failed} failed`);
+    logInfo('covers', `Complete: ${result.success} success, ${result.failed} failed`, { action: 'optimization-rebuild', success: result.success, failed: result.failed });
 
     res.json({
       ...result,
       message: `Rebuilt ${result.success} covers with optimization`,
     });
   } catch (err) {
-    console.error('Error rebuilding covers:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'optimization-rebuild' });
     res.status(500).json({
       error: 'Failed to rebuild covers',
       message: err instanceof Error ? err.message : String(err),
@@ -547,7 +548,7 @@ router.get('/memory-cache/stats', async (_req: Request, res: Response): Promise<
       usagePercent: Math.round((stats.bytes / stats.maxBytes) * 100),
     });
   } catch (err) {
-    console.error('Error getting memory cache stats:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'get-memory-cache-stats' });
     res.status(500).json({
       error: 'Failed to get memory cache stats',
       message: err instanceof Error ? err.message : String(err),
@@ -564,7 +565,7 @@ router.post('/memory-cache/clear', async (_req: Request, res: Response): Promise
     clearMemoryCache();
     res.json({ success: true, message: 'Memory cache cleared' });
   } catch (err) {
-    console.error('Error clearing memory cache:', err);
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'clear-memory-cache' });
     res.status(500).json({
       error: 'Failed to clear memory cache',
       message: err instanceof Error ? err.message : String(err),

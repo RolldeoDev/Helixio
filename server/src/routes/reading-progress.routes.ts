@@ -11,6 +11,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
+import { logError } from '../services/logger.service.js';
 import {
   getProgress,
   updateProgress,
@@ -48,7 +49,7 @@ router.get('/continue-reading', async (req: Request, res: Response) => {
     const items = await getContinueReading(userId, limit, libraryId);
     res.json({ items });
   } catch (error) {
-    console.error('Error getting continue reading:', error);
+    logError('reading-progress', error, { action: 'get-continue-reading' });
     res.status(500).json({
       error: 'Failed to get continue reading',
       message: error instanceof Error ? error.message : String(error),
@@ -67,7 +68,7 @@ router.get('/library/:libraryId', async (req: Request, res: Response) => {
     const progress = Object.fromEntries(progressMap);
     res.json({ progress });
   } catch (error) {
-    console.error('Error getting library progress:', error);
+    logError('reading-progress', error, { action: 'get-library-progress' });
     res.status(500).json({
       error: 'Failed to get library progress',
       message: error instanceof Error ? error.message : String(error),
@@ -85,7 +86,7 @@ router.get('/library/:libraryId/stats', async (req: Request, res: Response) => {
     const stats = await getLibraryReadingStats(userId, req.params.libraryId!);
     res.json(stats);
   } catch (error) {
-    console.error('Error getting library reading stats:', error);
+    logError('reading-progress', error, { action: 'get-library-reading-stats' });
     res.status(500).json({
       error: 'Failed to get library reading stats',
       message: error instanceof Error ? error.message : String(error),
@@ -120,7 +121,7 @@ router.get('/:fileId', async (req: Request, res: Response) => {
 
     res.json(progress);
   } catch (error) {
-    console.error('Error getting reading progress:', error);
+    logError('reading-progress', error, { action: 'get-progress' });
     res.status(500).json({
       error: 'Failed to get reading progress',
       message: error instanceof Error ? error.message : String(error),
@@ -154,7 +155,7 @@ router.put('/:fileId', async (req: Request, res: Response) => {
 
     res.json(progress);
   } catch (error) {
-    console.error('Error updating reading progress:', error);
+    logError('reading-progress', error, { action: 'update-progress' });
     res.status(500).json({
       error: 'Failed to update reading progress',
       message: error instanceof Error ? error.message : String(error),
@@ -172,7 +173,7 @@ router.post('/:fileId/complete', async (req: Request, res: Response) => {
     const progress = await markCompleted(userId, req.params.fileId!);
     res.json(progress);
   } catch (error) {
-    console.error('Error marking as completed:', error);
+    logError('reading-progress', error, { action: 'mark-completed' });
     res.status(500).json({
       error: 'Failed to mark as completed',
       message: error instanceof Error ? error.message : String(error),
@@ -190,7 +191,7 @@ router.post('/:fileId/incomplete', async (req: Request, res: Response) => {
     const progress = await markIncomplete(userId, req.params.fileId!);
     res.json(progress);
   } catch (error) {
-    console.error('Error marking as incomplete:', error);
+    logError('reading-progress', error, { action: 'mark-incomplete' });
     res.status(500).json({
       error: 'Failed to mark as incomplete',
       message: error instanceof Error ? error.message : String(error),
@@ -208,7 +209,7 @@ router.delete('/:fileId', async (req: Request, res: Response) => {
     await deleteProgress(userId, req.params.fileId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting reading progress:', error);
+    logError('reading-progress', error, { action: 'delete-progress' });
     res.status(500).json({
       error: 'Failed to delete reading progress',
       message: error instanceof Error ? error.message : String(error),
@@ -226,7 +227,7 @@ router.get('/:fileId/adjacent', async (req: Request, res: Response) => {
     const adjacent = await getAdjacentFiles(req.params.fileId!);
     res.json(adjacent);
   } catch (error) {
-    console.error('Error getting adjacent files:', error);
+    logError('reading-progress', error, { action: 'get-adjacent-files' });
     res.status(500).json({
       error: 'Failed to get adjacent files',
       message: error instanceof Error ? error.message : String(error),
@@ -248,7 +249,7 @@ router.get('/:fileId/bookmarks', async (req: Request, res: Response) => {
     const bookmarks = await getBookmarks(userId, req.params.fileId!);
     res.json({ bookmarks });
   } catch (error) {
-    console.error('Error getting bookmarks:', error);
+    logError('reading-progress', error, { action: 'get-bookmarks' });
     res.status(500).json({
       error: 'Failed to get bookmarks',
       message: error instanceof Error ? error.message : String(error),
@@ -273,7 +274,7 @@ router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
     const progress = await addBookmark(userId, req.params.fileId!, pageIndex);
     res.json(progress);
   } catch (error) {
-    console.error('Error adding bookmark:', error);
+    logError('reading-progress', error, { action: 'add-bookmark' });
     res.status(500).json({
       error: 'Failed to add bookmark',
       message: error instanceof Error ? error.message : String(error),
@@ -298,7 +299,7 @@ router.delete('/:fileId/bookmarks/:pageIndex', async (req: Request, res: Respons
     const progress = await removeBookmark(userId, req.params.fileId!, pageIndex);
     res.json(progress);
   } catch (error) {
-    console.error('Error removing bookmark:', error);
+    logError('reading-progress', error, { action: 'remove-bookmark' });
     res.status(500).json({
       error: 'Failed to remove bookmark',
       message: error instanceof Error ? error.message : String(error),

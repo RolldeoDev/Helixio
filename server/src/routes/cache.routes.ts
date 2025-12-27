@@ -28,6 +28,7 @@ import {
 } from '../services/cache-job.service.js';
 import { getCacheSummary as getCoverCacheSummary } from '../services/cover.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -76,7 +77,7 @@ router.get('/thumbnails/:fileId/:pageNumber', async (req: Request, res: Response
 
     createReadStream(thumbPath).pipe(res);
   } catch (err) {
-    console.error('Error serving thumbnail:', err);
+    logError('cache', err, { action: 'serve-thumbnail' });
     res.status(500).json({
       error: 'Failed to serve thumbnail',
       message: err instanceof Error ? err.message : String(err),
@@ -104,7 +105,7 @@ router.get('/thumbnails/:fileId/count', async (req: Request, res: Response) => {
     const count = await getThumbnailCount(file.libraryId, file.hash);
     res.json({ count });
   } catch (err) {
-    console.error('Error getting thumbnail count:', err);
+    logError('cache', err, { action: 'get-thumbnail-count' });
     res.status(500).json({ error: 'Failed to get thumbnail count' });
   }
 });
@@ -136,7 +137,7 @@ router.post('/thumbnails/:fileId/generate', async (req: Request, res: Response) 
       errors: result.errors,
     });
   } catch (err) {
-    console.error('Error generating thumbnails:', err);
+    logError('cache', err, { action: 'generate-thumbnails' });
     res.status(500).json({
       error: 'Failed to generate thumbnails',
       message: err instanceof Error ? err.message : String(err),
@@ -183,7 +184,7 @@ router.post('/rebuild', async (req: Request, res: Response) => {
       message: 'Cache rebuild job queued',
     });
   } catch (err) {
-    console.error('Error queuing cache rebuild:', err);
+    logError('cache', err, { action: 'queue-rebuild' });
     res.status(500).json({
       error: 'Failed to queue cache rebuild',
       message: err instanceof Error ? err.message : String(err),
@@ -205,7 +206,7 @@ router.get('/jobs', async (_req: Request, res: Response) => {
     const queuedFiles = getQueuedFileCount();
     res.json({ jobs, queuedFiles });
   } catch (err) {
-    console.error('Error getting cache jobs:', err);
+    logError('cache', err, { action: 'get-jobs' });
     res.status(500).json({ error: 'Failed to get cache jobs' });
   }
 });
@@ -223,7 +224,7 @@ router.get('/jobs/:jobId', async (req: Request, res: Response) => {
     }
     res.json({ job });
   } catch (err) {
-    console.error('Error getting cache job:', err);
+    logError('cache', err, { action: 'get-job' });
     res.status(500).json({ error: 'Failed to get cache job' });
   }
 });
@@ -237,7 +238,7 @@ router.delete('/jobs/:jobId', async (req: Request, res: Response) => {
     const cancelled = cancelCacheJob(req.params.jobId!);
     res.json({ cancelled });
   } catch (err) {
-    console.error('Error cancelling cache job:', err);
+    logError('cache', err, { action: 'cancel-job' });
     res.status(500).json({ error: 'Failed to cancel cache job' });
   }
 });
@@ -265,7 +266,7 @@ router.get('/summary', async (_req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('Error getting cache summary:', err);
+    logError('cache', err, { action: 'get-summary' });
     res.status(500).json({ error: 'Failed to get cache summary' });
   }
 });

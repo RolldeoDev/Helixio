@@ -224,43 +224,21 @@
 }
 
 /* =============================================================================
-   Progress Bar
+   Progress Indicators (using shared Progress components)
    ============================================================================= */
 
-.collection-cover-card__progress {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--collection-card-progress-bg);
-  z-index: 5;
-}
-
-.collection-cover-card__progress-fill {
-  height: 100%;
-  background: var(--collection-card-progress-fill);
-  transition: width 200ms ease;
-}
-
-/* =============================================================================
-   Completed Indicator
-   ============================================================================= */
-
-.collection-cover-card__completed {
+.collection-cover-card__progress-ring {
   position: absolute;
   bottom: 8px;
   left: 8px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  background: var(--collection-card-completed-color);
-  color: white;
-  border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+
+.collection-cover-card__completed-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
 }
 
 /* =============================================================================

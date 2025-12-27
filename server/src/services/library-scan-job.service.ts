@@ -6,6 +6,7 @@
  */
 
 import { getDatabase } from './database.service.js';
+import { logInfo } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -493,7 +494,7 @@ export async function cleanupOldScanJobs(keepPerLibrary = 5): Promise<number> {
   }
 
   if (totalDeleted > 0) {
-    console.log(`Cleaned up ${totalDeleted} old scan job(s)`);
+    logInfo('library-scan-job', `Cleaned up ${totalDeleted} old scan job(s)`);
   }
 
   return totalDeleted;
@@ -536,7 +537,7 @@ export async function recoverInterruptedScanJobs(): Promise<string[]> {
   }
 
   if (jobIds.length > 0) {
-    console.log(`Recovered ${jobIds.length} interrupted scan job(s)`);
+    logInfo('library-scan-job', `Recovered ${jobIds.length} interrupted scan job(s)`);
   }
 
   return jobIds;

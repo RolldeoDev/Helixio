@@ -4,10 +4,10 @@
  * Bottom status bar showing operation progress, selection info, and quick links.
  */
 
-import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
-import { getActiveBatch, getCacheJobs, type BatchProgress, type CacheJob } from '../../services/api.service';
+import { useAdaptivePolling } from '../../hooks';
+import { getActiveBatch, getCacheJobs, type BatchProgress } from '../../services/api.service';
 
 export function StatusBar() {
   const location = useLocation();
@@ -22,53 +22,25 @@ export function StatusBar() {
   // Pagination is only relevant on library routes
   const isLibraryRoute = location.pathname === '/library' || location.pathname.startsWith('/library/');
 
-  const [activeBatch, setActiveBatch] = useState<BatchProgress | null>(null);
-  const [activeCacheJob, setActiveCacheJob] = useState<CacheJob | null>(null);
-  const [cacheQueuedFiles, setCacheQueuedFiles] = useState(0);
+  // Adaptive polling for batch status - polls every 60s when idle, 5s when active
+  const { data: batchData } = useAdaptivePolling({
+    fetchFn: getActiveBatch,
+    isActive: (data) => data.hasActiveBatch,
+    activeInterval: 5000,
+  });
 
-  // Poll for active batch status
-  useEffect(() => {
-    const checkActiveBatch = async () => {
-      try {
-        const result = await getActiveBatch();
-        if (result.hasActiveBatch && result.activeBatchId) {
-          // Fetch full batch details if needed
-          setActiveBatch({
-            id: result.activeBatchId,
-            status: 'in_progress',
-          } as BatchProgress);
-        } else {
-          setActiveBatch(null);
-        }
-      } catch {
-        // Ignore errors in background polling
-      }
-    };
+  // Adaptive polling for cache jobs - polls every 60s when idle, 2s when active
+  const { data: cacheData } = useAdaptivePolling({
+    fetchFn: getCacheJobs,
+    isActive: (data) => data.jobs.some(j => j.status === 'processing'),
+  });
 
-    checkActiveBatch();
-    const interval = setInterval(checkActiveBatch, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Poll for active cache jobs
-  useEffect(() => {
-    const checkCacheJobs = async () => {
-      try {
-        const { jobs, queuedFiles } = await getCacheJobs();
-        const processingJob = jobs.find(j => j.status === 'processing');
-        setActiveCacheJob(processingJob || null);
-        setCacheQueuedFiles(queuedFiles);
-      } catch {
-        // Ignore errors in background polling
-      }
-    };
-
-    checkCacheJobs();
-    const interval = setInterval(checkCacheJobs, 2000); // Poll more frequently for cache jobs
-
-    return () => clearInterval(interval);
-  }, []);
+  // Derive display state from polling data
+  const activeBatch: BatchProgress | null = batchData?.hasActiveBatch && batchData.activeBatchId
+    ? { id: batchData.activeBatchId, status: 'in_progress' } as BatchProgress
+    : null;
+  const activeCacheJob = cacheData?.jobs.find(j => j.status === 'processing') || null;
+  const cacheQueuedFiles = cacheData?.queuedFiles || 0;
 
   return (
     <footer className="status-bar">

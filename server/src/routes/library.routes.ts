@@ -32,6 +32,7 @@ import {
   sendInternalError,
   asyncHandler,
 } from '../middleware/response.middleware.js';
+import { cachePresets } from '../middleware/cache.middleware.js';
 import {
   CreateLibrarySchema,
   UpdateLibrarySchema,
@@ -53,7 +54,7 @@ const pendingScanResults = new Map<string, ScanResult>();
  * GET /api/libraries
  * List all libraries with their stats
  */
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', cachePresets.shortTerm, asyncHandler(async (_req: Request, res: Response) => {
   const db = getDatabase();
 
   // Fetch libraries and all stats in parallel (2 queries instead of N+1)

@@ -9,8 +9,9 @@ import { rename, unlink, copyFile, mkdir, access, stat } from 'fs/promises';
 import { dirname, join, basename, relative } from 'path';
 import { getDatabase } from './database.service.js';
 import { generatePartialHash } from './hash.service.js';
-import { checkAndSoftDeleteEmptySeries } from './series.service.js';
+import { checkAndSoftDeleteEmptySeries } from './series/index.js';
 import { markFileItemsUnavailable } from './collection.service.js';
+import { logError, logInfo } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -583,10 +584,10 @@ export async function removeOrphanedRecords(libraryId: string): Promise<number> 
     try {
       const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
       if (wasDeleted) {
-        console.log(`Soft-deleted empty series: ${seriesId}`);
+        logInfo('file-operations', `Soft-deleted empty series: ${seriesId}`);
       }
     } catch (err) {
-      console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+      logError('file-operations', err, { action: 'soft-delete-series-check', seriesId });
     }
   }
 

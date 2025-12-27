@@ -15,8 +15,8 @@
   min-width: 180px;
   max-width: 280px;
   padding: 4px 0;
-  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
-  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
   animation: unified-menu-enter 0.15s ease-out;
@@ -53,12 +53,12 @@
 }
 
 .unified-menu__item:hover {
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .unified-menu__item:focus-visible {
   outline: none;
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .unified-menu__item--danger {
@@ -100,7 +100,7 @@
 .unified-menu__divider {
   height: 1px;
   margin: 4px 8px;
-  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+  background: var(--color-border-subtle);
 }
 
 /* =============================================================================
@@ -116,8 +116,8 @@
   min-width: 180px;
   max-width: 280px;
   padding: 4px 0;
-  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
-  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
   animation: unified-menu-enter 0.15s ease-out;
@@ -139,12 +139,12 @@
 }
 
 .cover-card-context-menu__item:hover {
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .cover-card-context-menu__item:focus-visible {
   outline: none;
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .cover-card-context-menu__item--danger {
@@ -183,7 +183,7 @@
 .cover-card-context-menu__divider {
   height: 1px;
   margin: 4px 8px;
-  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+  background: var(--color-border-subtle);
 }
 
 /* ActionMenu compatibility - Menu dropdown */
@@ -193,8 +193,8 @@
   min-width: 180px;
   max-width: 280px;
   padding: 4px 0;
-  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
-  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
   animation: unified-menu-enter 0.15s ease-out;
@@ -216,12 +216,12 @@
 }
 
 .action-menu__item:hover {
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .action-menu__item:focus-visible {
   outline: none;
-  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+  background: var(--color-hover);
 }
 
 .action-menu__item--danger {
@@ -260,7 +260,7 @@
 .action-menu__divider {
   height: 1px;
   margin: 4px 8px;
-  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+  background: var(--color-border-subtle);
 }
 
 /* ActionMenu compatibility - Trigger button */

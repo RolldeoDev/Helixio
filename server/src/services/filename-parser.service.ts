@@ -18,6 +18,7 @@ import {
   BatchProgress,
 } from './llm.service.js';
 import { getNamingConventions } from './config.service.js';
+import { logError } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -487,7 +488,7 @@ export async function parseFilename(
     try {
       return await llmParseFilename(filename, folderPath, { sessionId: options.sessionId });
     } catch (err) {
-      console.error('LLM parsing failed, falling back to regex:', err);
+      logError('filename-parser', err, { action: 'llm-parse-fallback', filename });
     }
   }
 
@@ -509,9 +510,9 @@ export async function parseFilenames(
       if (result.success) {
         return result.results;
       }
-      console.error('LLM batch parsing failed:', result.error);
+      logError('filename-parser', result.error || 'Unknown error', { action: 'llm-batch-parse' });
     } catch (err) {
-      console.error('LLM batch parsing failed, falling back to regex:', err);
+      logError('filename-parser', err, { action: 'llm-batch-parse-fallback', fileCount: files.length });
     }
   }
 

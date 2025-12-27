@@ -10,6 +10,7 @@ import os from 'os';
 import chokidar, { FSWatcher } from 'chokidar';
 import multer, { FileFilterCallback } from 'multer';
 import JSZip from 'jszip';
+import { logError, logInfo, logDebug } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -164,12 +165,12 @@ function initWatcher(): void {
 
   watcher.on('all', (event, filePath) => {
     if (filePath.endsWith('.css') || filePath.endsWith('.json')) {
-      console.log(`Theme file ${event}: ${path.basename(filePath)}`);
+      logDebug('themes', `Theme file ${event}: ${path.basename(filePath)}`);
       broadcastThemeUpdate();
     }
   });
 
-  console.log(`Watching for theme changes in ${THEMES_DIR}`);
+  logInfo('themes', `Watching for theme changes in ${THEMES_DIR}`);
 }
 
 // Start watcher on first request
@@ -193,7 +194,7 @@ router.get('/external', (_req, res) => {
     const themes = loadAllThemes();
     res.json(themes);
   } catch (err) {
-    console.error('Failed to load themes:', err);
+    logError('themes', err, { action: 'load-themes' });
     res.status(500).json({ error: 'Failed to load themes' });
   }
 });
@@ -265,7 +266,7 @@ router.delete('/external/:themeId', (req, res): void => {
 
     res.json({ success: true });
   } catch (err) {
-    console.error('Failed to delete theme:', err);
+    logError('themes', err, { action: 'delete-theme' });
     res.status(500).json({ error: 'Failed to delete theme' });
   }
 });
@@ -320,7 +321,7 @@ router.post('/import', upload.single('theme'), async (req: Request, res: Respons
 
     res.json({ success: true, themeId: safeId });
   } catch (err) {
-    console.error('Failed to import theme:', err);
+    logError('themes', err, { action: 'import-theme' });
     res.status(500).json({ error: 'Failed to import theme' });
   }
 });

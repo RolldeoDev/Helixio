@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import * as opdsService from '../services/opds.service.js';
 import { opdsAuth } from '../middleware/auth.middleware.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.get('/', async (req: Request, res: Response) => {
     const xml = await opdsService.generateRootFeed(baseUrl);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS root feed error:', error);
+    logError('opds', error, { action: 'get-root-feed' });
     res.status(500).send('Failed to generate catalog');
   }
 });
@@ -60,7 +61,7 @@ router.get('/search.xml', (req: Request, res: Response) => {
     const xml = opdsService.generateOpenSearchDescription(baseUrl);
     sendXml(res, xml, 'application/opensearchdescription+xml');
   } catch (error) {
-    console.error('OPDS search description error:', error);
+    logError('opds', error, { action: 'get-search-description' });
     res.status(500).send('Failed to generate search description');
   }
 });
@@ -83,7 +84,7 @@ router.get('/search', async (req: Request, res: Response) => {
     const xml = await opdsService.generateSearchFeed(baseUrl, query, page);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS search error:', error);
+    logError('opds', error, { action: 'search' });
     res.status(500).send('Search failed');
   }
 });
@@ -103,7 +104,7 @@ router.get('/all', async (req: Request, res: Response) => {
     const xml = await opdsService.generateAllComicsFeed(baseUrl, page);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS all feed error:', error);
+    logError('opds', error, { action: 'get-all-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -119,7 +120,7 @@ router.get('/recent', async (req: Request, res: Response) => {
     const xml = await opdsService.generateRecentFeed(baseUrl, limit);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS recent feed error:', error);
+    logError('opds', error, { action: 'get-recent-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -138,7 +139,7 @@ router.get('/series', async (req: Request, res: Response) => {
     const xml = await opdsService.generateSeriesListFeed(baseUrl);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS series list error:', error);
+    logError('opds', error, { action: 'get-series-list-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -158,7 +159,7 @@ router.get('/series/:series', async (req: Request, res: Response) => {
     const xml = await opdsService.generateSeriesFeed(baseUrl, decodeURIComponent(series));
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS series feed error:', error);
+    logError('opds', error, { action: 'get-series-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -177,7 +178,7 @@ router.get('/publishers', async (req: Request, res: Response) => {
     const xml = await opdsService.generatePublisherListFeed(baseUrl);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS publisher list error:', error);
+    logError('opds', error, { action: 'get-publisher-list-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -197,7 +198,7 @@ router.get('/publishers/:publisher', async (req: Request, res: Response) => {
     const xml = await opdsService.generatePublisherFeed(baseUrl, decodeURIComponent(publisher));
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS publisher feed error:', error);
+    logError('opds', error, { action: 'get-publisher-feed' });
     res.status(500).send('Failed to generate feed');
   }
 });
@@ -222,7 +223,7 @@ router.get('/library/:libraryId', async (req: Request, res: Response) => {
     const xml = await opdsService.generateLibraryFeed(baseUrl, libraryId, page);
     sendXml(res, xml);
   } catch (error) {
-    console.error('OPDS library feed error:', error);
+    logError('opds', error, { action: 'get-library-feed' });
     if (error instanceof Error && error.message === 'Library not found') {
       res.status(404).send('Library not found');
     } else {

@@ -32,6 +32,7 @@ import {
   parseFilename as llmParseFilename,
   isLLMAvailable,
 } from '../services/filename-parser.service.js';
+import { logError, logDebug } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.get('/', async (req: Request, res: Response): Promise<void> => {
 
     res.json(results);
   } catch (err) {
-    console.error('Error in search:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'combined-search' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -106,7 +107,7 @@ router.get('/series', async (req: Request, res: Response): Promise<void> => {
 
     res.json(results);
   } catch (err) {
-    console.error('Error in series search:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'series-search' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -148,7 +149,7 @@ router.get('/issues', async (req: Request, res: Response): Promise<void> => {
 
     res.json(results);
   } catch (err) {
-    console.error('Error in issue search:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'issue-search' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -180,7 +181,7 @@ router.post('/parse-filename', async (req: Request, res: Response): Promise<void
       query,
     });
   } catch (err) {
-    console.error('Error parsing filename:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'parse-filename' });
     res.status(500).json({
       error: 'Parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -212,7 +213,7 @@ router.post('/parse-filenames', async (req: Request, res: Response): Promise<voi
 
     res.json({ results });
   } catch (err) {
-    console.error('Error parsing filenames:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'parse-filenames' });
     res.status(500).json({
       error: 'Parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -256,7 +257,7 @@ router.get('/series/:source/:id', async (req: Request, res: Response): Promise<v
       metadata,
     });
   } catch (err) {
-    console.error('Error getting series metadata:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-series-metadata' });
     res.status(500).json({
       error: 'Failed to get metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -292,7 +293,7 @@ router.get('/series/:source/:id/issues', async (req: Request, res: Response): Pr
       ...result,
     });
   } catch (err) {
-    console.error('Error getting series issues:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-series-issues' });
     res.status(500).json({
       error: 'Failed to get issues',
       message: err instanceof Error ? err.message : String(err),
@@ -332,7 +333,7 @@ router.get('/issue/:source/:id', async (req: Request, res: Response): Promise<vo
       metadata,
     });
   } catch (err) {
-    console.error('Error getting issue metadata:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-issue-metadata' });
     res.status(500).json({
       error: 'Failed to get metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -479,7 +480,7 @@ router.post('/apply/:fileId', async (req: Request, res: Response): Promise<void>
       warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (err) {
-    console.error('Error applying metadata:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'apply-metadata' });
     res.status(500).json({
       error: 'Failed to apply metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -637,7 +638,7 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
       warnings: allWarnings.length > 0 ? allWarnings : undefined,
     });
   } catch (err) {
-    console.error('Error in batch apply:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'batch-apply' });
     res.status(500).json({
       error: 'Batch apply failed',
       message: err instanceof Error ? err.message : String(err),
@@ -901,7 +902,7 @@ router.post('/fetch-metadata', async (req: Request, res: Response): Promise<void
       sessionId, // Include session ID so client can fetch logs
     });
   } catch (err) {
-    console.error('Error in bulk metadata fetch:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'bulk-metadata-fetch' });
     res.status(500).json({
       error: 'Bulk fetch failed',
       message: err instanceof Error ? err.message : String(err),
@@ -923,7 +924,7 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
 
     res.json(status);
   } catch (err) {
-    console.error('Error checking status:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'check-status' });
     res.status(500).json({
       error: 'Status check failed',
       message: err instanceof Error ? err.message : String(err),
@@ -962,7 +963,7 @@ router.get('/logs/sessions', async (req: Request, res: Response): Promise<void> 
       })),
     });
   } catch (err) {
-    console.error('Error getting sessions:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-sessions' });
     res.status(500).json({
       error: 'Failed to get sessions',
       message: err instanceof Error ? err.message : String(err),
@@ -994,7 +995,7 @@ router.get('/logs/sessions/active', async (_req: Request, res: Response): Promis
       })),
     });
   } catch (err) {
-    console.error('Error getting active sessions:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-active-sessions' });
     res.status(500).json({
       error: 'Failed to get active sessions',
       message: err instanceof Error ? err.message : String(err),
@@ -1053,7 +1054,7 @@ router.get('/logs/session/:sessionId', async (req: Request, res: Response): Prom
       })),
     });
   } catch (err) {
-    console.error('Error getting session:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'get-session' });
     res.status(500).json({
       error: 'Failed to get session',
       message: err instanceof Error ? err.message : String(err),
@@ -1152,7 +1153,7 @@ router.get('/logs/stream/:sessionId', async (req: Request, res: Response): Promi
     // Clean up on client disconnect
     req.on('close', cleanup);
   } catch (err) {
-    console.error('Error setting up log stream:', err);
+    logError('search', err instanceof Error ? err : new Error(String(err)), { action: 'setup-log-stream' });
     res.status(500).json({
       error: 'Failed to set up log stream',
       message: err instanceof Error ? err.message : String(err),

@@ -113,11 +113,56 @@ export function createMockPrismaClient() {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
       findFirst: vi.fn().mockResolvedValue(null),
-      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'col-item-1', ...args.data })),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'col-item-1', addedAt: new Date(), isAvailable: true, ...args.data })),
       update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn().mockResolvedValue({}),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    collection: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'col-1',
+        isSystem: false,
+        systemKey: null,
+        sortOrder: 0,
+        lockName: false,
+        lockDeck: false,
+        lockDescription: false,
+        lockPublisher: false,
+        lockStartYear: false,
+        lockEndYear: false,
+        lockGenres: false,
+        rating: null,
+        notes: null,
+        visibility: 'private',
+        readingMode: null,
+        tags: null,
+        coverType: 'auto',
+        coverSeriesId: null,
+        coverFileId: null,
+        coverHash: null,
+        isPromoted: false,
+        promotedOrder: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...args.data,
+      })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    userReadingProgress: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'progress-1', ...args.data })),
+      upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'progress-1', ...args.create })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
       count: vi.fn().mockResolvedValue(0),
     },
     user: {
@@ -126,6 +171,7 @@ export function createMockPrismaClient() {
       findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'user-1', ...args.data })),
       update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
       count: vi.fn().mockResolvedValue(0),
     },
     session: {
@@ -135,9 +181,48 @@ export function createMockPrismaClient() {
       delete: vi.fn().mockResolvedValue({}),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
+    userSession: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'session-1', ...args.data })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    appSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'default', ...args.create })),
+    },
+    readerPreset: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'preset-1', ...args.data })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    userLibraryAccess: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'ula-1', ...args.create })),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
-    $transaction: vi.fn().mockImplementation((fn) => fn({} as any)),
+    $transaction: vi.fn().mockImplementation((arg) => {
+      // Handle both callback-style and array-style transactions
+      if (typeof arg === 'function') {
+        return arg({} as any);
+      }
+      // Array of promises - resolve all
+      if (Array.isArray(arg)) {
+        return Promise.all(arg);
+      }
+      return Promise.resolve([]);
+    }),
   };
 }
 
@@ -299,6 +384,272 @@ export function createMockBatchOperation(overrides: Partial<{
     startedAt: new Date('2024-01-01'),
     completedAt: null,
     error: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock user record.
+ */
+export function createMockUser(overrides: Partial<{
+  id: string;
+  username: string;
+  email: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  passwordHash: string;
+  role: string;
+  isActive: boolean;
+  profilePrivate: boolean;
+  hideReadingStats: boolean;
+  createdAt: Date;
+  lastLoginAt: Date | null;
+}> = {}) {
+  return {
+    id: 'user-1',
+    username: 'testuser',
+    email: 'test@example.com',
+    displayName: 'Test User',
+    avatarUrl: null,
+    // This is the hash for password "password123"
+    passwordHash: 'mockhash:mockhash',
+    role: 'user',
+    isActive: true,
+    profilePrivate: false,
+    hideReadingStats: false,
+    createdAt: new Date('2024-01-01'),
+    lastLoginAt: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock collection record.
+ */
+export function createMockCollection(overrides: Partial<{
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  deck: string | null;
+  isSystem: boolean;
+  systemKey: string | null;
+  sortOrder: number;
+  lockName: boolean;
+  lockDeck: boolean;
+  lockDescription: boolean;
+  lockPublisher: boolean;
+  lockStartYear: boolean;
+  lockEndYear: boolean;
+  lockGenres: boolean;
+  rating: number | null;
+  notes: string | null;
+  visibility: string;
+  readingMode: string | null;
+  tags: string | null;
+  coverType: string;
+  coverSeriesId: string | null;
+  coverFileId: string | null;
+  coverHash: string | null;
+  isPromoted: boolean;
+  promotedOrder: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: { items: number };
+}> = {}) {
+  return {
+    id: 'col-1',
+    userId: 'user-1',
+    name: 'Test Collection',
+    description: 'A test collection',
+    deck: null,
+    isSystem: false,
+    systemKey: null,
+    sortOrder: 0,
+    lockName: false,
+    lockDeck: false,
+    lockDescription: false,
+    lockPublisher: false,
+    lockStartYear: false,
+    lockEndYear: false,
+    lockGenres: false,
+    rating: null,
+    notes: null,
+    visibility: 'private',
+    readingMode: null,
+    tags: null,
+    coverType: 'auto',
+    coverSeriesId: null,
+    coverFileId: null,
+    coverHash: null,
+    isPromoted: false,
+    promotedOrder: null,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock collection item record.
+ */
+export function createMockCollectionItem(overrides: Partial<{
+  id: string;
+  collectionId: string;
+  seriesId: string | null;
+  fileId: string | null;
+  position: number;
+  addedAt: Date;
+  notes: string | null;
+  isAvailable: boolean;
+}> = {}) {
+  return {
+    id: 'col-item-1',
+    collectionId: 'col-1',
+    seriesId: null,
+    fileId: null,
+    position: 0,
+    addedAt: new Date('2024-01-01'),
+    notes: null,
+    isAvailable: true,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock reader preset record.
+ */
+export function createMockReaderPreset(overrides: Partial<{
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  userId: string | null;
+  isSystem: boolean;
+  isBundled: boolean;
+  mode: string;
+  direction: string;
+  scaling: string;
+  customWidth: number | null;
+  splitting: string;
+  background: string;
+  brightness: number;
+  colorCorrection: string;
+  showPageShadow: boolean;
+  autoHideUI: boolean;
+  preloadCount: number;
+  webtoonGap: number;
+  webtoonMaxWidth: number;
+  createdAt: Date;
+  updatedAt: Date;
+}> = {}) {
+  return {
+    id: 'preset-1',
+    name: 'Test Preset',
+    description: 'A test preset',
+    icon: 'book',
+    userId: null,
+    isSystem: false,
+    isBundled: false,
+    mode: 'single',
+    direction: 'ltr',
+    scaling: 'fitHeight',
+    customWidth: null,
+    splitting: 'none',
+    background: 'black',
+    brightness: 100,
+    colorCorrection: 'none',
+    showPageShadow: true,
+    autoHideUI: true,
+    preloadCount: 3,
+    webtoonGap: 0,
+    webtoonMaxWidth: 800,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock user session record.
+ */
+export function createMockUserSession(overrides: Partial<{
+  id: string;
+  userId: string;
+  token: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: Date;
+  expiresAt: Date;
+  lastActiveAt: Date;
+}> = {}) {
+  return {
+    id: 'session-1',
+    userId: 'user-1',
+    token: 'mock-token-123',
+    userAgent: 'Mozilla/5.0',
+    ipAddress: '127.0.0.1',
+    createdAt: new Date('2024-01-01'),
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    lastActiveAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock user reading progress record.
+ */
+export function createMockUserReadingProgress(overrides: Partial<{
+  id: string;
+  userId: string;
+  fileId: string;
+  currentPage: number;
+  totalPages: number;
+  completed: boolean;
+  lastReadAt: Date;
+  bookmarks: string;
+  createdAt: Date;
+}> = {}) {
+  return {
+    id: 'progress-1',
+    userId: 'user-1',
+    fileId: 'file-1',
+    currentPage: 1,
+    totalPages: 20,
+    completed: false,
+    lastReadAt: new Date('2024-01-01'),
+    bookmarks: '[]',
+    createdAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock operation log record.
+ */
+export function createMockOperationLog(overrides: Partial<{
+  id: string;
+  operation: string;
+  source: string;
+  destination: string | null;
+  status: string;
+  reversible: boolean;
+  metadata: string | null;
+  error: string | null;
+  batchId: string | null;
+  createdAt: Date;
+}> = {}) {
+  return {
+    id: 'log-1',
+    operation: 'convert',
+    source: '/comics/test.cbr',
+    destination: '/comics/test.cbz',
+    status: 'success',
+    reversible: false,
+    metadata: null,
+    error: null,
+    batchId: null,
+    createdAt: new Date('2024-01-01'),
     ...overrides,
   };
 }

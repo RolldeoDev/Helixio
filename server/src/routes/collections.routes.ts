@@ -13,6 +13,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/auth.middleware.js';
+import { logError, logInfo } from '../services/logger.service.js';
 import {
   getCollections,
   getCollection,
@@ -75,7 +76,7 @@ router.get('/', async (req: Request, res: Response) => {
     const collections = await getCollections(userId);
     res.json({ collections });
   } catch (error) {
-    console.error('Error getting collections:', error);
+    logError('collections.routes', error, { operation: 'getCollections' });
     res.status(500).json({
       error: 'Failed to get collections',
       message: error instanceof Error ? error.message : String(error),
@@ -95,7 +96,7 @@ router.get('/for-item', async (req: Request, res: Response) => {
     const collections = await getCollectionsForItem(userId, seriesId, fileId);
     res.json({ collections });
   } catch (error) {
-    console.error('Error getting collections for item:', error);
+    logError('collections.routes', error, { operation: 'getCollectionsForItem' });
     res.status(500).json({
       error: 'Failed to get collections for item',
       message: error instanceof Error ? error.message : String(error),
@@ -126,7 +127,7 @@ router.get('/system/:systemKey', async (req: Request, res: Response) => {
 
     res.json(collection);
   } catch (error) {
-    console.error('Error getting system collection:', error);
+    logError('collections.routes', error, { operation: 'getSystemCollection' });
     res.status(500).json({
       error: 'Failed to get system collection',
       message: error instanceof Error ? error.message : String(error),
@@ -145,7 +146,7 @@ router.get('/promoted', async (req: Request, res: Response) => {
     const collections = await getPromotedCollections(userId);
     res.json({ collections });
   } catch (error) {
-    console.error('Error getting promoted collections:', error);
+    logError('collections.routes', error, { operation: 'getPromotedCollections' });
     res.status(500).json({
       error: 'Failed to get promoted collections',
       message: error instanceof Error ? error.message : String(error),
@@ -171,7 +172,7 @@ router.get('/:id/expanded', async (req: Request, res: Response) => {
 
     res.json(data);
   } catch (error) {
-    console.error('Error getting expanded collection:', error);
+    logError('collections.routes', error, { operation: 'getCollectionExpanded' });
     res.status(500).json({
       error: 'Failed to get expanded collection',
       message: error instanceof Error ? error.message : String(error),
@@ -196,7 +197,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json(collection);
   } catch (error) {
-    console.error('Error getting collection:', error);
+    logError('collections.routes', error, { operation: 'getCollection' });
     res.status(500).json({
       error: 'Failed to get collection',
       message: error instanceof Error ? error.message : String(error),
@@ -230,7 +231,7 @@ router.post('/', async (req: Request, res: Response) => {
     const collection = await createCollection(userId, { name, description, deck, rating, notes, visibility, readingMode, tags });
     res.status(201).json(collection);
   } catch (error) {
-    console.error('Error creating collection:', error);
+    logError('collections.routes', error, { operation: 'createCollection' });
     res.status(400).json({
       error: 'Failed to create collection',
       message: error instanceof Error ? error.message : String(error),
@@ -288,7 +289,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
     res.json(collection);
   } catch (error) {
-    console.error('Error updating collection:', error);
+    logError('collections.routes', error, { operation: 'updateCollection' });
     res.status(400).json({
       error: 'Failed to update collection',
       message: error instanceof Error ? error.message : String(error),
@@ -307,7 +308,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     await deleteCollection(userId, id!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting collection:', error);
+    logError('collections.routes', error, { operation: 'deleteCollection' });
     res.status(400).json({
       error: 'Failed to delete collection',
       message: error instanceof Error ? error.message : String(error),
@@ -339,7 +340,7 @@ router.post('/:id/items', async (req: Request, res: Response) => {
     const added = await addItemsToCollection(userId, id!, items);
     res.status(201).json({ added: added.length, items: added });
   } catch (error) {
-    console.error('Error adding items to collection:', error);
+    logError('collections.routes', error, { operation: 'addItemsToCollection' });
     res.status(400).json({
       error: 'Failed to add items to collection',
       message: error instanceof Error ? error.message : String(error),
@@ -367,7 +368,7 @@ router.delete('/:id/items', async (req: Request, res: Response) => {
     const removed = await removeItemsFromCollection(userId, id!, items);
     res.json({ removed });
   } catch (error) {
-    console.error('Error removing items from collection:', error);
+    logError('collections.routes', error, { operation: 'removeItemsFromCollection' });
     res.status(400).json({
       error: 'Failed to remove items from collection',
       message: error instanceof Error ? error.message : String(error),
@@ -393,7 +394,7 @@ router.put('/:id/items/reorder', async (req: Request, res: Response) => {
     await reorderItems(userId, id!, itemIds);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error reordering collection items:', error);
+    logError('collections.routes', error, { operation: 'reorderItems' });
     res.status(400).json({
       error: 'Failed to reorder collection items',
       message: error instanceof Error ? error.message : String(error),
@@ -414,7 +415,7 @@ router.get('/:id/check', async (req: Request, res: Response) => {
     const inCollection = await isInCollection(userId, id!, seriesId, fileId);
     res.json({ inCollection });
   } catch (error) {
-    console.error('Error checking collection membership:', error);
+    logError('collections.routes', error, { operation: 'isInCollection' });
     res.status(500).json({
       error: 'Failed to check collection membership',
       message: error instanceof Error ? error.message : String(error),
@@ -443,7 +444,7 @@ router.post('/toggle-favorite', async (req: Request, res: Response) => {
     const result = await toggleSystemCollection(userId, 'favorites', seriesId, fileId);
     res.json(result);
   } catch (error) {
-    console.error('Error toggling favorite:', error);
+    logError('collections.routes', error, { operation: 'toggleFavorite' });
     res.status(400).json({
       error: 'Failed to toggle favorite',
       message: error instanceof Error ? error.message : String(error),
@@ -468,7 +469,7 @@ router.post('/toggle-want-to-read', async (req: Request, res: Response) => {
     const result = await toggleSystemCollection(userId, 'want-to-read', seriesId, fileId);
     res.json(result);
   } catch (error) {
-    console.error('Error toggling want to read:', error);
+    logError('collections.routes', error, { operation: 'toggleWantToRead' });
     res.status(400).json({
       error: 'Failed to toggle want to read',
       message: error instanceof Error ? error.message : String(error),
@@ -498,7 +499,7 @@ router.post('/bulk-toggle-favorite', async (req: Request, res: Response) => {
     const result = await bulkToggleSystemCollection(userId, 'favorites', seriesIds, action);
     res.json(result);
   } catch (error) {
-    console.error('Error bulk toggling favorites:', error);
+    logError('collections', error, { action: 'bulk-toggle-favorites' });
     res.status(400).json({
       error: 'Failed to bulk toggle favorites',
       message: error instanceof Error ? error.message : String(error),
@@ -528,7 +529,7 @@ router.post('/bulk-toggle-want-to-read', async (req: Request, res: Response) => 
     const result = await bulkToggleSystemCollection(userId, 'want-to-read', seriesIds, action);
     res.json(result);
   } catch (error) {
-    console.error('Error bulk toggling want to read:', error);
+    logError('collections', error, { action: 'bulk-toggle-want-to-read' });
     res.status(400).json({
       error: 'Failed to bulk toggle want to read',
       message: error instanceof Error ? error.message : String(error),
@@ -551,7 +552,7 @@ router.get('/unavailable-count', async (req: Request, res: Response) => {
     const count = await getUnavailableItemCount(userId);
     res.json({ count });
   } catch (error) {
-    console.error('Error getting unavailable count:', error);
+    logError('collections', error, { action: 'get-unavailable-count' });
     res.status(500).json({
       error: 'Failed to get unavailable count',
       message: error instanceof Error ? error.message : String(error),
@@ -570,7 +571,7 @@ router.delete('/unavailable', async (req: Request, res: Response) => {
     const removed = await removeUnavailableItems(userId);
     res.json({ removed });
   } catch (error) {
-    console.error('Error removing unavailable items:', error);
+    logError('collections', error, { action: 'remove-unavailable-items' });
     res.status(500).json({
       error: 'Failed to remove unavailable items',
       message: error instanceof Error ? error.message : String(error),
@@ -594,7 +595,7 @@ router.post('/:id/promote', async (req: Request, res: Response) => {
     const collection = await toggleCollectionPromotion(userId, collectionId);
     return res.json({ collection });
   } catch (error) {
-    console.error('Error toggling collection promotion:', error);
+    logError('collections', error, { action: 'toggle-promotion' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -639,7 +640,7 @@ router.put('/:id/cover', async (req: Request, res: Response) => {
     );
     return res.json({ collection });
   } catch (error) {
-    console.error('Error updating collection cover:', error);
+    logError('collections', error, { action: 'update-cover' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -682,10 +683,10 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), async (req: Reques
     // Update collection with the new cover hash
     const collection = await setCollectionCoverHash(userId, collectionId, result.coverHash);
 
-    console.log(`Uploaded custom cover for collection ${collectionId}: ${result.coverHash}`);
+    logInfo('collections', `Uploaded custom cover for collection ${collectionId}: ${result.coverHash}`);
     return res.json({ collection, coverHash: result.coverHash });
   } catch (error) {
-    console.error('Error uploading collection cover:', error);
+    logError('collections', error, { action: 'upload-cover' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -735,10 +736,10 @@ router.post('/:id/cover/url', async (req: Request, res: Response) => {
     // Update collection with the new cover hash
     const collection = await setCollectionCoverHash(userId, collectionId, result.coverHash);
 
-    console.log(`Set cover from URL for collection ${collectionId}: ${result.coverHash}`);
+    logInfo('collections', `Set cover from URL for collection ${collectionId}: ${result.coverHash}`);
     return res.json({ collection, coverHash: result.coverHash });
   } catch (error) {
-    console.error('Error setting collection cover from URL:', error);
+    logError('collections', error, { action: 'set-cover-from-url' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -838,7 +839,7 @@ router.get('/:id/cover/preview', async (req: Request, res: Response) => {
     });
     return res.send(previewBuffer);
   } catch (error) {
-    console.error('Error generating collection cover preview:', error);
+    logError('collections', error, { action: 'generate-cover-preview' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -865,7 +866,7 @@ router.get('/:id/progress', async (req: Request, res: Response) => {
     const progress = await getCollectionReadingProgress(userId, collectionId);
     return res.json(progress);
   } catch (error) {
-    console.error('Error getting collection progress:', error);
+    logError('collections', error, { action: 'get-progress' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }
@@ -900,7 +901,7 @@ router.put('/:id/metadata', async (req: Request, res: Response) => {
     });
     return res.json({ collection });
   } catch (error) {
-    console.error('Error updating collection metadata:', error);
+    logError('collections', error, { action: 'update-metadata' });
     if (error instanceof Error && error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }

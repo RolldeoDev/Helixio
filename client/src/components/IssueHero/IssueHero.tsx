@@ -20,6 +20,7 @@ import {
 import { QuickCollectionIcons } from '../QuickCollectionIcons';
 import { CollectionFlyout } from '../CollectionFlyout';
 import { ActionMenu, type ActionMenuItem } from '../ActionMenu';
+import { ProgressRing, CompletedBadge } from '../Progress';
 import './IssueHero.css';
 
 // =============================================================================
@@ -148,18 +149,21 @@ export function IssueHero({
               </div>
             )}
           </div>
-          {/* Progress indicator */}
+          {/* Progress ring */}
           {progressPercent > 0 && progressPercent < 100 && (
-            <div className="issue-hero__progress-badge">
-              <span>{progressPercent}%</span>
-            </div>
+            <ProgressRing
+              progress={progressPercent}
+              size="lg"
+              showLabel
+              className="issue-hero__progress-ring"
+            />
           )}
           {isCompleted && (
-            <div className="issue-hero__complete-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            </div>
+            <CompletedBadge
+              size="lg"
+              title="Completed"
+              className="issue-hero__complete-badge"
+            />
           )}
         </div>
 

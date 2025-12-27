@@ -32,6 +32,7 @@ import {
   type MetronSeries,
   type MetronIssue,
 } from './metron.service.js';
+import { logError } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -114,7 +115,7 @@ function safeDeleteFile(filePath: string): boolean {
       return true;
     }
   } catch (error) {
-    console.error(`Failed to delete file ${filePath}:`, error);
+    logError('series-cache', error, { action: 'delete-file', filePath });
   }
   return false;
 }
@@ -176,7 +177,7 @@ export async function getOrFetchSeries(
           return data;
         }
       } catch (error) {
-        console.error(`Failed to read cached series file for ${source}/${sourceId}:`, error);
+        logError('series-cache', error, { action: 'read-cached-series', source, sourceId });
         // Fall through to fetch from API
       }
     }
@@ -307,7 +308,7 @@ export async function getOrFetchIssues(
           return data;
         }
       } catch (error) {
-        console.error(`Failed to read cached issues file for ${source}/${seriesId}:`, error);
+        logError('series-cache', error, { action: 'read-cached-issues', source, seriesId });
         // Fall through to fetch from API
       }
     }

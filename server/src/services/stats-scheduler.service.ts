@@ -8,6 +8,9 @@
 
 import { processDirtyStats, fullRebuild } from './stats-aggregation.service.js';
 import { getDirtyFlagCount } from './stats-dirty.service.js';
+import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+
+const logger = createServiceLogger('stats-scheduler');
 
 // =============================================================================
 // Configuration
@@ -41,7 +44,7 @@ let lastWeeklyRun: Date | null = null;
  */
 export async function runHourlyJob(): Promise<{ processed: number }> {
   if (isProcessing) {
-    console.log('[Stats Scheduler] Skipping hourly job - already processing');
+    logDebug('stats-scheduler', 'Skipping hourly job - already processing');
     return { processed: 0 };
   }
 
@@ -51,16 +54,16 @@ export async function runHourlyJob(): Promise<{ processed: number }> {
   try {
     const dirtyCount = await getDirtyFlagCount();
     if (dirtyCount === 0) {
-      console.log('[Stats Scheduler] No dirty stats to process');
+      logDebug('stats-scheduler', 'No dirty stats to process');
       return { processed: 0 };
     }
 
-    console.log(`[Stats Scheduler] Processing ${dirtyCount} dirty stat(s)...`);
+    logInfo('stats-scheduler', `Processing ${dirtyCount} dirty stat(s)...`, { dirtyCount });
     const result = await processDirtyStats();
-    console.log(`[Stats Scheduler] Processed ${result.processed} dirty stat scope(s)`);
+    logInfo('stats-scheduler', `Processed ${result.processed} dirty stat scope(s)`, { processed: result.processed });
     return result;
   } catch (error) {
-    console.error('[Stats Scheduler] Error processing dirty stats:', error);
+    logError('stats-scheduler', error, { action: 'process-dirty-stats' });
     return { processed: 0 };
   } finally {
     isProcessing = false;
@@ -97,7 +100,7 @@ function isWeeklyRebuildTime(): boolean {
  */
 export async function runWeeklyRebuild(): Promise<void> {
   if (isProcessing) {
-    console.log('[Stats Scheduler] Skipping weekly rebuild - already processing');
+    logDebug('stats-scheduler', 'Skipping weekly rebuild - already processing');
     return;
   }
 
@@ -105,11 +108,11 @@ export async function runWeeklyRebuild(): Promise<void> {
   lastWeeklyRun = new Date();
 
   try {
-    console.log('[Stats Scheduler] Starting weekly full rebuild...');
+    logInfo('stats-scheduler', 'Starting weekly full rebuild...');
     await fullRebuild();
-    console.log('[Stats Scheduler] Weekly rebuild complete');
+    logInfo('stats-scheduler', 'Weekly rebuild complete');
   } catch (error) {
-    console.error('[Stats Scheduler] Error during weekly rebuild:', error);
+    logError('stats-scheduler', error, { action: 'weekly-rebuild' });
   } finally {
     isProcessing = false;
   }
@@ -124,24 +127,24 @@ export async function runWeeklyRebuild(): Promise<void> {
  */
 export function startStatsScheduler(): void {
   if (hourlyIntervalId) {
-    console.log('[Stats Scheduler] Already running');
+    logDebug('stats-scheduler', 'Already running');
     return;
   }
 
-  console.log('[Stats Scheduler] Starting scheduler...');
+  logInfo('stats-scheduler', 'Starting scheduler...');
 
   // Run initial dirty stats processing after a short delay (30 seconds)
   // This allows other startup tasks to complete first
   setTimeout(() => {
     runHourlyJob().catch((err) => {
-      console.error('[Stats Scheduler] Initial job failed:', err);
+      logError('stats-scheduler', err, { action: 'initial-job' });
     });
   }, 30 * 1000);
 
   // Set up hourly interval
   hourlyIntervalId = setInterval(() => {
     runHourlyJob().catch((err) => {
-      console.error('[Stats Scheduler] Hourly job failed:', err);
+      logError('stats-scheduler', err, { action: 'hourly-job' });
     });
   }, HOURLY_INTERVAL);
 
@@ -149,14 +152,17 @@ export function startStatsScheduler(): void {
   weeklyCheckIntervalId = setInterval(() => {
     if (isWeeklyRebuildTime()) {
       runWeeklyRebuild().catch((err) => {
-        console.error('[Stats Scheduler] Weekly rebuild failed:', err);
+        logError('stats-scheduler', err, { action: 'weekly-rebuild' });
       });
     }
   }, HOURLY_INTERVAL);
 
-  console.log('[Stats Scheduler] Scheduler started');
-  console.log(`[Stats Scheduler] Hourly processing every ${HOURLY_INTERVAL / 1000 / 60} minutes`);
-  console.log(`[Stats Scheduler] Weekly rebuild on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][WEEKLY_REBUILD_DAY]} at ${WEEKLY_REBUILD_HOUR}:00`);
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  logInfo('stats-scheduler', 'Scheduler started', {
+    hourlyIntervalMinutes: HOURLY_INTERVAL / 1000 / 60,
+    weeklyRebuildDay: dayNames[WEEKLY_REBUILD_DAY],
+    weeklyRebuildHour: WEEKLY_REBUILD_HOUR,
+  });
 }
 
 /**
@@ -173,7 +179,7 @@ export function stopStatsScheduler(): void {
     weeklyCheckIntervalId = null;
   }
 
-  console.log('[Stats Scheduler] Scheduler stopped');
+  logInfo('stats-scheduler', 'Scheduler stopped');
 }
 
 /**

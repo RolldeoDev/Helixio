@@ -7,6 +7,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { getConfigPath, ensureAppDirectories } from './app-paths.service.js';
+import { logError } from './logger.service.js';
 
 // =============================================================================
 // Type Definitions
@@ -193,7 +194,7 @@ export function loadConfig(): AppConfig {
 
     return cachedConfig;
   } catch (error) {
-    console.error('Failed to load config, using defaults:', error);
+    logError('config', error, { action: 'load-config' });
     cachedConfig = { ...DEFAULT_CONFIG };
     return cachedConfig;
   }
@@ -210,7 +211,7 @@ export function saveConfig(config: AppConfig): void {
     writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     cachedConfig = config;
   } catch (error) {
-    console.error('Failed to save config:', error);
+    logError('config', error, { action: 'save-config' });
     throw new Error(`Failed to save configuration: ${error}`);
   }
 }

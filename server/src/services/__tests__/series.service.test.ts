@@ -57,7 +57,7 @@ import {
   getAllGenres,
   normalizeSeriesName,
   calculateNameSimilarity,
-} from '../series.service.js';
+} from '../series/index.js';
 
 // =============================================================================
 // Tests

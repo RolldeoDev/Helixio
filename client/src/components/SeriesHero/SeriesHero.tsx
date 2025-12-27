@@ -15,6 +15,7 @@ import { QuickCollectionIcons } from '../QuickCollectionIcons';
 import { CollectionFlyout } from '../CollectionFlyout';
 import { ActionMenu, type ActionMenuItem } from '../ActionMenu';
 import { MarkdownContent } from '../MarkdownContent';
+import { ProgressRing, CompletedBadge } from '../Progress';
 import './SeriesHero.css';
 
 // =============================================================================
@@ -145,55 +146,19 @@ export function SeriesHero({
           </div>
           {/* Progress ring on cover */}
           {progressPercent > 0 && progressPercent < 100 && (
-            <svg className="series-hero__progress-ring" viewBox="0 0 36 36">
-              {/* Background fill circle */}
-              <circle
-                className="series-hero__progress-ring-bg"
-                cx="18"
-                cy="18"
-                r="17"
-              />
-              {/* Track circle */}
-              <circle
-                cx="18"
-                cy="18"
-                r="14"
-                fill="none"
-                stroke="rgba(255, 255, 255, 0.2)"
-                strokeWidth="3"
-              />
-              {/* Progress arc */}
-              <circle
-                className="series-hero__progress-ring-fill"
-                cx="18"
-                cy="18"
-                r="14"
-                fill="none"
-                strokeWidth="3"
-                strokeDasharray={`${progressPercent} 100`}
-                strokeLinecap="round"
-              />
-              {/* Percentage text */}
-              <text
-                x="18"
-                y="18"
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill="white"
-                fontSize="8"
-                fontWeight="700"
-                transform="rotate(90, 18, 18)"
-              >
-                {progressPercent}%
-              </text>
-            </svg>
+            <ProgressRing
+              progress={progressPercent}
+              size="lg"
+              showLabel
+              className="series-hero__progress-ring"
+            />
           )}
           {isComplete && (
-            <div className="series-hero__complete-badge">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            </div>
+            <CompletedBadge
+              size="lg"
+              title="Series complete"
+              className="series-hero__complete-badge"
+            />
           )}
         </div>
 

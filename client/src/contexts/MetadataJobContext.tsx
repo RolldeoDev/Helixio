@@ -39,6 +39,7 @@ import {
   type MetadataSource,
 } from '../services/api.service';
 import { useApp } from './AppContext';
+import { invalidateAfterMetadataJob } from '../lib/cacheInvalidation';
 import {
   type JobStep,
   type StepLogs,
@@ -667,6 +668,11 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
   }, []);
 
   const completeJob = useCallback(() => {
+    // Invalidate React Query caches for data that may have changed
+    // Pass fileIds if we have them from the session for more targeted invalidation
+    const affectedFileIds = session?.seriesGroups?.flatMap((g) => g.fileIds) ?? [];
+    invalidateAfterMetadataJob({ fileIds: affectedFileIds });
+
     setHasActiveJob(false);
     setIsModalOpen(false);
     setJobId(null);
@@ -681,7 +687,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     setLastCompletedJobAt(Date.now()); // Signal that a job was completed (for page refreshes)
     loadActiveJobs();
     refreshFiles();
-  }, [loadActiveJobs, refreshFiles]);
+  }, [loadActiveJobs, refreshFiles, session]);
 
   // Expand a single series result to fetch from all sources
   const expandResult = useCallback(async (series: SeriesMatch): Promise<ExpandedSeriesResult> => {

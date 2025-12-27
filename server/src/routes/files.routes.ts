@@ -12,6 +12,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 import {
   moveFile,
   renameFile,
@@ -82,7 +83,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json(file);
   } catch (error) {
-    console.error('Error getting file:', error);
+    logError('files', error, { action: 'get-file' });
     res.status(500).json({
       error: 'Failed to get file',
       message: error instanceof Error ? error.message : String(error),
@@ -117,7 +118,7 @@ router.get('/:id/verify', async (req: Request, res: Response) => {
       message: verified ? 'File verified' : 'File mismatch detected',
     });
   } catch (error) {
-    console.error('Error verifying file:', error);
+    logError('files', error, { action: 'verify-file' });
     res.status(500).json({
       error: 'Failed to verify file',
       message: error instanceof Error ? error.message : String(error),
@@ -170,7 +171,7 @@ router.post('/:id/move', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error moving file:', error);
+    logError('files', error, { action: 'move-file' });
     res.status(500).json({
       error: 'Failed to move file',
       message: error instanceof Error ? error.message : String(error),
@@ -212,7 +213,7 @@ router.post('/:id/rename', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error renaming file:', error);
+    logError('files', error, { action: 'rename-file' });
     res.status(500).json({
       error: 'Failed to rename file',
       message: error instanceof Error ? error.message : String(error),
@@ -243,7 +244,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error deleting file:', error);
+    logError('files', error, { action: 'delete-file' });
     res.status(500).json({
       error: 'Failed to delete file',
       message: error instanceof Error ? error.message : String(error),
@@ -277,7 +278,7 @@ router.post('/:id/quarantine', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error quarantining file:', error);
+    logError('files', error, { action: 'quarantine-file' });
     res.status(500).json({
       error: 'Failed to quarantine file',
       message: error instanceof Error ? error.message : String(error),
@@ -309,7 +310,7 @@ router.post('/:id/restore', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error restoring file:', error);
+    logError('files', error, { action: 'restore-file' });
     res.status(500).json({
       error: 'Failed to restore file',
       message: error instanceof Error ? error.message : String(error),
@@ -355,7 +356,7 @@ router.post('/bulk/delete', async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
-    console.error('Error bulk deleting files:', error);
+    logError('files', error, { action: 'bulk-delete-files' });
     res.status(500).json({
       error: 'Failed to bulk delete files',
       message: error instanceof Error ? error.message : String(error),
@@ -400,7 +401,7 @@ router.post('/bulk/quarantine', async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
-    console.error('Error bulk quarantining files:', error);
+    logError('files', error, { action: 'bulk-quarantine-files' });
     res.status(500).json({
       error: 'Failed to bulk quarantine files',
       message: error instanceof Error ? error.message : String(error),
@@ -446,7 +447,7 @@ router.get('/:id/pages', async (req: Request, res: Response) => {
       pageCount: result.pages?.length || 0,
     });
   } catch (error) {
-    console.error('Error listing pages:', error);
+    logError('files', error, { action: 'list-pages' });
     res.status(500).json({
       error: 'Failed to list pages',
       message: error instanceof Error ? error.message : String(error),
@@ -480,7 +481,7 @@ router.get('/:id/cover-info', async (req: Request, res: Response) => {
 
     res.json(file);
   } catch (error) {
-    console.error('Error getting cover info:', error);
+    logError('files', error, { action: 'get-cover-info' });
     res.status(500).json({
       error: 'Failed to get cover info',
       message: error instanceof Error ? error.message : String(error),
@@ -601,7 +602,7 @@ router.post('/:id/cover', async (req: Request, res: Response) => {
       message: 'Provide source with appropriate parameters (pageIndex for page, url for custom)',
     });
   } catch (error) {
-    console.error('Error setting cover:', error);
+    logError('files', error, { action: 'set-cover' });
     res.status(500).json({
       error: 'Failed to set cover',
       message: error instanceof Error ? error.message : String(error),
@@ -661,7 +662,7 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), async (req: Reques
       coverHash: result.coverHash,
     });
   } catch (error) {
-    console.error('Error uploading cover:', error);
+    logError('files', error, { action: 'upload-cover' });
     res.status(500).json({
       error: 'Failed to upload cover',
       message: error instanceof Error ? error.message : String(error),

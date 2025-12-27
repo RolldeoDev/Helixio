@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { logInfo } from './logger.service.js';
 
 const prisma = new PrismaClient();
 
@@ -101,14 +102,14 @@ export async function seedAchievements(achievements?: AchievementSeedData[]): Pr
   if (!achievements) {
     const count = await prisma.achievement.count();
     if (count > 0) {
-      console.log(`Achievements already seeded (${count} achievements)`);
+      logInfo('achievements', `Achievements already seeded (${count} achievements)`);
       return;
     }
-    console.log('No achievements to seed - call /api/achievements/seed with data');
+    logInfo('achievements', 'No achievements to seed - call /api/achievements/seed with data');
     return;
   }
 
-  console.log(`Seeding ${achievements.length} achievements...`);
+  logInfo('achievements', `Seeding ${achievements.length} achievements...`);
 
   // Upsert all achievements
   for (const achievement of achievements) {
@@ -136,7 +137,7 @@ export async function seedAchievements(achievements?: AchievementSeedData[]): Pr
     });
   }
 
-  console.log(`Seeded ${achievements.length} achievements`);
+  logInfo('achievements', `Seeded ${achievements.length} achievements`);
 }
 
 /**

@@ -7,6 +7,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { validateToken, UserInfo } from '../services/auth.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 
 // Extend Express Request type to include user
 declare global {
@@ -67,7 +68,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     req.token = token;
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    logError('auth-middleware', error, { action: 'require-auth' });
     res.status(500).json({ error: 'Authentication error' });
   }
 }
@@ -87,7 +88,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
         req.token = token;
       }
     } catch (error) {
-      console.error('Optional auth error:', error);
+      logError('auth-middleware', error, { action: 'optional-auth' });
     }
   }
 
@@ -122,7 +123,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     req.token = token;
     next();
   } catch (error) {
-    console.error('Admin auth middleware error:', error);
+    logError('auth-middleware', error, { action: 'require-admin' });
     res.status(500).json({ error: 'Authentication error' });
   }
 }

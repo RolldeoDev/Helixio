@@ -39,6 +39,7 @@ import {
 import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
 import { mkdir, stat, access } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
+import { archiveLogger, logError, logWarn } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -65,26 +66,26 @@ async function extractArchiveWithLock(
   // Check if extraction is already in progress
   const existingLock = extractionLocks.get(fileId);
   if (existingLock) {
-    console.log(`[PageExtract] Waiting for existing extraction: ${fileId}`);
+    archiveLogger.debug({ fileId }, 'Waiting for existing extraction');
     return existingLock;
   }
 
   // Create a new extraction promise
   const extractionPromise = (async () => {
     try {
-      console.log(`[PageExtract] Starting extraction: ${fileId} -> ${cacheDir}`);
+      archiveLogger.debug({ fileId, cacheDir }, 'Starting extraction');
       await mkdir(cacheDir, { recursive: true });
       const result = await extractArchive(archivePath, cacheDir);
       if (result.success) {
-        console.log(`[PageExtract] Extracted ${result.fileCount} files to cache`);
+        archiveLogger.debug({ fileCount: result.fileCount }, 'Extracted files to cache');
         return { success: true };
       } else {
-        console.error(`[PageExtract] Extraction failed: ${result.error}`);
+        archiveLogger.error({ error: result.error }, 'Extraction failed');
         return { success: false, error: result.error };
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`[PageExtract] Extraction error: ${errorMsg}`);
+      archiveLogger.error({ error: errorMsg }, 'Extraction error');
       return { success: false, error: errorMsg };
     } finally {
       // Remove lock after extraction completes
@@ -120,7 +121,7 @@ async function verifyAndFixFilePath(
       try {
         await access(cbzPath, fsConstants.R_OK);
         // CBZ exists! Update the database to fix the stale path
-        console.log(`[archive] Auto-fixing stale path: ${file.path} -> ${cbzPath}`);
+        archiveLogger.info({ oldPath: file.path, newPath: cbzPath }, 'Auto-fixing stale CBR path to CBZ');
         await db.comicFile.update({
           where: { id: file.id },
           data: {
@@ -187,7 +188,7 @@ router.get('/:fileId/info', async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Error getting archive info:', error);
+    logError('archive', error, { action: 'get-info' });
     res.status(500).json({
       error: 'Failed to get archive info',
       message: error instanceof Error ? error.message : String(error),
@@ -239,7 +240,7 @@ router.get('/:fileId/contents', async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
-    console.error('Error listing archive contents:', error);
+    logError('archive', error, { action: 'list-contents' });
     res.status(500).json({
       error: 'Failed to list archive contents',
       message: error instanceof Error ? error.message : String(error),
@@ -278,7 +279,7 @@ router.get('/:fileId/validate', async (req: Request, res: Response) => {
       } : undefined,
     });
   } catch (error) {
-    console.error('Error validating archive:', error);
+    logError('archive', error, { action: 'validate' });
     res.status(500).json({
       error: 'Failed to validate archive',
       message: error instanceof Error ? error.message : String(error),
@@ -353,7 +354,7 @@ router.get('/:fileId/comicinfo', async (req: Request, res: Response) => {
       lockedFields,
     });
   } catch (error) {
-    console.error('Error reading ComicInfo:', error);
+    logError('archive', error, { action: 'read-comicinfo' });
     res.status(500).json({
       error: 'Failed to read ComicInfo.xml',
       message: error instanceof Error ? error.message : String(error),
@@ -428,7 +429,7 @@ router.put('/:fileId/comicinfo', async (req: Request, res: Response) => {
       warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (error) {
-    console.error('Error writing ComicInfo:', error);
+    logError('archive', error, { action: 'write-comicinfo' });
     res.status(500).json({
       error: 'Failed to write ComicInfo.xml',
       message: error instanceof Error ? error.message : String(error),
@@ -542,7 +543,7 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
       warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (error) {
-    console.error('Error updating ComicInfo:', error);
+    logError('archive', error, { action: 'update-comicinfo' });
     res.status(500).json({
       error: 'Failed to update ComicInfo.xml',
       message: error instanceof Error ? error.message : String(error),
@@ -622,7 +623,7 @@ router.get('/:fileId/cover', async (req: Request, res: Response) => {
     // Send the cover data
     res.send(coverData.data);
   } catch (error) {
-    console.error('Error extracting cover:', error);
+    logError('archive', error, { action: 'extract-cover' });
     res.status(500).json({
       error: 'Failed to extract cover',
       message: error instanceof Error ? error.message : String(error),
@@ -751,7 +752,7 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
     // Send the cached file
     res.sendFile(actualFilePath);
   } catch (error) {
-    console.error('Error extracting page:', error);
+    logError('archive', error, { action: 'extract-page' });
     res.status(500).json({
       error: 'Failed to extract page',
       message: error instanceof Error ? error.message : String(error),
@@ -811,7 +812,7 @@ router.post('/:fileId/pages/delete', async (req: Request, res: Response) => {
     try {
       const { rm } = await import('fs/promises');
       await rm(cacheDir, { recursive: true, force: true });
-      console.log(`[PageDelete] Cleared page cache: ${cacheDir}`);
+      archiveLogger.debug({ cacheDir }, 'Cleared page cache');
     } catch {
       // Cache dir might not exist, ignore
     }
@@ -821,17 +822,17 @@ router.post('/:fileId/pages/delete', async (req: Request, res: Response) => {
     try {
       // Delete existing cover from both disk and memory cache
       await deleteCachedCover(file.libraryId, fileHash);
-      console.log(`[PageDelete] Cleared cover cache for: ${fileHash}`);
+      archiveLogger.debug({ fileHash }, 'Cleared cover cache');
 
       // Re-extract cover with the new first page
       const coverResult = await extractCover(filePath, file.libraryId, fileHash);
       if (coverResult.success) {
-        console.log(`[PageDelete] Re-extracted cover from new first page`);
+        archiveLogger.debug('Re-extracted cover from new first page');
       } else {
-        console.warn(`[PageDelete] Failed to re-extract cover: ${coverResult.error}`);
+        archiveLogger.warn({ error: coverResult.error }, 'Failed to re-extract cover');
       }
     } catch (coverErr) {
-      console.warn(`[PageDelete] Error updating cover cache:`, coverErr);
+      logWarn('archive', 'Error updating cover cache', { err: coverErr });
       // Don't fail the whole operation if cover update fails
     }
 
@@ -841,7 +842,7 @@ router.post('/:fileId/pages/delete', async (req: Request, res: Response) => {
       message: `Successfully deleted ${result.deletedCount} page(s)`,
     });
   } catch (error) {
-    console.error('Error deleting pages:', error);
+    logError('archive', error, { action: 'delete-pages' });
     res.status(500).json({
       error: 'Failed to delete pages',
       message: error instanceof Error ? error.message : String(error),
@@ -877,7 +878,7 @@ router.get('/:fileId/convert/preview', async (req: Request, res: Response) => {
       ...preview,
     });
   } catch (error) {
-    console.error('Error getting conversion preview:', error);
+    logError('archive', error, { action: 'conversion-preview' });
     res.status(500).json({
       error: 'Failed to get conversion preview',
       message: error instanceof Error ? error.message : String(error),
@@ -939,7 +940,7 @@ router.post('/:fileId/convert', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error converting file:', error);
+    logError('archive', error, { action: 'convert-file' });
     res.status(500).json({
       error: 'Failed to convert file',
       message: error instanceof Error ? error.message : String(error),
@@ -957,7 +958,7 @@ router.get('/library/:libraryId/convertible', async (req: Request, res: Response
 
     res.json(result);
   } catch (error) {
-    console.error('Error finding convertible files:', error);
+    logError('archive', error, { action: 'find-convertible' });
     res.status(500).json({
       error: 'Failed to find convertible files',
       message: error instanceof Error ? error.message : String(error),
@@ -1025,7 +1026,7 @@ router.post('/library/:libraryId/convert/batch', async (req: Request, res: Respo
       })),
     });
   } catch (error) {
-    console.error('Error batch converting files:', error);
+    logError('archive', error, { action: 'batch-convert' });
     res.status(500).json({
       error: 'Failed to batch convert files',
       message: error instanceof Error ? error.message : String(error),

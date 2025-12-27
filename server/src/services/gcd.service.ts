@@ -11,6 +11,9 @@
 import { getMetadataSettings, loadConfig } from './config.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
 import { APICache, type CacheOptions } from './api-cache.service.js';
+import { logError, logInfo, logDebug, logWarn, createServiceLogger } from './logger.service.js';
+
+const logger = createServiceLogger('gcd');
 
 // =============================================================================
 // Constants
@@ -604,7 +607,7 @@ export async function searchSeries(
     };
   } catch (err) {
     // Graceful degradation - return empty results on error
-    console.warn('[GCD] Search series failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Search series failed', { error: err instanceof Error ? err.message : String(err) });
     return { results: [], total: 0, hasMore: false };
   }
 }
@@ -661,7 +664,7 @@ export async function searchIssues(
       hasMore: false,
     };
   } catch (err) {
-    console.warn('[GCD] Search issues failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Search issues failed', { error: err instanceof Error ? err.message : String(err) });
     return { results: [], total: 0, hasMore: false };
   }
 }
@@ -678,7 +681,7 @@ export async function getSeries(id: number, sessionId?: string): Promise<GCDSeri
     const series = await makeRequest<GCDSeries>(`/series/${id}/`, {}, sessionId);
     return series;
   } catch (err) {
-    console.warn('[GCD] Get series failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Get series failed', { id, error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -720,7 +723,7 @@ export async function getSeriesIssues(
       hasMore: false,
     };
   } catch (err) {
-    console.warn('[GCD] Get series issues failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Get series issues failed', { seriesId, error: err instanceof Error ? err.message : String(err) });
     return { results: [], total: 0, page: 1, hasMore: false };
   }
 }
@@ -733,7 +736,7 @@ export async function getIssue(id: number, sessionId?: string): Promise<GCDIssue
     const issue = await makeRequest<GCDIssue>(`/issue/${id}/`, {}, sessionId);
     return issue;
   } catch (err) {
-    console.warn('[GCD] Get issue failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Get issue failed', { id, error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }
@@ -746,7 +749,7 @@ export async function getPublisher(id: number, sessionId?: string): Promise<GCDP
     const publisher = await makeRequest<GCDPublisher>(`/publisher/${id}/`, {}, sessionId);
     return publisher;
   } catch (err) {
-    console.warn('[GCD] Get publisher failed:', err instanceof Error ? err.message : err);
+    logWarn('gcd', 'Get publisher failed', { id, error: err instanceof Error ? err.message : String(err) });
     return null;
   }
 }

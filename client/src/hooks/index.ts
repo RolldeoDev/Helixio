@@ -10,3 +10,4 @@ export * from './useSeriesWorkflow';
 export * from './useJobActions';
 export * from './useApiToast';
 export * from './useMenuActions';
+export * from './useAdaptivePolling';

@@ -13,6 +13,7 @@ import {
   TAG_FIELD_TYPES,
   type TagFieldType,
 } from '../services/tag-autocomplete.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.get('/autocomplete', async (req: Request, res: Response): Promise<void> =
       offset,
     });
   } catch (err) {
-    console.error('Error in tag autocomplete:', err);
+    logError('tags', err, { action: 'tag-autocomplete' });
     res.status(500).json({
       error: 'Autocomplete failed',
       message: err instanceof Error ? err.message : String(err),
@@ -96,7 +97,7 @@ router.post('/rebuild', async (_req: Request, res: Response): Promise<void> => {
       durationMs: duration,
     });
   } catch (err) {
-    console.error('Error rebuilding tags:', err);
+    logError('tags', err, { action: 'rebuild-tags' });
     res.status(500).json({
       error: 'Rebuild failed',
       message: err instanceof Error ? err.message : String(err),
@@ -114,7 +115,7 @@ router.get('/stats', async (_req: Request, res: Response): Promise<void> => {
 
     res.json(stats);
   } catch (err) {
-    console.error('Error getting tag stats:', err);
+    logError('tags', err, { action: 'get-tag-stats' });
     res.status(500).json({
       error: 'Failed to get stats',
       message: err instanceof Error ? err.message : String(err),

@@ -36,6 +36,7 @@ import {
   type BatchPreviewItem,
 } from '../services/batch-preview.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logDebug } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -356,7 +357,7 @@ router.post('/:id/execute', async (req: Request, res: Response): Promise<void> =
     // want to use WebSocket or SSE for real-time progress updates.
     const result = await executeBatch(id, (progress) => {
       // Progress callback - could emit via WebSocket here
-      console.log(`Batch ${id}: ${progress.progress}% (${progress.completedItems}/${progress.totalItems})`);
+      logDebug('batch', `Batch ${id}: ${progress.progress}% (${progress.completedItems}/${progress.totalItems})`);
     });
 
     res.json(result);
@@ -410,7 +411,7 @@ router.post('/:id/resume', async (req: Request, res: Response): Promise<void> =>
 
     // Resume execution
     const result = await executeBatch(id, (progress) => {
-      console.log(`Batch ${id}: ${progress.progress}% (${progress.completedItems}/${progress.totalItems})`);
+      logDebug('batch', `Batch ${id}: ${progress.progress}% (${progress.completedItems}/${progress.totalItems})`);
     });
 
     res.json(result);

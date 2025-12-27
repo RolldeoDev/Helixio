@@ -9,6 +9,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { logError } from '../services/logger.service.js';
 import {
   getQueue,
   addToQueue,
@@ -40,7 +41,7 @@ router.get('/', async (_req: Request, res: Response) => {
     const queue = await getQueue();
     res.json(queue);
   } catch (error) {
-    console.error('Error getting reading queue:', error);
+    logError('reading-queue', error, { action: 'get-queue' });
     res.status(500).json({
       error: 'Failed to get reading queue',
       message: error instanceof Error ? error.message : String(error),
@@ -60,7 +61,7 @@ router.post('/:fileId', async (req: Request, res: Response) => {
     const item = await addToQueue(fileId!, position);
     res.status(201).json(item);
   } catch (error) {
-    console.error('Error adding to reading queue:', error);
+    logError('reading-queue', error, { action: 'add-to-queue' });
     res.status(400).json({
       error: 'Failed to add to reading queue',
       message: error instanceof Error ? error.message : String(error),
@@ -84,7 +85,7 @@ router.post('/batch', async (req: Request, res: Response) => {
     const items = await addManyToQueue(fileIds);
     res.status(201).json({ added: items.length, items });
   } catch (error) {
-    console.error('Error adding batch to reading queue:', error);
+    logError('reading-queue', error, { action: 'add-batch-to-queue' });
     res.status(400).json({
       error: 'Failed to add batch to reading queue',
       message: error instanceof Error ? error.message : String(error),
@@ -102,7 +103,7 @@ router.delete('/:fileId', async (req: Request, res: Response) => {
     await removeFromQueue(fileId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error removing from reading queue:', error);
+    logError('reading-queue', error, { action: 'remove-from-queue' });
     res.status(500).json({
       error: 'Failed to remove from reading queue',
       message: error instanceof Error ? error.message : String(error),
@@ -119,7 +120,7 @@ router.delete('/', async (_req: Request, res: Response) => {
     await clearQueue();
     res.json({ success: true });
   } catch (error) {
-    console.error('Error clearing reading queue:', error);
+    logError('reading-queue', error, { action: 'clear-queue' });
     res.status(500).json({
       error: 'Failed to clear reading queue',
       message: error instanceof Error ? error.message : String(error),
@@ -142,7 +143,7 @@ router.get('/check/:fileId', async (req: Request, res: Response) => {
     const position = await getQueuePosition(fileId!);
     res.json({ inQueue, position });
   } catch (error) {
-    console.error('Error checking queue status:', error);
+    logError('reading-queue', error, { action: 'check-queue-status' });
     res.status(500).json({
       error: 'Failed to check queue status',
       message: error instanceof Error ? error.message : String(error),
@@ -159,7 +160,7 @@ router.get('/next', async (_req: Request, res: Response) => {
     const next = await getNextInQueue();
     res.json(next);
   } catch (error) {
-    console.error('Error getting next in queue:', error);
+    logError('reading-queue', error, { action: 'get-next-in-queue' });
     res.status(500).json({
       error: 'Failed to get next in queue',
       message: error instanceof Error ? error.message : String(error),
@@ -177,7 +178,7 @@ router.get('/next-after/:fileId', async (req: Request, res: Response) => {
     const next = await getNextAfter(fileId!);
     res.json(next);
   } catch (error) {
-    console.error('Error getting next after in queue:', error);
+    logError('reading-queue', error, { action: 'get-next-after-in-queue' });
     res.status(500).json({
       error: 'Failed to get next after in queue',
       message: error instanceof Error ? error.message : String(error),
@@ -194,7 +195,7 @@ router.post('/pop', async (_req: Request, res: Response) => {
     const fileId = await popFromQueue();
     res.json({ fileId });
   } catch (error) {
-    console.error('Error popping from queue:', error);
+    logError('reading-queue', error, { action: 'pop-from-queue' });
     res.status(500).json({
       error: 'Failed to pop from queue',
       message: error instanceof Error ? error.message : String(error),
@@ -223,7 +224,7 @@ router.put('/:fileId/position', async (req: Request, res: Response) => {
     await moveInQueue(fileId!, position);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error moving item in queue:', error);
+    logError('reading-queue', error, { action: 'move-in-queue' });
     res.status(400).json({
       error: 'Failed to move item in queue',
       message: error instanceof Error ? error.message : String(error),
@@ -241,7 +242,7 @@ router.put('/:fileId/front', async (req: Request, res: Response) => {
     await moveToFront(fileId!);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error moving item to front:', error);
+    logError('reading-queue', error, { action: 'move-to-front' });
     res.status(400).json({
       error: 'Failed to move item to front',
       message: error instanceof Error ? error.message : String(error),
@@ -265,7 +266,7 @@ router.put('/reorder', async (req: Request, res: Response) => {
     await reorderQueue(fileIds);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error reordering queue:', error);
+    logError('reading-queue', error, { action: 'reorder-queue' });
     res.status(400).json({
       error: 'Failed to reorder queue',
       message: error instanceof Error ? error.message : String(error),

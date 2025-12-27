@@ -1,0 +1,48 @@
+/* Progress Ring Component */
+.progress-ring {
+  transform: rotate(-90deg);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+/* Size variants */
+.progress-ring--sm {
+  width: 24px;
+  height: 24px;
+}
+
+.progress-ring--md {
+  width: 32px;
+  height: 32px;
+}
+
+.progress-ring--lg {
+  width: 40px;
+  height: 40px;
+}
+
+/* Background fill */
+.progress-ring__bg {
+  fill: var(--progress-ring-bg, rgba(0, 0, 0, 0.6));
+  stroke: var(--progress-ring-bg-stroke, rgba(0, 0, 0, 0.5));
+  stroke-width: 1;
+}
+
+/* Track (unfilled portion) */
+.progress-ring__track {
+  stroke: var(--progress-ring-track, rgba(255, 255, 255, 0.2));
+}
+
+/* Fill (progress arc) */
+.progress-ring__fill {
+  stroke: var(--progress-ring-fill, var(--color-primary, #6366f1));
+  transition: stroke-dasharray 0.5s ease-out;
+}
+
+/* Label text */
+.progress-ring__label {
+  fill: white;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  transform: rotate(90deg);
+  transform-origin: center;
+}

@@ -199,15 +199,13 @@ describe('AchievementsService', () => {
       expect(mockPrisma.achievement.upsert).not.toHaveBeenCalled();
     });
 
-    it('should log message when called without data and no achievements exist', async () => {
+    it('should not call upsert when called without data and no achievements exist', async () => {
       mockPrisma.achievement.count.mockResolvedValue(0);
-      const consoleSpy = vi.spyOn(console, 'log');
 
       await seedAchievements();
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        'No achievements to seed - call /api/achievements/seed with data'
-      );
+      expect(mockPrisma.achievement.count).toHaveBeenCalled();
+      expect(mockPrisma.achievement.upsert).not.toHaveBeenCalled();
     });
 
     it('should seed achievements when data is provided', async () => {

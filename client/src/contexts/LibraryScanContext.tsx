@@ -13,6 +13,7 @@ import {
   type LibraryScanJob,
   type ScanJobStatus,
 } from '../services/api.service';
+import { invalidateAfterLibraryScan } from '../lib/cacheInvalidation';
 
 // =============================================================================
 // Types
@@ -123,6 +124,11 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
             pollScanStatus(libraryId, jobId);
           }, interval);
         } else {
+          // Scan completed - invalidate React Query caches
+          if (job.status === 'complete') {
+            invalidateAfterLibraryScan(libraryId);
+          }
+
           // Clear from active scans after a delay (show completion message)
           setTimeout(() => {
             setState((prev) => {

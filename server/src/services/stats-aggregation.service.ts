@@ -11,6 +11,9 @@ import {
   clearAllDirtyFlags,
   EntityType,
 } from './stats-dirty.service.js';
+import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+
+const logger = createServiceLogger('stats-aggregation');
 
 // =============================================================================
 // Types
@@ -429,7 +432,7 @@ export async function computeEntityStats(
 export async function fullRebuild(): Promise<void> {
   const db = getDatabase();
 
-  console.log('[Stats] Starting full rebuild...');
+  logInfo('stats-aggregation', 'Starting full rebuild...');
 
   // Clear all existing stats
   await db.entityStat.deleteMany();
@@ -441,7 +444,7 @@ export async function fullRebuild(): Promise<void> {
 
   // Rebuild library stats
   for (const library of libraries) {
-    console.log(`[Stats] Computing stats for library: ${library.name}`);
+    logDebug('stats-aggregation', `Computing stats for library: ${library.name}`, { libraryId: library.id, libraryName: library.name });
     await computeLibraryStats(library.id);
 
     // Compute entity stats for each type
@@ -451,7 +454,7 @@ export async function fullRebuild(): Promise<void> {
   }
 
   // Compute user-level stats
-  console.log('[Stats] Computing user-level stats...');
+  logDebug('stats-aggregation', 'Computing user-level stats...');
   await computeUserStats();
 
   // Compute user-level entity stats
@@ -459,7 +462,7 @@ export async function fullRebuild(): Promise<void> {
     await computeEntityStats(entityType); // null libraryId = user-level
   }
 
-  console.log('[Stats] Full rebuild complete');
+  logInfo('stats-aggregation', 'Full rebuild complete');
 }
 
 // =============================================================================
@@ -478,7 +481,7 @@ export async function processDirtyStats(): Promise<{ processed: number }> {
 
   // Process library-level dirty flags
   for (const libraryId of libraries) {
-    console.log(`[Stats] Recomputing stats for library: ${libraryId}`);
+    logDebug('stats-aggregation', `Recomputing stats for library: ${libraryId}`, { libraryId });
     await computeLibraryStats(libraryId);
 
     // Also recompute entity stats for this library
@@ -501,7 +504,7 @@ export async function processDirtyStats(): Promise<{ processed: number }> {
 
   // Process user-level dirty flag
   if (userDirty || libraries.length > 0) {
-    console.log('[Stats] Recomputing user-level stats');
+    logDebug('stats-aggregation', 'Recomputing user-level stats');
     await computeUserStats();
     processed++;
   }

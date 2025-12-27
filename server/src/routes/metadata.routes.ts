@@ -44,6 +44,7 @@ import {
 } from '../services/cross-source-matcher.service.js';
 import { ProviderRegistry } from '../services/metadata-providers/registry.js';
 import { mergeSeriesWithAllValues } from '../services/metadata-merge.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -85,7 +86,7 @@ router.get('/series/:libraryId', async (req: Request, res: Response): Promise<vo
       })),
     });
   } catch (err) {
-    console.error('Error getting series:', err);
+    logError('metadata', err, { action: 'get-series' });
     res.status(500).json({
       error: 'Failed to get series',
       message: err instanceof Error ? err.message : String(err),
@@ -119,7 +120,7 @@ router.get('/folder', async (req: Request, res: Response): Promise<void> => {
 
     res.json(metadata);
   } catch (err) {
-    console.error('Error getting folder metadata:', err);
+    logError('metadata', err, { action: 'get-folder-metadata' });
     res.status(500).json({
       error: 'Failed to get folder metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -156,7 +157,7 @@ router.get('/series-json', async (req: Request, res: Response): Promise<void> =>
 
     res.json(result.metadata);
   } catch (err) {
-    console.error('Error reading series.json:', err);
+    logError('metadata', err, { action: 'read-series-json' });
     res.status(500).json({
       error: 'Failed to read series.json',
       message: err instanceof Error ? err.message : String(err),
@@ -212,7 +213,7 @@ router.put('/series-json', async (req: Request, res: Response): Promise<void> =>
       message: 'series.json and ComicInfo.xml updated',
     });
   } catch (err) {
-    console.error('Error writing series.json:', err);
+    logError('metadata', err, { action: 'write-series-json' });
     res.status(500).json({
       error: 'Failed to write series.json',
       message: err instanceof Error ? err.message : String(err),
@@ -260,7 +261,7 @@ router.patch('/series-json', async (req: Request, res: Response): Promise<void> 
       message: 'series.json and ComicInfo.xml updated',
     });
   } catch (err) {
-    console.error('Error updating series.json:', err);
+    logError('metadata', err, { action: 'update-series-json' });
     res.status(500).json({
       error: 'Failed to update series.json',
       message: err instanceof Error ? err.message : String(err),
@@ -289,7 +290,7 @@ router.delete('/series-json', async (req: Request, res: Response): Promise<void>
 
     res.json({ deleted });
   } catch (err) {
-    console.error('Error deleting series.json:', err);
+    logError('metadata', err, { action: 'delete-series-json' });
     res.status(500).json({
       error: 'Failed to delete series.json',
       message: err instanceof Error ? err.message : String(err),
@@ -323,7 +324,7 @@ router.post('/series-json/initialize', async (req: Request, res: Response): Prom
 
     res.json(result);
   } catch (err) {
-    console.error('Error initializing series.json:', err);
+    logError('metadata', err, { action: 'initialize-series-json' });
     res.status(500).json({
       error: 'Failed to initialize series.json',
       message: err instanceof Error ? err.message : String(err),
@@ -352,7 +353,7 @@ router.post('/series-json/parse-folder-name', async (req: Request, res: Response
 
     res.json(parsed);
   } catch (err) {
-    console.error('Error parsing folder name:', err);
+    logError('metadata', err, { action: 'parse-folder-name' });
     res.status(500).json({
       error: 'Failed to parse folder name',
       message: err instanceof Error ? err.message : String(err),
@@ -417,7 +418,7 @@ router.get('/file/:fileId', async (req: Request, res: Response): Promise<void> =
       metadata: file.metadata,
     });
   } catch (err) {
-    console.error('Error getting file metadata:', err);
+    logError('metadata', err, { action: 'get-file-metadata' });
     res.status(500).json({
       error: 'Failed to get file metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -473,7 +474,7 @@ router.patch('/file/:fileId', async (req: Request, res: Response): Promise<void>
       warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (err) {
-    console.error('Error updating file metadata:', err);
+    logError('metadata', err, { action: 'update-file-metadata' });
     res.status(500).json({
       error: 'Failed to update file metadata',
       message: err instanceof Error ? err.message : String(err),
@@ -510,7 +511,7 @@ router.post('/sync-comicinfo/:libraryId', async (req: Request, res: Response): P
       ...result,
     });
   } catch (err) {
-    console.error('Error syncing ComicInfo files:', err);
+    logError('metadata', err, { action: 'sync-comicinfo' });
     res.status(500).json({
       error: 'Sync failed',
       message: err instanceof Error ? err.message : String(err),
@@ -543,7 +544,7 @@ router.post('/initialize-all/:libraryId', async (req: Request, res: Response): P
       ...result,
     });
   } catch (err) {
-    console.error('Error initializing series.json files:', err);
+    logError('metadata', err, { action: 'initialize-all-series-json' });
     res.status(500).json({
       error: 'Initialization failed',
       message: err instanceof Error ? err.message : String(err),
@@ -605,7 +606,7 @@ router.post('/cache/refresh', async (req: Request, res: Response): Promise<void>
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (err) {
-    console.error('Error refreshing metadata cache:', err);
+    logError('metadata', err, { action: 'refresh-cache' });
     res.status(500).json({
       error: 'Cache refresh failed',
       message: err instanceof Error ? err.message : String(err),
@@ -713,7 +714,7 @@ router.get('/scrape-themes', async (req: Request, res: Response): Promise<void> 
       count: themes.length,
     });
   } catch (err) {
-    console.error('Error scraping themes:', err);
+    logError('metadata', err, { action: 'scrape-themes' });
     res.json({
       success: false,
       error: err instanceof Error ? err.message : String(err),
@@ -803,7 +804,7 @@ router.get('/search', async (req: Request, res: Response): Promise<void> => {
       results,
     });
   } catch (err) {
-    console.error('Error searching metadata:', err);
+    logError('metadata', err, { action: 'search' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -844,7 +845,7 @@ router.post('/search-full', async (req: Request, res: Response): Promise<void> =
 
     res.json(result);
   } catch (err) {
-    console.error('Error in full data search:', err);
+    logError('metadata', err, { action: 'search-full' });
     res.status(500).json({
       error: 'Search failed',
       message: err instanceof Error ? err.message : String(err),
@@ -887,7 +888,7 @@ router.post('/expand-result', async (req: Request, res: Response): Promise<void>
     // Return both merged and sourceResults
     res.json(result);
   } catch (err) {
-    console.error('Error expanding result:', err);
+    logError('metadata', err, { action: 'expand-result' });
     res.status(500).json({
       error: 'Expand failed',
       message: err instanceof Error ? err.message : String(err),
@@ -932,7 +933,7 @@ router.get('/series-full/:source/:sourceId', async (req: Request, res: Response)
 
     res.json(result);
   } catch (err) {
-    console.error('Error getting full series metadata:', err);
+    logError('metadata', err, { action: 'get-series-full' });
     res.status(500).json({
       error: 'Fetch failed',
       message: err instanceof Error ? err.message : String(err),
@@ -1008,7 +1009,7 @@ router.post('/cross-match', async (req: Request, res: Response): Promise<void> =
 
     res.json(result);
   } catch (err) {
-    console.error('Error finding cross-source matches:', err);
+    logError('metadata', err, { action: 'cross-match' });
     res.status(500).json({
       error: 'Cross-match failed',
       message: err instanceof Error ? err.message : String(err),
@@ -1041,7 +1042,7 @@ router.get('/cross-matches/:source/:sourceId', async (req: Request, res: Respons
       count: mappings.length,
     });
   } catch (err) {
-    console.error('Error getting cross-source mappings:', err);
+    logError('metadata', err, { action: 'get-cross-mappings' });
     res.status(500).json({
       error: 'Failed to get mappings',
       message: err instanceof Error ? err.message : String(err),
@@ -1085,7 +1086,7 @@ router.put('/cross-matches/:source/:sourceId', async (req: Request, res: Respons
       message: 'Cross-source mapping saved',
     });
   } catch (err) {
-    console.error('Error saving cross-source mapping:', err);
+    logError('metadata', err, { action: 'save-cross-mapping' });
     res.status(500).json({
       error: 'Failed to save mapping',
       message: err instanceof Error ? err.message : String(err),
@@ -1117,7 +1118,7 @@ router.delete('/cross-matches/:source/:sourceId', async (req: Request, res: Resp
       message: `Invalidated ${deletedCount} cross-source mappings`,
     });
   } catch (err) {
-    console.error('Error invalidating cross-source mappings:', err);
+    logError('metadata', err, { action: 'invalidate-cross-mappings' });
     res.status(500).json({
       error: 'Failed to invalidate mappings',
       message: err instanceof Error ? err.message : String(err),
@@ -1198,7 +1199,7 @@ router.get('/series-all-values/:source/:sourceId', async (req: Request, res: Res
       crossMatchStatus: crossMatchResult.status,
     });
   } catch (err) {
-    console.error('Error getting series with all values:', err);
+    logError('metadata', err, { action: 'get-series-all-values' });
     res.status(500).json({
       error: 'Failed to get series with all values',
       message: err instanceof Error ? err.message : String(err),

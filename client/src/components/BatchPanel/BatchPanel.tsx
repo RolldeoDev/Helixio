@@ -6,7 +6,7 @@
  * - Metadata jobs (metadata fetch and apply operations)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getActiveBatch,
@@ -27,6 +27,7 @@ import {
   type JobStatus,
 } from '../../services/api.service';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
+import { useAdaptivePolling } from '../../hooks';
 import './BatchPanel.css';
 
 // Unified job type for display
@@ -116,89 +117,122 @@ export function BatchPanel({ onClose, libraryId: _libraryId }: BatchPanelProps) 
     }
   };
 
-  const loadData = useCallback(async () => {
-    try {
-      // Fetch both batch operations and metadata jobs
-      const [activeResult, interruptedResult, recentResult, metadataResult] = await Promise.all([
-        getActiveBatch(),
-        getInterruptedBatches(),
-        getRecentBatches(50),
-        listAllMetadataJobs(),
-      ]);
+  // Fetch all job data and return with hasActive flag for adaptive polling
+  const fetchJobData = useCallback(async () => {
+    // Fetch both batch operations and metadata jobs
+    const [activeResult, interruptedResult, recentResult, metadataResult] = await Promise.all([
+      getActiveBatch(),
+      getInterruptedBatches(),
+      getRecentBatches(50),
+      listAllMetadataJobs(),
+    ]);
 
-      const jobs: UnifiedJob[] = [];
+    const jobs: UnifiedJob[] = [];
 
-      // Process batch operations
-      const batchMap = new Map<string, BatchProgress>();
+    // Process batch operations
+    const batchMap = new Map<string, BatchProgress>();
 
-      if (activeResult.activeBatchId) {
-        const batchDetails = await getBatch(activeResult.activeBatchId);
-        batchMap.set(batchDetails.id, batchDetails);
-      }
-
-      for (const batch of interruptedResult.batches) {
-        if (!batchMap.has(batch.id)) {
-          batchMap.set(batch.id, batch);
-        }
-      }
-
-      for (const batch of recentResult.batches) {
-        if (!batchMap.has(batch.id)) {
-          batchMap.set(batch.id, batch);
-        }
-      }
-
-      // Convert batches to unified format
-      for (const batch of batchMap.values()) {
-        jobs.push({
-          id: batch.id,
-          type: 'batch',
-          subtype: batch.type,
-          status: normalizeBatchStatus(batch.status),
-          totalItems: batch.totalItems,
-          completedItems: batch.completedItems,
-          failedItems: batch.failedItems,
-          createdAt: batch.startedAt || new Date().toISOString(),
-          completedAt: batch.completedAt,
-          startedAt: batch.startedAt,
-          batchData: batch,
-        });
-      }
-
-      // Convert metadata jobs to unified format
-      for (const job of metadataResult.jobs) {
-        const applyResult = job.applyResult;
-        jobs.push({
-          id: job.id,
-          type: 'metadata',
-          subtype: 'metadata_fetch',
-          status: normalizeMetadataStatus(job.status),
-          totalItems: job.totalFiles,
-          completedItems: applyResult?.successful ?? job.processedFiles,
-          failedItems: applyResult?.failed ?? 0,
-          createdAt: job.createdAt,
-          completedAt: job.status === 'complete' ? job.updatedAt : undefined,
-          startedAt: job.createdAt,
-          error: job.error,
-          metadataData: job,
-        });
-      }
-
-      // Sort by date (most recent first)
-      jobs.sort((a, b) => {
-        const dateA = a.completedAt || a.createdAt;
-        const dateB = b.completedAt || b.createdAt;
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
-      });
-
-      setAllJobs(jobs);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load job history');
-    } finally {
-      setLoading(false);
+    if (activeResult.activeBatchId) {
+      const batchDetails = await getBatch(activeResult.activeBatchId);
+      batchMap.set(batchDetails.id, batchDetails);
     }
+
+    for (const batch of interruptedResult.batches) {
+      if (!batchMap.has(batch.id)) {
+        batchMap.set(batch.id, batch);
+      }
+    }
+
+    for (const batch of recentResult.batches) {
+      if (!batchMap.has(batch.id)) {
+        batchMap.set(batch.id, batch);
+      }
+    }
+
+    // Convert batches to unified format
+    for (const batch of batchMap.values()) {
+      jobs.push({
+        id: batch.id,
+        type: 'batch',
+        subtype: batch.type,
+        status: normalizeBatchStatus(batch.status),
+        totalItems: batch.totalItems,
+        completedItems: batch.completedItems,
+        failedItems: batch.failedItems,
+        createdAt: batch.startedAt || new Date().toISOString(),
+        completedAt: batch.completedAt,
+        startedAt: batch.startedAt,
+        batchData: batch,
+      });
+    }
+
+    // Convert metadata jobs to unified format
+    for (const job of metadataResult.jobs) {
+      const applyResult = job.applyResult;
+      jobs.push({
+        id: job.id,
+        type: 'metadata',
+        subtype: 'metadata_fetch',
+        status: normalizeMetadataStatus(job.status),
+        totalItems: job.totalFiles,
+        completedItems: applyResult?.successful ?? job.processedFiles,
+        failedItems: applyResult?.failed ?? 0,
+        createdAt: job.createdAt,
+        completedAt: job.status === 'complete' ? job.updatedAt : undefined,
+        startedAt: job.createdAt,
+        error: job.error,
+        metadataData: job,
+      });
+    }
+
+    // Sort by date (most recent first)
+    jobs.sort((a, b) => {
+      const dateA = a.completedAt || a.createdAt;
+      const dateB = b.completedAt || b.createdAt;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+
+    return {
+      jobs,
+      hasActive: jobs.some(j => j.status === 'in_progress'),
+    };
   }, []);
+
+  // Adaptive polling - polls every 60s when idle, 3s when jobs are active
+  const { data: jobData, refetch, error: fetchError } = useAdaptivePolling({
+    fetchFn: fetchJobData,
+    isActive: (data) => data.hasActive,
+    activeInterval: 3000,
+  });
+
+  // Track if initial load has completed
+  const initialLoadDone = useRef(false);
+
+  // Update state when job data changes
+  useEffect(() => {
+    if (jobData) {
+      setAllJobs(jobData.jobs);
+      setError(null);
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        setLoading(false);
+      }
+    }
+  }, [jobData]);
+
+  // Handle fetch errors
+  useEffect(() => {
+    if (fetchError) {
+      setError(fetchError.message || 'Failed to load job history');
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        setLoading(false);
+      }
+    }
+  }, [fetchError]);
+
+  // Expose refetch as loadData for action handlers
+  const loadData = refetch;
 
   const loadBatchOperations = useCallback(async (batchId: string, filter: string) => {
     setLoadingOperations(true);
@@ -215,20 +249,6 @@ export function BatchPanel({ onClose, libraryId: _libraryId }: BatchPanelProps) 
       setLoadingOperations(false);
     }
   }, []);
-
-  useEffect(() => {
-    loadData();
-
-    // Poll for updates when there are active jobs
-    const interval = window.setInterval(() => {
-      const hasActive = allJobs.some(j => j.status === 'in_progress');
-      if (hasActive) {
-        loadData();
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [loadData, allJobs]);
 
   useEffect(() => {
     if (selectedJob?.type === 'batch' && selectedJob.batchData) {

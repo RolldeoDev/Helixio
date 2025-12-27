@@ -15,7 +15,7 @@ import { getDatabase } from './database.service.js';
 import { createServiceLogger } from './logger.service.js';
 import { getSeriesMetadata, type MetadataSource } from './metadata-search.service.js';
 import { writeSeriesJson, type SeriesMetadata } from './series-metadata.service.js';
-import { getSeries, updateSeries, type FieldSourceMap } from './series.service.js';
+import { getSeries, updateSeries, type FieldSourceMap } from './series/index.js';
 import { onSeriesCoverChanged } from './collection.service.js';
 import type { Series } from '@prisma/client';
 

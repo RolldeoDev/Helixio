@@ -13,6 +13,7 @@ import { isMetronAvailable, getSeriesName } from './metron.service.js';
 import * as anilist from './anilist.service.js';
 import * as jikan from './jikan.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
+import { logError } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -464,7 +465,7 @@ export async function searchSeries(
             results.series.push(match);
           }
         } catch (err) {
-          console.error(`[searchSeries] Metron error:`, err);
+          logError('metadata-search', err instanceof Error ? err : new Error(String(err)), { action: 'search-series', source: 'metron' });
           results.sources.metron.error = err instanceof Error ? err.message : String(err);
         }
       })()
@@ -524,7 +525,7 @@ export async function searchSeries(
             results.series.push(match);
           }
         } catch (err) {
-          console.error(`[searchSeries] AniList error:`, err);
+          logError('metadata-search', err instanceof Error ? err : new Error(String(err)), { action: 'search-series', source: 'anilist' });
           results.sources.anilist.error = err instanceof Error ? err.message : String(err);
         }
       })()
@@ -584,7 +585,7 @@ export async function searchSeries(
             results.series.push(match);
           }
         } catch (err) {
-          console.error(`[searchSeries] MAL (Jikan) error:`, err);
+          logError('metadata-search', err instanceof Error ? err : new Error(String(err)), { action: 'search-series', source: 'mal' });
           results.sources.mal.error = err instanceof Error ? err.message : String(err);
         }
       })()

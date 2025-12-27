@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import * as yaml from 'js-yaml';
 import { getApiKey, hasApiKey, getLLMModel } from './config.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
+import { logError } from './logger.service.js';
 import type { LibraryType } from './metadata-search.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,7 +116,7 @@ export function loadConventions(): NamingConventions {
     cachedConventions = yaml.load(content) as NamingConventions;
     return cachedConventions;
   } catch (err) {
-    console.error('Failed to load conventions.yaml:', err);
+    logError('llm', err instanceof Error ? err : new Error(String(err)), { action: 'load-conventions' });
     // Return minimal defaults
     return {
       noise_tokens: [],

@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl } from '../../services/api.service';
+import { CompletedBadge } from '../Progress';
 
 // =============================================================================
 // Types
@@ -115,11 +116,7 @@ export function ComicCard({ item, onClick, size = 'medium' }: ComicCardProps) {
 
         {/* Completed checkmark */}
         {item.completed && (
-          <div className="comic-card-completed">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          </div>
+          <CompletedBadge size="sm" className="comic-card-completed" />
         )}
       </div>
 

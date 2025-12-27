@@ -7,6 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import * as syncService from '../services/sync.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -36,7 +37,7 @@ router.post('/devices', async (req: Request, res: Response) => {
 
     res.json({ device });
   } catch (error) {
-    console.error('Register device error:', error);
+    logError('sync', error, { action: 'register-device' });
     res.status(500).json({ error: 'Failed to register device' });
   }
 });
@@ -50,7 +51,7 @@ router.get('/devices', async (req: Request, res: Response) => {
     const devices = await syncService.getDevices(req.user!.id);
     res.json({ devices });
   } catch (error) {
-    console.error('List devices error:', error);
+    logError('sync', error, { action: 'list-devices' });
     res.status(500).json({ error: 'Failed to list devices' });
   }
 });
@@ -69,7 +70,7 @@ router.delete('/devices/:deviceId', async (req: Request, res: Response) => {
     await syncService.removeDevice(req.user!.id, deviceId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Remove device error:', error);
+    logError('sync', error, { action: 'remove-device' });
     res.status(500).json({ error: 'Failed to remove device' });
   }
 });
@@ -107,7 +108,7 @@ router.get('/pull', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Pull changes error:', error);
+    logError('sync', error, { action: 'pull-changes' });
     res.status(500).json({ error: 'Failed to pull changes' });
   }
 });
@@ -175,7 +176,7 @@ router.post('/push', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Push changes error:', error);
+    logError('sync', error, { action: 'push-changes' });
     res.status(500).json({ error: 'Failed to push changes' });
   }
 });
@@ -189,7 +190,7 @@ router.get('/state', async (req: Request, res: Response) => {
     const state = await syncService.getFullState(req.user!.id);
     res.json(state);
   } catch (error) {
-    console.error('Get state error:', error);
+    logError('sync', error, { action: 'get-state' });
     res.status(500).json({ error: 'Failed to get sync state' });
   }
 });

@@ -8,6 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   getAllPresets,
   getPresetById,
@@ -24,6 +25,7 @@ import {
   applyPresetToSeries,
   applyPresetToIssue,
 } from '../services/reader-settings.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -36,10 +38,9 @@ const router = Router();
  * Get all presets (bundled + system + user's own)
  * Query params: ?grouped=true to get presets grouped by type
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    // TODO: Get userId from auth context when auth is implemented
-    const userId = req.query.userId as string | undefined;
+    const userId = req.user!.id;
     const grouped = req.query.grouped === 'true';
 
     if (grouped) {
@@ -50,7 +51,7 @@ router.get('/', async (req: Request, res: Response) => {
       res.json(presets);
     }
   } catch (error) {
-    console.error('Error getting reader presets:', error);
+    logError('reader-preset', error, { action: 'get-reader-presets' });
     res.status(500).json({
       error: 'Failed to get reader presets',
       message: error instanceof Error ? error.message : String(error),
@@ -62,7 +63,7 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /api/reader-presets/:id
  * Get a single preset by ID
  */
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const preset = await getPresetById(id!);
@@ -74,7 +75,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json(preset);
   } catch (error) {
-    console.error('Error getting reader preset:', error);
+    logError('reader-preset', error, { action: 'get-reader-preset' });
     res.status(500).json({
       error: 'Failed to get reader preset',
       message: error instanceof Error ? error.message : String(error),
@@ -92,12 +93,11 @@ router.get('/:id', async (req: Request, res: Response) => {
  * - If isSystem=true, requires admin role
  * - If userId is provided, creates a user preset
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const input = req.body as CreatePresetInput;
-    // TODO: Get userId and isAdmin from auth context
-    const userId = req.body.userId as string | undefined;
-    const isAdmin = req.body.isAdmin as boolean | undefined;
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin';
 
     // Only admins can create system presets
     if (input.isSystem && !isAdmin) {
@@ -108,7 +108,7 @@ router.post('/', async (req: Request, res: Response) => {
     const preset = await createPreset(input, userId);
     res.status(201).json(preset);
   } catch (error) {
-    console.error('Error creating reader preset:', error);
+    logError('reader-preset', error, { action: 'create-reader-preset' });
     res.status(400).json({
       error: 'Failed to create reader preset',
       message: error instanceof Error ? error.message : String(error),
@@ -120,18 +120,17 @@ router.post('/', async (req: Request, res: Response) => {
  * PUT /api/reader-presets/:id
  * Update an existing preset
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const input = req.body as UpdatePresetInput;
-    // TODO: Get userId and isAdmin from auth context
-    const userId = req.body.userId as string | undefined;
-    const isAdmin = req.body.isAdmin as boolean | undefined;
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin';
 
     const preset = await updatePreset(id!, input, userId, isAdmin);
     res.json(preset);
   } catch (error) {
-    console.error('Error updating reader preset:', error);
+    logError('reader-preset', error, { action: 'update-reader-preset' });
 
     // Handle specific error types
     const message = error instanceof Error ? error.message : String(error);
@@ -149,17 +148,16 @@ router.put('/:id', async (req: Request, res: Response) => {
  * DELETE /api/reader-presets/:id
  * Delete a preset
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    // TODO: Get userId and isAdmin from auth context
-    const userId = req.query.userId as string | undefined;
-    const isAdmin = req.query.isAdmin === 'true';
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin';
 
     await deletePreset(id!, userId, isAdmin);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error deleting reader preset:', error);
+    logError('reader-preset', error, { action: 'delete-reader-preset' });
 
     // Handle specific error types
     const message = error instanceof Error ? error.message : String(error);
@@ -181,7 +179,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * POST /api/reader-presets/:id/apply/library/:libraryId
  * Apply a preset to a library
  */
-router.post('/:id/apply/library/:libraryId', async (req: Request, res: Response) => {
+router.post('/:id/apply/library/:libraryId', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, libraryId } = req.params;
 
@@ -198,7 +196,7 @@ router.post('/:id/apply/library/:libraryId', async (req: Request, res: Response)
 
     res.json({ success: true, message: `Preset "${preset.name}" applied to library` });
   } catch (error) {
-    console.error('Error applying preset to library:', error);
+    logError('reader-preset', error, { action: 'apply-preset-to-library' });
     res.status(400).json({
       error: 'Failed to apply preset to library',
       message: error instanceof Error ? error.message : String(error),
@@ -210,7 +208,7 @@ router.post('/:id/apply/library/:libraryId', async (req: Request, res: Response)
  * POST /api/reader-presets/:id/apply/series/:seriesId
  * Apply a preset to a series
  */
-router.post('/:id/apply/series/:seriesId', async (req: Request, res: Response) => {
+router.post('/:id/apply/series/:seriesId', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, seriesId } = req.params;
 
@@ -227,7 +225,7 @@ router.post('/:id/apply/series/:seriesId', async (req: Request, res: Response) =
 
     res.json({ success: true, message: `Preset "${preset.name}" applied to series` });
   } catch (error) {
-    console.error('Error applying preset to series:', error);
+    logError('reader-preset', error, { action: 'apply-preset-to-series' });
     res.status(400).json({
       error: 'Failed to apply preset to series',
       message: error instanceof Error ? error.message : String(error),
@@ -239,7 +237,7 @@ router.post('/:id/apply/series/:seriesId', async (req: Request, res: Response) =
  * POST /api/reader-presets/:id/apply/issue/:fileId
  * Apply a preset to an issue (file)
  */
-router.post('/:id/apply/issue/:fileId', async (req: Request, res: Response) => {
+router.post('/:id/apply/issue/:fileId', requireAuth, async (req: Request, res: Response) => {
   try {
     const { id, fileId } = req.params;
 
@@ -256,7 +254,7 @@ router.post('/:id/apply/issue/:fileId', async (req: Request, res: Response) => {
 
     res.json({ success: true, message: `Preset "${preset.name}" applied to issue` });
   } catch (error) {
-    console.error('Error applying preset to issue:', error);
+    logError('reader-preset', error, { action: 'apply-preset-to-issue' });
     res.status(400).json({
       error: 'Failed to apply preset to issue',
       message: error instanceof Error ? error.message : String(error),

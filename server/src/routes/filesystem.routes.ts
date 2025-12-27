@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { readdir, stat } from 'fs/promises';
 import { homedir, platform } from 'os';
 import path from 'path';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -98,7 +99,7 @@ router.get('/roots', async (_req: Request, res: Response) => {
 
     res.json({ locations: existingLocations });
   } catch (error) {
-    console.error('Error getting filesystem roots:', error);
+    logError('filesystem', error, { action: 'get-filesystem-roots' });
     res.status(500).json({
       error: 'Failed to get filesystem roots',
       message: error instanceof Error ? error.message : String(error),
@@ -166,7 +167,7 @@ router.get('/browse', async (req: Request, res: Response) => {
       directories,
     });
   } catch (error) {
-    console.error('Error browsing directory:', error);
+    logError('filesystem', error, { action: 'browse-directory' });
     res.status(500).json({
       error: 'Failed to browse directory',
       message: error instanceof Error ? error.message : String(error),
@@ -218,7 +219,7 @@ router.get('/validate', async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Error validating path:', error);
+    logError('filesystem', error, { action: 'validate-path' });
     res.status(500).json({
       valid: false,
       error: 'Failed to validate path',

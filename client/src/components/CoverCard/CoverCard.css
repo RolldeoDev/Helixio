@@ -445,42 +445,26 @@
 }
 
 /* =============================================================================
-   Progress Bar
+   Progress Indicators (using shared Progress components)
    ============================================================================= */
 
-.cover-card__progress {
+.cover-card__progress-ring {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--cover-card-progress-bg);
+  bottom: 8px;
+  right: 8px;
+  z-index: 5;
 }
 
-.cover-card__progress-fill {
-  height: 100%;
-  background: var(--cover-card-progress-fill);
-  transition: width var(--cover-card-transition);
+.cover-card__completed-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
 }
 
 /* =============================================================================
    Badges
    ============================================================================= */
-
-/* Continue reading badge */
-.cover-card__continue-badge {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  padding: 4px 8px;
-  background: var(--cover-card-progress-fill);
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
 
 /* Custom badge */
 .cover-card__badge {
@@ -663,8 +647,8 @@
   z-index: 1000;
   min-width: 180px;
   padding: 4px 0;
-  background: var(--color-menu-bg, #1e1e32);
-  border: 1px solid var(--color-menu-border, rgba(255, 255, 255, 0.1));
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);
   box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
 }
@@ -672,7 +656,7 @@
 .cover-card-context-menu__divider {
   height: 1px;
   margin: 4px 8px;
-  background: var(--color-menu-border, rgba(255, 255, 255, 0.1));
+  background: var(--color-border-subtle);
 }
 
 .cover-card-context-menu__item {
@@ -691,12 +675,12 @@
 }
 
 .cover-card-context-menu__item:hover {
-  background: var(--color-menu-item-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-hover);
 }
 
 .cover-card-context-menu__item:focus-visible {
   outline: none;
-  background: var(--color-menu-item-hover, rgba(255, 255, 255, 0.1));
+  background: var(--color-hover);
 }
 
 .cover-card-context-menu__item--danger {

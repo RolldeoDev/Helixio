@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
 import { UnifiedMenu, buildMenuItems, MENU_PRESETS } from '../UnifiedMenu';
 import type { MenuState, MenuContext, MenuItem } from '../UnifiedMenu/types';
+import { ProgressRing, CompletedBadge } from '../Progress';
 import './SeriesCoverCard.css';
 
 // =============================================================================
@@ -338,23 +339,23 @@ export function SeriesCoverCard({
           />
         )}
 
-        {/* Progress bar */}
-        {totalOwned > 0 && !isComplete && (
-          <div className="series-cover-card__progress">
-            <div
-              className="series-cover-card__progress-fill"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
+        {/* Progress ring */}
+        {totalOwned > 0 && progressPercent > 0 && !isComplete && (
+          <ProgressRing
+            progress={progressPercent}
+            size="md"
+            showLabel
+            className="series-cover-card__progress-ring"
+          />
         )}
 
         {/* Completed indicator */}
         {isComplete && (
-          <div className="series-cover-card__completed" title="Series complete">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-            </svg>
-          </div>
+          <CompletedBadge
+            size="md"
+            title="Series complete"
+            className="series-cover-card__completed-badge"
+          />
         )}
 
         {/* Issue count badge */}

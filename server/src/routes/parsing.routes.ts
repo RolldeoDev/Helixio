@@ -19,6 +19,7 @@ import {
   ParsedFileMetadata,
 } from '../services/filename-parser.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -51,7 +52,7 @@ router.post('/parse', async (req: Request, res: Response): Promise<void> => {
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error parsing filename:', err);
+    logError('parsing', err, { action: 'parse-filename' });
     res.status(500).json({
       error: 'Parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -105,7 +106,7 @@ router.post('/parse-batch', async (req: Request, res: Response): Promise<void> =
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error in batch parse:', err);
+    logError('parsing', err, { action: 'parse-batch' });
     res.status(500).json({
       error: 'Batch parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -138,7 +139,7 @@ router.post('/parse-regex', async (req: Request, res: Response): Promise<void> =
       llmUsed: false,
     });
   } catch (err) {
-    console.error('Error parsing filename:', err);
+    logError('parsing', err, { action: 'parse-regex' });
     res.status(500).json({
       error: 'Parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -184,7 +185,7 @@ router.post('/parse-file/:fileId', async (req: Request, res: Response): Promise<
       llmUsed: useLLM && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error parsing file:', err);
+    logError('parsing', err, { action: 'parse-file' });
     res.status(500).json({
       error: 'Parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -257,7 +258,7 @@ router.post('/parse-files', async (req: Request, res: Response): Promise<void> =
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error parsing files:', err);
+    logError('parsing', err, { action: 'parse-files' });
     res.status(500).json({
       error: 'Batch parse failed',
       message: err instanceof Error ? err.message : String(err),
@@ -304,7 +305,7 @@ router.post('/suggest-rename', async (req: Request, res: Response): Promise<void
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error generating rename suggestion:', err);
+    logError('parsing', err, { action: 'suggest-rename' });
     res.status(500).json({
       error: 'Suggestion failed',
       message: err instanceof Error ? err.message : String(err),
@@ -368,7 +369,7 @@ router.post('/suggest-rename-batch', async (req: Request, res: Response): Promis
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error generating batch suggestions:', err);
+    logError('parsing', err, { action: 'suggest-rename-batch' });
     res.status(500).json({
       error: 'Batch suggestion failed',
       message: err instanceof Error ? err.message : String(err),
@@ -406,7 +407,7 @@ router.post('/suggest-rename-file/:fileId', async (req: Request, res: Response):
       llmUsed: useLLM && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error generating rename suggestion:', err);
+    logError('parsing', err, { action: 'suggest-rename-file' });
     res.status(500).json({
       error: 'Suggestion failed',
       message: err instanceof Error ? err.message : String(err),
@@ -431,7 +432,7 @@ router.get('/conventions', async (_req: Request, res: Response): Promise<void> =
       conventions,
     });
   } catch (err) {
-    console.error('Error loading conventions:', err);
+    logError('parsing', err, { action: 'get-conventions' });
     res.status(500).json({
       error: 'Failed to load conventions',
       message: err instanceof Error ? err.message : String(err),
@@ -452,7 +453,7 @@ router.get('/noise-tokens', async (_req: Request, res: Response): Promise<void> 
       noiseTokens: conventions.noise_tokens || [],
     });
   } catch (err) {
-    console.error('Error loading noise tokens:', err);
+    logError('parsing', err, { action: 'get-noise-tokens' });
     res.status(500).json({
       error: 'Failed to load noise tokens',
       message: err instanceof Error ? err.message : String(err),
@@ -480,7 +481,7 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
       noiseTokensCount: conventions.noise_tokens?.length || 0,
     });
   } catch (err) {
-    console.error('Error getting status:', err);
+    logError('parsing', err, { action: 'get-status' });
     res.status(500).json({
       error: 'Status check failed',
       message: err instanceof Error ? err.message : String(err),
@@ -558,7 +559,7 @@ router.post('/library/:libraryId/parse', async (req: Request, res: Response): Pr
       llmUsed: useLLM !== false && isLLMAvailable(),
     });
   } catch (err) {
-    console.error('Error parsing library files:', err);
+    logError('parsing', err, { action: 'parse-library-files' });
     res.status(500).json({
       error: 'Library parse failed',
       message: err instanceof Error ? err.message : String(err),

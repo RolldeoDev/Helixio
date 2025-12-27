@@ -21,8 +21,9 @@ import {
   updateSeriesProgress,
   findSeriesByAlias,
   restoreSeries,
-} from './series.service.js';
+} from './series/index.js';
 import { restoreSeriesItems } from './collection.service.js';
+import { logInfo } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -351,7 +352,7 @@ export async function linkFileToSeries(
   if (series?.deletedAt) {
     await restoreSeries(seriesId);
     await restoreSeriesItems(seriesId);
-    console.log(`Restored soft-deleted series: ${seriesId}`);
+    logInfo('series-matcher', `Restored soft-deleted series: ${seriesId}`);
   }
 
   await db.comicFile.update({
@@ -727,7 +728,7 @@ export async function confirmNotDuplicate(
 ): Promise<void> {
   // For now, this is a no-op. Could be extended to store
   // in a separate table to remember user decisions.
-  console.log(`Confirmed ${seriesId1} and ${seriesId2} are not duplicates`);
+  logInfo('series-matcher', `Confirmed ${seriesId1} and ${seriesId2} are not duplicates`);
 }
 
 // =============================================================================

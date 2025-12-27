@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import * as achievementsService from '../services/achievements.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ router.get('/', async (_req, res) => {
     const achievements = await achievementsService.getAllAchievementsWithProgress();
     res.json(achievements);
   } catch (error) {
-    console.error('Error fetching achievements:', error);
+    logError('achievements', error, { action: 'get-all-achievements' });
     res.status(500).json({ error: 'Failed to fetch achievements' });
   }
 });
@@ -26,7 +27,7 @@ router.get('/summary', async (_req, res) => {
     const summary = await achievementsService.getAchievementSummary();
     res.json(summary);
   } catch (error) {
-    console.error('Error fetching achievement summary:', error);
+    logError('achievements', error, { action: 'get-summary' });
     res.status(500).json({ error: 'Failed to fetch achievement summary' });
   }
 });
@@ -40,7 +41,7 @@ router.get('/categories', async (_req, res) => {
     const categories = await achievementsService.getCategoriesWithCounts();
     res.json(categories);
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    logError('achievements', error, { action: 'get-categories' });
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
@@ -54,7 +55,7 @@ router.get('/unlocked', async (_req, res) => {
     const unlocked = await achievementsService.getUnlockedAchievements();
     res.json(unlocked);
   } catch (error) {
-    console.error('Error fetching unlocked achievements:', error);
+    logError('achievements', error, { action: 'get-unlocked' });
     res.status(500).json({ error: 'Failed to fetch unlocked achievements' });
   }
 });
@@ -69,7 +70,7 @@ router.get('/recent', async (req, res) => {
     const recent = await achievementsService.getRecentUnlocks(limit);
     res.json(recent);
   } catch (error) {
-    console.error('Error fetching recent achievements:', error);
+    logError('achievements', error, { action: 'get-recent' });
     res.status(500).json({ error: 'Failed to fetch recent achievements' });
   }
 });
@@ -84,7 +85,7 @@ router.get('/category/:category', async (req, res) => {
     const achievements = await achievementsService.getAchievementsByCategory(category);
     res.json(achievements);
   } catch (error) {
-    console.error('Error fetching category achievements:', error);
+    logError('achievements', error, { action: 'get-by-category' });
     res.status(500).json({ error: 'Failed to fetch category achievements' });
   }
 });
@@ -103,7 +104,7 @@ router.post('/mark-notified', async (req, res): Promise<void> => {
     await achievementsService.markAchievementsNotified(achievementIds);
     res.json({ success: true });
   } catch (error) {
-    console.error('Error marking achievements notified:', error);
+    logError('achievements', error, { action: 'mark-notified' });
     res.status(500).json({ error: 'Failed to mark achievements notified' });
   }
 });
@@ -123,7 +124,7 @@ router.post('/seed', async (req, res): Promise<void> => {
     await achievementsService.seedAchievements(achievements);
     res.json({ success: true, message: `Seeded ${achievements.length} achievements` });
   } catch (error) {
-    console.error('Error seeding achievements:', error);
+    logError('achievements', error, { action: 'seed' });
     res.status(500).json({ error: 'Failed to seed achievements' });
   }
 });

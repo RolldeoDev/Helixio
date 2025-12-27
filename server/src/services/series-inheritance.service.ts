@@ -11,7 +11,7 @@
  */
 
 import { getDatabase } from './database.service.js';
-import { getSeries } from './series.service.js';
+import { getSeries } from './series/index.js';
 import { ComicInfo, mergeComicInfo, readComicInfo } from './comicinfo.service.js';
 import { createServiceLogger } from './logger.service.js';
 import { markDirtyForMetadataChange } from './stats-dirty.service.js';

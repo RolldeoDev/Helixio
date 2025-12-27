@@ -14,8 +14,11 @@ import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
-import { checkAndSoftDeleteEmptySeries, restoreSeries } from './series.service.js';
+import { checkAndSoftDeleteEmptySeries, restoreSeries } from './series/index.js';
 import { markFileItemsUnavailable } from './collection.service.js';
+import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+
+const logger = createServiceLogger('scanner');
 
 // Supported comic file extensions
 const COMIC_EXTENSIONS = new Set(['.cbz', '.cbr']);
@@ -312,10 +315,10 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
     try {
       const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
       if (wasDeleted) {
-        console.log(`Soft-deleted empty series: ${seriesId}`);
+        logInfo('scanner', `Soft-deleted empty series: ${seriesId}`, { seriesId });
       }
     } catch (err) {
-      console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+      logError('scanner', err, { action: 'soft-delete-check', seriesId });
     }
   }
 
@@ -326,7 +329,7 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
   });
 
   if (existingOrphanedFiles.length > 0) {
-    console.log(`Cleaning up ${existingOrphanedFiles.length} previously orphaned files`);
+    logInfo('scanner', `Cleaning up ${existingOrphanedFiles.length} previously orphaned files`, { count: existingOrphanedFiles.length });
 
     for (const file of existingOrphanedFiles) {
       if (file.seriesId) {
@@ -349,7 +352,7 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
       try {
         await checkAndSoftDeleteEmptySeries(seriesId);
       } catch (err) {
-        console.error(`Error checking series ${seriesId} for soft-delete:`, err);
+        logError('scanner', err, { action: 'soft-delete-check', seriesId });
       }
     }
   }
@@ -361,7 +364,7 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
     // Auto-link new files to series (Series-Centric Architecture)
     // This runs in the background and doesn't block the scan completion
     autoLinkNewFilesToSeries(newFileIds).catch((err) => {
-      console.error('Error auto-linking files to series:', err);
+      logError('scanner', err, { action: 'auto-link-files' });
     });
   }
 
@@ -430,9 +433,13 @@ async function autoLinkNewFilesToSeries(fileIds: string[]): Promise<void> {
   }
 
   if (metadataCached > 0 || linked > 0 || created > 0) {
-    console.log(
-      `Processed ${fileIds.length} files: ${metadataCached} metadata cached, ${linked} linked to series (${created} new series), ${failed} failed`
-    );
+    logInfo('scanner', `Processed ${fileIds.length} files`, {
+      totalFiles: fileIds.length,
+      metadataCached,
+      linked,
+      newSeries: created,
+      failed,
+    });
   }
 }
 
@@ -510,9 +517,13 @@ export async function processExistingFiles(libraryId?: string): Promise<{
     }
   }
 
-  console.log(
-    `Processed ${fileIds.length} existing files: ${metadataCached} metadata cached, ${linked} linked to series (${created} new series), ${failed} failed`
-  );
+  logInfo('scanner', `Processed ${fileIds.length} existing files`, {
+    totalFiles: fileIds.length,
+    metadataCached,
+    linked,
+    newSeries: created,
+    failed,
+  });
 
   return { processed: fileIds.length, linked, created, failed };
 }

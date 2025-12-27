@@ -149,22 +149,20 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Progress Badge */
-.collection-progress-badge {
+/* Progress indicators (using shared Progress components) */
+.collection-hero-progress-ring {
   position: absolute;
-  bottom: var(--spacing-sm);
+  top: var(--spacing-sm);
   right: var(--spacing-sm);
-  min-width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-primary);
-  border-radius: 50%;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.collection-hero-complete-badge {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  z-index: 10;
 }
 
 /* Hero Info */

@@ -8,6 +8,7 @@
 
 import { getDatabase } from './database.service.js';
 import { ProviderRegistry } from './metadata-providers/registry.js';
+import { logError } from './logger.service.js';
 import type {
   MetadataSource,
   SeriesMetadata,
@@ -380,7 +381,7 @@ export async function findCrossSourceMatches(
         return null;
       }
     } catch (error) {
-      console.error(`Error searching ${source}:`, error);
+      logError('cross-source-matcher', error instanceof Error ? error : new Error(String(error)), { action: 'search-source', source });
       result.status[source] = 'error';
       return null;
     }
@@ -715,7 +716,7 @@ export async function findIssueCrossMatches(
         matches.push(match);
       }
     } catch (error) {
-      console.error(`Error finding issue match in ${mapping.source}:`, error);
+      logError('cross-source-matcher', error instanceof Error ? error : new Error(String(error)), { action: 'find-issue-match', source: mapping.source });
     }
   }
 

@@ -1,0 +1,44 @@
+/* Completed Badge Component */
+.completed-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--completed-badge-color, var(--color-success, #22c55e));
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.completed-badge svg {
+  color: var(--completed-badge-icon-color, white);
+}
+
+/* Size variants */
+.completed-badge--sm {
+  width: 20px;
+  height: 20px;
+}
+
+.completed-badge--sm svg {
+  width: 12px;
+  height: 12px;
+}
+
+.completed-badge--md {
+  width: 24px;
+  height: 24px;
+}
+
+.completed-badge--md svg {
+  width: 14px;
+  height: 14px;
+}
+
+.completed-badge--lg {
+  width: 32px;
+  height: 32px;
+}
+
+.completed-badge--lg svg {
+  width: 18px;
+  height: 18px;
+}

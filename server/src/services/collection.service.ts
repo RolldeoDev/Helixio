@@ -16,6 +16,9 @@ import {
   deleteCollectionCover,
   type SeriesCoverForMosaic,
 } from './cover.service.js';
+import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+
+const logger = createServiceLogger('collection');
 
 // =============================================================================
 // Types
@@ -264,7 +267,7 @@ export function scheduleMosaicRegeneration(collectionId: string): void {
     try {
       await regenerateCollectionMosaic(collectionId);
     } catch (err) {
-      console.error(`[MosaicRegeneration] Error regenerating mosaic for collection ${collectionId}:`, err);
+      logError('collection', err, { action: 'mosaic-regeneration', collectionId });
     }
   }, 1000);
 
@@ -289,7 +292,7 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
   });
 
   if (!collection) {
-    console.log(`[MosaicRegeneration] Collection ${collectionId} not found`);
+    logDebug('collection', `Collection ${collectionId} not found`, { collectionId });
     return;
   }
 
@@ -298,7 +301,7 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
     return;
   }
 
-  console.log(`[MosaicRegeneration] Regenerating mosaic for collection ${collectionId}`);
+  logDebug('collection', `Regenerating mosaic for collection ${collectionId}`, { collectionId });
 
   // Get first 4 series items in the collection
   const seriesItems = await db.collectionItem.findMany({
@@ -360,7 +363,7 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
       where: { id: collectionId },
       data: { coverHash: null },
     });
-    console.log(`[MosaicRegeneration] Collection ${collectionId} is empty, cleared coverHash`);
+    logDebug('collection', `Collection ${collectionId} is empty, cleared coverHash`, { collectionId });
     return;
   }
 
@@ -370,14 +373,14 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
       where: { id: collectionId },
       data: { coverHash: null },
     });
-    console.log(`[MosaicRegeneration] Failed to generate mosaic for collection ${collectionId}`);
+    logDebug('collection', `Failed to generate mosaic for collection ${collectionId}`, { collectionId });
     return;
   }
 
   // Save the mosaic to disk
   const saveResult = await saveCollectionMosaicCover(result.buffer, result.coverHash);
   if (!saveResult.success) {
-    console.error(`[MosaicRegeneration] Failed to save mosaic: ${saveResult.error}`);
+    logError('collection', new Error(saveResult.error || 'Unknown error'), { action: 'save-mosaic', collectionId });
     return;
   }
 
@@ -387,7 +390,7 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
     data: { coverHash: result.coverHash },
   });
 
-  console.log(`[MosaicRegeneration] Successfully regenerated mosaic for collection ${collectionId}, hash: ${result.coverHash}`);
+  logDebug('collection', `Successfully regenerated mosaic for collection ${collectionId}`, { collectionId, coverHash: result.coverHash });
 }
 
 /**
@@ -894,7 +897,7 @@ export async function addItemsToCollection(
   if (addedItems.length > 0) {
     // Fire and forget - don't block the response
     recalculateCollectionMetadata(collectionId, userId).catch((err) => {
-      console.error(`Failed to recalculate metadata for collection ${collectionId}:`, err);
+      logError('collection', err, { action: 'recalculate-metadata', collectionId });
     });
   }
 
@@ -965,7 +968,7 @@ export async function removeItemsFromCollection(
   if (removedCount > 0) {
     // Fire and forget - don't block the response
     recalculateCollectionMetadata(collectionId, userId).catch((err) => {
-      console.error(`Failed to recalculate metadata for collection ${collectionId}:`, err);
+      logError('collection', err, { action: 'recalculate-metadata', collectionId });
     });
   }
 

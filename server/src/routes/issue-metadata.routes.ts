@@ -13,6 +13,7 @@ import {
   type MetadataSource,
   type IssueMetadata,
 } from '../services/issue-metadata-fetch.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -36,7 +37,7 @@ router.post('/:fileId/issue-metadata/search', async (req, res) => {
     return res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Error searching issue metadata:', message);
+    logError('issue-metadata', err, { action: 'search-issue-metadata' });
     return res.status(500).json({ error: message });
   }
 });
@@ -64,7 +65,7 @@ router.post('/:fileId/issue-metadata/fetch', async (req, res) => {
     return res.json({ metadata });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Error fetching issue metadata:', message);
+    logError('issue-metadata', err, { action: 'fetch-issue-metadata' });
     return res.status(500).json({ error: message });
   }
 });
@@ -94,7 +95,7 @@ router.post('/:fileId/issue-metadata/preview', async (req, res) => {
     return res.json(preview);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Error generating preview:', message);
+    logError('issue-metadata', err, { action: 'generate-preview' });
     return res.status(500).json({ error: message });
   }
 });
@@ -137,7 +138,7 @@ router.post('/:fileId/issue-metadata/apply', async (req, res) => {
     return res.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Error applying issue metadata:', message);
+    logError('issue-metadata', err, { action: 'apply-issue-metadata' });
     return res.status(500).json({ error: message });
   }
 });

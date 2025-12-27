@@ -16,6 +16,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { getDatabase } from '../services/database.service.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.middleware.js';
+import { cachePresets } from '../middleware/cache.middleware.js';
 import {
   createSeries,
   getSeries,
@@ -58,7 +59,7 @@ import {
   type UnifiedGridOptions,
   type DuplicateConfidence,
   type BulkSeriesUpdateInput,
-} from '../services/series.service.js';
+} from '../services/series/index.js';
 import {
   linkFileToSeries,
   unlinkFileFromSeries,
@@ -255,7 +256,7 @@ router.get('/search', asyncHandler(async (req: Request, res: Response) => {
  * GET /api/series/publishers
  * Get all unique publishers for filtering
  */
-router.get('/publishers', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/publishers', cachePresets.static, asyncHandler(async (_req: Request, res: Response) => {
   const publishers = await getAllPublishers();
   sendSuccess(res, { publishers });
 }));
@@ -264,7 +265,7 @@ router.get('/publishers', asyncHandler(async (_req: Request, res: Response) => {
  * GET /api/series/genres
  * Get all unique genres for filtering
  */
-router.get('/genres', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/genres', cachePresets.static, asyncHandler(async (_req: Request, res: Response) => {
   const genres = await getAllGenres();
   sendSuccess(res, { genres });
 }));

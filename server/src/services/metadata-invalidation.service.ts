@@ -16,7 +16,7 @@ import { getDatabase } from './database.service.js';
 import { createServiceLogger } from './logger.service.js';
 import { refreshMetadataCache, cacheFileMetadata } from './metadata-cache.service.js';
 import { readComicInfo, ComicInfo } from './comicinfo.service.js';
-import { syncSeriesToSeriesJson, updateSeriesProgress } from './series.service.js';
+import { syncSeriesToSeriesJson, updateSeriesProgress } from './series/index.js';
 import { sendMetadataChange, sendSeriesRefresh, sendFileRefresh } from './sse.service.js';
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { markDirtyForMetadataChange } from './stats-dirty.service.js';
@@ -599,7 +599,7 @@ export async function invalidateAfterApplyChanges(
   for (const seriesId of affectedSeriesIds) {
     try {
       // Update series progress counts
-      const { updateSeriesProgress } = await import('./series.service.js');
+      const { updateSeriesProgress } = await import('./series/index.js');
       await updateSeriesProgress(seriesId);
       result.seriesProcessed++;
     } catch (error) {

@@ -11,6 +11,7 @@ import {
 } from '../services/metadata-approval.service.js';
 import { SeriesCache } from '../services/series-cache.service.js';
 import { getDatabase } from '../services/database.service.js';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -73,7 +74,7 @@ router.post('/indexed-files', async (req: Request, res: Response): Promise<void>
       files: filesWithStatus,
     });
   } catch (err) {
-    console.error('Error checking indexed files:', err);
+    logError('metadata-approval', err, { action: 'check-indexed-files' });
     res.status(500).json({
       error: 'Failed to check indexed files',
       message: err instanceof Error ? err.message : String(err),
@@ -104,7 +105,7 @@ router.post('/sessions', async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json(sessionToResponse(session));
   } catch (err) {
-    console.error('Error creating approval session:', err);
+    logError('metadata-approval', err, { action: 'create-session' });
     res.status(500).json({
       error: 'Failed to create session',
       message: err instanceof Error ? err.message : String(err),
@@ -196,7 +197,7 @@ router.get('/sessions/:id', async (req: Request, res: Response): Promise<void> =
 
     res.json(sessionToResponse(session));
   } catch (err) {
-    console.error('Error getting session:', err);
+    logError('metadata-approval', err, { action: 'get-session' });
     res.status(500).json({
       error: 'Failed to get session',
       message: err instanceof Error ? err.message : String(err),
@@ -220,7 +221,7 @@ router.delete('/sessions/:id', async (req: Request, res: Response): Promise<void
 
     res.json({ success: true, message: 'Session cancelled' });
   } catch (err) {
-    console.error('Error deleting session:', err);
+    logError('metadata-approval', err, { action: 'delete-session' });
     res.status(500).json({
       error: 'Failed to delete session',
       message: err instanceof Error ? err.message : String(err),
@@ -262,7 +263,7 @@ router.post('/sessions/:id/series/search', async (req: Request, res: Response): 
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error searching series:', err);
+    logError('metadata-approval', err, { action: 'search-series' });
     res.status(500).json({
       error: 'Failed to search series',
       message: err instanceof Error ? err.message : String(err),
@@ -314,7 +315,7 @@ router.post('/sessions/:id/series/approve', async (req: Request, res: Response):
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error approving series:', err);
+    logError('metadata-approval', err, { action: 'approve-series' });
     res.status(500).json({
       error: 'Failed to approve series',
       message: err instanceof Error ? err.message : String(err),
@@ -345,7 +346,7 @@ router.post('/sessions/:id/series/skip', async (req: Request, res: Response): Pr
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error skipping series:', err);
+    logError('metadata-approval', err, { action: 'skip-series' });
     res.status(500).json({
       error: 'Failed to skip series',
       message: err instanceof Error ? err.message : String(err),
@@ -388,7 +389,7 @@ router.post('/sessions/:id/series/:index/reset', async (req: Request, res: Respo
       res.status(404).json({ error: 'Series group not found' });
       return;
     }
-    console.error('Error resetting series group:', err);
+    logError('metadata-approval', err, { action: 'reset-series-group' });
     res.status(500).json({
       error: 'Failed to reset series group',
       message: err instanceof Error ? err.message : String(err),
@@ -434,7 +435,7 @@ router.get('/sessions/:id/files', async (req: Request, res: Response): Promise<v
       },
     });
   } catch (err) {
-    console.error('Error getting file changes:', err);
+    logError('metadata-approval', err, { action: 'get-file-changes' });
     res.status(500).json({
       error: 'Failed to get file changes',
       message: err instanceof Error ? err.message : String(err),
@@ -480,7 +481,7 @@ router.get('/sessions/:id/files/:fileId/available-issues', async (req: Request, 
       res.status(400).json({ error: 'No series selected for this group' });
       return;
     }
-    console.error('Error getting available issues:', err);
+    logError('metadata-approval', err, { action: 'get-available-issues' });
     res.status(500).json({
       error: 'Failed to get available issues',
       message: err instanceof Error ? err.message : String(err),
@@ -522,7 +523,7 @@ router.post('/sessions/:id/files/match', async (req: Request, res: Response): Pr
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error matching file:', err);
+    logError('metadata-approval', err, { action: 'match-file' });
     res.status(500).json({
       error: 'Failed to match file',
       message: err instanceof Error ? err.message : String(err),
@@ -560,7 +561,7 @@ router.patch('/sessions/:id/files/:fileId/fields', async (req: Request, res: Res
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error updating fields:', err);
+    logError('metadata-approval', err, { action: 'update-fields' });
     res.status(500).json({
       error: 'Failed to update fields',
       message: err instanceof Error ? err.message : String(err),
@@ -588,7 +589,7 @@ router.post('/sessions/:id/files/:fileId/reject', async (req: Request, res: Resp
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error rejecting file:', err);
+    logError('metadata-approval', err, { action: 'reject-file' });
     res.status(500).json({
       error: 'Failed to reject file',
       message: err instanceof Error ? err.message : String(err),
@@ -616,7 +617,7 @@ router.post('/sessions/:id/files/accept-all', async (req: Request, res: Response
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error accepting all:', err);
+    logError('metadata-approval', err, { action: 'accept-all-files' });
     res.status(500).json({
       error: 'Failed to accept all',
       message: err instanceof Error ? err.message : String(err),
@@ -644,7 +645,7 @@ router.post('/sessions/:id/files/reject-all', async (req: Request, res: Response
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error rejecting all:', err);
+    logError('metadata-approval', err, { action: 'reject-all-files' });
     res.status(500).json({
       error: 'Failed to reject all',
       message: err instanceof Error ? err.message : String(err),
@@ -675,7 +676,7 @@ router.post('/sessions/:id/apply', async (req: Request, res: Response): Promise<
       res.status(404).json({ error: 'Session not found or expired' });
       return;
     }
-    console.error('Error applying changes:', err);
+    logError('metadata-approval', err, { action: 'apply-changes' });
     res.status(500).json({
       error: 'Failed to apply changes',
       message: err instanceof Error ? err.message : String(err),
@@ -704,7 +705,7 @@ router.get('/cache/stats', async (_req: Request, res: Response): Promise<void> =
       newestEntry: stats.newestEntry,
     });
   } catch (err) {
-    console.error('Error getting cache stats:', err);
+    logError('metadata-approval', err, { action: 'get-cache-stats' });
     res.status(500).json({
       error: 'Failed to get cache stats',
       message: err instanceof Error ? err.message : String(err),
@@ -726,7 +727,7 @@ router.post('/cache/clean', async (_req: Request, res: Response): Promise<void> 
       freedMb: Math.round(result.freedBytes / 1024 / 1024 * 100) / 100,
     });
   } catch (err) {
-    console.error('Error cleaning cache:', err);
+    logError('metadata-approval', err, { action: 'clean-cache' });
     res.status(500).json({
       error: 'Failed to clean cache',
       message: err instanceof Error ? err.message : String(err),
@@ -748,7 +749,7 @@ router.post('/cache/clear', async (_req: Request, res: Response): Promise<void> 
       freedMb: Math.round(result.freedBytes / 1024 / 1024 * 100) / 100,
     });
   } catch (err) {
-    console.error('Error clearing cache:', err);
+    logError('metadata-approval', err, { action: 'clear-cache' });
     res.status(500).json({
       error: 'Failed to clear cache',
       message: err instanceof Error ? err.message : String(err),

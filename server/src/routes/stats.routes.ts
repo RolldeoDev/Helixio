@@ -5,6 +5,7 @@
  */
 
 import { Router } from 'express';
+import { cachePresets } from '../middleware/cache.middleware.js';
 import {
   getAggregatedStats,
   getEntityStats,
@@ -19,6 +20,7 @@ import {
 } from '../services/stats-scheduler.service.js';
 import { getDirtyFlagCount } from '../services/stats-dirty.service.js';
 import type { EntityType } from '../services/stats-dirty.service.js';
+import { logError, logInfo } from '../services/logger.service.js';
 
 const router = Router();
 
@@ -30,13 +32,13 @@ const router = Router();
  * GET /api/stats
  * Get aggregated stats for user or specific library
  */
-router.get('/', async (req, res) => {
+router.get('/', cachePresets.shortTerm, async (req, res) => {
   try {
     const { libraryId } = req.query;
     const stats = await getAggregatedStats(libraryId as string | undefined);
     res.json(stats);
   } catch (error) {
-    console.error('Error getting aggregated stats:', error);
+    logError('stats', error, { action: 'get-aggregated-stats' });
     res.status(500).json({ error: 'Failed to get stats' });
   }
 });
@@ -45,7 +47,7 @@ router.get('/', async (req, res) => {
  * GET /api/stats/summary
  * Get summary with top entities for dashboard
  */
-router.get('/summary', async (req, res) => {
+router.get('/summary', cachePresets.shortTerm, async (req, res) => {
   try {
     const { libraryId } = req.query;
     const [stats, topEntities] = await Promise.all([
@@ -58,7 +60,7 @@ router.get('/summary', async (req, res) => {
       ...topEntities,
     });
   } catch (error) {
-    console.error('Error getting stats summary:', error);
+    logError('stats', error, { action: 'get-stats-summary' });
     res.status(500).json({ error: 'Failed to get stats summary' });
   }
 });
@@ -93,7 +95,7 @@ router.get('/entities/:entityType', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error('Error getting entity stats:', error);
+    logError('stats', error, { action: 'get-entity-stats' });
     res.status(500).json({ error: 'Failed to get entity stats' });
   }
 });
@@ -131,7 +133,7 @@ router.get('/entities/:entityType/:entityName', async (req, res) => {
 
     res.json(details);
   } catch (error) {
-    console.error('Error getting entity details:', error);
+    logError('stats', error, { action: 'get-entity-details' });
     res.status(500).json({ error: 'Failed to get entity details' });
   }
 });
@@ -168,7 +170,7 @@ router.get('/entities/:entityType/:entityName/stat', async (req, res) => {
 
     res.json(stat);
   } catch (error) {
-    console.error('Error getting entity stat:', error);
+    logError('stats', error, { action: 'get-entity-stat' });
     res.status(500).json({ error: 'Failed to get entity stat' });
   }
 });
@@ -188,8 +190,8 @@ router.post('/rebuild', async (req, res) => {
     if (scope === 'full') {
       // Queue full rebuild
       triggerFullRebuild()
-        .then(() => console.log('[Stats Routes] Full rebuild completed'))
-        .catch((err) => console.error('[Stats Routes] Full rebuild failed:', err));
+        .then(() => logInfo('stats', 'Full rebuild completed'))
+        .catch((err) => logError('stats', err, { action: 'full-rebuild' }));
 
       res.json({
         success: true,
@@ -205,7 +207,7 @@ router.post('/rebuild', async (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Error triggering rebuild:', error);
+    logError('stats', error, { action: 'trigger-rebuild' });
     res.status(500).json({ error: 'Failed to trigger rebuild' });
   }
 });
@@ -224,7 +226,7 @@ router.get('/scheduler', async (_req, res) => {
       pendingDirtyFlags: dirtyCount,
     });
   } catch (error) {
-    console.error('Error getting scheduler status:', error);
+    logError('stats', error, { action: 'get-scheduler-status' });
     res.status(500).json({ error: 'Failed to get scheduler status' });
   }
 });

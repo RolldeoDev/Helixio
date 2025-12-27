@@ -8,6 +8,7 @@ import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
 import * as crypto from 'crypto';
+import { logError } from '../services/logger.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -66,7 +67,7 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       })),
     });
   } catch (error) {
-    console.error('Get lists error:', error);
+    logError('shared-lists', error, { action: 'get-lists' });
     res.status(500).json({ error: 'Failed to get lists' });
   }
 });
@@ -108,7 +109,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Create list error:', error);
+    logError('shared-lists', error, { action: 'create-list' });
     res.status(500).json({ error: 'Failed to create list' });
   }
 });
@@ -144,7 +145,7 @@ router.get('/:listId', requireAuth, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Get list error:', error);
+    logError('shared-lists', error, { action: 'get-list' });
     res.status(500).json({ error: 'Failed to get list' });
   }
 });
@@ -207,7 +208,7 @@ router.patch('/:listId', requireAuth, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error('Update list error:', error);
+    logError('shared-lists', error, { action: 'update-list' });
     res.status(500).json({ error: 'Failed to update list' });
   }
 });
@@ -237,7 +238,7 @@ router.delete('/:listId', requireAuth, async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete list error:', error);
+    logError('shared-lists', error, { action: 'delete-list' });
     res.status(500).json({ error: 'Failed to delete list' });
   }
 });
@@ -268,7 +269,7 @@ router.post('/:listId/regenerate-code', requireAuth, async (req: Request, res: R
 
     res.json({ shareCode: list.shareCode });
   } catch (error) {
-    console.error('Regenerate code error:', error);
+    logError('shared-lists', error, { action: 'regenerate-code' });
     res.status(500).json({ error: 'Failed to regenerate share code' });
   }
 });
@@ -327,7 +328,7 @@ router.get('/shared/:shareCode', optionalAuth, async (req: Request, res: Respons
       isOwner: req.user?.id === list.ownerId,
     });
   } catch (error) {
-    console.error('Get shared list error:', error);
+    logError('shared-lists', error, { action: 'get-shared-list' });
     res.status(500).json({ error: 'Failed to get list' });
   }
 });
@@ -385,7 +386,7 @@ router.get('/browse/public', optionalAuth, async (req: Request, res: Response) =
       },
     });
   } catch (error) {
-    console.error('Browse public lists error:', error);
+    logError('shared-lists', error, { action: 'browse-public-lists' });
     res.status(500).json({ error: 'Failed to browse lists' });
   }
 });

@@ -12,6 +12,7 @@
 
 import { useCoverImage } from './useCoverImage';
 import type { ReadingProgressData } from './types';
+import { ProgressRing, CompletedBadge } from '../Progress';
 
 interface CoverImageProps {
   fileId: string;
@@ -77,21 +78,18 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
         />
       )}
 
-      {/* Reading progress bar */}
+      {/* Reading progress ring */}
       {isInProgress && (
-        <div className="cover-card__progress">
-          <div
-            className="cover-card__progress-fill"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+        <ProgressRing
+          progress={progressPercent}
+          size="sm"
+          className="cover-card__progress-ring"
+        />
       )}
 
-      {/* Continue reading badge */}
-      {isInProgress && (
-        <div className="cover-card__continue-badge" title={`${progressPercent}% complete`}>
-          Continue
-        </div>
+      {/* Completed badge */}
+      {progress?.completed && (
+        <CompletedBadge size="sm" className="cover-card__completed-badge" />
       )}
     </div>
   );

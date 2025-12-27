@@ -6,6 +6,8 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { AppProvider, useApp } from './contexts/AppContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { MetadataJobProvider, useMetadataJob } from './contexts/MetadataJobContext';
@@ -422,42 +424,44 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AppProvider>
-          <BreadcrumbProvider>
-            <LibraryScanProvider>
-            <SmartFilterProvider>
-              <CollectionsProvider>
-                <WantToReadProvider>
-                  <AnnotationsProvider>
-                    <MetadataJobProvider>
-                      <AchievementProvider>
-                        <DownloadProvider>
-                          <ToastProvider>
-                            <ConfirmModalProvider>
-                              <AppContent />
-                              {/* Toast notifications */}
-                              <Toast />
-                              {/* Achievement notifications */}
-                              <AchievementToast />
-                              {/* Download notifications */}
-                              <DownloadNotificationBar />
-                              <DownloadConfirmationModal />
-                            </ConfirmModalProvider>
-                          </ToastProvider>
-                        </DownloadProvider>
-                      </AchievementProvider>
-                    </MetadataJobProvider>
-                  </AnnotationsProvider>
-                </WantToReadProvider>
-              </CollectionsProvider>
-            </SmartFilterProvider>
-            </LibraryScanProvider>
-          </BreadcrumbProvider>
-        </AppProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppProvider>
+            <BreadcrumbProvider>
+              <LibraryScanProvider>
+              <SmartFilterProvider>
+                <CollectionsProvider>
+                  <WantToReadProvider>
+                    <AnnotationsProvider>
+                      <MetadataJobProvider>
+                        <AchievementProvider>
+                          <DownloadProvider>
+                            <ToastProvider>
+                              <ConfirmModalProvider>
+                                <AppContent />
+                                {/* Toast notifications */}
+                                <Toast />
+                                {/* Achievement notifications */}
+                                <AchievementToast />
+                                {/* Download notifications */}
+                                <DownloadNotificationBar />
+                                <DownloadConfirmationModal />
+                              </ConfirmModalProvider>
+                            </ToastProvider>
+                          </DownloadProvider>
+                        </AchievementProvider>
+                      </MetadataJobProvider>
+                    </AnnotationsProvider>
+                  </WantToReadProvider>
+                </CollectionsProvider>
+              </SmartFilterProvider>
+              </LibraryScanProvider>
+            </BreadcrumbProvider>
+          </AppProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 

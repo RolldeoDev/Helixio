@@ -2,6 +2,8 @@
  * App Context
  *
  * Global application state management for libraries, selection, and operations.
+ * Uses React Query for server state (libraries, files, folders) and local state
+ * for UI state (selections, filters, preferences).
  */
 
 import {
@@ -10,40 +12,40 @@ import {
   useState,
   useCallback,
   useEffect,
+  useMemo,
   ReactNode,
 } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useLibraries } from '../hooks/queries/useLibraries';
 import {
-  Library,
-  ComicFile,
-  getLibraries,
-  getLibraryFiles,
-  getLibraryFolders,
-  getAllLibraryFiles,
-  getAllLibraryFolders,
-  GetFilesParams,
-  LibraryFolders,
-} from '../services/api.service';
+  useFiles,
+  useLibraryFolders,
+  useAllLibraryFolders,
+  type ComicFile,
+  type LibraryFolders,
+} from '../hooks/queries/useFiles';
+import { invalidateLibraries, invalidateFiles } from '../lib/cacheInvalidation';
+import type { Library } from '../services/api/libraries';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 interface AppState {
-  // Libraries
+  // Libraries (from React Query)
   libraries: Library[];
   selectedLibrary: Library | null;
   isAllLibraries: boolean;
   loadingLibraries: boolean;
   librariesError: string | null;
 
-  // Folders (single library mode: flat list, all libraries mode: grouped by library)
+  // Folders (from React Query)
   folders: string[];
   allLibraryFolders: LibraryFolders[];
   selectedFolder: string | null;
   loadingFolders: boolean;
 
-  // Files
+  // Files (from React Query)
   files: ComicFile[];
   selectedFiles: Set<string>;
   loadingFiles: boolean;
@@ -151,33 +153,25 @@ interface AppProviderProps {
 export function AppProvider({ children }: AppProviderProps) {
   const location = useLocation();
 
-  // Libraries
-  const [libraries, setLibraries] = useState<Library[]>([]);
-  const [selectedLibrary, setSelectedLibrary] = useState<Library | null>(null);
+  // ---------------------------------------------------------------------------
+  // UI State (local)
+  // ---------------------------------------------------------------------------
+
+  // Library selection
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(() => {
+    const stored = localStorage.getItem(LAST_LIBRARY_KEY);
+    return stored === 'all' ? null : stored;
+  });
   const [isAllLibraries, setIsAllLibraries] = useState<boolean>(() => {
     return localStorage.getItem(LAST_LIBRARY_KEY) === 'all';
   });
-  const [loadingLibraries, setLoadingLibraries] = useState(true);
-  const [librariesError, setLibrariesError] = useState<string | null>(null);
 
-  // Folders
-  const [folders, setFolders] = useState<string[]>([]);
-  const [allLibraryFolders, setAllLibraryFolders] = useState<LibraryFolders[]>([]);
+  // Folder selection
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [loadingFolders, setLoadingFolders] = useState(false);
 
-  // Files
-  const [files, setFiles] = useState<ComicFile[]>([]);
+  // File selection
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [lastSelectedFileId, setLastSelectedFileId] = useState<string | null>(null);
-  const [loadingFiles, setLoadingFiles] = useState(false);
-  const [filesError, setFilesError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 50,
-    total: 0,
-    pages: 0,
-  });
 
   // Series selection (for bulk operations on SeriesPage)
   const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set());
@@ -196,7 +190,7 @@ export function AppProvider({ children }: AppProviderProps) {
   const [operationInProgress, setOperationInProgress] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
 
-  // Display preferences (loaded from localStorage)
+  // Display preferences
   const [preferFilenameOverMetadata, setPreferFilenameOverMetadataState] = useState<boolean>(() => {
     const stored = localStorage.getItem(PREFER_FILENAME_KEY);
     return stored === 'true';
@@ -205,8 +199,86 @@ export function AppProvider({ children }: AppProviderProps) {
   // Mobile sidebar
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // ---------------------------------------------------------------------------
+  // React Query Hooks (server state)
+  // ---------------------------------------------------------------------------
+
+  // Libraries
+  const {
+    data: libraries = [],
+    isLoading: loadingLibraries,
+    error: librariesQueryError,
+    refetch: refetchLibraries,
+  } = useLibraries();
+
+  // Derive selectedLibrary from libraries data and selectedLibraryId
+  const selectedLibrary = useMemo(() => {
+    if (isAllLibraries || !selectedLibraryId) return null;
+    return libraries.find((lib) => lib.id === selectedLibraryId) ?? null;
+  }, [libraries, selectedLibraryId, isAllLibraries]);
+
+  // Auto-select library from localStorage on initial load
+  useEffect(() => {
+    if (libraries.length > 0 && selectedLibraryId && !selectedLibrary && !isAllLibraries) {
+      // Stored library no longer exists, clear it
+      localStorage.removeItem(LAST_LIBRARY_KEY);
+      setSelectedLibraryId(null);
+    }
+  }, [libraries, selectedLibraryId, selectedLibrary, isAllLibraries]);
+
+  // Folders for single library
+  const {
+    data: singleLibraryFolders = [],
+    isLoading: loadingSingleFolders,
+  } = useLibraryFolders(selectedLibrary?.id);
+
+  // Folders for all libraries
+  const {
+    data: allLibraryFoldersData = [],
+    isLoading: loadingAllFolders,
+  } = useAllLibraryFolders();
+
+  // Derive folder state
+  const folders = isAllLibraries ? [] : singleLibraryFolders;
+  const allLibraryFolders = isAllLibraries ? allLibraryFoldersData : [];
+  const loadingFolders = isAllLibraries ? loadingAllFolders : loadingSingleFolders;
+
+  // Files query params
+  const filesParams = useMemo(() => ({
+    libraryId: isAllLibraries ? null : selectedLibrary?.id,
+    all: true, // Fetch all files for infinite scroll with navigation sidebar
+    sort: sortField,
+    order: sortOrder,
+    groupBy: groupField !== 'none' ? groupField : undefined,
+    status: statusFilter ?? undefined,
+    folder: selectedFolder ?? undefined,
+  }), [isAllLibraries, selectedLibrary?.id, sortField, sortOrder, groupField, statusFilter, selectedFolder]);
+
+  // Files
+  const {
+    data: filesData,
+    isLoading: loadingFiles,
+    error: filesQueryError,
+    refetch: refetchFiles,
+  } = useFiles({
+    ...filesParams,
+    enabled: isAllLibraries || !!selectedLibrary,
+  });
+
+  // Derive files state
+  const files = filesData?.files ?? [];
+  const pagination = filesData?.pagination ?? { page: 1, limit: 50, total: 0, pages: 0 };
+
+  // Error handling
+  const librariesError = librariesQueryError instanceof Error ? librariesQueryError.message : null;
+  const filesError = filesQueryError instanceof Error ? filesQueryError.message : null;
+
+  // ---------------------------------------------------------------------------
+  // Mobile sidebar
+  // ---------------------------------------------------------------------------
+
   const toggleMobileSidebar = useCallback(() => {
-    setMobileSidebarOpen(prev => !prev);
+    setMobileSidebarOpen((prev) => !prev);
   }, []);
 
   // Close mobile sidebar on route change
@@ -228,68 +300,31 @@ export function AppProvider({ children }: AppProviderProps) {
   // ---------------------------------------------------------------------------
 
   const refreshLibraries = useCallback(async () => {
-    setLoadingLibraries(true);
-    setLibrariesError(null);
-
-    try {
-      const response = await getLibraries();
-      setLibraries(response.libraries);
-
-      // If we had a library selected, update it with fresh data
-      if (selectedLibrary) {
-        const updated = response.libraries.find((l) => l.id === selectedLibrary.id);
-        if (updated) {
-          setSelectedLibrary(updated);
-        } else {
-          setSelectedLibrary(null);
-          localStorage.removeItem(LAST_LIBRARY_KEY);
-        }
-      } else if (!isAllLibraries) {
-        // On initial load, try to restore the last selected library
-        // (skip if already in all-libraries mode, which is initialized from localStorage)
-        const lastLibraryId = localStorage.getItem(LAST_LIBRARY_KEY);
-        if (lastLibraryId && lastLibraryId !== 'all') {
-          const lastLibrary = response.libraries.find((l) => l.id === lastLibraryId);
-          if (lastLibrary) {
-            setSelectedLibrary(lastLibrary);
-          } else {
-            // Library no longer exists, clear the stored ID
-            localStorage.removeItem(LAST_LIBRARY_KEY);
-          }
-        }
-      }
-    } catch (err) {
-      setLibrariesError(err instanceof Error ? err.message : 'Failed to load libraries');
-    } finally {
-      setLoadingLibraries(false);
-    }
-  }, [selectedLibrary, isAllLibraries]);
+    invalidateLibraries();
+    await refetchLibraries();
+  }, [refetchLibraries]);
 
   const selectLibrary = useCallback((library: Library | null | 'all') => {
     // Handle 'all' case
     if (library === 'all') {
       if (isAllLibraries) return; // Already in all-libraries mode
       setIsAllLibraries(true);
-      setSelectedLibrary(null);
+      setSelectedLibraryId(null);
       setSelectedFolder(null);
-      setFiles([]);
       setSelectedFiles(new Set());
-      setPagination({ page: 1, limit: 50, total: 0, pages: 0 });
       localStorage.setItem(LAST_LIBRARY_KEY, 'all');
       return;
     }
 
-    // If selecting the same library, don't reset files - just keep current state
-    if (!isAllLibraries && library?.id === selectedLibrary?.id) {
+    // If selecting the same library, don't reset - just keep current state
+    if (!isAllLibraries && library?.id === selectedLibraryId) {
       return;
     }
 
     setIsAllLibraries(false);
-    setSelectedLibrary(library);
+    setSelectedLibraryId(library?.id ?? null);
     setSelectedFolder(null);
-    setFiles([]);
     setSelectedFiles(new Set());
-    setPagination({ page: 1, limit: 50, total: 0, pages: 0 });
 
     // Persist last selected library to localStorage
     if (library) {
@@ -297,7 +332,7 @@ export function AppProvider({ children }: AppProviderProps) {
     } else {
       localStorage.removeItem(LAST_LIBRARY_KEY);
     }
-  }, [selectedLibrary?.id, isAllLibraries]);
+  }, [selectedLibraryId, isAllLibraries]);
 
   const selectAllLibraries = useCallback(() => {
     selectLibrary('all');
@@ -307,104 +342,19 @@ export function AppProvider({ children }: AppProviderProps) {
   // Folder Actions
   // ---------------------------------------------------------------------------
 
-  const selectFolder = useCallback((folder: string | null) => {
+  const selectFolderCallback = useCallback((folder: string | null) => {
     setSelectedFolder(folder);
     setSelectedFiles(new Set());
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
-
-  // Load folders when library changes
-  useEffect(() => {
-    if (isAllLibraries) {
-      // Load folders from all libraries
-      setLoadingFolders(true);
-      getAllLibraryFolders()
-        .then((response) => {
-          setAllLibraryFolders(response.libraries);
-          setFolders([]); // Clear single-library folders
-        })
-        .catch(() => {
-          setAllLibraryFolders([]);
-          setFolders([]);
-        })
-        .finally(() => setLoadingFolders(false));
-      return;
-    }
-
-    if (!selectedLibrary) {
-      setFolders([]);
-      setAllLibraryFolders([]);
-      return;
-    }
-
-    setLoadingFolders(true);
-    getLibraryFolders(selectedLibrary.id)
-      .then((response) => {
-        setFolders(response.folders);
-        setAllLibraryFolders([]); // Clear all-library folders
-      })
-      .catch(() => {
-        setFolders([]);
-        setAllLibraryFolders([]);
-      })
-      .finally(() => setLoadingFolders(false));
-  }, [selectedLibrary, isAllLibraries]);
 
   // ---------------------------------------------------------------------------
   // File Actions
   // ---------------------------------------------------------------------------
 
-  const refreshFiles = useCallback(async () => {
-    // Need either a selected library OR all-libraries mode
-    if (!selectedLibrary && !isAllLibraries) {
-      setFiles([]);
-      return;
-    }
-
-    setLoadingFiles(true);
-    setFilesError(null);
-
-    const params: GetFilesParams = {
-      all: true, // Fetch all files for infinite scroll with navigation sidebar
-      sort: sortField,
-      order: sortOrder,
-      groupBy: groupField,
-    };
-
-    if (statusFilter) {
-      params.status = statusFilter;
-    }
-
-    if (selectedFolder) {
-      params.folder = selectedFolder;
-    }
-
-    try {
-      // Use different API based on mode
-      const response = isAllLibraries
-        ? await getAllLibraryFiles(params)
-        : await getLibraryFiles(selectedLibrary!.id, params);
-      setFiles(response.files);
-      setPagination(response.pagination);
-    } catch (err) {
-      setFilesError(err instanceof Error ? err.message : 'Failed to load files');
-    } finally {
-      setLoadingFiles(false);
-    }
-  }, [
-    selectedLibrary,
-    isAllLibraries,
-    sortField,
-    sortOrder,
-    groupField,
-    statusFilter,
-    selectedFolder,
-  ]);
-
-  // Load files when filters change
-  useEffect(() => {
-    refreshFiles();
-  }, [refreshFiles]);
+  const refreshFilesCallback = useCallback(async () => {
+    invalidateFiles();
+    await refetchFiles();
+  }, [refetchFiles]);
 
   const selectFile = useCallback((fileId: string, multi = false) => {
     setSelectedFiles((prev) => {
@@ -419,29 +369,32 @@ export function AppProvider({ children }: AppProviderProps) {
     setLastSelectedFileId(fileId);
   }, []);
 
-  const selectRange = useCallback((fromId: string, toId: string) => {
-    const fromIndex = files.findIndex((f) => f.id === fromId);
-    const toIndex = files.findIndex((f) => f.id === toId);
+  const selectRange = useCallback(
+    (fromId: string, toId: string) => {
+      const fromIndex = files.findIndex((f) => f.id === fromId);
+      const toIndex = files.findIndex((f) => f.id === toId);
 
-    if (fromIndex === -1 || toIndex === -1) return;
+      if (fromIndex === -1 || toIndex === -1) return;
 
-    const start = Math.min(fromIndex, toIndex);
-    const end = Math.max(fromIndex, toIndex);
+      const start = Math.min(fromIndex, toIndex);
+      const end = Math.max(fromIndex, toIndex);
 
-    const rangeIds = files.slice(start, end + 1).map((f) => f.id);
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      rangeIds.forEach((id) => next.add(id));
-      return next;
-    });
-    setLastSelectedFileId(toId);
-  }, [files]);
+      const rangeIds = files.slice(start, end + 1).map((f) => f.id);
+      setSelectedFiles((prev) => {
+        const next = new Set(prev);
+        rangeIds.forEach((id) => next.add(id));
+        return next;
+      });
+      setLastSelectedFileId(toId);
+    },
+    [files]
+  );
 
   const selectAllFiles = useCallback(() => {
     setSelectedFiles(new Set(files.map((f) => f.id)));
   }, [files]);
 
-  const selectFiles = useCallback((fileIds: string[], selected: boolean) => {
+  const selectFilesCallback = useCallback((fileIds: string[], selected: boolean) => {
     setSelectedFiles((prev) => {
       const next = new Set(prev);
       if (selected) {
@@ -462,12 +415,7 @@ export function AppProvider({ children }: AppProviderProps) {
   // Series Selection Actions
   // ---------------------------------------------------------------------------
 
-  /**
-   * Select or deselect a series.
-   * @param seriesId - The series ID to select/deselect
-   * @param selected - true to select, false to deselect. If undefined, toggles.
-   */
-  const selectSeries = useCallback((seriesId: string, selected?: boolean) => {
+  const selectSeriesCallback = useCallback((seriesId: string, selected?: boolean) => {
     setSelectedSeries((prev) => {
       const next = new Set(prev);
       const isCurrentlySelected = next.has(seriesId);
@@ -503,7 +451,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setLastSelectedSeriesId(toId);
   }, []);
 
-  const selectAllSeries = useCallback((seriesIds: string[]) => {
+  const selectAllSeriesCallback = useCallback((seriesIds: string[]) => {
     setSelectedSeries(new Set(seriesIds));
   }, []);
 
@@ -518,27 +466,28 @@ export function AppProvider({ children }: AppProviderProps) {
 
   const handleSetStatusFilter = useCallback((status: string | null) => {
     setStatusFilter(status);
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   const setSort = useCallback((field: string, order: 'asc' | 'desc') => {
     setSortField(field);
     setSortOrder(order);
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
   const setGroupField = useCallback((field: string) => {
     setGroupFieldState(field);
     localStorage.setItem(GROUP_FIELD_KEY, field);
-    setPagination((p) => ({ ...p, page: 1 }));
   }, []);
 
-  const setPage = useCallback((page: number) => {
-    setPagination((p) => ({ ...p, page }));
+  // Pagination is now managed by React Query, but we keep these for API compatibility
+  const setPage = useCallback((_page: number) => {
+    // React Query handles pagination through query params
+    // This is kept for backward compatibility but is essentially a no-op
+    // since we fetch all files at once
   }, []);
 
-  const setPageSize = useCallback((size: number) => {
-    setPagination((p) => ({ ...p, limit: size, page: 1 }));
+  const setPageSize = useCallback((_size: number) => {
+    // React Query handles pagination through query params
+    // This is kept for backward compatibility
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -548,14 +497,6 @@ export function AppProvider({ children }: AppProviderProps) {
   const setOperation = useCallback((operation: string | null, message: string | null = null) => {
     setOperationInProgress(operation);
     setOperationMessage(message);
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // Initial Load
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    refreshLibraries();
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -592,18 +533,18 @@ export function AppProvider({ children }: AppProviderProps) {
     refreshLibraries,
     selectLibrary,
     selectAllLibraries,
-    selectFolder,
-    refreshFiles,
+    selectFolder: selectFolderCallback,
+    refreshFiles: refreshFilesCallback,
     selectFile,
     selectRange,
     selectAllFiles,
-    selectFiles,
+    selectFiles: selectFilesCallback,
     clearSelection,
     lastSelectedFileId,
     // Series selection actions
-    selectSeries,
+    selectSeries: selectSeriesCallback,
     selectSeriesRange,
-    selectAllSeries,
+    selectAllSeries: selectAllSeriesCallback,
     clearSeriesSelection,
     lastSelectedSeriesId,
     setStatusFilter: handleSetStatusFilter,

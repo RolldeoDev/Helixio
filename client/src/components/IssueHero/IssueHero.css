@@ -88,47 +88,19 @@
   color: rgba(255, 255, 255, 0.3);
 }
 
-/* Progress badge on cover */
-.issue-hero__progress-badge {
+/* Progress indicators (using shared Progress components) */
+.issue-hero__progress-ring {
   position: absolute;
   top: -8px;
   right: -8px;
-  min-width: 40px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--spacing-xs);
-  background: var(--color-primary);
-  border-radius: var(--radius-md);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 }
 
-.issue-hero__progress-badge span {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: white;
-}
-
-/* Complete badge */
 .issue-hero__complete-badge {
   position: absolute;
   top: -8px;
   right: -8px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-success);
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.issue-hero__complete-badge svg {
-  width: 18px;
-  height: 18px;
-  color: white;
+  z-index: 10;
 }
 
 @media (max-width: 768px) {
