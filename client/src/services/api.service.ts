@@ -3064,6 +3064,7 @@ export interface Series {
   createdAt: string;
   updatedAt: string;
   lastSyncedAt: string | null;
+  isHidden: boolean;
   _count?: { issues: number };
   progress?: SeriesProgress | null;
   // First issue for cover fallback (User > API > First Issue)
@@ -3094,6 +3095,7 @@ export interface SeriesListOptions {
   genres?: string[];
   hasUnread?: boolean;
   libraryId?: string;
+  includeHidden?: boolean;  // When true, include hidden series in results
 }
 
 export interface SeriesListResult {
@@ -4576,6 +4578,7 @@ export interface Collection {
   id: string;
   name: string;
   description: string | null;
+  deck: string | null;
   isSystem: boolean;
   systemKey: 'favorites' | 'want-to-read' | null;
   iconName: string | null;
@@ -4665,10 +4668,11 @@ export async function getSystemCollection(
 export async function createCollection(
   name: string,
   description?: string,
+  deck?: string,
   iconName?: string,
   color?: string
 ): Promise<Collection> {
-  return post<Collection>('/collections', { name, description, iconName, color });
+  return post<Collection>('/collections', { name, description, deck, iconName, color });
 }
 
 /**
@@ -4676,7 +4680,7 @@ export async function createCollection(
  */
 export async function updateCollection(
   id: string,
-  data: { name?: string; description?: string; iconName?: string; color?: string; sortOrder?: number }
+  data: { name?: string; description?: string; deck?: string; iconName?: string; color?: string; sortOrder?: number }
 ): Promise<Collection> {
   return put<Collection>(`/collections/${id}`, data);
 }
@@ -5237,6 +5241,16 @@ export async function toggleSeriesHidden(seriesId: string): Promise<Series> {
  */
 export async function getHiddenSeries(): Promise<{ series: RelatedSeriesInfo[] }> {
   return get<{ series: RelatedSeriesInfo[] }>('/series/admin/hidden');
+}
+
+/**
+ * Bulk set hidden status for multiple series
+ */
+export async function bulkSetSeriesHidden(
+  seriesIds: string[],
+  hidden: boolean
+): Promise<BulkOperationResult> {
+  return post<BulkOperationResult>('/series/bulk-set-hidden', { seriesIds, hidden });
 }
 
 // =============================================================================

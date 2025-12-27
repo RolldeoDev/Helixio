@@ -116,6 +116,48 @@
   border-color: var(--color-text-muted);
 }
 
+/* Library Filter Group - wraps library select + show hidden toggle */
+.library-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+/* Show Hidden Toggle */
+.show-hidden-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.show-hidden-toggle:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+.show-hidden-toggle:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.show-hidden-toggle input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 /* Clear Filters Button */
 .clear-filters-btn {
   width: 28px;

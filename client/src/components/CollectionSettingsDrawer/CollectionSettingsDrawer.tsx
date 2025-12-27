@@ -38,6 +38,7 @@ interface CollectionSettingsDrawerProps {
 
 export interface CollectionUpdates {
   name?: string;
+  deck?: string;
   description?: string;
   iconName?: string;
   color?: string;
@@ -102,6 +103,7 @@ export function CollectionSettingsDrawer({
 
   // Form state
   const [name, setName] = useState('');
+  const [deck, setDeck] = useState('');
   const [description, setDescription] = useState('');
   const [iconName, setIconName] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
@@ -129,6 +131,7 @@ export function CollectionSettingsDrawer({
   useEffect(() => {
     if (collection) {
       setName(collection.name);
+      setDeck(collection.deck || '');
       setDescription(collection.description || '');
       setIconName(collection.iconName || null);
       setColor(collection.color || null);
@@ -295,6 +298,7 @@ export function CollectionSettingsDrawer({
     try {
       const updates: CollectionUpdates = {
         name: name !== collection.name ? name : undefined,
+        deck: deck !== (collection.deck || '') ? deck || undefined : undefined,
         description: description !== (collection.description || '') ? description || undefined : undefined,
         iconName: iconName !== collection.iconName ? iconName || undefined : undefined,
         color: color !== collection.color ? color || undefined : undefined,
@@ -498,6 +502,18 @@ export function CollectionSettingsDrawer({
                 {collection.isSystem && (
                   <span className="form-hint">System collections cannot be renamed</span>
                 )}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="collection-deck">Tagline</label>
+                <input
+                  id="collection-deck"
+                  type="text"
+                  value={deck}
+                  onChange={(e) => { setDeck(e.target.value); markChanged(); }}
+                  placeholder="A short tagline for this collection..."
+                />
+                <span className="form-hint">A brief summary shown under the collection title</span>
               </div>
 
               <div className="form-group">

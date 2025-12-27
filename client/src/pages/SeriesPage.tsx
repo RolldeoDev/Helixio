@@ -23,6 +23,7 @@ import {
   bulkToggleWantToRead,
   bulkMarkSeriesRead,
   bulkMarkSeriesUnread,
+  bulkSetSeriesHidden,
   SeriesListOptions,
 } from '../services/api.service';
 import { useApp } from '../contexts/AppContext';
@@ -50,6 +51,7 @@ export function SeriesPage() {
   const [type, setType] = useState<'western' | 'manga' | ''>('');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [hasUnread, setHasUnread] = useState<boolean | undefined>(undefined);
+  const [showHidden, setShowHidden] = useState(false);
   const [sortBy, setSortBy] = useState<SeriesListOptions['sortBy']>('name');
 
   // Derive libraryId from AppContext for API calls
@@ -90,7 +92,7 @@ export function SeriesPage() {
   // Clear selection when filters change
   useEffect(() => {
     clearSeriesSelection();
-  }, [search, publisher, type, selectedGenres, hasUnread, libraryId, sortBy, sortOrder, clearSeriesSelection]);
+  }, [search, publisher, type, selectedGenres, hasUnread, showHidden, libraryId, sortBy, sortOrder, clearSeriesSelection]);
 
   // Clear selection on unmount
   useEffect(() => {
@@ -202,6 +204,24 @@ export function SeriesPage() {
     }
   }, [selectedSeries, startJob, clearSeriesSelection, addToast]);
 
+  const handleSetHidden = useCallback(async (hidden: boolean) => {
+    const count = selectedSeries.size;
+    setIsBulkLoading(true);
+    try {
+      await bulkSetSeriesHidden(Array.from(selectedSeries), hidden);
+      clearSeriesSelection();
+      addToast('success', hidden
+        ? `Hidden ${count} series`
+        : `Unhidden ${count} series`
+      );
+    } catch (err) {
+      console.error('Failed to set hidden status:', err);
+      addToast('error', hidden ? 'Failed to hide series' : 'Failed to unhide series');
+    } finally {
+      setIsBulkLoading(false);
+    }
+  }, [selectedSeries, clearSeriesSelection, addToast]);
+
   const handleBatchEditComplete = useCallback((updatedCount: number) => {
     clearSeriesSelection();
     addToast('success', `Updated ${updatedCount} series`);
@@ -217,7 +237,8 @@ export function SeriesPage() {
     ...(selectedGenres.length > 0 && { genres: selectedGenres }),
     ...(hasUnread !== undefined && { hasUnread }),
     ...(libraryId && { libraryId }),
-  }), [sortBy, sortOrder, search, publisher, type, selectedGenres, hasUnread, libraryId]);
+    ...(showHidden && { includeHidden: true }),
+  }), [sortBy, sortOrder, search, publisher, type, selectedGenres, hasUnread, libraryId, showHidden]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
@@ -235,11 +256,12 @@ export function SeriesPage() {
     setType('');
     setSelectedGenres([]);
     setHasUnread(undefined);
+    setShowHidden(false);
     // Select "All Libraries" when clearing filters
     selectLibrary('all');
   };
 
-  const hasActiveFilters = search || publisher || type || selectedGenres.length > 0 || hasUnread !== undefined || libraryId;
+  const hasActiveFilters = search || publisher || type || selectedGenres.length > 0 || hasUnread !== undefined || libraryId || showHidden;
 
   return (
     <div className="series-page">
@@ -284,28 +306,38 @@ export function SeriesPage() {
             <option value="issueCount-asc">Fewest Issues</option>
           </select>
 
-          <select
-            id="library-select"
-            className="filter-select"
-            value={libraryId}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (value === '') {
-                selectLibrary('all');
-              } else {
-                const lib = libraries.find(l => l.id === value);
-                if (lib) selectLibrary(lib);
-              }
-            }}
-            title="Library"
-          >
-            <option value="">All Libraries</option>
-            {libraries.map((lib) => (
-              <option key={lib.id} value={lib.id}>
-                {lib.name}
-              </option>
-            ))}
-          </select>
+          <div className="library-filter-group">
+            <select
+              id="library-select"
+              className="filter-select"
+              value={libraryId}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '') {
+                  selectLibrary('all');
+                } else {
+                  const lib = libraries.find(l => l.id === value);
+                  if (lib) selectLibrary(lib);
+                }
+              }}
+              title="Library"
+            >
+              <option value="">All Libraries</option>
+              {libraries.map((lib) => (
+                <option key={lib.id} value={lib.id}>
+                  {lib.name}
+                </option>
+              ))}
+            </select>
+            <label className="show-hidden-toggle" title="Show hidden series">
+              <input
+                type="checkbox"
+                checked={showHidden}
+                onChange={(e) => setShowHidden(e.target.checked)}
+              />
+              <span>Show Hidden</span>
+            </label>
+          </div>
 
           <select
             id="publisher-select"
@@ -382,6 +414,7 @@ export function SeriesPage() {
           onMarkUnread={handleMarkUnread}
           onFetchMetadata={handleFetchMetadata}
           onBatchEdit={() => setShowBatchEditModal(true)}
+          onSetHidden={handleSetHidden}
           isLoading={isBulkLoading}
         />
       )}

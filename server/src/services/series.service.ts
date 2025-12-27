@@ -220,19 +220,68 @@ export interface UnifiedGridResult {
 /**
  * Create a new Series record.
  * Identity is based on name + publisher only (year excluded to avoid splitting multi-year runs).
+ * Uses case-insensitive comparison for duplicate detection.
+ * If a soft-deleted series with the same identity exists, it will be restored instead of creating a new one.
  */
 export async function createSeries(input: CreateSeriesInput): Promise<Series> {
   const db = getDatabase();
 
   // Check for existing series with same identity (name + publisher, not year)
-  const existing = await db.series.findFirst({
+  // Use case-insensitive comparison
+  const normalizedName = input.name.toLowerCase();
+  const normalizedPublisher = input.publisher?.toLowerCase() ?? null;
+
+  const allSeries = await db.series.findMany({
     where: {
-      name: input.name,
-      publisher: input.publisher ?? null,
+      // Get both active and soft-deleted series to handle both cases
     },
   });
 
+  const existing = allSeries.find((s) => {
+    const nameMatch = s.name.toLowerCase() === normalizedName;
+    const publisherMatch = (s.publisher?.toLowerCase() ?? null) === normalizedPublisher;
+    return nameMatch && publisherMatch;
+  });
+
   if (existing) {
+    // If the existing series is soft-deleted, restore it instead of throwing error
+    if (existing.deletedAt) {
+      const restored = await db.series.update({
+        where: { id: existing.id },
+        data: {
+          deletedAt: null,
+          // Update with any new data from input
+          startYear: input.startYear ?? existing.startYear,
+          summary: input.summary ?? existing.summary,
+          deck: input.deck ?? existing.deck,
+          endYear: input.endYear ?? existing.endYear,
+          volume: input.volume ?? existing.volume,
+          issueCount: input.issueCount ?? existing.issueCount,
+          genres: input.genres ?? existing.genres,
+          tags: input.tags ?? existing.tags,
+          ageRating: input.ageRating ?? existing.ageRating,
+          type: input.type ?? existing.type,
+          languageISO: input.languageISO ?? existing.languageISO,
+          characters: input.characters ?? existing.characters,
+          teams: input.teams ?? existing.teams,
+          locations: input.locations ?? existing.locations,
+          storyArcs: input.storyArcs ?? existing.storyArcs,
+          coverUrl: input.coverUrl ?? existing.coverUrl,
+          comicVineId: input.comicVineId ?? existing.comicVineId,
+          metronId: input.metronId ?? existing.metronId,
+          primaryFolder: input.primaryFolder ?? existing.primaryFolder,
+        },
+      });
+
+      // Restore collection items referencing this series
+      await db.collectionItem.updateMany({
+        where: { seriesId: existing.id },
+        data: { isAvailable: true },
+      });
+
+      return restored;
+    }
+
     throw new Error(
       `Series "${input.name}" (${input.publisher ?? 'unknown publisher'}) already exists`
     );
@@ -296,6 +345,7 @@ export async function getSeries(
 /**
  * Get a Series by its unique identity (name + publisher only).
  * Year is not part of the identity to avoid splitting multi-year runs.
+ * Uses case-insensitive comparison for both name and publisher.
  * Excludes soft-deleted series by default.
  */
 export async function getSeriesByIdentity(
@@ -306,13 +356,24 @@ export async function getSeriesByIdentity(
 ): Promise<Series | null> {
   const db = getDatabase();
 
-  return db.series.findFirst({
+  // Use case-insensitive search with mode: 'insensitive' for SQLite compatibility
+  // For SQLite, we use a raw query approach with LOWER() function
+  const results = await db.series.findMany({
     where: {
-      name,
-      publisher: publisher ?? null,
       deletedAt: includeDeleted ? undefined : null,
     },
   });
+
+  // Filter in JS using case-insensitive comparison
+  const normalizedName = name.toLowerCase();
+  const normalizedPublisher = publisher?.toLowerCase() ?? null;
+
+  return results.find((s) => {
+    const seriesNameMatch = s.name.toLowerCase() === normalizedName;
+    const seriesPublisherMatch =
+      (s.publisher?.toLowerCase() ?? null) === normalizedPublisher;
+    return seriesNameMatch && seriesPublisherMatch;
+  }) ?? null;
 }
 
 /**
@@ -1103,6 +1164,7 @@ export async function syncSeriesToSeriesJson(seriesId: string): Promise<void> {
 
 /**
  * Sync series.json to a Series record.
+ * Uses the correct identity lookup (name + publisher only, not startYear).
  */
 export async function syncSeriesFromSeriesJson(
   folderPath: string
@@ -1116,14 +1178,14 @@ export async function syncSeriesFromSeriesJson(
 
   const metadata = result.metadata;
 
-  // Find or create series
-  let series = await db.series.findFirst({
-    where: {
-      name: metadata.seriesName,
-      startYear: metadata.startYear ?? null,
-      publisher: metadata.publisher ?? null,
-    },
-  });
+  // Find existing series by identity (name + publisher only - year is NOT part of identity)
+  // Use the correct identity lookup function that handles case-insensitivity
+  let series = await getSeriesByIdentity(
+    metadata.seriesName,
+    null, // startYear is not part of identity
+    metadata.publisher ?? null,
+    true // Include deleted series so we can restore them
+  );
 
   const seriesData = {
     name: metadata.seriesName,
@@ -1151,6 +1213,18 @@ export async function syncSeriesFromSeriesJson(
   };
 
   if (series) {
+    // If series was soft-deleted, restore it first
+    if (series.deletedAt) {
+      await db.series.update({
+        where: { id: series.id },
+        data: { deletedAt: null },
+      });
+      // Restore collection items referencing this series
+      await db.collectionItem.updateMany({
+        where: { seriesId: series.id },
+        data: { isAvailable: true },
+      });
+    }
     // Update existing series, respecting locked fields
     series = await updateSeries(series.id, seriesData, true);
   } else {
@@ -1209,6 +1283,7 @@ export async function findPotentialDuplicates(): Promise<
 
 /**
  * Merge multiple series into one.
+ * Moves all issues and collection items from source series to target, then deletes sources.
  */
 export async function mergeSeries(
   sourceIds: string[],
@@ -1225,14 +1300,73 @@ export async function mergeSeries(
     throw new Error(`Target series ${targetId} not found`);
   }
 
-  // Move all issues from source series to target
+  // Move all issues and collection items from source series to target
   for (const sourceId of sourceIds) {
     if (sourceId === targetId) continue;
 
+    // Move comic files to target series
     await db.comicFile.updateMany({
       where: { seriesId: sourceId },
       data: { seriesId: targetId },
     });
+
+    // Move collection items to target series (prevents orphaned references)
+    // First, get existing collection items for target series per collection
+    const targetItems = await db.collectionItem.findMany({
+      where: { seriesId: targetId },
+      select: { collectionId: true },
+    });
+    const targetCollectionIds = new Set(targetItems.map((i) => i.collectionId));
+
+    // Update collection items from source to target, but only if target doesn't already have that series in the collection
+    const sourceItems = await db.collectionItem.findMany({
+      where: { seriesId: sourceId },
+    });
+
+    for (const item of sourceItems) {
+      if (targetCollectionIds.has(item.collectionId)) {
+        // Target series already in this collection - delete the duplicate source item
+        await db.collectionItem.delete({
+          where: { id: item.id },
+        });
+      } else {
+        // Move item to target series
+        await db.collectionItem.update({
+          where: { id: item.id },
+          data: { seriesId: targetId },
+        });
+        targetCollectionIds.add(item.collectionId);
+      }
+    }
+
+    // Move reading progress records to target series
+    // First, get existing progress for target series per user
+    const targetProgress = await db.seriesProgress.findMany({
+      where: { seriesId: targetId },
+      select: { userId: true },
+    });
+    const targetUserIds = new Set(targetProgress.map((p) => p.userId));
+
+    // Delete source progress if user already has target progress, otherwise move it
+    const sourceProgress = await db.seriesProgress.findMany({
+      where: { seriesId: sourceId },
+    });
+
+    for (const progress of sourceProgress) {
+      if (targetUserIds.has(progress.userId)) {
+        // User already has progress for target - delete duplicate
+        await db.seriesProgress.delete({
+          where: { id: progress.id },
+        });
+      } else {
+        // Move progress to target series
+        await db.seriesProgress.update({
+          where: { id: progress.id },
+          data: { seriesId: targetId },
+        });
+        targetUserIds.add(progress.userId);
+      }
+    }
 
     // Delete source series
     await db.series.delete({
@@ -2116,6 +2250,41 @@ export async function getHiddenSeries(): Promise<SeriesWithCounts[]> {
     },
     orderBy: { name: 'asc' },
   });
+}
+
+/**
+ * Bulk set hidden status for multiple series.
+ */
+export async function bulkSetSeriesHidden(
+  seriesIds: string[],
+  hidden: boolean
+): Promise<BulkOperationResult> {
+  const db = getDatabase();
+  const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
+
+  for (const seriesId of seriesIds) {
+    try {
+      await db.series.update({
+        where: { id: seriesId },
+        data: { isHidden: hidden },
+      });
+      results.push({ seriesId, success: true });
+    } catch (error) {
+      results.push({
+        seriesId,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  const successful = results.filter((r) => r.success).length;
+  return {
+    total: seriesIds.length,
+    successful,
+    failed: seriesIds.length - successful,
+    results,
+  };
 }
 
 // =============================================================================

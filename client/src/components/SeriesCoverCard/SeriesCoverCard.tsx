@@ -20,7 +20,7 @@ export type SeriesCoverCardSize = 'small' | 'medium' | 'large';
 export type CheckboxVisibility = 'always' | 'hover' | 'selected';
 
 /** Menu item preset identifiers for series context menu */
-export type SeriesMenuItemPreset = 'view' | 'fetchMetadata' | 'markAllRead' | 'markAllUnread' | 'mergeWith';
+export type SeriesMenuItemPreset = 'view' | 'fetchMetadata' | 'markAllRead' | 'markAllUnread' | 'mergeWith' | 'hide' | 'unhide';
 
 /** Custom menu item for series cards */
 export interface SeriesMenuItem {
@@ -80,13 +80,21 @@ export interface SeriesCoverCardProps {
 // Series Menu Configuration
 // =============================================================================
 
-const SERIES_MENU_ITEMS: SeriesMenuItem[] = [
-  { id: 'view', label: 'View Series' },
-  { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
-  { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
-  { id: 'markAllUnread', label: 'Mark All as Unread' },
-  { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
-];
+/**
+ * Get series menu items based on the series' hidden state.
+ */
+function getSeriesMenuItems(isHidden: boolean): SeriesMenuItem[] {
+  return [
+    { id: 'view', label: 'View Series' },
+    { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
+    { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
+    { id: 'markAllUnread', label: 'Mark All as Unread' },
+    { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
+    isHidden
+      ? { id: 'unhide', label: 'Unhide Series', dividerBefore: true }
+      : { id: 'hide', label: 'Hide Series', dividerBefore: true },
+  ];
+}
 
 // =============================================================================
 // Component
@@ -150,6 +158,9 @@ export function SeriesCoverCard({
 
   const imgRef = useRef<HTMLImageElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Memoize menu items based on hidden state
+  const menuItems = useMemo(() => getSeriesMenuItems(series.isHidden), [series.isHidden]);
 
   // Handle cached images that load before React attaches handlers
   useEffect(() => {
@@ -411,7 +422,7 @@ export function SeriesCoverCard({
           role="menu"
           onClick={(e) => e.stopPropagation()}
         >
-          {SERIES_MENU_ITEMS.map((item, index) => (
+          {menuItems.map((item, index) => (
             <div key={item.id}>
               {item.dividerBefore && index > 0 && (
                 <div className="series-cover-card__menu-divider" role="separator" />
@@ -423,7 +434,7 @@ export function SeriesCoverCard({
               >
                 {item.label}
               </button>
-              {item.dividerAfter && index < SERIES_MENU_ITEMS.length - 1 && (
+              {item.dividerAfter && index < menuItems.length - 1 && (
                 <div className="series-cover-card__menu-divider" role="separator" />
               )}
             </div>

@@ -438,7 +438,7 @@ async function searchCollections(
       subtitle,
       thumbnailId,
       thumbnailType,
-      navigationPath: `/collections/${c.id}`,
+      navigationPath: `/collection/${c.id}`,
       relevanceScore: calculateRelevance(c.name, queryLower, 'collection'),
       metadata: {
         seriesCount,

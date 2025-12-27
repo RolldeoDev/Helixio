@@ -719,8 +719,13 @@ async function updateSeriesFromApprovedMetadata(
         : [];
 
       // Define fields to update (all standard fields that aren't locked)
+      // NOTE: 'name' is intentionally excluded to prevent mismatch between
+      // database series name and file metadata series name. The series name
+      // is determined by local files/parsing, not overwritten by API metadata.
+      // This prevents the invalidation logic from creating duplicate series
+      // when file.metadata.series != file.series.name after API update.
       const allFields = [
-        'name', 'publisher', 'startYear', 'endYear', 'issueCount',
+        'publisher', 'startYear', 'endYear', 'issueCount',
         'summary', 'deck', 'coverUrl', 'comicVineId', 'metronId',
         'anilistId', 'malId', 'characters', 'locations', 'creators', 'genres', 'aliases'
       ];

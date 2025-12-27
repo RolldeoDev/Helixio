@@ -20,7 +20,7 @@
  * - Memoized filtering and grouping
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   getCollectionExpanded,
@@ -32,6 +32,7 @@ import {
   markAsCompleted,
   markAsIncomplete,
 } from '../services/api.service';
+import { MarkdownContent } from '../components/MarkdownContent';
 import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
 import { DetailHeroSection } from '../components/DetailHeroSection';
 import { CoverCard, SERIES_ISSUE_MENU_ITEMS, type MenuItemPreset } from '../components/CoverCard';
@@ -305,13 +306,21 @@ export function CollectionDetailPage() {
   const [error, setError] = useState<string | null>(null);
 
   // View state
-  const [viewMode, setViewMode] = useState<ViewMode>('flat');
+  const [viewMode, setViewMode] = useState<ViewMode>('grouped');
   const [readStatusFilter, setReadStatusFilter] = useState<ReadStatusFilter>('all');
   const [seriesFilter, setSeriesFilter] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
+
+  // Description expand/collapse state
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [descriptionNeedsTruncation, setDescriptionNeedsTruncation] = useState(false);
+  const descriptionRef = useRef<HTMLDivElement>(null);
+
+  // Cover error handling - tracks if primary cover URL failed to load
+  const [coverLoadError, setCoverLoadError] = useState(false);
 
   // Track scrolling for grouped view (flat view handles it internally)
   useEffect(() => {
@@ -331,6 +340,20 @@ export function CollectionDetailPage() {
       clearTimeout(scrollTimeout);
     };
   }, []);
+
+  // Check if description needs truncation (6 lines)
+  useEffect(() => {
+    if (descriptionRef.current) {
+      const lineHeight = parseFloat(getComputedStyle(descriptionRef.current).lineHeight);
+      const maxHeight = lineHeight * 6; // 6 lines for compact view
+      setDescriptionNeedsTruncation(descriptionRef.current.scrollHeight > maxHeight + 2);
+    }
+  }, [data?.collection?.description, data?.collection?.deck]);
+
+  // Reset cover error state when collection changes
+  useEffect(() => {
+    setCoverLoadError(false);
+  }, [collectionId]);
 
   // Fetch collection data using the optimized API
   const fetchCollectionData = useCallback(async () => {
@@ -443,29 +466,58 @@ export function CollectionDetailPage() {
     return Array.from(seriesMap.entries()).map(([id, name]) => ({ id, name }));
   }, [data]);
 
-  // Memoized: get collection cover URL
-  const coverUrl = useMemo(() => {
-    if (!data?.collection) return null;
+  // Memoized: get collection cover URL with fallback support
+  // Logic matches CollectionsPage and CollectionCoverCard
+  const { primaryCoverUrl, fallbackCoverUrl } = useMemo(() => {
+    if (!data?.collection) return { primaryCoverUrl: null, fallbackCoverUrl: null };
     const collection = data.collection;
 
-    if (collection.coverHash) {
-      return getCollectionCoverUrl(collection.coverHash);
-    }
-
-    // Fallback to first item's cover
+    // Compute fallback from first item
+    let fallback: string | null = null;
     const firstItem = collection.items[0];
     if (firstItem?.series?.coverFileId) {
-      return getCoverUrl(firstItem.series.coverFileId);
-    }
-    if (firstItem?.series?.coverHash) {
-      return getApiCoverUrl(firstItem.series.coverHash);
-    }
-    if (firstItem?.file?.id) {
-      return getCoverUrl(firstItem.file.id);
+      fallback = getCoverUrl(firstItem.series.coverFileId);
+    } else if (firstItem?.series?.coverHash) {
+      fallback = getApiCoverUrl(firstItem.series.coverHash);
+    } else if (firstItem?.file?.id) {
+      fallback = getCoverUrl(firstItem.file.id);
     }
 
-    return null;
+    // Determine primary URL based on coverType (matches CollectionsPage logic)
+    let primary: string | null = null;
+
+    if (!collection.coverType || collection.coverType === 'auto') {
+      // Auto-generated mosaic cover
+      if (collection.coverHash) {
+        primary = getCollectionCoverUrl(collection.coverHash);
+      }
+    } else if (collection.coverType === 'custom' && collection.coverHash) {
+      // Custom uploaded cover - stored in API covers (series path)
+      primary = getApiCoverUrl(collection.coverHash);
+    } else if (collection.coverType === 'issue' && collection.coverFileId) {
+      // Issue cover
+      primary = getCoverUrl(collection.coverFileId);
+    } else if (collection.coverType === 'series' && collection.coverSeriesId) {
+      // Series cover - find the series and use its cover
+      const series = collection.items.find(item => item.seriesId === collection.coverSeriesId)?.series;
+      if (series?.coverHash) {
+        primary = getApiCoverUrl(series.coverHash);
+      } else if (series?.coverFileId) {
+        primary = getCoverUrl(series.coverFileId);
+      }
+    }
+
+    // If we have a primary, return it with fallback
+    if (primary) {
+      return { primaryCoverUrl: primary, fallbackCoverUrl: fallback };
+    }
+
+    // No primary - use fallback as primary
+    return { primaryCoverUrl: fallback, fallbackCoverUrl: null };
   }, [data?.collection]);
+
+  // Final cover URL: use fallback if primary failed to load
+  const coverUrl = coverLoadError ? fallbackCoverUrl : primaryCoverUrl;
 
   // Event handlers
   const handleContinueReading = useCallback(() => {
@@ -708,6 +760,12 @@ export function CollectionDetailPage() {
                     src={coverUrl}
                     alt={collection.name}
                     className="collection-hero-cover"
+                    onError={() => {
+                      // If primary cover failed and we have a fallback, try it
+                      if (!coverLoadError && fallbackCoverUrl) {
+                        setCoverLoadError(true);
+                      }
+                    }}
                   />
                 ) : (
                   <div className="collection-hero-cover-placeholder">
@@ -727,8 +785,8 @@ export function CollectionDetailPage() {
               <div className="collection-hero-info">
                 <h1 className="collection-title">{collection.name}</h1>
 
-                {collection.description && (
-                  <p className="collection-description">{collection.description}</p>
+                {collection.deck && (
+                  <p className="collection-deck">{collection.deck}</p>
                 )}
 
                 {/* Stats row */}
@@ -784,6 +842,37 @@ export function CollectionDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Description Section */}
+            {collection.description && (
+              <div className="collection-description-section">
+                <h3 className="collection-section-title">About</h3>
+                <div
+                  ref={descriptionRef}
+                  className={`collection-description-content ${
+                    isDescriptionExpanded
+                      ? 'collection-description-content--expanded'
+                      : descriptionNeedsTruncation
+                        ? 'collection-description-content--clamped'
+                        : ''
+                  }`}
+                >
+                  <MarkdownContent
+                    content={collection.description}
+                    className="collection-description-text"
+                  />
+                </div>
+                {descriptionNeedsTruncation && (
+                  <button
+                    className="collection-description-toggle"
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                    aria-expanded={isDescriptionExpanded}
+                  >
+                    {isDescriptionExpanded ? 'Show less' : 'Read more'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Sidebar column (25%) */}

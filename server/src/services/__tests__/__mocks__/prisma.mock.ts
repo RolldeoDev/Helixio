@@ -217,6 +217,8 @@ export function createMockSeriesRecord(overrides: Partial<{
   aliases: string | null;
   fieldSources: string | null;
   type: string;
+  isHidden: boolean;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }> = {}) {
@@ -233,6 +235,8 @@ export function createMockSeriesRecord(overrides: Partial<{
     aliases: null,
     fieldSources: null,
     type: 'western',
+    isHidden: false,
+    deletedAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,

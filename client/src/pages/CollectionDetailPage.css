@@ -191,11 +191,103 @@
   }
 }
 
-.collection-description {
-  font-size: 0.9375rem;
-  line-height: 1.6;
+.collection-deck {
+  font-size: 1rem;
+  line-height: 1.5;
   color: var(--color-text-muted);
   margin: 0;
+  font-style: italic;
+}
+
+/* =============================================================================
+   Section Titles
+   ============================================================================= */
+
+.collection-section-title {
+  font-family: var(--font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin: 0 0 var(--spacing-sm) 0;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* =============================================================================
+   Description Section (Styled Card with Blur)
+   ============================================================================= */
+
+.collection-description-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.collection-description-content {
+  position: relative;
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.collection-description-content--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+}
+
+.collection-description-content--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.collection-description-text.markdown-content {
+  color: var(--color-text);
+}
+
+.collection-description-text.markdown-content p {
+  margin: 0 0 1em 0;
+}
+
+.collection-description-text.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.collection-description-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+  border: none;
+  background: transparent;
+  color: var(--color-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+  align-self: flex-start;
+}
+
+.collection-description-toggle:hover {
+  opacity: 0.8;
+}
+
+.collection-description-toggle:focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /* Stats Row */

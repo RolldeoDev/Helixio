@@ -34,6 +34,7 @@ export function CollectionsPage() {
     updateCollection,
     deleteCollection,
     getCollectionWithItems,
+    refreshCollections,
   } = useCollections();
 
   const [isCreating, setIsCreating] = useState(false);
@@ -201,11 +202,14 @@ export function CollectionsPage() {
         setSelectedCollection(collectionData as Collection);
         setCollectionItems(items ?? []);
       }
+
+      // Refresh global collections context to update covers everywhere (including promoted collections)
+      await refreshCollections();
     } catch (err) {
       console.error('Error saving collection settings:', err);
       throw err;
     }
-  }, [selectedCollection, getCollectionWithItems]);
+  }, [selectedCollection, getCollectionWithItems, refreshCollections]);
 
   const handleRemoveItems = useCallback(async (itemIds: string[]) => {
     if (!selectedCollection) return;

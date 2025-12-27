@@ -74,7 +74,8 @@ describe('Series Service', () => {
 
   describe('createSeries', () => {
     it('should create a new series', async () => {
-      mockDb.series.findFirst.mockResolvedValue(null);
+      // New implementation uses findMany for case-insensitive check
+      mockDb.series.findMany.mockResolvedValue([]);
       mockDb.series.create.mockResolvedValue(
         createMockSeriesRecord({ id: 'new-series-id' })
       );
@@ -98,9 +99,10 @@ describe('Series Service', () => {
     });
 
     it('should throw error if series already exists', async () => {
-      mockDb.series.findFirst.mockResolvedValue(
+      // New implementation uses findMany for case-insensitive check
+      mockDb.series.findMany.mockResolvedValue([
         createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      );
+      ]);
 
       await expect(
         createSeries({ name: 'Batman', publisher: 'DC Comics' })
@@ -108,7 +110,8 @@ describe('Series Service', () => {
     });
 
     it('should allow same name with different publisher', async () => {
-      mockDb.series.findFirst.mockResolvedValue(null);
+      // New implementation uses findMany for case-insensitive check
+      mockDb.series.findMany.mockResolvedValue([]);
       mockDb.series.create.mockResolvedValue(
         createMockSeriesRecord({ name: 'Batman', publisher: 'Marvel Comics' })
       );
@@ -119,7 +122,8 @@ describe('Series Service', () => {
     });
 
     it('should set default type to western', async () => {
-      mockDb.series.findFirst.mockResolvedValue(null);
+      // New implementation uses findMany for case-insensitive check
+      mockDb.series.findMany.mockResolvedValue([]);
       mockDb.series.create.mockResolvedValue(createMockSeriesRecord());
 
       await createSeries({ name: 'Batman' });
@@ -131,6 +135,26 @@ describe('Series Service', () => {
           }),
         })
       );
+    });
+
+    it('should restore soft-deleted series instead of throwing error', async () => {
+      // When a soft-deleted series exists with same identity, it should be restored
+      const softDeletedSeries = createMockSeriesRecord({
+        name: 'Batman',
+        publisher: 'DC Comics',
+        deletedAt: new Date('2024-01-01'),
+      });
+      mockDb.series.findMany.mockResolvedValue([softDeletedSeries]);
+      mockDb.series.update.mockResolvedValue({
+        ...softDeletedSeries,
+        deletedAt: null,
+      });
+      mockDb.collectionItem.updateMany.mockResolvedValue({ count: 0 });
+
+      const series = await createSeries({ name: 'Batman', publisher: 'DC Comics' });
+
+      expect(mockDb.series.update).toHaveBeenCalled();
+      expect(series.deletedAt).toBeNull();
     });
   });
 
@@ -161,37 +185,49 @@ describe('Series Service', () => {
   });
 
   describe('getSeriesByIdentity', () => {
-    it('should find series by name and publisher', async () => {
-      mockDb.series.findFirst.mockResolvedValue(
+    it('should find series by name and publisher (case-insensitive)', async () => {
+      // New implementation uses findMany and filters in JS for case-insensitive matching
+      mockDb.series.findMany.mockResolvedValue([
         createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      );
+      ]);
 
       const series = await getSeriesByIdentity('Batman', 2011, 'DC Comics');
 
       expect(series).not.toBeNull();
-      expect(mockDb.series.findFirst).toHaveBeenCalledWith({
-        where: {
-          name: 'Batman',
-          publisher: 'DC Comics',
-          deletedAt: null,
-        },
-      });
+      expect(series?.name).toBe('Batman');
+      expect(mockDb.series.findMany).toHaveBeenCalled();
     });
 
     it('should ignore year parameter (identity is name + publisher only)', async () => {
-      mockDb.series.findFirst.mockResolvedValue(
+      // New implementation uses findMany and filters in JS for case-insensitive matching
+      mockDb.series.findMany.mockResolvedValue([
         createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      );
+      ]);
 
-      await getSeriesByIdentity('Batman', 2020, 'DC Comics');
+      const series = await getSeriesByIdentity('Batman', 2020, 'DC Comics');
 
-      expect(mockDb.series.findFirst).toHaveBeenCalledWith({
-        where: {
-          name: 'Batman',
-          publisher: 'DC Comics',
-          deletedAt: null,
-        },
-      });
+      expect(series).not.toBeNull();
+      expect(mockDb.series.findMany).toHaveBeenCalled();
+    });
+
+    it('should match case-insensitively', async () => {
+      // New implementation does case-insensitive matching in JS
+      mockDb.series.findMany.mockResolvedValue([
+        createMockSeriesRecord({ name: 'BATMAN', publisher: 'DC COMICS' })
+      ]);
+
+      const series = await getSeriesByIdentity('batman', 2011, 'dc comics');
+
+      expect(series).not.toBeNull();
+      expect(series?.name).toBe('BATMAN');
+    });
+
+    it('should return null when no match found', async () => {
+      mockDb.series.findMany.mockResolvedValue([]);
+
+      const series = await getSeriesByIdentity('NonExistent', null, null);
+
+      expect(series).toBeNull();
     });
   });
 

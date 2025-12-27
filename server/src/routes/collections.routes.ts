@@ -211,9 +211,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { name, description, iconName, color } = req.body as {
+    const { name, description, deck, iconName, color } = req.body as {
       name: string;
       description?: string;
+      deck?: string;
       iconName?: string;
       color?: string;
     };
@@ -223,7 +224,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const collection = await createCollection(userId, { name, description, iconName, color });
+    const collection = await createCollection(userId, { name, description, deck, iconName, color });
     res.status(201).json(collection);
   } catch (error) {
     console.error('Error creating collection:', error);
@@ -242,15 +243,16 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { name, description, iconName, color, sortOrder } = req.body as {
+    const { name, description, deck, iconName, color, sortOrder } = req.body as {
       name?: string;
       description?: string;
+      deck?: string;
       iconName?: string;
       color?: string;
       sortOrder?: number;
     };
 
-    const collection = await updateCollection(userId, id!, { name, description, iconName, color, sortOrder });
+    const collection = await updateCollection(userId, id!, { name, description, deck, iconName, color, sortOrder });
     res.json(collection);
   } catch (error) {
     console.error('Error updating collection:', error);

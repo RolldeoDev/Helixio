@@ -50,6 +50,7 @@ import {
   toggleSeriesHidden,
   setSeriesHidden,
   getHiddenSeries,
+  bulkSetSeriesHidden,
   bulkUpdateSeries,
   bulkMarkSeriesRead,
   bulkMarkSeriesUnread,
@@ -1905,6 +1906,26 @@ router.post('/bulk-mark-unread', requireAuth, asyncHandler(async (req: Request, 
 
   const result = await bulkMarkSeriesUnread(seriesIds, userId);
   logger.info({ userId, count: seriesIds.length, successful: result.successful }, 'Bulk marked series as unread');
+  sendSuccess(res, result);
+}));
+
+/**
+ * POST /api/series/bulk-set-hidden
+ * Set the hidden status for multiple series.
+ */
+router.post('/bulk-set-hidden', asyncHandler(async (req: Request, res: Response) => {
+  const { seriesIds, hidden } = req.body as { seriesIds: string[]; hidden: boolean };
+
+  if (!seriesIds || !Array.isArray(seriesIds) || seriesIds.length === 0) {
+    return sendBadRequest(res, 'seriesIds must be a non-empty array');
+  }
+
+  if (typeof hidden !== 'boolean') {
+    return sendBadRequest(res, 'hidden must be a boolean');
+  }
+
+  const result = await bulkSetSeriesHidden(seriesIds, hidden);
+  logger.info({ count: seriesIds.length, hidden, successful: result.successful }, 'Bulk set series hidden status');
   sendSuccess(res, result);
 }));
 

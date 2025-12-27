@@ -18,6 +18,7 @@ import {
   getSeriesIssues,
   markAsCompleted,
   markAsIncomplete,
+  setSeriesHidden,
   Series,
   SeriesListOptions,
   GridItem,
@@ -396,6 +397,32 @@ export function SeriesGrid({
         if (seriesItem && seriesItem.itemType === 'series') {
           setMergeSourceSeries(seriesItem.series);
           setShowSeriesSelectModal(true);
+        }
+        break;
+
+      case 'hide':
+        try {
+          setOperationMessage('Hiding series...');
+          await setSeriesHidden(seriesId, true);
+          setOperationMessage('Series hidden');
+          fetchItems();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to hide series'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
+        }
+        break;
+
+      case 'unhide':
+        try {
+          setOperationMessage('Unhiding series...');
+          await setSeriesHidden(seriesId, false);
+          setOperationMessage('Series unhidden');
+          fetchItems();
+          setTimeout(() => setOperationMessage(null), 2000);
+        } catch (err) {
+          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to unhide series'}`);
+          setTimeout(() => setOperationMessage(null), 3000);
         }
         break;
     }

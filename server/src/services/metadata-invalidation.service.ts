@@ -165,11 +165,15 @@ async function updateFileSeriesLinkage(
   }
 
   // If file has a series assigned, check if it still matches
+  // Use case-insensitive comparison for both name and publisher to avoid
+  // unnecessary re-linking due to case differences
   if (file.seriesId && file.series) {
-    const seriesMatches =
-      file.series.name === metadataSeriesName &&
-      (file.series.publisher === metadataPublisher ||
-        (!file.series.publisher && !metadataPublisher));
+    const nameMatches =
+      file.series.name.toLowerCase() === metadataSeriesName.toLowerCase();
+    const publisherMatches =
+      (file.series.publisher?.toLowerCase() === metadataPublisher?.toLowerCase()) ||
+      (!file.series.publisher && !metadataPublisher);
+    const seriesMatches = nameMatches && publisherMatches;
 
     if (seriesMatches) {
       // Series already matches, nothing to do

@@ -425,26 +425,50 @@ export async function autoLinkFileToSeries(fileId: string): Promise<LinkResult> 
   }
 
   // No match - create new series
-  const newSeries = await createSeries({
-    name: seriesName,
-    startYear: file.metadata?.year ?? null,
-    publisher: file.metadata?.publisher ?? null,
-    genres: file.metadata?.genre ?? null,
-    tags: file.metadata?.tags ?? null,
-    languageISO: file.metadata?.languageISO ?? null,
-    ageRating: file.metadata?.ageRating ?? null,
-    comicVineId: file.metadata?.comicVineId ?? null,
-    metronId: file.metadata?.metronId ?? null,
-    primaryFolder: getFolderPathFromRelativePath(file.relativePath),
-  });
+  // Use try-catch to handle race condition where another process creates the same series
+  try {
+    const newSeries = await createSeries({
+      name: seriesName,
+      startYear: file.metadata?.year ?? null,
+      publisher: file.metadata?.publisher ?? null,
+      genres: file.metadata?.genre ?? null,
+      tags: file.metadata?.tags ?? null,
+      languageISO: file.metadata?.languageISO ?? null,
+      ageRating: file.metadata?.ageRating ?? null,
+      comicVineId: file.metadata?.comicVineId ?? null,
+      metronId: file.metadata?.metronId ?? null,
+      primaryFolder: getFolderPathFromRelativePath(file.relativePath),
+    });
 
-  await linkFileToSeries(fileId, newSeries.id);
+    await linkFileToSeries(fileId, newSeries.id);
 
-  return {
-    success: true,
-    seriesId: newSeries.id,
-    matchType: 'created',
-  };
+    return {
+      success: true,
+      seriesId: newSeries.id,
+      matchType: 'created',
+    };
+  } catch (error) {
+    // Handle race condition: another process may have created the series concurrently
+    if (error instanceof Error && error.message.includes('already exists')) {
+      // Retry finding the series that was just created by another process
+      const retryMatch = await findMatchingSeries(
+        seriesName,
+        file.metadata?.year,
+        file.metadata?.publisher
+      );
+
+      if (retryMatch.series) {
+        await linkFileToSeries(fileId, retryMatch.series.id);
+        return {
+          success: true,
+          seriesId: retryMatch.series.id,
+          matchType: retryMatch.type,
+        };
+      }
+    }
+    // Re-throw if it's a different error
+    throw error;
+  }
 }
 
 /**
@@ -711,20 +735,46 @@ export async function linkFileToSeriesWithFolderFallback(
   }
 
   // No confident match - create new series
-  const newSeries = await createSeries({
-    name: seriesInfo.name,
-    startYear: seriesInfo.year ?? null,
-    publisher: seriesInfo.publisher ?? null,
-    primaryFolder: getFolderPathFromRelativePath(file.relativePath),
-  });
+  // Use try-catch to handle race condition where another process creates the same series
+  try {
+    const newSeries = await createSeries({
+      name: seriesInfo.name,
+      startYear: seriesInfo.year ?? null,
+      publisher: seriesInfo.publisher ?? null,
+      primaryFolder: getFolderPathFromRelativePath(file.relativePath),
+    });
 
-  await linkFileToSeries(fileId, newSeries.id);
+    await linkFileToSeries(fileId, newSeries.id);
 
-  return {
-    linked: true,
-    seriesId: newSeries.id,
-    seriesCreated: true,
-    source: seriesInfo.source,
-    seriesName: newSeries.name,
-  };
+    return {
+      linked: true,
+      seriesId: newSeries.id,
+      seriesCreated: true,
+      source: seriesInfo.source,
+      seriesName: newSeries.name,
+    };
+  } catch (error) {
+    // Handle race condition: another process may have created the series concurrently
+    if (error instanceof Error && error.message.includes('already exists')) {
+      // Retry finding the series that was just created by another process
+      const retryMatch = await findMatchingSeries(
+        seriesInfo.name,
+        seriesInfo.year,
+        seriesInfo.publisher
+      );
+
+      if (retryMatch.series) {
+        await linkFileToSeries(fileId, retryMatch.series.id);
+        return {
+          linked: true,
+          seriesId: retryMatch.series.id,
+          seriesCreated: false,
+          source: seriesInfo.source,
+          seriesName: retryMatch.series.name,
+        };
+      }
+    }
+    // Re-throw if it's a different error
+    throw error;
+  }
 }

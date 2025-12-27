@@ -26,6 +26,7 @@ export interface Collection {
   userId: string;
   name: string;
   description: string | null;
+  deck: string | null;
   isSystem: boolean;
   systemKey: string | null;
   iconName: string | null;
@@ -103,6 +104,7 @@ export interface CollectionWithItems extends Collection {
 export interface CreateCollectionInput {
   name: string;
   description?: string;
+  deck?: string;
   iconName?: string;
   color?: string;
 }
@@ -110,6 +112,7 @@ export interface CreateCollectionInput {
 export interface UpdateCollectionInput {
   name?: string;
   description?: string;
+  deck?: string;
   iconName?: string;
   color?: string;
   sortOrder?: number;
@@ -468,6 +471,7 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     userId: c.userId,
     name: c.name,
     description: c.description,
+    deck: c.deck,
     isSystem: c.isSystem,
     systemKey: c.systemKey,
     iconName: c.iconName,
@@ -596,6 +600,7 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     userId: collection.userId,
     name: collection.name,
     description: collection.description,
+    deck: collection.deck,
     isSystem: collection.isSystem,
     systemKey: collection.systemKey,
     iconName: collection.iconName,
@@ -642,6 +647,7 @@ export async function createCollection(userId: string, input: CreateCollectionIn
       userId,
       name: input.name,
       description: input.description,
+      deck: input.deck,
       iconName: input.iconName,
       color: input.color,
       sortOrder: nextSortOrder,
@@ -948,6 +954,7 @@ export async function getCollectionsForItem(
     userId: c.userId,
     name: c.name,
     description: c.description,
+    deck: c.deck,
     isSystem: c.isSystem,
     systemKey: c.systemKey,
     iconName: c.iconName,
@@ -1943,6 +1950,7 @@ export async function toggleCollectionPromotion(
     userId: updated.userId,
     name: updated.name,
     description: updated.description,
+    deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
     iconName: updated.iconName,
@@ -2017,6 +2025,7 @@ export async function updateCollectionCover(
     userId: updated.userId,
     name: updated.name,
     description: updated.description,
+    deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
     iconName: updated.iconName,
@@ -2061,6 +2070,7 @@ export async function setCollectionCoverHash(
     userId: updated.userId,
     name: updated.name,
     description: updated.description,
+    deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
     iconName: updated.iconName,
@@ -2111,6 +2121,7 @@ export async function updateCollectionMetadata(
     userId: updated.userId,
     name: updated.name,
     description: updated.description,
+    deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
     iconName: updated.iconName,
