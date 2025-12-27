@@ -18,6 +18,7 @@ import {
 } from '../../services/api.service';
 import { formatFileSize } from '../../utils/format';
 import { getTitleDisplay } from '../../utils/titleDisplay';
+import { useConfirmModal } from '../ConfirmModal';
 
 import type { ComicFile } from '../../services/api.service';
 
@@ -70,6 +71,7 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
     lastSelectedFileId,
     preferFilenameOverMetadata,
   } = useApp();
+  const confirm = useConfirmModal();
 
   // Use filtered files if provided, otherwise use context files
   const files = filteredFiles ?? contextFiles;
@@ -169,7 +171,13 @@ export function FileList({ onFetchMetadata, onEditMetadata, filteredFiles, compa
       ? `${action} ${fileIds.length} files?`
       : `${action} this file?`;
 
-    if (!window.confirm(confirmMessage)) return;
+    const confirmed = await confirm({
+      title: action,
+      message: confirmMessage,
+      confirmText: action,
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setOperation(action, `${action} ${fileIds.length} file(s)...`);
 

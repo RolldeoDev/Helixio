@@ -22,6 +22,7 @@ import { NavigationSidebar } from '../components/NavigationSidebar';
 import { scanLibrary, applyScan, rebuildCache, renameFolder, createLibrary, ComicFile } from '../services/api.service';
 import { groupFiles } from '../utils/file-grouping';
 import type { GroupField } from '../components/SortGroup/SortGroupPanel';
+import { useConfirmModal } from '../components/ConfirmModal';
 import './FoldersPage.css';
 
 const FOLDER_PANEL_WIDTH_KEY = 'helixio-folders-panel-width';
@@ -55,6 +56,7 @@ export function FoldersPage() {
   } = useApp();
   const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useSmartFilter();
   const { startJob } = useMetadataJob();
+  const confirm = useConfirmModal();
 
   // Panel width state (persisted)
   const [panelWidth, setPanelWidth] = useState(() => {
@@ -448,9 +450,11 @@ export function FoldersPage() {
           result.summary.orphanedFiles;
 
         if (changes > 0) {
-          const confirmed = window.confirm(
-            `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`
-          );
+          const confirmed = await confirm({
+            title: 'Apply Scan Results',
+            message: `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`,
+            confirmText: 'Apply',
+          });
 
           if (confirmed) {
             await applyScan(selectedLibrary.id, result.scanId);

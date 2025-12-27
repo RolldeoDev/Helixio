@@ -1,0 +1,167 @@
+/**
+ * ConfirmModal Styles
+ *
+ * Consistent styling for confirmation dialogs that match the app's design system.
+ */
+
+/* =============================================================================
+   Modal Overlay & Container
+   ============================================================================= */
+
+.confirm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(2px);
+}
+
+.confirm-modal {
+  background: var(--bg-primary, var(--color-bg-secondary));
+  border-radius: var(--radius-lg, 12px);
+  width: 90%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-color, var(--color-border));
+  animation: confirmModalSlideIn 0.15s ease-out;
+}
+
+@keyframes confirmModalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* =============================================================================
+   Modal Header
+   ============================================================================= */
+
+.confirm-modal-header {
+  padding: 1.25rem 1.5rem 0.75rem;
+}
+
+.confirm-modal-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary, var(--color-text));
+}
+
+/* =============================================================================
+   Modal Body
+   ============================================================================= */
+
+.confirm-modal-body {
+  padding: 0 1.5rem 1.25rem;
+}
+
+.confirm-modal-body p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text-secondary, var(--color-text-muted));
+}
+
+/* =============================================================================
+   Modal Footer
+   ============================================================================= */
+
+.confirm-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color, var(--color-border));
+  background: var(--bg-secondary, var(--color-bg-tertiary));
+  border-radius: 0 0 var(--radius-lg, 12px) var(--radius-lg, 12px);
+}
+
+/* =============================================================================
+   Buttons
+   ============================================================================= */
+
+.confirm-modal-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md, 8px);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 80px;
+}
+
+.confirm-modal-btn:focus {
+  outline: 2px solid var(--color-primary, #d4a574);
+  outline-offset: 2px;
+}
+
+.confirm-modal-btn-secondary {
+  background: var(--bg-tertiary, var(--color-bg-elevated));
+  color: var(--text-primary, var(--color-text));
+  border: 1px solid var(--border-color, var(--color-border));
+}
+
+.confirm-modal-btn-secondary:hover {
+  background: var(--bg-hover, var(--color-hover));
+}
+
+.confirm-modal-btn-primary {
+  background: var(--color-primary, #d4a574);
+  color: var(--color-primary-text, #1a1a1a);
+}
+
+.confirm-modal-btn-primary:hover {
+  background: var(--color-primary-hover, #e5bc92);
+}
+
+.confirm-modal-btn-danger {
+  background: var(--color-danger, #c75050);
+  color: white;
+}
+
+.confirm-modal-btn-danger:hover {
+  background: #d45f5f;
+}
+
+.confirm-modal-btn-warning {
+  background: var(--color-warning, #e5b567);
+  color: #1a1a1a;
+}
+
+.confirm-modal-btn-warning:hover {
+  background: #edc27d;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 480px) {
+  .confirm-modal {
+    width: 95%;
+    max-width: none;
+    margin: 1rem;
+  }
+
+  .confirm-modal-footer {
+    flex-direction: column-reverse;
+  }
+
+  .confirm-modal-btn {
+    width: 100%;
+  }
+}

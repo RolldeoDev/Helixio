@@ -21,9 +21,6 @@ import {
   getNextSeriesIssue,
   getCoverUrl,
   getApiCoverUrl,
-  markAsCompleted,
-  markAsIncomplete,
-  rebuildCache,
   fetchSeriesMetadata,
   previewSeriesMetadata,
   applySeriesMetadata,
@@ -37,8 +34,9 @@ import {
   RelatedSeriesInfo,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
-import { useDownloads } from '../contexts/DownloadContext';
+import { useApiToast, useMenuActions } from '../hooks';
 import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
+import type { MenuContext } from '../components/UnifiedMenu/types';
 import {
   CoverCard,
   SERIES_ISSUE_MENU_ITEMS,
@@ -149,7 +147,6 @@ function VirtualizedIssuesGrid({
               size="medium"
               selectable={true}
               isSelected={selectedFiles.has(issue.id)}
-              checkboxVisibility="hover"
               contextMenuEnabled={true}
               menuItems={SERIES_ISSUE_MENU_ITEMS}
               selectedCount={selectedFiles.size || 1}
@@ -176,8 +173,7 @@ function VirtualizedIssuesGrid({
 export function SeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const navigate = useNavigate();
-  const { startJob, lastCompletedJobAt } = useMetadataJob();
-  const { requestSeriesDownload, requestBulkDownload } = useDownloads();
+  const { lastCompletedJobAt } = useMetadataJob();
   const { setBreadcrumbs } = useBreadcrumbs();
 
   const [series, setSeries] = useState<Series | null>(null);
@@ -186,8 +182,7 @@ export function SeriesDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [nextIssue, setNextIssue] = useState<{ id: string; filename: string } | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [operationMessage, setOperationMessage] = useState<string | null>(null);
-  const [editingMetadataFileIds, setEditingMetadataFileIds] = useState<string[] | null>(null);
+  const { addToast } = useApiToast();
   const [isEditSeriesModalOpen, setIsEditSeriesModalOpen] = useState(false);
 
   // Related series state
@@ -203,9 +198,6 @@ export function SeriesDetailPage() {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [descriptionNeedsTruncation, setDescriptionNeedsTruncation] = useState(false);
   const descriptionRef = useRef<HTMLDivElement>(null);
-
-  // Collection picker modal state
-  const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
 
   // Metadata fetch workflow state
   const [showMetadataSearchModal, setShowMetadataSearchModal] = useState(false);
@@ -281,6 +273,46 @@ export function SeriesDetailPage() {
     }
   }, [series?.summary, series?.deck]);
 
+  // Centralized menu actions for file-level operations
+  const {
+    handleAction: handleMenuActionFromHook,
+    editingMetadataFileIds,
+    closeMetadataEditor,
+    collectionPickerFileIds,
+    closeCollectionPicker,
+  } = useMenuActions({
+    onRefresh: fetchSeries,
+    series,
+    issues,
+    onEditSeries: () => setIsEditSeriesModalOpen(true),
+    onMergeWith: () => setShowSeriesSelectModal(true),
+    onFetchSeriesMetadata: async () => {
+      if (!series) return;
+      try {
+        const result = await fetchSeriesMetadata(series.id);
+        if (result.needsSearch) {
+          setShowMetadataSearchModal(true);
+        } else if (result.metadata && result.source && result.externalId) {
+          const previewResult = await previewSeriesMetadata(
+            series.id,
+            result.metadata,
+            result.source,
+            result.externalId
+          );
+          setPendingMetadata(result.metadata);
+          setPendingSource(result.source);
+          setPendingExternalId(result.externalId);
+          setPreviewFields(previewResult.preview.fields);
+          setShowMetadataPreviewModal(true);
+        } else {
+          addToast('info', result.message || 'No metadata found');
+        }
+      } catch (err) {
+        addToast('error', err instanceof Error ? err.message : 'Failed to fetch metadata');
+      }
+    },
+  });
+
   const handleContinueReading = useCallback(() => {
     if (nextIssue) {
       navigate(`/read/${nextIssue.id}?filename=${encodeURIComponent(nextIssue.filename)}`);
@@ -352,69 +384,19 @@ export function SeriesDetailPage() {
     });
   }, []);
 
-  // Handle context menu action
-  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
-    // Get all selected file IDs (include the right-clicked one)
-    const targetIds = selectedFiles.has(fileId)
-      ? Array.from(selectedFiles)
-      : [fileId];
-
-    switch (action) {
-      case 'read':
-        handleReadIssue(fileId);
-        break;
-
-      case 'markRead':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
-          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
-          setOperationMessage('Marked as read');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'markUnread':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
-          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
-          setOperationMessage('Marked as unread');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'addToCollection':
-        setCollectionPickerFileIds(targetIds);
-        break;
-
-      case 'fetchMetadata':
-        startJob(targetIds);
-        break;
-
-      case 'editMetadata':
-        setEditingMetadataFileIds(targetIds);
-        break;
-
-      case 'rebuildCache':
-        try {
-          setOperationMessage(`Rebuilding cache for ${targetIds.length} file(s)...`);
-          await rebuildCache({ fileIds: targetIds, type: 'full' });
-          setOperationMessage('Cache rebuild started');
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to rebuild cache'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-    }
-  }, [selectedFiles, handleReadIssue, fetchSeries, startJob]);
+  // Handle context menu action - delegates to centralized hook
+  const handleMenuAction = useCallback(
+    (action: MenuItemPreset | string, fileId: string) => {
+      const context: MenuContext = {
+        entityType: 'file',
+        entityId: fileId,
+        selectedIds: selectedFiles.has(fileId) ? Array.from(selectedFiles) : [fileId],
+        selectedCount: selectedFiles.has(fileId) ? selectedFiles.size : 1,
+      };
+      handleMenuActionFromHook(action, context);
+    },
+    [selectedFiles, handleMenuActionFromHook]
+  );
 
   // Helper to convert Series to SeriesForMerge
   const seriesToMergeFormat = (s: Series): SeriesForMerge => ({
@@ -464,8 +446,6 @@ export function SeriesDetailPage() {
       if (!seriesId) return;
 
       try {
-        setOperationMessage('Loading preview...');
-
         // Get preview data for the selected metadata
         const previewResult = await previewSeriesMetadata(
           seriesId,
@@ -478,14 +458,12 @@ export function SeriesDetailPage() {
         setPendingSource(source);
         setPendingExternalId(externalId);
         setPreviewFields(previewResult.preview.fields);
-        setOperationMessage(null);
         setShowMetadataPreviewModal(true);
       } catch (err) {
-        setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to load preview'}`);
-        setTimeout(() => setOperationMessage(null), 3000);
+        addToast('error', err instanceof Error ? err.message : 'Failed to load preview');
       }
     },
-    [seriesId]
+    [seriesId, addToast]
   );
 
   // Handle metadata preview modal apply
@@ -509,17 +487,15 @@ export function SeriesDetailPage() {
         setPendingSource(null);
         setPendingExternalId(null);
         setPreviewFields([]);
-        setOperationMessage('Metadata applied successfully');
+        addToast('success', 'Metadata applied successfully');
         fetchSeries();
-        setTimeout(() => setOperationMessage(null), 3000);
       } catch (err) {
-        setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to apply metadata'}`);
-        setTimeout(() => setOperationMessage(null), 3000);
+        addToast('error', err instanceof Error ? err.message : 'Failed to apply metadata');
       } finally {
         setIsApplyingMetadata(false);
       }
     },
-    [seriesId, pendingMetadata, pendingSource, pendingExternalId, fetchSeries]
+    [seriesId, pendingMetadata, pendingSource, pendingExternalId, fetchSeries, addToast]
   );
 
   // Handle metadata preview modal close
@@ -531,162 +507,38 @@ export function SeriesDetailPage() {
     setPreviewFields([]);
   }, []);
 
-  // Handle series-level actions from ActionMenu
-  const handleSeriesAction = useCallback(async (actionId: string) => {
-    if (!series) return;
+  // Handle series-level actions from ActionMenu - delegates to centralized hook
+  const handleSeriesAction = useCallback(
+    (actionId: string) => {
+      if (!seriesId) return;
+      const context: MenuContext = {
+        entityType: 'series',
+        entityId: seriesId,
+        selectedIds: [seriesId],
+        selectedCount: 1,
+      };
+      handleMenuActionFromHook(actionId, context);
+    },
+    [seriesId, handleMenuActionFromHook]
+  );
 
-    switch (actionId) {
-      case 'editSeries':
-        setIsEditSeriesModalOpen(true);
-        break;
-
-      case 'fetchSeriesMetadata':
-        try {
-          setOperationMessage('Fetching series metadata...');
-          const result = await fetchSeriesMetadata(series.id);
-
-          if (result.needsSearch) {
-            // No external ID - show search modal
-            setOperationMessage(null);
-            setShowMetadataSearchModal(true);
-          } else if (result.metadata && result.source && result.externalId) {
-            // Has external ID - fetch preview and show preview modal
-            const previewResult = await previewSeriesMetadata(
-              series.id,
-              result.metadata,
-              result.source,
-              result.externalId
-            );
-
-            setPendingMetadata(result.metadata);
-            setPendingSource(result.source);
-            setPendingExternalId(result.externalId);
-            setPreviewFields(previewResult.preview.fields);
-            setOperationMessage(null);
-            setShowMetadataPreviewModal(true);
-          } else {
-            setOperationMessage(result.message || 'No metadata found');
-            setTimeout(() => setOperationMessage(null), 3000);
-          }
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to fetch metadata'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'fetchAllIssuesMetadata':
-        const allIssueIds = issues.map((i) => i.id);
-        if (allIssueIds.length > 0) {
-          startJob(allIssueIds);
-        }
-        break;
-
-      case 'markAllRead':
-        try {
-          setOperationMessage('Marking all issues as read...');
-          await Promise.all(issues.map((i) => markAsCompleted(i.id)));
-          setOperationMessage('All issues marked as read');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'markAllUnread':
-        try {
-          setOperationMessage('Marking all issues as unread...');
-          await Promise.all(issues.map((i) => markAsIncomplete(i.id)));
-          setOperationMessage('All issues marked as unread');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'downloadAll': {
-        if (issues.length > 0) {
-          requestSeriesDownload(series.id, series.name);
-        }
-        break;
-      }
-
-      case 'mergeWith':
-        setShowSeriesSelectModal(true);
-        break;
-
-      case 'rebuildCache':
-        try {
-          const allFileIds = issues.map((i) => i.id);
-          setOperationMessage(`Rebuilding cache for ${allFileIds.length} file(s)...`);
-          await rebuildCache({ fileIds: allFileIds, type: 'full' });
-          setOperationMessage('Cache rebuild started');
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to rebuild cache'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-    }
-  }, [series, issues, startJob, fetchSeries, requestSeriesDownload]);
-
-  // Handle bulk issue actions from ActionMenu
-  const handleBulkIssueAction = useCallback(async (actionId: string) => {
-    if (selectedFiles.size === 0) return;
-
-    const targetIds = Array.from(selectedFiles);
-
-    switch (actionId) {
-      case 'markRead':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
-          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
-          setOperationMessage('Marked as read');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'markUnread':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
-          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
-          setOperationMessage('Marked as unread');
-          fetchSeries();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'fetchMetadata':
-        startJob(targetIds);
-        break;
-
-      case 'downloadSelected':
-        requestBulkDownload(targetIds, series?.name);
-        break;
-
-      case 'rebuildCache':
-        try {
-          setOperationMessage(`Rebuilding cache for ${targetIds.length} file(s)...`);
-          await rebuildCache({ fileIds: targetIds, type: 'full' });
-          setOperationMessage('Cache rebuild started');
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to rebuild cache'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-    }
-  }, [selectedFiles, startJob, fetchSeries, series?.name, requestBulkDownload]);
+  // Handle bulk issue actions from ActionMenu - delegates to centralized hook
+  const handleBulkIssueAction = useCallback(
+    (actionId: string) => {
+      if (selectedFiles.size === 0) return;
+      const targetIds = Array.from(selectedFiles);
+      // Map 'downloadSelected' to 'download' for the hook
+      const mappedAction = actionId === 'downloadSelected' ? 'download' : actionId;
+      const context: MenuContext = {
+        entityType: 'file',
+        entityId: targetIds[0] || '',
+        selectedIds: targetIds,
+        selectedCount: targetIds.length,
+      };
+      handleMenuActionFromHook(mappedAction, context);
+    },
+    [selectedFiles, handleMenuActionFromHook]
+  );
 
   // Parse creatorsJson if available for structured creator data
   // NOTE: This must be before early returns to satisfy React's rules of hooks
@@ -989,13 +841,6 @@ export function SeriesDetailPage() {
           </div>
         </div>
 
-        {/* Operation message */}
-        {operationMessage && (
-          <div className="series-operation-message">
-            {operationMessage}
-          </div>
-        )}
-
         {/* Virtualized Issues Grid */}
         <VirtualizedIssuesGrid
           issues={issues}
@@ -1009,13 +854,13 @@ export function SeriesDetailPage() {
 
       {/* Metadata Editor Modal */}
       {editingMetadataFileIds && (
-        <div className="modal-overlay" onClick={() => setEditingMetadataFileIds(null)}>
+        <div className="modal-overlay" onClick={closeMetadataEditor}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <MetadataEditor
               fileIds={editingMetadataFileIds}
-              onClose={() => setEditingMetadataFileIds(null)}
+              onClose={closeMetadataEditor}
               onSave={() => {
-                setEditingMetadataFileIds(null);
+                closeMetadataEditor();
                 fetchSeries();
               }}
             />
@@ -1062,7 +907,7 @@ export function SeriesDetailPage() {
       {/* Collection Picker Modal */}
       <CollectionPickerModal
         isOpen={collectionPickerFileIds.length > 0}
-        onClose={() => setCollectionPickerFileIds([])}
+        onClose={closeCollectionPicker}
         fileIds={collectionPickerFileIds}
       />
 

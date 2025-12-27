@@ -28,6 +28,7 @@ import {
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useDownloads } from '../contexts/DownloadContext';
+import { useApiToast } from '../hooks';
 import { useBreadcrumbs, NavigationOrigin, BreadcrumbSegment } from '../contexts/BreadcrumbContext';
 import { MetadataEditor } from '../components/MetadataEditor';
 import { IssueMetadataGrabber } from '../components/IssueMetadataGrabber';
@@ -129,8 +130,8 @@ export function IssueDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
-  const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
+  const { addToast } = useApiToast();
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryNeedsTruncation, setSummaryNeedsTruncation] = useState(false);
@@ -268,30 +269,24 @@ export function IssueDetailPage() {
   const handleMarkRead = useCallback(async () => {
     if (!fileId) return;
     try {
-      setOperationMessage('Marking as read...');
       const result = await markAsCompleted(fileId);
       setProgress(result);
-      setOperationMessage('Marked as read');
-      setTimeout(() => setOperationMessage(null), 2000);
+      addToast('success', 'Marked as read');
     } catch (err) {
-      setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
-      setTimeout(() => setOperationMessage(null), 3000);
+      addToast('error', err instanceof Error ? err.message : 'Failed to mark as read');
     }
-  }, [fileId]);
+  }, [fileId, addToast]);
 
   const handleMarkUnread = useCallback(async () => {
     if (!fileId) return;
     try {
-      setOperationMessage('Marking as unread...');
       const result = await markAsIncomplete(fileId);
       setProgress(result);
-      setOperationMessage('Marked as unread');
-      setTimeout(() => setOperationMessage(null), 2000);
+      addToast('success', 'Marked as unread');
     } catch (err) {
-      setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
-      setTimeout(() => setOperationMessage(null), 3000);
+      addToast('error', err instanceof Error ? err.message : 'Failed to mark as unread');
     }
-  }, [fileId]);
+  }, [fileId, addToast]);
 
   const handleFetchMetadata = useCallback(() => {
     if (!fileId) return;
@@ -312,9 +307,8 @@ export function IssueDetailPage() {
       coverUrl: null,
     }));
     setCoverKey((k) => k + 1);
-    setOperationMessage('Cover updated');
-    setTimeout(() => setOperationMessage(null), 2000);
-  }, []);
+    addToast('success', 'Cover updated');
+  }, [addToast]);
 
   // Issue action handler for ActionMenu
   const handleIssueAction = useCallback((actionId: string) => {
@@ -453,11 +447,6 @@ export function IssueDetailPage() {
 
   return (
     <div className="issue-detail-page">
-      {/* Operation message */}
-      {operationMessage && (
-        <div className="issue-operation-message">{operationMessage}</div>
-      )}
-
       {/* Hero Section with Two-Column Layout */}
       <DetailHeroSection coverUrl={coverUrl}>
         <div className="issue-hero-grid">

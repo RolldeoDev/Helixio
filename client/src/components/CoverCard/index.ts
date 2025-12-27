@@ -1,12 +1,17 @@
 /**
  * CoverCard Component Exports
+ *
+ * Now uses UnifiedMenu internally. Legacy exports maintained for backwards compatibility.
  */
 
+// Main components
 export { CoverCard } from './CoverCard';
 export { CoverImage } from './CoverImage';
-export { ContextMenu } from './ContextMenu';
 export { useCoverImage } from './useCoverImage';
-export { useContextMenu } from './useContextMenu';
+
+// Context menu components - ContextMenu is a backwards-compatible wrapper
+export { ContextMenu } from './ContextMenu';
+export { useContextMenu } from '../UnifiedMenu';
 export {
   MENU_ITEM_DEFINITIONS,
   DEFAULT_MENU_ITEMS,
@@ -15,8 +20,9 @@ export {
   getMenuItemWithCount,
   filterMenuItems,
   mergeMenuItems,
-} from './menuPresets';
+} from '../UnifiedMenu/menuDefinitions';
 
+// Types - export from local types.ts
 export type {
   CoverCardProps,
   CoverCardFile,
@@ -25,7 +31,6 @@ export type {
   CoverCardBadge,
   BadgeType,
   BadgePosition,
-  CheckboxVisibility,
   ReadingProgressData,
   MenuItemPreset,
   CoverCardMenuItem,

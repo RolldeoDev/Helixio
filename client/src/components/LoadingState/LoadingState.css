@@ -1,0 +1,197 @@
+/**
+ * LoadingState Styles
+ *
+ * Unified loading state animations and styles.
+ * Consolidates shimmer, spinner, and skeleton patterns.
+ */
+
+/* =============================================================================
+   Animation Definitions (Consolidated)
+   ============================================================================= */
+
+@keyframes loading-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============================================================================
+   Base Skeleton
+   ============================================================================= */
+
+.loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-elevated) 50%,
+    var(--color-bg-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: loading-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .loading-skeleton {
+    animation: none;
+    background: var(--color-bg-secondary);
+  }
+}
+
+/* Disable animation during scroll for performance */
+.scrolling .loading-skeleton {
+  animation: none;
+  background: var(--color-bg-secondary);
+}
+
+/* =============================================================================
+   Skeleton Cards
+   ============================================================================= */
+
+.loading-state--skeleton-cards {
+  display: flex;
+  gap: var(--spacing-md);
+  overflow: hidden;
+}
+
+.loading-skeleton--card {
+  flex-shrink: 0;
+  aspect-ratio: 2/3;
+}
+
+.loading-skeleton--card-sm {
+  width: 120px;
+}
+
+.loading-skeleton--card-md {
+  width: 160px;
+}
+
+.loading-skeleton--card-lg {
+  width: 200px;
+}
+
+/* =============================================================================
+   Skeleton List
+   ============================================================================= */
+
+.loading-state--skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.loading-skeleton--row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: transparent;
+  animation: none;
+}
+
+.loading-skeleton--thumbnail {
+  width: 48px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+}
+
+.loading-skeleton--row-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.loading-skeleton--text {
+  height: 1em;
+  border-radius: var(--radius-sm);
+}
+
+.loading-skeleton--text-title {
+  width: 70%;
+}
+
+.loading-skeleton--text-subtitle {
+  width: 40%;
+  height: 0.8em;
+}
+
+/* =============================================================================
+   Overlay
+   ============================================================================= */
+
+.loading-state--overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  min-height: 200px;
+}
+
+/* =============================================================================
+   Inline Spinner
+   ============================================================================= */
+
+.loading-state--inline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl);
+  color: var(--color-text-muted);
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: loading-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner {
+    animation-duration: 2s;
+  }
+}
+
+.loading-message {
+  font-size: 0.9rem;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .loading-skeleton--card-sm {
+    width: 100px;
+  }
+
+  .loading-skeleton--card-md {
+    width: 120px;
+  }
+
+  .loading-skeleton--card-lg {
+    width: 160px;
+  }
+
+  .loading-skeleton--thumbnail {
+    width: 40px;
+    height: 60px;
+  }
+}

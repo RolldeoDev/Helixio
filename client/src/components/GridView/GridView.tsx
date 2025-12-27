@@ -14,6 +14,7 @@ import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CoverSizeSlider } from '../CoverSizeSlider';
 import { CollectionPickerModal } from '../CollectionPickerModal';
 import { GroupSelectCheckbox } from '../GroupSelectCheckbox';
+import { Spinner } from '../LoadingState';
 import { groupFiles } from '../../utils/file-grouping';
 import { useOptimalGridSize } from '../../hooks/useOptimalGridSize';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
@@ -346,12 +347,7 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
     <div className="grid-view" ref={scrollTargetRef}>
 
       {/* Loading State */}
-      {loadingFiles && (
-        <div className="loading-overlay">
-          <div className="spinner" />
-          Loading comics...
-        </div>
-      )}
+      {loadingFiles && <Spinner message="Loading comics..." />}
 
       {/* Error State */}
       {filesError && <div className="error-message">{filesError}</div>}
@@ -410,7 +406,6 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
                   size="medium"
                   selectable={true}
                   isSelected={selectedFiles.has(file.id)}
-                  checkboxVisibility="hover"
                   contextMenuEnabled={true}
                   menuItems={menuItems}
                   selectedCount={selectedFiles.size}
@@ -503,7 +498,6 @@ export function GridView({ onFileSelect, onFileDoubleClick, onFetchMetadata, onE
                             size="medium"
                             selectable={true}
                             isSelected={selectedFiles.has(file.id)}
-                            checkboxVisibility="hover"
                             contextMenuEnabled={true}
                             menuItems={menuItems}
                             selectedCount={selectedFiles.size}

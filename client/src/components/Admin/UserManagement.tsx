@@ -6,6 +6,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useConfirmModal } from '../ConfirmModal';
+import { useApiToast } from '../../hooks';
 import './UserManagement.css';
 
 // =============================================================================
@@ -91,11 +93,12 @@ async function deleteUser(userId: string): Promise<void> {
 
 export function UserManagement() {
   const { user: currentUser } = useAuth();
+  const confirm = useConfirmModal();
+  const { addToast } = useApiToast();
 
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Create user state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -110,12 +113,12 @@ export function UserManagement() {
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const data = await getUsers();
       setUsers(data.users);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load users');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -125,24 +128,10 @@ export function UserManagement() {
     loadUsers();
   }, [loadUsers]);
 
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
-
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.username.trim() || !formData.password.trim()) {
-      showMessage('Username and password are required', true);
+      addToast('error', 'Username and password are required');
       return;
     }
 
@@ -155,12 +144,12 @@ export function UserManagement() {
         displayName: formData.displayName.trim() || undefined,
         role: formData.role,
       });
-      showMessage('User created successfully');
+      addToast('success', 'User created successfully');
       setShowCreateForm(false);
       setFormData({ username: '', password: '', email: '', displayName: '', role: 'user' });
       await loadUsers();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to create user', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setCreating(false);
     }
@@ -169,39 +158,47 @@ export function UserManagement() {
   const handleRoleChange = async (user: User, newRole: string) => {
     try {
       await updateUserRole(user.id, newRole);
-      showMessage(`${user.username}'s role updated to ${newRole}`);
+      addToast('success', `${user.username}'s role updated to ${newRole}`);
       await loadUsers();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to update role', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to update role');
     }
   };
 
   const handleToggleActive = async (user: User) => {
     const action = user.isActive ? 'disable' : 'enable';
-    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} user "${user.username}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: `${action.charAt(0).toUpperCase() + action.slice(1)} User`,
+      message: `${action.charAt(0).toUpperCase() + action.slice(1)} user "${user.username}"?`,
+      confirmText: action.charAt(0).toUpperCase() + action.slice(1),
+      variant: user.isActive ? 'warning' : 'default',
+    });
+    if (!confirmed) return;
 
     try {
       await updateUserActive(user.id, !user.isActive);
-      showMessage(`User ${action}d successfully`);
+      addToast('success', `User ${action}d successfully`);
       await loadUsers();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to update user', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to update user');
     }
   };
 
   const handleDeleteUser = async (user: User) => {
-    if (!window.confirm(`Delete user "${user.username}"? This cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: `Delete user "${user.username}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     try {
       await deleteUser(user.id);
-      showMessage('User deleted');
+      addToast('success', 'User deleted');
       await loadUsers();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to delete user', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to delete user');
     }
   };
 
@@ -233,8 +230,7 @@ export function UserManagement() {
         </button>
       </div>
 
-      {error && <div className="management-error">{error}</div>}
-      {success && <div className="management-success">{success}</div>}
+      {loadError && <div className="management-error">{loadError}</div>}
 
       {/* Create User Form */}
       {showCreateForm && (

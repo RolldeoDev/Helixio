@@ -9,6 +9,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
+import { useApiToast } from '../../hooks';
 import { getLibraryReadingProgress, markAsCompleted, markAsIncomplete } from '../../services/api.service';
 import { CoverCard, type MenuItemPreset } from '../CoverCard';
 import { CollectionPickerModal } from '../CollectionPickerModal';
@@ -54,8 +55,7 @@ export function VirtualGridView({
   // Reading progress state
   const [readingProgress, setReadingProgress] = useState<Record<string, { currentPage: number; totalPages: number; completed: boolean }>>({});
 
-  // Operation message state
-  const [operationMessage, setOperationMessage] = useState<string | null>(null);
+  const { addToast } = useApiToast();
 
   // Collection picker modal state
   const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
@@ -121,7 +121,6 @@ export function VirtualGridView({
         break;
       case 'markRead':
         try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
           await Promise.all(targetIds.map((id) => markAsCompleted(id)));
           setReadingProgress((prev) => {
             const updated = { ...prev };
@@ -134,16 +133,13 @@ export function VirtualGridView({
             });
             return updated;
           });
-          setOperationMessage('Marked as read');
-          setTimeout(() => setOperationMessage(null), 2000);
+          addToast('success', `Marked ${targetIds.length} issue(s) as read`);
         } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as read'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
+          addToast('error', err instanceof Error ? err.message : 'Failed to mark as read');
         }
         break;
       case 'markUnread':
         try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
           await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
           setReadingProgress((prev) => {
             const updated = { ...prev };
@@ -154,11 +150,9 @@ export function VirtualGridView({
             });
             return updated;
           });
-          setOperationMessage('Marked as unread');
-          setTimeout(() => setOperationMessage(null), 2000);
+          addToast('success', `Marked ${targetIds.length} issue(s) as unread`);
         } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed to mark as unread'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
+          addToast('error', err instanceof Error ? err.message : 'Failed to mark as unread');
         }
         break;
       case 'addToCollection':
@@ -192,9 +186,6 @@ export function VirtualGridView({
       {/* Toolbar */}
       <div className="vgrid-toolbar">
         <span className="vgrid-count">{files.length} comics</span>
-        {operationMessage && (
-          <span className="vgrid-operation-message">{operationMessage}</span>
-        )}
         {selectedFiles.size > 0 && (
           <div className="vgrid-toolbar-actions">
             {onFetchMetadata && (
@@ -238,7 +229,6 @@ export function VirtualGridView({
                 size="medium"
                 selectable={true}
                 isSelected={selectedFiles.has(item.id)}
-                checkboxVisibility="hover"
                 contextMenuEnabled={true}
                 menuItems={menuItems}
                 selectedCount={selectedFiles.size}

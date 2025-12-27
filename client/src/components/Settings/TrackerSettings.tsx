@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useConfirmModal } from '../ConfirmModal';
 import './TrackerSettings.css';
 
 // =============================================================================
@@ -73,6 +74,7 @@ async function disconnectTracker(service: string): Promise<void> {
 // =============================================================================
 
 export function TrackerSettings() {
+  const confirm = useConfirmModal();
   const [trackers, setTrackers] = useState<TrackerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -169,9 +171,13 @@ export function TrackerSettings() {
   };
 
   const handleDisconnect = async (service: string) => {
-    if (!window.confirm(`Disconnect from ${formatServiceName(service)}?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Disconnect Tracker',
+      message: `Disconnect from ${formatServiceName(service)}?`,
+      confirmText: 'Disconnect',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     setError(null);
     setSuccess(null);

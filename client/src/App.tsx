@@ -20,6 +20,7 @@ import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { ToastProvider } from './contexts/ToastContext';
 import { Toast } from './components/Toast';
+import { ConfirmModalProvider } from './components/ConfirmModal';
 import { DownloadProvider } from './contexts/DownloadContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
 import { DownloadNotificationBar } from './components/DownloadNotificationBar/DownloadNotificationBar';
@@ -434,14 +435,16 @@ function App() {
                       <AchievementProvider>
                         <DownloadProvider>
                           <ToastProvider>
-                            <AppContent />
-                            {/* Toast notifications */}
-                            <Toast />
-                            {/* Achievement notifications */}
-                            <AchievementToast />
-                            {/* Download notifications */}
-                            <DownloadNotificationBar />
-                            <DownloadConfirmationModal />
+                            <ConfirmModalProvider>
+                              <AppContent />
+                              {/* Toast notifications */}
+                              <Toast />
+                              {/* Achievement notifications */}
+                              <AchievementToast />
+                              {/* Download notifications */}
+                              <DownloadNotificationBar />
+                              <DownloadConfirmationModal />
+                            </ConfirmModalProvider>
                           </ToastProvider>
                         </DownloadProvider>
                       </AchievementProvider>

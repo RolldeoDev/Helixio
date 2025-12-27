@@ -6,8 +6,9 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
+import { UnifiedMenu, buildMenuItems, MENU_PRESETS } from '../UnifiedMenu';
+import type { MenuState, MenuContext, MenuItem } from '../UnifiedMenu/types';
 import './SeriesCoverCard.css';
 
 // =============================================================================
@@ -15,9 +16,6 @@ import './SeriesCoverCard.css';
 // =============================================================================
 
 export type SeriesCoverCardSize = 'small' | 'medium' | 'large';
-
-/** Checkbox visibility mode */
-export type CheckboxVisibility = 'always' | 'hover' | 'selected';
 
 /** Menu item preset identifiers for series context menu */
 export type SeriesMenuItemPreset = 'view' | 'fetchMetadata' | 'markAllRead' | 'markAllUnread' | 'mergeWith' | 'hide' | 'unhide';
@@ -60,9 +58,6 @@ export interface SeriesCoverCardProps {
   /** Whether this series is currently selected */
   isSelected?: boolean;
 
-  /** When to show the checkbox */
-  checkboxVisibility?: CheckboxVisibility;
-
   /** Selection change handler - called when checkbox is toggled */
   onSelectionChange?: (seriesId: string, selected: boolean, shiftKey?: boolean) => void;
 
@@ -76,25 +71,6 @@ export interface SeriesCoverCardProps {
   tabIndex?: number;
 }
 
-// =============================================================================
-// Series Menu Configuration
-// =============================================================================
-
-/**
- * Get series menu items based on the series' hidden state.
- */
-function getSeriesMenuItems(isHidden: boolean): SeriesMenuItem[] {
-  return [
-    { id: 'view', label: 'View Series' },
-    { id: 'fetchMetadata', label: 'Fetch Metadata', dividerBefore: true },
-    { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
-    { id: 'markAllUnread', label: 'Mark All as Unread' },
-    { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
-    isHidden
-      ? { id: 'unhide', label: 'Unhide Series', dividerBefore: true }
-      : { id: 'hide', label: 'Hide Series', dividerBefore: true },
-  ];
-}
 
 // =============================================================================
 // Component
@@ -110,7 +86,6 @@ export function SeriesCoverCard({
   showPublisher = true,
   selectable = false,
   isSelected = false,
-  checkboxVisibility = 'hover',
   onSelectionChange,
   className = '',
   animationIndex,
@@ -153,14 +128,28 @@ export function SeriesCoverCard({
   );
 
   // Context menu state
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuState, setMenuState] = useState<MenuState>({
+    isOpen: false,
+    position: null,
+    triggerType: 'context',
+    context: null,
+  });
 
   const imgRef = useRef<HTMLImageElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Memoize menu items based on hidden state
-  const menuItems = useMemo(() => getSeriesMenuItems(series.isHidden), [series.isHidden]);
+  // Build menu items based on hidden state
+  const menuItems: MenuItem[] = useMemo(() => {
+    const context: MenuContext = {
+      entityType: 'series',
+      entityId: series.id,
+      selectedIds: [series.id],
+      selectedCount: 1,
+      entityData: {
+        isHidden: series.isHidden,
+      },
+    };
+    return buildMenuItems(MENU_PRESETS.seriesCard, context);
+  }, [series.id, series.isHidden]);
 
   // Handle cached images that load before React attaches handlers
   useEffect(() => {
@@ -243,64 +232,54 @@ export function SeriesCoverCard({
       e.preventDefault();
       e.stopPropagation();
 
-      // Calculate position, keeping menu within viewport
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const menuWidth = 200;
-      const menuHeight = 200;
-
-      let x = e.clientX;
-      let y = e.clientY;
-
-      if (x + menuWidth > viewportWidth) {
-        x = viewportWidth - menuWidth - 8;
-      }
-      if (y + menuHeight > viewportHeight) {
-        y = viewportHeight - menuHeight - 8;
+      // Ensure series is selected when opening context menu
+      if (!isSelected && onSelectionChange) {
+        onSelectionChange(series.id, true);
       }
 
-      x = Math.max(8, x);
-      y = Math.max(8, y);
-
-      setMenuPosition({ x, y });
-      setMenuOpen(true);
+      setMenuState({
+        isOpen: true,
+        position: { x: e.clientX, y: e.clientY },
+        triggerType: 'context',
+        context: {
+          entityType: 'series',
+          entityId: series.id,
+          selectedIds: [series.id],
+          selectedCount: 1,
+          entityData: {
+            isHidden: series.isHidden,
+          },
+        },
+      });
     },
-    [contextMenuEnabled, onMenuAction]
+    [contextMenuEnabled, onMenuAction, series.id, series.isHidden, isSelected, onSelectionChange]
   );
 
-  // Close menu on click outside
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    const handleClickOutside = () => {
-      setMenuOpen(false);
-    };
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMenuOpen(false);
-      }
-    };
-
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [menuOpen]);
+  // Close menu
+  const closeMenu = useCallback(() => {
+    setMenuState({
+      isOpen: false,
+      position: null,
+      triggerType: 'context',
+      context: null,
+    });
+  }, []);
 
   // Handle menu action
-  const handleMenuItemClick = useCallback(
-    (action: string) => {
-      setMenuOpen(false);
-      onMenuAction?.(action as SeriesMenuItemPreset, series.id);
+  const handleMenuAction = useCallback(
+    (actionId: string) => {
+      closeMenu();
+      // Map UnifiedMenu action IDs to legacy SeriesMenuItemPreset IDs
+      const actionMap: Record<string, string> = {
+        viewSeries: 'view',
+        fetchSeriesMetadata: 'fetchMetadata',
+        hideSeries: 'hide',
+        unhideSeries: 'unhide',
+      };
+      const legacyAction = actionMap[actionId] || actionId;
+      onMenuAction?.(legacyAction as SeriesMenuItemPreset, series.id);
     },
-    [onMenuAction, series.id]
+    [closeMenu, onMenuAction, series.id]
   );
 
   // Animation style
@@ -312,7 +291,6 @@ export function SeriesCoverCard({
   const classNames = [
     'series-cover-card',
     `series-cover-card--${size}`,
-    selectable && `series-cover-card--checkbox-${checkboxVisibility}`,
     isSelected && 'series-cover-card--selected',
     className,
   ].filter(Boolean).join(' ');
@@ -413,35 +391,14 @@ export function SeriesCoverCard({
         </span>
       </div>
 
-      {/* Context Menu - rendered via portal to avoid transform containment issues */}
-      {menuOpen && menuPosition && createPortal(
-        <div
-          ref={menuRef}
-          className="series-cover-card__context-menu"
-          style={{ top: menuPosition.y, left: menuPosition.x }}
-          role="menu"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {menuItems.map((item, index) => (
-            <div key={item.id}>
-              {item.dividerBefore && index > 0 && (
-                <div className="series-cover-card__menu-divider" role="separator" />
-              )}
-              <button
-                className={`series-cover-card__menu-item ${item.danger ? 'series-cover-card__menu-item--danger' : ''}`}
-                onClick={() => handleMenuItemClick(item.id)}
-                role="menuitem"
-              >
-                {item.label}
-              </button>
-              {item.dividerAfter && index < menuItems.length - 1 && (
-                <div className="series-cover-card__menu-divider" role="separator" />
-              )}
-            </div>
-          ))}
-        </div>,
-        document.body
-      )}
+      {/* Context Menu - using UnifiedMenu component */}
+      <UnifiedMenu
+        state={menuState}
+        items={menuItems}
+        onAction={handleMenuAction}
+        onClose={closeMenu}
+        variant="context"
+      />
     </div>
   );
 }

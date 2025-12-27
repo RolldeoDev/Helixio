@@ -26,6 +26,8 @@ import { LibraryScanModal } from '../LibraryScanModal';
 import { useLibraryScan } from '../../contexts/LibraryScanContext';
 import { ToggleSwitch } from '../ToggleSwitch';
 import { SectionCard } from '../SectionCard';
+import { useConfirmModal } from '../ConfirmModal';
+import { useApiToast } from '../../hooks';
 
 const API_BASE = '/api';
 
@@ -53,13 +55,14 @@ export function Settings() {
   const isAdmin = user?.role === 'admin';
   const { colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
+  const confirm = useConfirmModal();
+  const { addToast } = useApiToast();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Library management state
   const [showAddLibrary, setShowAddLibrary] = useState(false);
@@ -137,7 +140,7 @@ export function Settings() {
           // Use defaults if endpoint not available
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load configuration');
+        setLoadError(err instanceof Error ? err.message : 'Failed to load configuration');
       } finally {
         setLoading(false);
       }
@@ -145,20 +148,6 @@ export function Settings() {
 
     loadConfiguration();
   }, []);
-
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
 
   // Save general settings
   const handleSaveSettings = async () => {
@@ -210,9 +199,9 @@ export function Settings() {
         throw new Error('Failed to save comic classification settings');
       }
 
-      showMessage('Settings saved successfully');
+      addToast('success', 'Settings saved successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to save settings', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSaving(false);
     }
@@ -229,9 +218,9 @@ export function Settings() {
       await refreshLibraries();
       setShowAddLibrary(false);
       setNewLibrary({ name: '', rootPath: '', type: 'western' });
-      showMessage('Library added successfully');
+      addToast('success', 'Library added successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to add library', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to add library');
     } finally {
       setSaving(false);
     }
@@ -248,27 +237,31 @@ export function Settings() {
       });
       await refreshLibraries();
       setEditingLibrary(null);
-      showMessage('Library updated successfully');
+      addToast('success', 'Library updated successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to update library', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to update library');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteLibrary = async (library: Library) => {
-    if (!window.confirm(`Delete library "${library.name}"? This will remove it from Helixio but will not delete any files.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete Library',
+      message: `Delete library "${library.name}"? This will remove it from Helixio but will not delete any files.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setSaving(true);
     try {
       await deleteLibrary(library.id);
       await refreshLibraries();
       selectLibrary(null);
-      showMessage('Library removed successfully');
+      addToast('success', 'Library removed successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to delete library', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to delete library');
     } finally {
       setSaving(false);
     }
@@ -280,7 +273,7 @@ export function Settings() {
     try {
       await startScan(library.id);
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to start library scan', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to start library scan');
       setScanningLibrary(null);
     }
   };
@@ -306,8 +299,7 @@ export function Settings() {
         {config && <span className="version">v{config.version}</span>}
       </div>
 
-      {error && <div className="error-message">{error}</div>}
-      {success && <div className="success-message">{success}</div>}
+      {loadError && <div className="error-message">{loadError}</div>}
 
       <div className="settings-content">
         {/* Tab Navigation */}

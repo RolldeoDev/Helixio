@@ -1,0 +1,338 @@
+/* =============================================================================
+   UnifiedMenu Component Styles
+
+   Unified styling for both context menus (right-click) and action menus (button).
+   Maintains backwards compatibility with existing class names.
+   ============================================================================= */
+
+/* =============================================================================
+   Base Menu Styles
+   ============================================================================= */
+
+.unified-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 4px 0;
+  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
+  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
+  animation: unified-menu-enter 0.15s ease-out;
+}
+
+@keyframes unified-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =============================================================================
+   Menu Items
+   ============================================================================= */
+
+.unified-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.unified-menu__item:hover {
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.unified-menu__item:focus-visible {
+  outline: none;
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.unified-menu__item--danger {
+  color: var(--color-error, #ef4444);
+}
+
+.unified-menu__item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.unified-menu__item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.unified-menu__item--disabled:hover {
+  background: transparent;
+}
+
+/* Icon */
+.unified-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Label */
+.unified-menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Divider */
+.unified-menu__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+}
+
+/* =============================================================================
+   Backwards Compatibility Aliases
+
+   These class names match the original components for seamless migration.
+   ============================================================================= */
+
+/* CoverCard ContextMenu compatibility */
+.cover-card-context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 4px 0;
+  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
+  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
+  animation: unified-menu-enter 0.15s ease-out;
+}
+
+.cover-card-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.cover-card-context-menu__item:hover {
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.cover-card-context-menu__item:focus-visible {
+  outline: none;
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.cover-card-context-menu__item--danger {
+  color: var(--color-error, #ef4444);
+}
+
+.cover-card-context-menu__item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.cover-card-context-menu__item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cover-card-context-menu__item--disabled:hover {
+  background: transparent;
+}
+
+.cover-card-context-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.cover-card-context-menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cover-card-context-menu__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+}
+
+/* ActionMenu compatibility - Menu dropdown */
+.action-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 4px 0;
+  background: var(--color-menu-bg, var(--color-bg-elevated, #1e1e2e));
+  border: 1px solid var(--color-menu-border, var(--color-border, rgba(255, 255, 255, 0.1)));
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-dropdown, 0 10px 25px rgba(0, 0, 0, 0.5));
+  animation: unified-menu-enter 0.15s ease-out;
+}
+
+.action-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast, 150ms ease);
+}
+
+.action-menu__item:hover {
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.action-menu__item:focus-visible {
+  outline: none;
+  background: var(--color-menu-item-hover, var(--color-hover, rgba(255, 255, 255, 0.1)));
+}
+
+.action-menu__item--danger {
+  color: var(--color-error, #ef4444);
+}
+
+.action-menu__item--danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.action-menu__item--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-menu__item--disabled:hover {
+  background: transparent;
+}
+
+.action-menu__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.action-menu__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-menu__divider {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--color-menu-border, var(--color-border-subtle, rgba(255, 255, 255, 0.08)));
+}
+
+/* ActionMenu compatibility - Trigger button */
+.action-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs, 6px);
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast, 150ms ease);
+}
+
+.action-menu-trigger:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.action-menu-trigger:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.action-menu-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-menu-trigger[aria-expanded="true"] {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/* Size Variants */
+.action-menu-trigger--small {
+  padding: 4px;
+}
+
+.action-menu-trigger--small svg {
+  width: 14px;
+  height: 14px;
+}
+
+.action-menu-trigger--medium {
+  padding: 6px;
+}
+
+.action-menu-trigger--medium svg {
+  width: 16px;
+  height: 16px;
+}
+
+.action-menu-trigger--large {
+  padding: 8px;
+}
+
+.action-menu-trigger--large svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .unified-menu,
+  .cover-card-context-menu,
+  .action-menu {
+    animation: none;
+  }
+}

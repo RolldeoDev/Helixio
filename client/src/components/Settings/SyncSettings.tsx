@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useConfirmModal } from '../ConfirmModal';
 import './SyncSettings.css';
 
 // =============================================================================
@@ -75,6 +76,7 @@ async function getSyncState(): Promise<SyncState> {
 // =============================================================================
 
 export function SyncSettings() {
+  const confirm = useConfirmModal();
   const [devices, setDevices] = useState<SyncDevice[]>([]);
   const [syncState, setSyncState] = useState<SyncState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,9 +136,13 @@ export function SyncSettings() {
   };
 
   const handleRemoveDevice = async (device: SyncDevice) => {
-    if (!window.confirm(`Remove "${device.deviceName}" from sync?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Remove Device',
+      message: `Remove "${device.deviceName}" from sync?`,
+      confirmText: 'Remove',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setError(null);
     try {

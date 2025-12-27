@@ -17,6 +17,7 @@ import { scanLibrary, applyScan, rebuildCache, renameFolder } from '../../servic
 import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import { LibraryDropdown } from './LibraryDropdown';
 import { createLibrary } from '../../services/api.service';
+import { useConfirmModal } from '../ConfirmModal';
 import './FolderDrawer.css';
 
 export function FolderDrawer() {
@@ -40,6 +41,7 @@ export function FolderDrawer() {
     refreshFiles,
     setOperation,
   } = useApp();
+  const confirm = useConfirmModal();
 
   const [showAddLibrary, setShowAddLibrary] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState('');
@@ -146,9 +148,11 @@ export function FolderDrawer() {
           result.summary.orphanedFiles;
 
         if (changes > 0) {
-          const confirmed = window.confirm(
-            `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`
-          );
+          const confirmed = await confirm({
+            title: 'Apply Scan Results',
+            message: `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`,
+            confirmText: 'Apply',
+          });
 
           if (confirmed) {
             await applyScan(selectedLibrary.id, result.scanId);

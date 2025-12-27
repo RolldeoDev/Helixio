@@ -5,19 +5,18 @@
  * selection, context menu, and display options. Supports theming.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { CoverImage } from './CoverImage';
-import { ContextMenu } from './ContextMenu';
-import { useContextMenu } from './useContextMenu';
-import { DEFAULT_MENU_ITEMS } from './menuPresets';
+import { UnifiedMenu, useContextMenu, mergeMenuItems } from '../UnifiedMenu';
+import { DEFAULT_MENU_ITEMS } from '../UnifiedMenu/menuDefinitions';
 import { useApp } from '../../contexts/AppContext';
 import { getTitleDisplay } from '../../utils/titleDisplay';
 import type {
   CoverCardProps,
   CoverCardSize,
   CoverCardVariant,
-  CheckboxVisibility,
 } from './types';
+import type { MenuState, MenuItem } from '../UnifiedMenu/types';
 import './CoverCard.css';
 
 /**
@@ -26,8 +25,7 @@ import './CoverCard.css';
 function getModifierClasses(
   size: CoverCardSize,
   variant: CoverCardVariant,
-  isSelected: boolean,
-  checkboxVisibility: CheckboxVisibility
+  isSelected: boolean
 ): string {
   const classes: string[] = [];
 
@@ -37,8 +35,6 @@ function getModifierClasses(
   if (isSelected) {
     classes.push('cover-card--selected');
   }
-
-  classes.push(`cover-card--checkbox-${checkboxVisibility}`);
 
   return classes.join(' ');
 }
@@ -55,7 +51,6 @@ export function CoverCard({
   showIssueNumber = true,
   selectable = false,
   isSelected = false,
-  checkboxVisibility = 'hover',
   contextMenuEnabled = false,
   menuItems = DEFAULT_MENU_ITEMS,
   customMenuItems,
@@ -158,7 +153,7 @@ export function CoverCard({
   );
 
   // Build class name
-  const modifiers = getModifierClasses(size, variant, isSelected, checkboxVisibility);
+  const modifiers = getModifierClasses(size, variant, isSelected);
   const fullClassName = `cover-card ${modifiers} ${className}`.trim();
 
   // Animation style for staggered entrance
@@ -269,17 +264,85 @@ export function CoverCard({
         )}
       </div>
 
-      {/* Context Menu (rendered as portal-like at root) */}
-      {contextMenuEnabled && menuState.isOpen && menuState.position && (
-        <ContextMenu
-          position={menuState.position}
-          items={menuItems}
-          customItems={customMenuItems}
+      {/* Context Menu (rendered via UnifiedMenu) */}
+      {contextMenuEnabled && (
+        <UnifiedMenuWrapper
+          menuState={menuState}
+          menuItems={menuItems}
+          customMenuItems={customMenuItems}
           selectedCount={selectedCount}
+          fileId={file.id}
           onAction={handleMenuAction}
           onClose={closeMenu}
         />
       )}
     </>
+  );
+}
+
+// =============================================================================
+// UnifiedMenu Wrapper for Legacy ContextMenu API
+// =============================================================================
+
+interface UnifiedMenuWrapperProps {
+  menuState: { isOpen: boolean; position: { x: number; y: number } | null; fileId: string | null };
+  menuItems: import('./types').MenuItemPreset[];
+  customMenuItems?: import('./types').CoverCardMenuItem[];
+  selectedCount: number;
+  fileId: string;
+  onAction: (action: string) => void;
+  onClose: () => void;
+}
+
+function UnifiedMenuWrapper({
+  menuState,
+  menuItems: presetItems,
+  customMenuItems,
+  selectedCount,
+  fileId,
+  onAction,
+  onClose,
+}: UnifiedMenuWrapperProps) {
+  // Build menu items from presets
+  const items: MenuItem[] = useMemo(() => {
+    return mergeMenuItems(presetItems, customMenuItems, selectedCount);
+  }, [presetItems, customMenuItems, selectedCount]);
+
+  // Convert legacy menu state to UnifiedMenu state
+  const unifiedState: MenuState = useMemo(
+    () => ({
+      isOpen: menuState.isOpen,
+      position: menuState.position,
+      triggerType: 'context' as const,
+      context: {
+        entityType: 'file' as const,
+        entityId: fileId,
+        selectedIds: selectedCount > 1 ? [] : [fileId], // Selection handled externally
+        selectedCount,
+      },
+    }),
+    [menuState.isOpen, menuState.position, fileId, selectedCount]
+  );
+
+  // Handle action - just pass through the action ID
+  const handleAction = useCallback(
+    (actionId: string) => {
+      onAction(actionId);
+    },
+    [onAction]
+  );
+
+  if (!unifiedState.isOpen || !unifiedState.position) {
+    return null;
+  }
+
+  return (
+    <UnifiedMenu
+      state={unifiedState}
+      items={items}
+      onAction={handleAction}
+      onClose={onClose}
+      variant="context"
+    />
   );
 }

@@ -8,6 +8,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ToggleSwitch } from '../ToggleSwitch';
+import { useApiToast } from '../../hooks';
+import { useConfirmModal } from '../ConfirmModal';
 import './AdminSettings.css';
 
 interface User {
@@ -50,28 +52,13 @@ export function AdminSettings() {
   const [userLibraryAccess, setUserLibraryAccess] = useState<LibraryAccess[]>([]);
   const [loadingAccess, setLoadingAccess] = useState(false);
 
-  // Messages
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { addToast } = useApiToast();
+  const confirm = useConfirmModal();
 
   useEffect(() => {
     loadSettings();
     loadUsers();
   }, []);
-
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
 
   // Load app settings
   const loadSettings = async () => {
@@ -100,10 +87,10 @@ export function AdminSettings() {
         const data = await response.json();
         setUsers(data.users || []);
       } else {
-        showMessage('Failed to load users', true);
+        addToast('error', 'Failed to load users');
       }
     } catch {
-      showMessage('Failed to load users', true);
+      addToast('error', 'Failed to load users');
     } finally {
       setLoadingUsers(false);
     }
@@ -126,16 +113,16 @@ export function AdminSettings() {
 
       if (response.ok) {
         setSettings({ ...settings, allowOpenRegistration: !settings.allowOpenRegistration });
-        showMessage(
+        addToast('success',
           settings.allowOpenRegistration
             ? 'Open registration disabled'
             : 'Open registration enabled'
         );
       } else {
-        showMessage('Failed to update settings', true);
+        addToast('error', 'Failed to update settings');
       }
     } catch {
-      showMessage('Failed to update settings', true);
+      addToast('error', 'Failed to update settings');
     } finally {
       setSavingSettings(false);
     }
@@ -178,20 +165,26 @@ export function AdminSettings() {
             lib.libraryId === libraryId ? { ...lib, hasAccess: !hasAccess } : lib
           )
         );
-        showMessage(`Library access ${hasAccess ? 'revoked' : 'granted'}`);
+        addToast('success', `Library access ${hasAccess ? 'revoked' : 'granted'}`);
       } else {
-        showMessage('Failed to update library access', true);
+        addToast('error', 'Failed to update library access');
       }
     } catch {
-      showMessage('Failed to update library access', true);
+      addToast('error', 'Failed to update library access');
     }
   };
 
   // Freeze/unfreeze user
   const handleToggleFreeze = async (user: User) => {
     const action = user.isActive ? 'freeze' : 'unfreeze';
-    if (user.isActive && !window.confirm(`Freeze user "${user.username}"? This will log them out and prevent login.`)) {
-      return;
+    if (user.isActive) {
+      const confirmed = await confirm({
+        title: 'Freeze User',
+        message: `Freeze user "${user.username}"? This will log them out and prevent login.`,
+        confirmText: 'Freeze',
+        variant: 'warning',
+      });
+      if (!confirmed) return;
     }
 
     try {
@@ -209,25 +202,31 @@ export function AdminSettings() {
         if (selectedUser?.id === user.id) {
           setSelectedUser({ ...selectedUser, isActive: !user.isActive });
         }
-        showMessage(user.isActive ? 'User frozen' : 'User unfrozen');
+        addToast('success', user.isActive ? 'User frozen' : 'User unfrozen');
       } else {
-        showMessage(`Failed to ${action} user`, true);
+        addToast('error', `Failed to ${action} user`);
       }
     } catch {
-      showMessage(`Failed to ${action} user`, true);
+      addToast('error', `Failed to ${action} user`);
     }
   };
 
   // Change user role
   const handleToggleAdmin = async (user: User) => {
     if (user.id === currentUser?.id) {
-      showMessage('Cannot change your own role', true);
+      addToast('error', 'Cannot change your own role');
       return;
     }
 
     const newRole = user.role === 'admin' ? 'user' : 'admin';
-    if (newRole === 'admin' && !window.confirm(`Make "${user.username}" an admin? They will have full access.`)) {
-      return;
+    if (newRole === 'admin') {
+      const confirmed = await confirm({
+        title: 'Grant Admin Access',
+        message: `Make "${user.username}" an admin? They will have full access.`,
+        confirmText: 'Grant Admin',
+        variant: 'warning',
+      });
+      if (!confirmed) return;
     }
 
     try {
@@ -247,12 +246,12 @@ export function AdminSettings() {
         if (selectedUser?.id === user.id) {
           setSelectedUser({ ...selectedUser, role: newRole });
         }
-        showMessage(`User is now ${newRole === 'admin' ? 'an admin' : 'a regular user'}`);
+        addToast('success', `User is now ${newRole === 'admin' ? 'an admin' : 'a regular user'}`);
       } else {
-        showMessage('Failed to change role', true);
+        addToast('error', 'Failed to change role');
       }
     } catch {
-      showMessage('Failed to change role', true);
+      addToast('error', 'Failed to change role');
     }
   };
 
@@ -292,9 +291,6 @@ export function AdminSettings() {
   return (
     <div className="admin-settings">
       <h2>Administration</h2>
-
-      {error && <div className="admin-error">{error}</div>}
-      {success && <div className="admin-success">{success}</div>}
 
       {/* Registration Settings */}
       <div className="admin-section">

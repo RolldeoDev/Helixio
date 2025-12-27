@@ -2,12 +2,15 @@
  * ActionMenu Component
  *
  * A "..." button that opens a dropdown menu with actions.
- * Reusable for both series and issue action menus.
+ * Now a thin wrapper around UnifiedMenu for consistency.
+ *
+ * Maintains the same API for backwards compatibility.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import './ActionMenu.css';
+import { useState, useRef, useCallback } from 'react';
+import { UnifiedMenu } from '../UnifiedMenu';
+import type { MenuItem, MenuState, MenuContext } from '../UnifiedMenu/types';
+import '../UnifiedMenu/UnifiedMenu.css';
 
 // =============================================================================
 // Types
@@ -50,12 +53,17 @@ export function ActionMenu({
   className = '',
   disabled = false,
 }: ActionMenuProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Calculate menu position when opening
+  // Menu state
+  const [menuState, setMenuState] = useState<MenuState>({
+    isOpen: false,
+    position: null,
+    triggerType: 'button',
+    context: null,
+  });
+
+  // Open the menu
   const openMenu = useCallback(() => {
     if (!buttonRef.current) return;
 
@@ -64,116 +72,86 @@ export function ActionMenu({
     const menuHeight = items.length * 36 + 8; // Approximate height
 
     // Position below button, aligned to right edge
-    let top = rect.bottom + 4;
-    let left = rect.right - menuWidth;
+    let x = rect.right - menuWidth;
+    let y = rect.bottom + 4;
 
     // Viewport boundary checks
-    if (left < 8) {
-      left = rect.left;
+    if (x < 8) {
+      x = rect.left;
     }
-    if (top + menuHeight > window.innerHeight - 8) {
-      top = rect.top - menuHeight - 4;
+    if (y + menuHeight > window.innerHeight - 8) {
+      y = rect.top - menuHeight - 4;
     }
 
-    setMenuPosition({ top, left });
-    setIsOpen(true);
+    // Create a minimal context for the menu
+    const context: MenuContext = {
+      entityType: 'file',
+      entityId: '',
+      selectedIds: [],
+      selectedCount: 0,
+    };
+
+    setMenuState({
+      isOpen: true,
+      position: { x, y },
+      triggerType: 'button',
+      context,
+    });
   }, [items.length]);
 
-  // Close menu
+  // Close the menu
   const closeMenu = useCallback(() => {
-    setIsOpen(false);
-    setMenuPosition(null);
+    setMenuState({
+      isOpen: false,
+      position: null,
+      triggerType: 'button',
+      context: null,
+    });
   }, []);
 
-  // Toggle menu
+  // Handle button click
   const handleButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isOpen) {
+    if (menuState.isOpen) {
       closeMenu();
     } else {
       openMenu();
     }
   };
 
-  // Handle action click
-  const handleAction = (actionId: string) => {
-    onAction(actionId);
-    closeMenu();
-  };
-
-  // Handle keyboard on button
+  // Handle button keyboard
   const handleButtonKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      if (isOpen) {
+      if (menuState.isOpen) {
         closeMenu();
       } else {
         openMenu();
       }
-    } else if (e.key === 'Escape' && isOpen) {
+    } else if (e.key === 'Escape' && menuState.isOpen) {
       closeMenu();
     }
   };
 
-  // Handle keyboard navigation in menu
-  const handleMenuKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
+  // Handle menu action - pass through to parent
+  const handleAction = useCallback(
+    (actionId: string) => {
+      onAction(actionId);
       closeMenu();
-      buttonRef.current?.focus();
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const current = document.activeElement;
-      const nextButton = current?.nextElementSibling?.querySelector('button')
-        || current?.parentElement?.nextElementSibling?.querySelector('button');
-      if (nextButton instanceof HTMLElement) {
-        nextButton.focus();
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const current = document.activeElement;
-      const prevButton = current?.previousElementSibling?.querySelector('button')
-        || current?.parentElement?.previousElementSibling?.querySelector('button');
-      if (prevButton instanceof HTMLElement) {
-        prevButton.focus();
-      }
-    }
-  };
+    },
+    [onAction, closeMenu]
+  );
 
-  // Click outside to close
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        closeMenu();
-      }
-    };
-
-    // Use setTimeout to avoid immediate close from the click that opened it
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [isOpen, closeMenu]);
-
-  // Focus first item when menu opens
-  useEffect(() => {
-    if (isOpen && menuRef.current) {
-      const firstButton = menuRef.current.querySelector('button:not([disabled])');
-      if (firstButton instanceof HTMLElement) {
-        firstButton.focus();
-      }
-    }
-  }, [isOpen]);
+  // Convert ActionMenuItem[] to MenuItem[]
+  const menuItems: MenuItem[] = items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    icon: item.icon,
+    disabled: item.disabled,
+    danger: item.danger,
+    dividerBefore: item.dividerBefore,
+    dividerAfter: item.dividerAfter,
+  }));
 
   return (
     <>
@@ -185,7 +163,7 @@ export function ActionMenu({
         onKeyDown={handleButtonKeyDown}
         aria-label={ariaLabel}
         aria-haspopup="menu"
-        aria-expanded={isOpen}
+        aria-expanded={menuState.isOpen}
         disabled={disabled}
       >
         <svg
@@ -201,43 +179,13 @@ export function ActionMenu({
         </svg>
       </button>
 
-      {isOpen && menuPosition && createPortal(
-        <div
-          ref={menuRef}
-          className="action-menu"
-          style={{ top: menuPosition.top, left: menuPosition.left }}
-          role="menu"
-          onKeyDown={handleMenuKeyDown}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {items.map((item, index) => (
-            <div key={item.id}>
-              {item.dividerBefore && index > 0 && (
-                <div className="action-menu__divider" role="separator" />
-              )}
-
-              <button
-                type="button"
-                className={`action-menu__item ${item.danger ? 'action-menu__item--danger' : ''} ${item.disabled ? 'action-menu__item--disabled' : ''}`}
-                onClick={() => !item.disabled && handleAction(item.id)}
-                disabled={item.disabled}
-                role="menuitem"
-                tabIndex={0}
-              >
-                {item.icon && (
-                  <span className="action-menu__icon">{item.icon}</span>
-                )}
-                <span className="action-menu__label">{item.label}</span>
-              </button>
-
-              {item.dividerAfter && index < items.length - 1 && (
-                <div className="action-menu__divider" role="separator" />
-              )}
-            </div>
-          ))}
-        </div>,
-        document.body
-      )}
+      <UnifiedMenu
+        state={menuState}
+        items={menuItems}
+        onAction={handleAction}
+        onClose={closeMenu}
+        variant="action"
+      />
     </>
   );
 }

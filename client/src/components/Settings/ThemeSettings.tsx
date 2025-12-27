@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useTheme } from '../../themes/ThemeContext';
+import { useApiToast } from '../../hooks';
 import { getTheme } from '../../themes';
 import type { ThemeId } from '../../themes/types';
 import { ThemeMockup } from './ThemeMockup';
 import { VariableEditor } from './VariableEditor';
 import { ThemeDropZone } from './ThemeDropZone';
+import { useConfirmModal } from '../ConfirmModal';
 import './ThemeSettings.css';
 
 /**
@@ -32,6 +34,8 @@ export function ThemeSettings() {
 
   const [isExporting, setIsExporting] = useState(false);
   const [deletingTheme, setDeletingTheme] = useState<string | null>(null);
+  const { addToast } = useApiToast();
+  const confirm = useConfirmModal();
 
   // Get unique bundled theme IDs
   const bundledThemeIds: ThemeId[] = ['default', 'dc', 'marvel', 'sandman', 'synthwave', 'retro', 'manga', 'pulp', 'high-contrast'];
@@ -54,8 +58,10 @@ export function ThemeSettings() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      addToast('success', 'Theme exported');
     } catch (err) {
       console.error('Failed to export theme:', err);
+      addToast('error', 'Failed to export theme');
     } finally {
       setIsExporting(false);
     }
@@ -63,13 +69,21 @@ export function ThemeSettings() {
 
   // Handle external theme delete
   const handleDeleteExternal = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this theme?')) return;
+    const confirmed = await confirm({
+      title: 'Delete Theme',
+      message: 'Are you sure you want to delete this theme?',
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setDeletingTheme(id);
     try {
       await deleteExternalTheme(id);
+      addToast('success', 'Theme deleted');
     } catch (err) {
       console.error('Failed to delete theme:', err);
+      addToast('error', 'Failed to delete theme');
     } finally {
       setDeletingTheme(null);
     }

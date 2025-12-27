@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAnnotations, ComicNote } from '../../contexts/AnnotationsContext';
+import { useConfirmModal } from '../ConfirmModal';
 import './Annotations.css';
 
 // =============================================================================
@@ -30,6 +31,7 @@ export function ComicNotesPanel({
   onClose,
 }: ComicNotesPanelProps) {
   const { getComicNote, setComicNote, deleteComicNote, exportAsMarkdown } = useAnnotations();
+  const confirm = useConfirmModal();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -75,8 +77,14 @@ export function ComicNotesPanel({
     }, 500);
   }, [fileId, title, content, rating, tags, setComicNote]);
 
-  const handleDelete = useCallback(() => {
-    if (window.confirm('Delete this note?')) {
+  const handleDelete = useCallback(async () => {
+    const confirmed = await confirm({
+      title: 'Delete Note',
+      message: 'Delete this note?',
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (confirmed) {
       deleteComicNote(fileId);
       setExistingNote(null);
       setTitle(filename.replace(/\.cb[rz7t]$/i, ''));
@@ -84,7 +92,7 @@ export function ComicNotesPanel({
       setRating(undefined);
       setTags([]);
     }
-  }, [fileId, filename, deleteComicNote]);
+  }, [fileId, filename, deleteComicNote, confirm]);
 
   const handleExport = useCallback(() => {
     const markdown = exportAsMarkdown(fileId);

@@ -18,6 +18,7 @@ import { WantToReadPanel } from '../WantToRead';
 import { LibraryDropdown } from './LibraryDropdown';
 import { scanLibrary, applyScan, rebuildCache, renameFolder, createLibrary, Library } from '../../services/api.service';
 import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
+import { useConfirmModal } from '../ConfirmModal';
 import './Sidebar.css';
 
 const API_BASE = '/api';
@@ -476,6 +477,7 @@ function FoldersView({
   setOperation,
 }: FoldersViewProps) {
   const navigate = useNavigate();
+  const showConfirmModal = useConfirmModal();
   const [showAddLibrary, setShowAddLibrary] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState('');
   const [newLibraryPath, setNewLibraryPath] = useState('');
@@ -555,9 +557,11 @@ function FoldersView({
           result.summary.orphanedFiles;
 
         if (changes > 0) {
-          const confirmed = window.confirm(
-            `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`
-          );
+          const confirmed = await showConfirmModal({
+            title: 'Apply Scan Results',
+            message: `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`,
+            confirmText: 'Apply',
+          });
 
           if (confirmed) {
             await applyScan(selectedLibrary.id, result.scanId);

@@ -23,8 +23,10 @@ import {
 } from '../../services/api.service';
 import { ContextMenu, useContextMenu, EXTENDED_MENU_ITEMS, type MenuItemPreset } from '../CoverCard';
 import { GroupSelectCheckbox } from '../GroupSelectCheckbox';
+import { Spinner } from '../LoadingState';
 import { formatFileSize } from '../../utils/format';
 import { groupFiles } from '../../utils/file-grouping';
+import { useConfirmModal } from '../ConfirmModal';
 
 import type { ComicFile } from '../../services/api.service';
 import type { GroupField } from '../SortGroup/SortGroupPanel';
@@ -109,6 +111,7 @@ export function ListView({
     setOperation,
     lastSelectedFileId,
   } = useApp();
+  const confirm = useConfirmModal();
 
   const files = filteredFiles ?? contextFiles;
   const scrollTargetRef = useRef<HTMLDivElement>(null);
@@ -188,7 +191,13 @@ export function ListView({
       ? `${action} ${fileIds.length} files?`
       : `${action} this file?`;
 
-    if (!window.confirm(confirmMessage)) return;
+    const confirmed = await confirm({
+      title: action,
+      message: confirmMessage,
+      confirmText: action,
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setOperation(action, `${action} ${fileIds.length} file(s)...`);
 
@@ -393,12 +402,7 @@ export function ListView({
   return (
     <div className="list-view" ref={scrollTargetRef}>
       {/* Loading State */}
-      {loadingFiles && (
-        <div className="loading-overlay">
-          <div className="spinner" />
-          Loading comics...
-        </div>
-      )}
+      {loadingFiles && <Spinner message="Loading comics..." />}
 
       {/* Error State */}
       {filesError && <div className="error-message">{filesError}</div>}

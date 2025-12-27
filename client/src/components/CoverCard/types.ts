@@ -110,11 +110,6 @@ export type CoverCardSize = 'compact' | 'small' | 'medium' | 'large';
  */
 export type CoverCardVariant = 'grid' | 'list' | 'carousel';
 
-/**
- * Checkbox visibility behavior
- */
-export type CheckboxVisibility = 'always' | 'hover' | 'selected';
-
 // =============================================================================
 // Main Props Interface
 // =============================================================================
@@ -159,9 +154,6 @@ export interface CoverCardProps {
 
   /** Whether this card is currently selected */
   isSelected?: boolean;
-
-  /** Checkbox visibility behavior */
-  checkboxVisibility?: CheckboxVisibility;
 
   // === Context Menu ===
 

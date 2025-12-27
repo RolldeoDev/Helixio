@@ -400,16 +400,8 @@
   accent-color: var(--color-primary, #6366f1);
 }
 
-/* Checkbox visibility modes */
-.series-cover-card--checkbox-always .series-cover-card__checkbox {
-  opacity: 1;
-}
-
-.series-cover-card--checkbox-hover:hover .series-cover-card__checkbox {
-  opacity: 1;
-}
-
-.series-cover-card--checkbox-selected .series-cover-card__checkbox--checked {
+/* Checkbox visibility: show on hover or when selected */
+.series-cover-card:hover .series-cover-card__checkbox {
   opacity: 1;
 }
 

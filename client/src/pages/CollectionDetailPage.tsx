@@ -27,10 +27,10 @@ import {
   getCoverUrl,
   getApiCoverUrl,
   getCollectionCoverUrl,
-  CollectionExpandedData,
-  CollectionExpandedIssue,
   markAsCompleted,
   markAsIncomplete,
+  CollectionExpandedData,
+  CollectionExpandedIssue,
 } from '../services/api.service';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
@@ -40,6 +40,8 @@ import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
 import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
+import { useMenuActions, useApiToast } from '../hooks';
+import type { MenuContext } from '../components/UnifiedMenu/types';
 import './CollectionDetailPage.css';
 
 // =============================================================================
@@ -167,7 +169,6 @@ function VirtualizedIssuesGrid({
               size="medium"
               selectable={true}
               isSelected={selectedFiles.has(issue.id)}
-              checkboxVisibility="hover"
               contextMenuEnabled={true}
               menuItems={SERIES_ISSUE_MENU_ITEMS}
               selectedCount={selectedFiles.size || 1}
@@ -266,7 +267,6 @@ function GroupedGrid({
                       size="medium"
                       selectable={true}
                       isSelected={selectedFiles.has(issue.id)}
-                      checkboxVisibility="hover"
                       contextMenuEnabled={true}
                       menuItems={SERIES_ISSUE_MENU_ITEMS}
                       selectedCount={selectedFiles.size || 1}
@@ -298,7 +298,8 @@ export function CollectionDetailPage() {
   const { collectionId } = useParams<{ collectionId: string }>();
   const navigate = useNavigate();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { startJob, lastCompletedJobAt } = useMetadataJob();
+  const { lastCompletedJobAt } = useMetadataJob();
+  const { addToast } = useApiToast();
 
   // Data state - now using the optimized API
   const [data, setData] = useState<CollectionExpandedData | null>(null);
@@ -311,7 +312,6 @@ export function CollectionDetailPage() {
   const [seriesFilter, setSeriesFilter] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [isScrolling, setIsScrolling] = useState(false);
 
   // Description expand/collapse state
@@ -519,6 +519,11 @@ export function CollectionDetailPage() {
   // Final cover URL: use fallback if primary failed to load
   const coverUrl = coverLoadError ? fallbackCoverUrl : primaryCoverUrl;
 
+  // Centralized menu actions hook
+  const { handleAction: handleMenuActionFromHook } = useMenuActions({
+    onRefresh: fetchCollectionData,
+  });
+
   // Event handlers
   const handleContinueReading = useCallback(() => {
     if (data?.nextIssue) {
@@ -589,47 +594,19 @@ export function CollectionDetailPage() {
     });
   }, []);
 
-  const handleMenuAction = useCallback(async (action: MenuItemPreset | string, fileId: string) => {
-    const targetIds = selectedFiles.has(fileId)
-      ? Array.from(selectedFiles)
-      : [fileId];
-
-    switch (action) {
-      case 'read':
-        handleReadIssue(fileId);
-        break;
-
-      case 'markRead':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as read...`);
-          await Promise.all(targetIds.map((id) => markAsCompleted(id)));
-          setOperationMessage('Marked as read');
-          fetchCollectionData();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'markUnread':
-        try {
-          setOperationMessage(`Marking ${targetIds.length} issue(s) as unread...`);
-          await Promise.all(targetIds.map((id) => markAsIncomplete(id)));
-          setOperationMessage('Marked as unread');
-          fetchCollectionData();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-
-      case 'fetchMetadata':
-        startJob(targetIds);
-        break;
-    }
-  }, [selectedFiles, handleReadIssue, fetchCollectionData, startJob]);
+  // Handle context menu action - delegates to centralized hook
+  const handleMenuAction = useCallback(
+    (action: MenuItemPreset | string, fileId: string) => {
+      const context: MenuContext = {
+        entityType: 'file',
+        entityId: fileId,
+        selectedIds: selectedFiles.has(fileId) ? Array.from(selectedFiles) : [fileId],
+        selectedCount: selectedFiles.has(fileId) ? selectedFiles.size : 1,
+      };
+      handleMenuActionFromHook(action, context);
+    },
+    [selectedFiles, handleMenuActionFromHook]
+  );
 
   const handleToggleGroup = useCallback((seriesId: string) => {
     setExpandedGroups((prev) => {
@@ -651,43 +628,41 @@ export function CollectionDetailPage() {
     setExpandedGroups(new Set());
   }, []);
 
-  const handleCollectionAction = useCallback(async (actionId: string) => {
-    if (!data?.collection) return;
+  // Handle collection-level actions
+  const handleCollectionAction = useCallback(
+    async (actionId: string) => {
+      if (!data?.collection) return;
 
-    switch (actionId) {
-      case 'editCollection':
-        navigate(`/collections/${collectionId}`);
-        break;
+      switch (actionId) {
+        case 'editCollection':
+          navigate(`/collections/${collectionId}`);
+          break;
 
-      case 'markAllRead':
-        try {
-          const allIds = data.expandedIssues.map((i) => i.id);
-          setOperationMessage(`Marking ${allIds.length} issue(s) as read...`);
-          await Promise.all(allIds.map((id) => markAsCompleted(id)));
-          setOperationMessage('All issues marked as read');
-          fetchCollectionData();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
+        case 'markAllRead':
+          try {
+            const allIds = data.expandedIssues.map((i) => i.id);
+            await Promise.all(allIds.map((id) => markAsCompleted(id)));
+            addToast('success', 'All issues marked as read');
+            fetchCollectionData();
+          } catch (err) {
+            addToast('error', err instanceof Error ? err.message : 'Failed to mark as read');
+          }
+          break;
 
-      case 'markAllUnread':
-        try {
-          const allIds = data.expandedIssues.map((i) => i.id);
-          setOperationMessage(`Marking ${allIds.length} issue(s) as unread...`);
-          await Promise.all(allIds.map((id) => markAsIncomplete(id)));
-          setOperationMessage('All issues marked as unread');
-          fetchCollectionData();
-          setTimeout(() => setOperationMessage(null), 2000);
-        } catch (err) {
-          setOperationMessage(`Error: ${err instanceof Error ? err.message : 'Failed'}`);
-          setTimeout(() => setOperationMessage(null), 3000);
-        }
-        break;
-    }
-  }, [data, collectionId, fetchCollectionData, navigate]);
+        case 'markAllUnread':
+          try {
+            const allIds = data.expandedIssues.map((i) => i.id);
+            await Promise.all(allIds.map((id) => markAsIncomplete(id)));
+            addToast('success', 'All issues marked as unread');
+            fetchCollectionData();
+          } catch (err) {
+            addToast('error', err instanceof Error ? err.message : 'Failed to mark as unread');
+          }
+          break;
+      }
+    },
+    [data, collectionId, navigate, fetchCollectionData, addToast]
+  );
 
   const handleSeriesFilterToggle = useCallback((seriesId: string) => {
     setSeriesFilter((prev) => {
@@ -997,13 +972,6 @@ export function CollectionDetailPage() {
             >
               Clear filters
             </button>
-          </div>
-        )}
-
-        {/* Operation message */}
-        {operationMessage && (
-          <div className="collection-operation-message">
-            {operationMessage}
           </div>
         )}
 

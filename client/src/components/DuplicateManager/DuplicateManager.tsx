@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { getCoverUrl, deleteFile } from '../../services/api.service';
 import { formatFileSize } from '../../utils/format';
+import { useConfirmModal } from '../ConfirmModal';
 
 const API_BASE = '/api';
 
@@ -42,6 +43,7 @@ function formatDate(dateStr: string): string {
 }
 
 export function DuplicateManager() {
+  const confirm = useConfirmModal();
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -102,9 +104,14 @@ export function DuplicateManager() {
       .filter((f) => f.id !== fileIdToKeep)
       .map((f) => f.id);
 
-    if (!window.confirm(`Delete ${filesToDelete.length} duplicate file(s) and keep "${group.files.find((f) => f.id === fileIdToKeep)?.filename}"?`)) {
-      return;
-    }
+    const keepFilename = group.files.find((f) => f.id === fileIdToKeep)?.filename;
+    const confirmed = await confirm({
+      title: 'Delete Duplicates',
+      message: `Delete ${filesToDelete.length} duplicate file(s) and keep "${keepFilename}"?`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setProcessing(true);
     setError(null);
@@ -127,9 +134,13 @@ export function DuplicateManager() {
     const group = duplicates.find((g) => g.id === groupId);
     const file = group?.files.find((f) => f.id === fileId);
 
-    if (!window.confirm(`Delete "${file?.filename}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete File',
+      message: `Delete "${file?.filename}"?`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setProcessing(true);
     setError(null);

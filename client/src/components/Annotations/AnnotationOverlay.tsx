@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useAnnotations, PageAnnotation, AnnotationHighlight } from '../../contexts/AnnotationsContext';
+import { useConfirmModal } from '../ConfirmModal';
 import './Annotations.css';
 
 // =============================================================================
@@ -56,6 +57,7 @@ export function AnnotationOverlay({
     updateAnnotation,
     deleteAnnotation,
   } = useAnnotations();
+  const confirm = useConfirmModal();
 
   const [selectedAnnotation, setSelectedAnnotation] = useState<PageAnnotation | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -175,14 +177,20 @@ export function AnnotationOverlay({
 
   // Delete annotation
   const handleDeleteAnnotation = useCallback(
-    (id: string) => {
-      if (window.confirm('Delete this annotation?')) {
+    async (id: string) => {
+      const confirmed = await confirm({
+        title: 'Delete Annotation',
+        message: 'Delete this annotation?',
+        confirmText: 'Delete',
+        variant: 'danger',
+      });
+      if (confirmed) {
         deleteAnnotation(id);
         setSelectedAnnotation(null);
         setIsEditing(false);
       }
     },
-    [deleteAnnotation]
+    [deleteAnnotation, confirm]
   );
 
   // Cancel editing

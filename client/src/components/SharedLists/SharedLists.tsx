@@ -7,6 +7,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { useConfirmModal } from '../ConfirmModal';
+import { useApiToast } from '../../hooks';
 import './SharedLists.css';
 
 // =============================================================================
@@ -134,13 +136,14 @@ async function getPublicLists(page = 1): Promise<{
 export function SharedLists() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirmModal();
+  const { addToast } = useApiToast();
 
   const [activeTab, setActiveTab] = useState<'my-lists' | 'browse'>('my-lists');
   const [myLists, setMyLists] = useState<SharedList[]>([]);
   const [publicLists, setPublicLists] = useState<(SharedList & { owner: ListOwner })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Create/Edit state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -154,12 +157,12 @@ export function SharedLists() {
   const loadMyLists = useCallback(async () => {
     if (!isAuthenticated) return;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const data = await getMyLists();
       setMyLists(data.lists);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load lists');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load lists');
     } finally {
       setLoading(false);
     }
@@ -167,12 +170,12 @@ export function SharedLists() {
 
   const loadPublicLists = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const data = await getPublicLists();
       setPublicLists(data.lists);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load public lists');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load public lists');
     } finally {
       setLoading(false);
     }
@@ -186,20 +189,6 @@ export function SharedLists() {
     }
   }, [activeTab, loadMyLists, loadPublicLists]);
 
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
-
   const handleCreateList = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
@@ -211,12 +200,12 @@ export function SharedLists() {
         description: formData.description.trim() || undefined,
         isPublic: formData.isPublic,
       });
-      showMessage('List created successfully');
+      addToast('success', 'List created successfully');
       setShowCreateForm(false);
       setFormData({ name: '', description: '', isPublic: false });
       await loadMyLists();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to create list', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to create list');
     } finally {
       setSaving(false);
     }
@@ -233,42 +222,50 @@ export function SharedLists() {
         description: formData.description.trim() || undefined,
         isPublic: formData.isPublic,
       });
-      showMessage('List updated successfully');
+      addToast('success', 'List updated successfully');
       setEditingList(null);
       setFormData({ name: '', description: '', isPublic: false });
       await loadMyLists();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to update list', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to update list');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteList = async (list: SharedList) => {
-    if (!window.confirm(`Delete "${list.name}"? This cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Delete List',
+      message: `Delete "${list.name}"? This cannot be undone.`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     try {
       await deleteList(list.id);
-      showMessage('List deleted');
+      addToast('success', 'List deleted');
       await loadMyLists();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to delete list', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to delete list');
     }
   };
 
   const handleRegenerateCode = async (list: SharedList) => {
-    if (!window.confirm('Generate a new share code? The old link will stop working.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Regenerate Share Code',
+      message: 'Generate a new share code? The old link will stop working.',
+      confirmText: 'Regenerate',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     try {
       const { shareCode } = await regenerateShareCode(list.id);
-      showMessage('New share code generated');
+      addToast('success', 'New share code generated');
       setMyLists(myLists.map((l) => (l.id === list.id ? { ...l, shareCode } : l)));
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to regenerate code', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to regenerate code');
     }
   };
 
@@ -292,9 +289,9 @@ export function SharedLists() {
     const url = `${window.location.origin}/lists/shared/${shareCode}`;
     try {
       await navigator.clipboard.writeText(url);
-      showMessage('Link copied to clipboard');
+      addToast('success', 'Link copied to clipboard');
     } catch {
-      showMessage('Failed to copy link', true);
+      addToast('error', 'Failed to copy link');
     }
   };
 
@@ -349,8 +346,7 @@ export function SharedLists() {
         </div>
       </div>
 
-      {error && <div className="lists-error">{error}</div>}
-      {success && <div className="lists-success">{success}</div>}
+      {loadError && <div className="lists-error">{loadError}</div>}
 
       {activeTab === 'my-lists' && (
         <div className="my-lists-section">

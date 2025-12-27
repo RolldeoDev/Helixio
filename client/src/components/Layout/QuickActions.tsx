@@ -10,11 +10,13 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useFolderDrawer } from '../../contexts/FolderDrawerContext';
 import { scanLibrary, applyScan } from '../../services/api.service';
+import { useConfirmModal } from '../ConfirmModal';
 
 export function QuickActions() {
   const navigate = useNavigate();
   const { selectedLibrary, refreshLibraries, refreshFiles, setOperation } = useApp();
   const { openDrawer } = useFolderDrawer();
+  const confirm = useConfirmModal();
   const [scanning, setScanning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -37,9 +39,11 @@ export function QuickActions() {
           result.summary.orphanedFiles;
 
         if (changes > 0) {
-          const confirmed = window.confirm(
-            `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`
-          );
+          const confirmed = await confirm({
+            title: 'Apply Scan Results',
+            message: `Found ${result.summary.newFiles} new files, ${result.summary.movedFiles} moved files, and ${result.summary.orphanedFiles} orphaned files.\n\nApply these changes?`,
+            confirmText: 'Apply',
+          });
 
           if (confirmed) {
             await applyScan(selectedLibrary.id, result.scanId);

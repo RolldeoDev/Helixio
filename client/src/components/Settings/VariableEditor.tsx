@@ -5,6 +5,7 @@ import { VARIABLE_GROUPS, toKebabCase } from '../../themes/types';
 import type { ThemeTokens, ThemeId, EffectToggleDefinition, EffectCategory } from '../../themes/types';
 import { RgbaColorPicker } from './RgbaColorPicker';
 import { RadiusPicker } from './RadiusPicker';
+import { useConfirmModal } from '../ConfirmModal';
 import './VariableEditor.css';
 
 interface VariableEditorProps {
@@ -37,6 +38,7 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
     setEffectEnabledForTheme,
     setAllEffectsEnabledForTheme,
   } = useTheme();
+  const confirm = useConfirmModal();
 
   // Get the theme being edited (may differ from currently active theme)
   const editingTheme = useMemo(() => {
@@ -127,8 +129,14 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
   };
 
   // Reset all to defaults
-  const handleResetAll = () => {
-    if (window.confirm('Reset all variables to the original theme defaults?')) {
+  const handleResetAll = async () => {
+    const confirmed = await confirm({
+      title: 'Reset Theme',
+      message: 'Reset all variables to the original theme defaults?',
+      confirmText: 'Reset',
+      variant: 'warning',
+    });
+    if (confirmed) {
       resetToDefaults();
     }
   };

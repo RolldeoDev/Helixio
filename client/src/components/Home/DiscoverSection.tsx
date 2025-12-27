@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { SectionHeader } from './SectionHeader';
 import { ComicCarousel, ComicCarouselItem } from './ComicCarousel';
+import { SkeletonCard } from '../LoadingState';
 import {
   getDiscoverComics,
   DiscoverComic,
@@ -134,7 +135,7 @@ export function DiscoverSection({
         </div>
         <div className="discover-grid">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="skeleton skeleton-card" />
+            <SkeletonCard key={i} size="sm" />
           ))}
         </div>
       </section>

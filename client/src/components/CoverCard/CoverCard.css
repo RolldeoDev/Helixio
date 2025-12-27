@@ -616,16 +616,8 @@
   accent-color: var(--cover-card-border-selected);
 }
 
-/* Checkbox visibility modes */
-.cover-card--checkbox-always .cover-card__checkbox {
-  opacity: 1;
-}
-
-.cover-card--checkbox-hover:hover .cover-card__checkbox {
-  opacity: 1;
-}
-
-.cover-card--checkbox-selected .cover-card__checkbox--checked {
+/* Checkbox visibility: show on hover or when selected */
+.cover-card:hover .cover-card__checkbox {
   opacity: 1;
 }
 

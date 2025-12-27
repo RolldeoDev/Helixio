@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import { SeriesGrid } from '../components/SeriesGrid';
 import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { BatchSeriesMetadataModal } from '../components/BatchSeriesMetadataModal';
@@ -44,6 +45,12 @@ export function SeriesPage() {
   } = useApp();
   const { startJob } = useMetadataJob();
   const { addToast } = useToast();
+  const { setBreadcrumbs } = useBreadcrumbs();
+
+  // Set breadcrumbs on mount
+  useEffect(() => {
+    setBreadcrumbs([{ label: 'Series', path: '/series' }]);
+  }, [setBreadcrumbs]);
 
   // Filter state
   const [search, setSearch] = useState('');

@@ -8,6 +8,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth, Session } from '../../contexts/AuthContext';
 import { Accordion, AccordionSection } from '../Accordion';
 import { ToggleSwitch } from '../ToggleSwitch';
+import { useApiToast } from '../../hooks';
+import { useConfirmModal } from '../ConfirmModal';
 import './AccountSettings.css';
 
 // =============================================================================
@@ -155,6 +157,9 @@ export function AccountSettings() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
 
+  // Confirm modal
+  const confirm = useConfirmModal();
+
   // Sessions state
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -173,9 +178,7 @@ export function AccountSettings() {
   const [addingDevice, setAddingDevice] = useState(false);
   const [currentDeviceId] = useState(() => localStorage.getItem('helixio_device_id'));
 
-  // Messages
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { addToast } = useApiToast();
 
   // Load all data
   useEffect(() => {
@@ -192,7 +195,7 @@ export function AccountSettings() {
 
       if (type === 'tracker-callback') {
         if (callbackError) {
-          showMessage(callbackError, true);
+          addToast('error', callbackError);
           setConnectingTracker(null);
           return;
         }
@@ -200,10 +203,10 @@ export function AccountSettings() {
         if (code && service) {
           try {
             await exchangeCode(service, code, state);
-            showMessage(`Connected to ${formatServiceName(service)}`);
+            addToast('success', `Connected to ${formatServiceName(service)}`);
             await loadTrackers();
           } catch (err) {
-            showMessage(err instanceof Error ? err.message : 'Failed to connect', true);
+            addToast('error', err instanceof Error ? err.message : 'Failed to connect');
           } finally {
             setConnectingTracker(null);
           }
@@ -213,7 +216,7 @@ export function AccountSettings() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [addToast]);
 
   const loadSessions = async () => {
     setLoadingSessions(true);
@@ -255,20 +258,6 @@ export function AccountSettings() {
     }
   }, []);
 
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
-
   // Profile handlers
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,9 +271,9 @@ export function AccountSettings() {
         profilePrivate,
         hideReadingStats,
       });
-      showMessage('Profile updated successfully');
+      addToast('success', 'Profile updated successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to update profile', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setSavingProfile(false);
     }
@@ -295,12 +284,12 @@ export function AccountSettings() {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
-      showMessage('New passwords do not match', true);
+      addToast('error', 'New passwords do not match');
       return;
     }
 
     if (newPassword.length < 8) {
-      showMessage('Password must be at least 8 characters', true);
+      addToast('error', 'Password must be at least 8 characters');
       return;
     }
 
@@ -312,9 +301,9 @@ export function AccountSettings() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      showMessage('Password changed successfully');
+      addToast('success', 'Password changed successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to change password', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to change password');
     } finally {
       setChangingPassword(false);
     }
@@ -325,21 +314,25 @@ export function AccountSettings() {
     try {
       await revokeSession(sessionId);
       await loadSessions();
-      showMessage('Session revoked');
+      addToast('success', 'Session revoked');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to revoke session', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to revoke session');
     }
   };
 
   const handleLogoutAll = async () => {
-    if (!window.confirm('This will log you out of all devices. Continue?')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Logout All Devices',
+      message: 'This will log you out of all devices. Continue?',
+      confirmText: 'Logout All',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     try {
       await logoutAll();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to logout', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to logout');
     }
   };
 
@@ -350,13 +343,13 @@ export function AccountSettings() {
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      showMessage('Please select an image file', true);
+      addToast('error', 'Please select an image file');
       return;
     }
 
     // Validate file size (5MB max)
     if (file.size > 5 * 1024 * 1024) {
-      showMessage('Image must be under 5MB', true);
+      addToast('error', 'Image must be under 5MB');
       return;
     }
 
@@ -379,16 +372,22 @@ export function AccountSettings() {
 
       const { avatarUrl } = await response.json();
       setAvatarPreview(avatarUrl + '?' + Date.now()); // Cache bust
-      showMessage('Avatar updated');
+      addToast('success', 'Avatar updated');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to upload avatar', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to upload avatar');
     } finally {
       setUploadingAvatar(false);
     }
   };
 
   const handleRemoveAvatar = async () => {
-    if (!window.confirm('Remove your avatar?')) return;
+    const confirmed = await confirm({
+      title: 'Remove Avatar',
+      message: 'Remove your avatar?',
+      confirmText: 'Remove',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setUploadingAvatar(true);
     try {
@@ -402,9 +401,9 @@ export function AccountSettings() {
       }
 
       setAvatarPreview(null);
-      showMessage('Avatar removed');
+      addToast('success', 'Avatar removed');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to remove avatar', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to remove avatar');
     } finally {
       setUploadingAvatar(false);
     }
@@ -415,7 +414,7 @@ export function AccountSettings() {
     e.preventDefault();
 
     if (!deletePassword) {
-      showMessage('Password is required', true);
+      addToast('error', 'Password is required');
       return;
     }
 
@@ -436,7 +435,7 @@ export function AccountSettings() {
       // Account deleted, log out
       await logout();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to delete account', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to delete account');
       setDeletingAccount(false);
     }
   };
@@ -471,22 +470,26 @@ export function AccountSettings() {
         }
       }, 500);
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to start authentication', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to start authentication');
       setConnectingTracker(null);
     }
   };
 
   const handleDisconnectTracker = async (service: string) => {
-    if (!window.confirm(`Disconnect from ${formatServiceName(service)}?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Disconnect Tracker',
+      message: `Disconnect from ${formatServiceName(service)}?`,
+      confirmText: 'Disconnect',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     try {
       await disconnectTracker(service);
-      showMessage(`Disconnected from ${formatServiceName(service)}`);
+      addToast('success', `Disconnected from ${formatServiceName(service)}`);
       await loadTrackers();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to disconnect', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to disconnect');
     }
   };
 
@@ -499,31 +502,35 @@ export function AccountSettings() {
     try {
       const { device } = await registerDevice(newDeviceName.trim());
       localStorage.setItem('helixio_device_id', device.deviceId);
-      showMessage('Device registered successfully');
+      addToast('success', 'Device registered successfully');
       setShowAddDevice(false);
       setNewDeviceName('');
       await loadSyncData();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to register device', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to register device');
     } finally {
       setAddingDevice(false);
     }
   };
 
   const handleRemoveDevice = async (device: SyncDevice) => {
-    if (!window.confirm(`Remove "${device.deviceName}" from sync?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Remove Device',
+      message: `Remove "${device.deviceName}" from sync?`,
+      confirmText: 'Remove',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     try {
       await removeDevice(device.deviceId);
       if (device.deviceId === currentDeviceId) {
         localStorage.removeItem('helixio_device_id');
       }
-      showMessage('Device removed');
+      addToast('success', 'Device removed');
       await loadSyncData();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to remove device', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to remove device');
     }
   };
 
@@ -1040,8 +1047,7 @@ export function AccountSettings() {
     <div className="account-settings">
       <h2>Account Settings</h2>
 
-      {(error || authError) && <div className="account-error">{error || authError}</div>}
-      {success && <div className="account-success">{success}</div>}
+      {authError && <div className="account-error">{authError}</div>}
 
       <Accordion sections={sections} allowMultiple />
     </div>

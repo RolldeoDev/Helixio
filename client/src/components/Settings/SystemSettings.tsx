@@ -18,6 +18,8 @@ import {
 } from '../../services/api.service';
 import { SectionCard } from '../SectionCard';
 import { FactoryResetModal, FactoryResetSection } from '../FactoryReset';
+import { useApiToast } from '../../hooks';
+import { useConfirmModal } from '../ConfirmModal';
 import './SystemSettings.css';
 
 const API_BASE = '/api';
@@ -93,9 +95,8 @@ export function SystemSettings() {
   // API key help modal state
   const [helpModal, setHelpModal] = useState<'comicVine' | 'anthropic' | null>(null);
 
-  // Messages
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const { addToast } = useApiToast();
+  const confirm = useConfirmModal();
 
   // Load initial data
   useEffect(() => {
@@ -129,20 +130,6 @@ export function SystemSettings() {
     }
   };
 
-  const showMessage = (msg: string, isError = false) => {
-    if (isError) {
-      setError(msg);
-      setSuccess(null);
-    } else {
-      setSuccess(msg);
-      setError(null);
-    }
-    setTimeout(() => {
-      setError(null);
-      setSuccess(null);
-    }, 3000);
-  };
-
   // API Key handlers
   const handleSaveApiKeys = async () => {
     setSavingKeys(true);
@@ -159,9 +146,9 @@ export function SystemSettings() {
       });
 
       if (!response.ok) throw new Error('Failed to save API keys');
-      showMessage('API keys saved successfully');
+      addToast('success', 'API keys saved successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to save API keys', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to save API keys');
     } finally {
       setSavingKeys(false);
     }
@@ -176,14 +163,14 @@ export function SystemSettings() {
 
       if (response.ok && data.success) {
         setMetronTestResult('success');
-        showMessage('Metron credentials are valid');
+        addToast('success', 'Metron credentials are valid');
       } else {
         setMetronTestResult('error');
-        showMessage(data.error || 'Metron authentication failed', true);
+        addToast('error', data.error || 'Metron authentication failed');
       }
     } catch (err) {
       setMetronTestResult('error');
-      showMessage(err instanceof Error ? err.message : 'Failed to test Metron credentials', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to test Metron credentials');
     } finally {
       setTestingMetron(false);
     }
@@ -198,14 +185,14 @@ export function SystemSettings() {
 
       if (response.ok && data.success) {
         setComicVineTestResult('success');
-        showMessage('ComicVine API key is valid');
+        addToast('success', 'ComicVine API key is valid');
       } else {
         setComicVineTestResult('error');
-        showMessage(data.error || 'ComicVine API key validation failed', true);
+        addToast('error', data.error || 'ComicVine API key validation failed');
       }
     } catch (err) {
       setComicVineTestResult('error');
-      showMessage(err instanceof Error ? err.message : 'Failed to test ComicVine API key', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to test ComicVine API key');
     } finally {
       setTestingComicVine(false);
     }
@@ -220,14 +207,14 @@ export function SystemSettings() {
 
       if (response.ok && data.success) {
         setAnthropicTestResult('success');
-        showMessage('Anthropic API key is valid');
+        addToast('success', 'Anthropic API key is valid');
       } else {
         setAnthropicTestResult('error');
-        showMessage(data.error || 'Anthropic API key validation failed', true);
+        addToast('error', data.error || 'Anthropic API key validation failed');
       }
     } catch (err) {
       setAnthropicTestResult('error');
-      showMessage(err instanceof Error ? err.message : 'Failed to test Anthropic API key', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to test Anthropic API key');
     } finally {
       setTestingAnthropic(false);
     }
@@ -244,9 +231,9 @@ export function SystemSettings() {
       });
 
       if (!response.ok) throw new Error('Failed to save rate limit settings');
-      showMessage('Rate limit settings saved');
+      addToast('success', 'Rate limit settings saved');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to save settings', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to save settings');
     } finally {
       setSavingRateLimit(false);
     }
@@ -263,26 +250,30 @@ export function SystemSettings() {
       });
 
       if (!response.ok) throw new Error('Failed to save cache settings');
-      showMessage('Cache settings saved');
+      addToast('success', 'Cache settings saved');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to save cache settings', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to save cache settings');
     } finally {
       setSavingCacheSettings(false);
     }
   };
 
   const handleClearCoverCache = async () => {
-    if (!window.confirm('Clear the entire cover cache? Covers will be re-extracted when viewed.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Clear Cover Cache',
+      message: 'Clear the entire cover cache? Covers will be re-extracted when viewed.',
+      confirmText: 'Clear',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     setClearingCoverCache(true);
     try {
       const response = await fetch(`${API_BASE}/covers/cache/cleanup`, { method: 'POST' });
       if (!response.ok) throw new Error('Failed to clear cache');
-      showMessage('Cover cache cleared successfully');
+      addToast('success', 'Cover cache cleared successfully');
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to clear cache', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to clear cache');
     } finally {
       setClearingCoverCache(false);
     }
@@ -304,27 +295,31 @@ export function SystemSettings() {
     setCleaningSeriesCache(true);
     try {
       const result = await cleanSeriesCache();
-      showMessage(`Cleaned ${result.deleted} expired entries, freed ${result.freedMb.toFixed(1)} MB`);
+      addToast('success', `Cleaned ${result.deleted} expired entries, freed ${result.freedMb.toFixed(1)} MB`);
       await loadSeriesCacheStats();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to clean series cache', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to clean series cache');
     } finally {
       setCleaningSeriesCache(false);
     }
   };
 
   const handleClearSeriesCache = async () => {
-    if (!window.confirm('Clear all cached series data? This will require re-fetching from APIs when needed.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Clear Series Cache',
+      message: 'Clear all cached series data? This will require re-fetching from APIs when needed.',
+      confirmText: 'Clear',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     setCleaningSeriesCache(true);
     try {
       const result = await clearSeriesCache();
-      showMessage(`Cleared ${result.deleted} entries, freed ${result.freedMb.toFixed(1)} MB`);
+      addToast('success', `Cleared ${result.deleted} entries, freed ${result.freedMb.toFixed(1)} MB`);
       await loadSeriesCacheStats();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to clear series cache', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to clear series cache');
     } finally {
       setCleaningSeriesCache(false);
     }
@@ -346,9 +341,13 @@ export function SystemSettings() {
   };
 
   const handleClearDownloadCache = async () => {
-    if (!window.confirm('Clear all download cache files? Prepared ZIP files will be deleted.')) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Clear Download Cache',
+      message: 'Clear all download cache files? Prepared ZIP files will be deleted.',
+      confirmText: 'Clear',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
 
     setClearingDownloadCache(true);
     try {
@@ -357,10 +356,10 @@ export function SystemSettings() {
 
       const result = await response.json();
       const freedMb = (result.bytesFreed / (1024 * 1024)).toFixed(1);
-      showMessage(`Cleared ${result.filesDeleted} file(s), freed ${freedMb} MB`);
+      addToast('success', `Cleared ${result.filesDeleted} file(s), freed ${freedMb} MB`);
       await loadDownloadCacheStats();
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to clear download cache', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to clear download cache');
     } finally {
       setClearingDownloadCache(false);
     }
@@ -375,21 +374,22 @@ export function SystemSettings() {
       const result = await getMismatchedSeriesFiles();
       setMismatchedFiles(result.files);
       if (result.count === 0) {
-        showMessage('No mismatched series linkages found');
+        addToast('success', 'No mismatched series linkages found');
       }
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to check for mismatched files', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to check for mismatched files');
     } finally {
       setLoadingMismatched(false);
     }
   };
 
   const handleRepairLinkages = async () => {
-    if (!window.confirm(
-      `This will repair ${mismatchedFiles?.length || 0} mismatched file(s). Continue?`
-    )) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Repair Linkages',
+      message: `This will repair ${mismatchedFiles?.length || 0} mismatched file(s). Continue?`,
+      confirmText: 'Repair',
+    });
+    if (!confirmed) return;
 
     setRepairing(true);
     setRepairResult(null);
@@ -399,17 +399,17 @@ export function SystemSettings() {
       setMismatchedFiles(null);
 
       if (result.repaired > 0) {
-        showMessage(
+        addToast('success',
           `Repaired ${result.repaired} file(s)` +
           (result.newSeriesCreated > 0 ? `, created ${result.newSeriesCreated} new series` : '')
         );
       } else if (result.totalMismatched === 0) {
-        showMessage('No mismatched files found to repair');
+        addToast('success', 'No mismatched files found to repair');
       } else {
-        showMessage('Repair completed with errors', true);
+        addToast('error', 'Repair completed with errors');
       }
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to repair series linkages', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to repair series linkages');
     } finally {
       setRepairing(false);
     }
@@ -443,14 +443,17 @@ export function SystemSettings() {
     const keepCurrentFiles = mismatchedFiles.filter(f => fileDecisions[f.fileId] === 'keep-current');
 
     if (useMetadataFiles.length === 0 && keepCurrentFiles.length === 0) {
-      showMessage('No files have been assigned an action', true);
+      addToast('error', 'No files have been assigned an action');
       return;
     }
 
     const totalActions = useMetadataFiles.length + keepCurrentFiles.length;
-    if (!window.confirm(`Process ${totalActions} file(s)?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: 'Process Files',
+      message: `Process ${totalActions} file(s)?`,
+      confirmText: 'Process',
+    });
+    if (!confirmed) return;
 
     setProcessingManual(true);
     setRepairResult(null);
@@ -481,16 +484,16 @@ export function SystemSettings() {
       setManualControlMode(false);
 
       if (repaired > 0 || synced > 0) {
-        showMessage(
+        addToast('success',
           `Processed: ${repaired} relinked` +
           (newSeriesCreated > 0 ? ` (${newSeriesCreated} new series)` : '') +
           `, ${synced} metadata synced`
         );
       } else if (errors.length > 0) {
-        showMessage(`Processing completed with ${errors.length} error(s)`, true);
+        addToast('error', `Processing completed with ${errors.length} error(s)`);
       }
     } catch (err) {
-      showMessage(err instanceof Error ? err.message : 'Failed to process files', true);
+      addToast('error', err instanceof Error ? err.message : 'Failed to process files');
     } finally {
       setProcessingManual(false);
     }
@@ -499,9 +502,6 @@ export function SystemSettings() {
   return (
     <div className="system-settings">
       <h2>System Settings</h2>
-
-      {error && <div className="system-error">{error}</div>}
-      {success && <div className="system-success">{success}</div>}
 
       {/* API Keys Section */}
       <SectionCard

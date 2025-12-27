@@ -31,6 +31,7 @@ import { CoverSizeSlider } from '../CoverSizeSlider';
 import { SeriesSelectModal } from '../SeriesSelectModal';
 import { MergeSeriesModal } from '../MergeSeriesModal';
 import { NavigationSidebar } from '../NavigationSidebar';
+import { Spinner } from '../LoadingState';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import './SeriesGrid.css';
@@ -201,7 +202,6 @@ function SeriesGridContent({
                     contextMenuEnabled={true}
                     selectable={selectable}
                     isSelected={selectedSeries?.has(item.id) ?? false}
-                    checkboxVisibility="hover"
                     onSelectionChange={onSelectionChange}
                   />
                 ) : (
@@ -477,12 +477,7 @@ export function SeriesGrid({
   return (
     <div className="series-grid-container">
       {/* Loading State */}
-      {loading && (
-        <div className="loading-overlay">
-          <div className="spinner" />
-          Loading series...
-        </div>
-      )}
+      {loading && <Spinner message="Loading series..." />}
 
       {/* Error State */}
       {error && <div className="error-message">{error}</div>}

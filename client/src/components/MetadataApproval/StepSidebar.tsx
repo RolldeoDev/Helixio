@@ -6,6 +6,7 @@
  */
 
 import { type StepLogEntry } from '../../contexts/MetadataJobContext';
+import { useConfirmModal } from '../ConfirmModal';
 import './StepSidebar.css';
 
 export type StepId =
@@ -72,6 +73,8 @@ export function StepSidebar({
   stepLogs,
   initLogs = [],
 }: StepSidebarProps) {
+  const confirm = useConfirmModal();
+
   // Don't show for error state
   if (currentStep === 'error') {
     return null;
@@ -120,12 +123,16 @@ export function StepSidebar({
             NAVIGABLE_STEPS.has(step.id) &&
             isCompleted;
 
-          const handleClick = () => {
+          const handleClick = async () => {
             if (canNavigate) {
               // Navigation takes priority - ask for confirmation
-              if (window.confirm(
-                'Go back to series selection? This will allow you to change the series for any group.'
-              )) {
+              const confirmed = await confirm({
+                title: 'Go Back',
+                message: 'Go back to series selection? This will allow you to change the series for any group.',
+                confirmText: 'Go Back',
+                variant: 'warning',
+              });
+              if (confirmed) {
                 onNavigateToStep(step.id);
               }
             } else if (canClick) {

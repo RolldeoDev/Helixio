@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getArchiveContents } from '../../services/api.service';
+import { useConfirmModal } from '../ConfirmModal';
 
 interface PageEditorProps {
   fileId: string;
@@ -111,6 +112,7 @@ function LazyImage({
 }
 
 export function PageEditor({ fileId, filename, onClose, onPagesDeleted }: PageEditorProps) {
+  const confirm = useConfirmModal();
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +205,13 @@ export function PageEditor({ fileId, filename, onClose, onPagesDeleted }: PageEd
       ? 'Delete this page? This cannot be undone.'
       : `Delete ${selectedPages.size} pages? This cannot be undone.`;
 
-    if (!window.confirm(confirmMessage)) return;
+    const confirmed = await confirm({
+      title: 'Delete Pages',
+      message: confirmMessage,
+      confirmText: 'Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
 
     setDeleting(true);
     setError(null);

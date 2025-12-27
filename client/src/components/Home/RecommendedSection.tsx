@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SectionHeader } from './SectionHeader';
 import { ComicCarousel, ComicCarouselItem } from './ComicCarousel';
+import { SkeletonCard } from '../LoadingState';
 import {
   getRecommendations,
   RecommendationsResult,
@@ -97,7 +98,7 @@ export function RecommendedSection({
           <div className="comic-carousel">
             <div className="comic-carousel-track">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="skeleton skeleton-card" />
+                <SkeletonCard key={i} />
               ))}
             </div>
           </div>
@@ -107,7 +108,7 @@ export function RecommendedSection({
           <div className="comic-carousel">
             <div className="comic-carousel-track">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="skeleton skeleton-card" />
+                <SkeletonCard key={i} />
               ))}
             </div>
           </div>
@@ -117,7 +118,7 @@ export function RecommendedSection({
           <div className="comic-carousel">
             <div className="comic-carousel-track">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="skeleton skeleton-card" />
+                <SkeletonCard key={i} />
               ))}
             </div>
           </div>

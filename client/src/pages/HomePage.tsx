@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import {
   getContinueReading,
   getAllTimeReadingStats,
@@ -35,6 +36,12 @@ import '../components/Home/Home.css';
 
 export function HomePage() {
   const navigate = useNavigate();
+  const { setBreadcrumbs } = useBreadcrumbs();
+
+  // Set breadcrumbs on mount
+  useEffect(() => {
+    setBreadcrumbs([{ label: 'Home', path: '/' }]);
+  }, [setBreadcrumbs]);
 
   // Library scope state
   const [libraryScope, setLibraryScope] = useState<LibraryScope>('all');
