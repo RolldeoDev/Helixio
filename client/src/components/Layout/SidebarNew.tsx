@@ -27,7 +27,7 @@ interface NavItem {
 export function SidebarNew() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedLibrary } = useApp();
+  const { selectedLibrary, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
   const { activeJobs } = useMetadataJob();
 
   // Command palette state
@@ -196,7 +196,16 @@ export function SidebarNew() {
 
   return (
     <>
-      <div className="sidebar-new">
+      {/* Mobile backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div className={`sidebar-new ${mobileSidebarOpen ? 'open' : ''}`}>
         {/* Icon Rail */}
         <nav className="icon-rail" aria-label="Main navigation">
           {/* Logo */}

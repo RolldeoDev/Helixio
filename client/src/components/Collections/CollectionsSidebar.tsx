@@ -94,15 +94,11 @@ export function CollectionsSidebar({
               {systemCollections.map(collection => (
                 <div
                   key={collection.id}
-                  className={`collection-item system-collection ${collection.iconName} ${selectedCollectionId === collection.id ? 'selected' : ''}`}
+                  className={`collection-item system-collection ${selectedCollectionId === collection.id ? 'selected' : ''}`}
                   onClick={() => onSelectCollection?.(collection)}
                 >
                   <div className="collection-icon system-icon">
-                    <CollectionIcon
-                      iconName={collection.iconName}
-                      color={collection.color}
-                      size={16}
-                    />
+                    <CollectionIcon size={16} />
                   </div>
                   <div className="collection-info">
                     <span className="collection-name">{collection.name}</span>
@@ -185,11 +181,7 @@ export function CollectionsSidebar({
                 onClick={() => onSelectCollection?.(collection)}
               >
                 <div className="collection-icon">
-                  <CollectionIcon
-                    iconName={collection.iconName}
-                    color={collection.color}
-                    size={16}
-                  />
+                  <CollectionIcon size={16} />
                 </div>
                 <div className="collection-info">
                   <span className="collection-name">{collection.name}</span>

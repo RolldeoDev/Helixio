@@ -42,8 +42,6 @@ export interface CollectionUpdates {
   name?: string;
   deck?: string;
   description?: string;
-  iconName?: string;
-  color?: string;
   coverType?: 'auto' | 'series' | 'issue' | 'custom';
   coverSeriesId?: string | null;
   coverFileId?: string | null;
@@ -52,42 +50,35 @@ export interface CollectionUpdates {
   overrideEndYear?: number | null;
   overrideGenres?: string | null;
   isPromoted?: boolean;
+  // Lock flags
+  lockName?: boolean;
+  lockDeck?: boolean;
+  lockDescription?: boolean;
+  lockPublisher?: boolean;
+  lockStartYear?: boolean;
+  lockEndYear?: boolean;
+  lockGenres?: boolean;
+  // New fields
+  rating?: number | null;
+  notes?: string | null;
+  visibility?: 'public' | 'private' | 'unlisted';
+  readingMode?: 'single' | 'double' | 'webtoon' | null;
 }
 
-// Icon options for collections
-const ICON_OPTIONS = [
-  { id: 'folder', label: 'Folder', icon: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z' },
-  { id: 'heart', label: 'Heart', icon: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z' },
-  { id: 'bookmark', label: 'Bookmark', icon: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' },
-  { id: 'star', label: 'Star', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-  { id: 'tag', label: 'Tag', icon: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01' },
-  { id: 'fire', label: 'Fire', icon: 'M12 2c.5.5 1.5 2 1.5 4s-1 3-2.5 4c1.5-1 2.5-2.5 2.5-4.5 0-1-.5-2-1.5-3.5zm-3 6c1 1 1.5 2 1.5 3.5s-.5 2.5-1.5 3.5c2-1 3-2.5 3-4.5 0-1.5-.5-2.5-1.5-3.5zM6 12c1 1 1.5 2.5 1.5 4s-.5 3-1.5 4c3-2 4.5-4 4.5-6.5 0-2-.75-3.5-2-5z' },
-  { id: 'zap', label: 'Lightning', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
-  { id: 'crown', label: 'Crown', icon: 'M2 17l2-4 4 2 4-6 4 6 4-2 2 4v3H2v-3z' },
-  { id: 'trophy', label: 'Trophy', icon: 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6 M18 9h1.5a2.5 2.5 0 0 0 0-5H18 M4 22h16 M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22 M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22 M18 2H6v7a6 6 0 0 0 12 0V2z' },
-  { id: 'book', label: 'Book', icon: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M4 19.5A2.5 2.5 0 0 0 6.5 22H20 M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z' },
-  { id: 'archive', label: 'Archive', icon: 'M21 8v13H3V8 M1 3h22v5H1z M10 12h4' },
-  { id: 'layers', label: 'Stack', icon: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5' },
-];
+// Visibility options
+const VISIBILITY_OPTIONS = [
+  { value: 'private', label: 'Private', description: 'Only you can see this collection' },
+  { value: 'unlisted', label: 'Unlisted', description: 'Anyone with the link can view' },
+  { value: 'public', label: 'Public', description: 'Visible to all users' },
+] as const;
 
-// Color options for collections
-const COLOR_OPTIONS = [
-  { id: 'default', label: 'Default', value: null },
-  { id: 'red', label: 'Red', value: '#ef4444' },
-  { id: 'orange', label: 'Orange', value: '#f97316' },
-  { id: 'amber', label: 'Amber', value: '#f59e0b' },
-  { id: 'yellow', label: 'Yellow', value: '#eab308' },
-  { id: 'lime', label: 'Lime', value: '#84cc16' },
-  { id: 'green', label: 'Green', value: '#22c55e' },
-  { id: 'teal', label: 'Teal', value: '#14b8a6' },
-  { id: 'cyan', label: 'Cyan', value: '#06b6d4' },
-  { id: 'blue', label: 'Blue', value: '#3b82f6' },
-  { id: 'indigo', label: 'Indigo', value: '#6366f1' },
-  { id: 'violet', label: 'Violet', value: '#8b5cf6' },
-  { id: 'purple', label: 'Purple', value: '#a855f7' },
-  { id: 'pink', label: 'Pink', value: '#ec4899' },
-  { id: 'rose', label: 'Rose', value: '#f43f5e' },
-];
+// Reading mode options
+const READING_MODE_OPTIONS = [
+  { value: null, label: 'Default', description: 'Use reader default settings' },
+  { value: 'single', label: 'Single Page', description: 'One page at a time' },
+  { value: 'double', label: 'Double Page', description: 'Two pages side by side' },
+  { value: 'webtoon', label: 'Webtoon', description: 'Continuous vertical scroll' },
+] as const;
 
 export function CollectionSettingsDrawer({
   collection,
@@ -107,8 +98,6 @@ export function CollectionSettingsDrawer({
   const [name, setName] = useState('');
   const [deck, setDeck] = useState('');
   const [description, setDescription] = useState('');
-  const [iconName, setIconName] = useState<string | null>(null);
-  const [color, setColor] = useState<string | null>(null);
   const [coverType, setCoverType] = useState<'auto' | 'series' | 'issue' | 'custom'>('auto');
   const [coverSeriesId, setCoverSeriesId] = useState<string | null>(null);
   const [coverFileId, setCoverFileId] = useState<string | null>(null);
@@ -123,6 +112,21 @@ export function CollectionSettingsDrawer({
   const [overrideEndYear, setOverrideEndYear] = useState('');
   const [overrideGenres, setOverrideGenres] = useState('');
   const [isPromoted, setIsPromoted] = useState(false);
+
+  // Lock state
+  const [lockName, setLockName] = useState(false);
+  const [lockDeck, setLockDeck] = useState(false);
+  const [lockDescription, setLockDescription] = useState(false);
+  const [lockPublisher, setLockPublisher] = useState(false);
+  const [lockStartYear, setLockStartYear] = useState(false);
+  const [lockEndYear, setLockEndYear] = useState(false);
+  const [lockGenres, setLockGenres] = useState(false);
+
+  // New fields state
+  const [rating, setRating] = useState<number | null>(null);
+  const [notes, setNotes] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private' | 'unlisted'>('private');
+  const [readingMode, setReadingMode] = useState<'single' | 'double' | 'webtoon' | null>(null);
 
   // Items state
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -141,8 +145,6 @@ export function CollectionSettingsDrawer({
       setName(collection.name);
       setDeck(collection.deck || '');
       setDescription(collection.description || '');
-      setIconName(collection.iconName || null);
-      setColor(collection.color || null);
       setCoverType((collection.coverType as 'auto' | 'series' | 'issue' | 'custom') || 'auto');
       setCoverSeriesId(collection.coverSeriesId || null);
       setCoverFileId(collection.coverFileId || null);
@@ -154,6 +156,19 @@ export function CollectionSettingsDrawer({
       setOverrideEndYear(collection.overrideEndYear?.toString() || '');
       setOverrideGenres(collection.overrideGenres || '');
       setIsPromoted(collection.isPromoted || false);
+      // Lock states
+      setLockName(collection.lockName || false);
+      setLockDeck(collection.lockDeck || false);
+      setLockDescription(collection.lockDescription || false);
+      setLockPublisher(collection.lockPublisher || false);
+      setLockStartYear(collection.lockStartYear || false);
+      setLockEndYear(collection.lockEndYear || false);
+      setLockGenres(collection.lockGenres || false);
+      // New fields
+      setRating(collection.rating ?? null);
+      setNotes(collection.notes || '');
+      setVisibility(collection.visibility || 'private');
+      setReadingMode(collection.readingMode || null);
       setHasChanges(false);
     }
   }, [collection]);
@@ -333,32 +348,41 @@ export function CollectionSettingsDrawer({
     try {
       const result = await generateCollectionDescription(collection.id);
 
-      // Update form state with generated content
-      if (result.deck) {
+      // Update form state with generated content - only for unlocked fields
+      let appliedCount = 0;
+      if (result.deck && !lockDeck) {
         setDeck(result.deck);
+        appliedCount++;
       }
-      if (result.description) {
+      if (result.description && !lockDescription) {
         setDescription(result.description);
+        appliedCount++;
       }
 
-      markChanged();
+      if (appliedCount > 0) {
+        markChanged();
+      } else {
+        setGenerateError('All target fields are locked. Unlock them first.');
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to generate description';
       setGenerateError(errorMsg);
     } finally {
       setIsGeneratingDescription(false);
     }
-  }, [collection, markChanged]);
+  }, [collection, markChanged, lockDeck, lockDescription]);
 
   // Handle generate description button click
   const handleGenerateDescriptionClick = useCallback(() => {
-    // Check if there's existing content to overwrite
-    if (deck || description) {
+    // Check if there's existing unlocked content to overwrite
+    const hasUnlockedDeckContent = deck && !lockDeck;
+    const hasUnlockedDescriptionContent = description && !lockDescription;
+    if (hasUnlockedDeckContent || hasUnlockedDescriptionContent) {
       setShowGenerateConfirmDialog(true);
     } else {
       performGenerateDescription();
     }
-  }, [deck, description, performGenerateDescription]);
+  }, [deck, description, lockDeck, lockDescription, performGenerateDescription]);
 
   // Cancel generation confirmation
   const handleGenerateConfirmCancel = useCallback(() => {
@@ -375,8 +399,6 @@ export function CollectionSettingsDrawer({
         name: name !== collection.name ? name : undefined,
         deck: deck !== (collection.deck || '') ? deck || undefined : undefined,
         description: description !== (collection.description || '') ? description || undefined : undefined,
-        iconName: iconName !== collection.iconName ? iconName || undefined : undefined,
-        color: color !== collection.color ? color || undefined : undefined,
         coverType: coverType !== collection.coverType ? coverType : undefined,
         coverSeriesId: coverSeriesId !== collection.coverSeriesId ? coverSeriesId : undefined,
         coverFileId: coverFileId !== collection.coverFileId ? coverFileId : undefined,
@@ -389,6 +411,19 @@ export function CollectionSettingsDrawer({
           : undefined,
         overrideGenres: overrideGenres !== (collection.overrideGenres || '') ? (overrideGenres || null) : undefined,
         isPromoted: isPromoted !== (collection.isPromoted || false) ? isPromoted : undefined,
+        // Lock flags
+        lockName: lockName !== (collection.lockName || false) ? lockName : undefined,
+        lockDeck: lockDeck !== (collection.lockDeck || false) ? lockDeck : undefined,
+        lockDescription: lockDescription !== (collection.lockDescription || false) ? lockDescription : undefined,
+        lockPublisher: lockPublisher !== (collection.lockPublisher || false) ? lockPublisher : undefined,
+        lockStartYear: lockStartYear !== (collection.lockStartYear || false) ? lockStartYear : undefined,
+        lockEndYear: lockEndYear !== (collection.lockEndYear || false) ? lockEndYear : undefined,
+        lockGenres: lockGenres !== (collection.lockGenres || false) ? lockGenres : undefined,
+        // New fields
+        rating: rating !== (collection.rating ?? null) ? rating : undefined,
+        notes: notes !== (collection.notes || '') ? (notes || null) : undefined,
+        visibility: visibility !== (collection.visibility || 'private') ? visibility : undefined,
+        readingMode: readingMode !== (collection.readingMode || null) ? readingMode : undefined,
       };
 
       // Remove undefined values
@@ -565,40 +600,98 @@ export function CollectionSettingsDrawer({
           {/* General Tab */}
           {activeTab === 'general' && (
             <div className="tab-content">
+              {/* Name with lock */}
               <div className="form-group">
-                <label htmlFor="collection-name">Name</label>
+                <div className="label-with-lock">
+                  <label htmlFor="collection-name">Name</label>
+                  {!collection.isSystem && (
+                    <button
+                      type="button"
+                      className={`lock-toggle ${lockName ? 'locked' : ''}`}
+                      onClick={() => { setLockName(!lockName); markChanged(); }}
+                      title={lockName ? 'Unlock field' : 'Lock field'}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        {lockName ? (
+                          <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                        ) : (
+                          <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                        )}
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <input
                   id="collection-name"
                   type="text"
                   value={name}
                   onChange={(e) => { setName(e.target.value); markChanged(); }}
-                  disabled={collection.isSystem}
+                  disabled={collection.isSystem || lockName}
                 />
                 {collection.isSystem && (
                   <span className="form-hint">System collections cannot be renamed</span>
                 )}
+                {lockName && !collection.isSystem && (
+                  <span className="form-hint">Field is locked. Click the lock icon to edit.</span>
+                )}
               </div>
 
+              {/* Tagline with lock */}
               <div className="form-group">
-                <label htmlFor="collection-deck">Tagline</label>
+                <div className="label-with-lock">
+                  <label htmlFor="collection-deck">Tagline</label>
+                  <button
+                    type="button"
+                    className={`lock-toggle ${lockDeck ? 'locked' : ''}`}
+                    onClick={() => { setLockDeck(!lockDeck); markChanged(); }}
+                    title={lockDeck ? 'Unlock field' : 'Lock field'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      {lockDeck ? (
+                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                      ) : (
+                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                      )}
+                    </svg>
+                  </button>
+                </div>
                 <input
                   id="collection-deck"
                   type="text"
                   value={deck}
                   onChange={(e) => { setDeck(e.target.value); markChanged(); }}
                   placeholder="A short tagline for this collection..."
+                  disabled={lockDeck}
                 />
                 <span className="form-hint">A brief summary shown under the collection title</span>
               </div>
 
+              {/* Description with lock */}
               <div className="form-group">
-                <label htmlFor="collection-description">Description</label>
+                <div className="label-with-lock">
+                  <label htmlFor="collection-description">Description</label>
+                  <button
+                    type="button"
+                    className={`lock-toggle ${lockDescription ? 'locked' : ''}`}
+                    onClick={() => { setLockDescription(!lockDescription); markChanged(); }}
+                    title={lockDescription ? 'Unlock field' : 'Lock field'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      {lockDescription ? (
+                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                      ) : (
+                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                      )}
+                    </svg>
+                  </button>
+                </div>
                 <textarea
                   id="collection-description"
                   value={description}
                   onChange={(e) => { setDescription(e.target.value); markChanged(); }}
                   rows={3}
                   placeholder="Add a description..."
+                  disabled={lockDescription}
                 />
               </div>
 
@@ -609,7 +702,7 @@ export function CollectionSettingsDrawer({
                     type="button"
                     className="generate-description-btn"
                     onClick={handleGenerateDescriptionClick}
-                    disabled={isGeneratingDescription || localItems.length === 0}
+                    disabled={isGeneratingDescription || localItems.length === 0 || (lockDeck && lockDescription)}
                   >
                     {isGeneratingDescription ? (
                       <>
@@ -630,6 +723,9 @@ export function CollectionSettingsDrawer({
                   {localItems.length === 0 && (
                     <span className="form-hint">Add items to the collection first</span>
                   )}
+                  {(lockDeck && lockDescription) && (
+                    <span className="form-hint">Unlock tagline or description to generate</span>
+                  )}
                   {generateError && (
                     <div className="generation-error">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -643,51 +739,47 @@ export function CollectionSettingsDrawer({
                 </div>
               )}
 
+              {/* Rating */}
               <div className="form-group">
-                <label>Icon</label>
-                <div className="icon-picker">
-                  {ICON_OPTIONS.map((option) => (
+                <label>Rating</label>
+                <div className="star-rating">
+                  {[1, 2, 3, 4, 5].map((star) => (
                     <button
-                      key={option.id}
-                      className={`icon-option ${iconName === option.id ? 'selected' : ''}`}
-                      onClick={() => { setIconName(option.id); markChanged(); }}
-                      title={option.label}
-                      disabled={collection.isSystem}
+                      key={star}
+                      type="button"
+                      className={`star-btn ${rating && rating >= star ? 'filled' : ''}`}
+                      onClick={() => { setRating(rating === star ? null : star); markChanged(); }}
+                      title={rating === star ? 'Clear rating' : `Rate ${star} star${star > 1 ? 's' : ''}`}
                     >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d={option.icon} />
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill={rating && rating >= star ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                       </svg>
                     </button>
                   ))}
+                  {rating && (
+                    <button
+                      type="button"
+                      className="clear-rating-btn"
+                      onClick={() => { setRating(null); markChanged(); }}
+                      title="Clear rating"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </div>
               </div>
 
+              {/* Notes */}
               <div className="form-group">
-                <label>Color</label>
-                <div className="color-picker">
-                  {COLOR_OPTIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      className={`color-option ${color === option.value ? 'selected' : ''} ${option.id === 'default' ? 'default' : ''}`}
-                      onClick={() => { setColor(option.value); markChanged(); }}
-                      title={option.label}
-                      style={option.value ? { backgroundColor: option.value } : undefined}
-                      disabled={collection.isSystem}
-                    >
-                      {option.id === 'default' && (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M4.93 4.93l14.14 14.14" />
-                        </svg>
-                      )}
-                      {color === option.value && option.id !== 'default' && (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <path d="M20 6L9 17l-5-5" />
-                        </svg>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                <label htmlFor="collection-notes">Private Notes</label>
+                <textarea
+                  id="collection-notes"
+                  value={notes}
+                  onChange={(e) => { setNotes(e.target.value); markChanged(); }}
+                  rows={2}
+                  placeholder="Personal notes about this collection..."
+                />
+                <span className="form-hint">Only visible to you</span>
               </div>
             </div>
           )}
@@ -873,6 +965,63 @@ export function CollectionSettingsDrawer({
           {/* Display Tab */}
           {activeTab === 'display' && (
             <div className="tab-content">
+              {/* Visibility */}
+              <div className="form-group">
+                <label htmlFor="collection-visibility">Visibility</label>
+                <select
+                  id="collection-visibility"
+                  value={visibility}
+                  onChange={(e) => { setVisibility(e.target.value as 'public' | 'private' | 'unlisted'); markChanged(); }}
+                >
+                  {VISIBILITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="form-hint">
+                  {VISIBILITY_OPTIONS.find(o => o.value === visibility)?.description}
+                </span>
+              </div>
+
+              {/* Reading Mode */}
+              <div className="form-group">
+                <label htmlFor="collection-reading-mode">Preferred Reading Mode</label>
+                <select
+                  id="collection-reading-mode"
+                  value={readingMode || ''}
+                  onChange={(e) => { setReadingMode(e.target.value as 'single' | 'double' | 'webtoon' | null || null); markChanged(); }}
+                >
+                  {READING_MODE_OPTIONS.map((opt) => (
+                    <option key={opt.value || 'default'} value={opt.value || ''}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="form-hint">
+                  {READING_MODE_OPTIONS.find(o => o.value === readingMode)?.description || READING_MODE_OPTIONS[0].description}
+                </span>
+              </div>
+
+              {/* Tags (inherited from child series) */}
+              <div className="form-group">
+                <label>Tags</label>
+                {collection.derivedTags ? (
+                  <div className="derived-tags-display">
+                    {collection.derivedTags.split(',').map((tag, idx) => (
+                      <span key={idx} className="derived-tag-pill">
+                        {tag.trim()}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="no-tags-message">No tags from child series</div>
+                )}
+                <span className="form-hint">
+                  Tags are automatically inherited from series in this collection
+                </span>
+              </div>
+
               <div className="form-group">
                 <div className="toggle-row">
                   <div className="toggle-info">
@@ -897,13 +1046,30 @@ export function CollectionSettingsDrawer({
                   <span className="form-hint">Override auto-derived values when promoted</span>
                 </div>
 
+                {/* Publisher with lock */}
                 <div className="form-group">
                   <div className="input-with-reset">
-                    <label htmlFor="override-publisher">Publisher</label>
+                    <div className="label-with-lock">
+                      <label htmlFor="override-publisher">Publisher</label>
+                      <button
+                        type="button"
+                        className={`lock-toggle ${lockPublisher ? 'locked' : ''}`}
+                        onClick={() => { setLockPublisher(!lockPublisher); markChanged(); }}
+                        title={lockPublisher ? 'Unlock field' : 'Lock field'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          {lockPublisher ? (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                          ) : (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                          )}
+                        </svg>
+                      </button>
+                    </div>
                     <button
                       className="reset-btn"
                       onClick={() => { setOverridePublisher(''); markChanged(); }}
-                      disabled={!overridePublisher}
+                      disabled={!overridePublisher || lockPublisher}
                       title="Reset to auto"
                     >
                       Reset
@@ -915,17 +1081,35 @@ export function CollectionSettingsDrawer({
                     value={overridePublisher}
                     onChange={(e) => { setOverridePublisher(e.target.value); markChanged(); }}
                     placeholder={collection.derivedPublisher || 'Auto-derived'}
+                    disabled={lockPublisher}
                   />
                 </div>
 
                 <div className="form-row">
+                  {/* Start Year with lock */}
                   <div className="form-group">
                     <div className="input-with-reset">
-                      <label htmlFor="override-start-year">Start Year</label>
+                      <div className="label-with-lock">
+                        <label htmlFor="override-start-year">Start Year</label>
+                        <button
+                          type="button"
+                          className={`lock-toggle ${lockStartYear ? 'locked' : ''}`}
+                          onClick={() => { setLockStartYear(!lockStartYear); markChanged(); }}
+                          title={lockStartYear ? 'Unlock field' : 'Lock field'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            {lockStartYear ? (
+                              <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                            ) : (
+                              <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                            )}
+                          </svg>
+                        </button>
+                      </div>
                       <button
                         className="reset-btn"
                         onClick={() => { setOverrideStartYear(''); markChanged(); }}
-                        disabled={!overrideStartYear}
+                        disabled={!overrideStartYear || lockStartYear}
                         title="Reset to auto"
                       >
                         Reset
@@ -939,16 +1123,34 @@ export function CollectionSettingsDrawer({
                       placeholder={collection.derivedStartYear?.toString() || 'Auto'}
                       min="1900"
                       max="2100"
+                      disabled={lockStartYear}
                     />
                   </div>
 
+                  {/* End Year with lock */}
                   <div className="form-group">
                     <div className="input-with-reset">
-                      <label htmlFor="override-end-year">End Year</label>
+                      <div className="label-with-lock">
+                        <label htmlFor="override-end-year">End Year</label>
+                        <button
+                          type="button"
+                          className={`lock-toggle ${lockEndYear ? 'locked' : ''}`}
+                          onClick={() => { setLockEndYear(!lockEndYear); markChanged(); }}
+                          title={lockEndYear ? 'Unlock field' : 'Lock field'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            {lockEndYear ? (
+                              <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                            ) : (
+                              <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                            )}
+                          </svg>
+                        </button>
+                      </div>
                       <button
                         className="reset-btn"
                         onClick={() => { setOverrideEndYear(''); markChanged(); }}
-                        disabled={!overrideEndYear}
+                        disabled={!overrideEndYear || lockEndYear}
                         title="Reset to auto"
                       >
                         Reset
@@ -962,17 +1164,35 @@ export function CollectionSettingsDrawer({
                       placeholder={collection.derivedEndYear?.toString() || 'Auto'}
                       min="1900"
                       max="2100"
+                      disabled={lockEndYear}
                     />
                   </div>
                 </div>
 
+                {/* Genres with lock */}
                 <div className="form-group">
                   <div className="input-with-reset">
-                    <label htmlFor="override-genres">Genres</label>
+                    <div className="label-with-lock">
+                      <label htmlFor="override-genres">Genres</label>
+                      <button
+                        type="button"
+                        className={`lock-toggle ${lockGenres ? 'locked' : ''}`}
+                        onClick={() => { setLockGenres(!lockGenres); markChanged(); }}
+                        title={lockGenres ? 'Unlock field' : 'Lock field'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          {lockGenres ? (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                          ) : (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                          )}
+                        </svg>
+                      </button>
+                    </div>
                     <button
                       className="reset-btn"
                       onClick={() => { setOverrideGenres(''); markChanged(); }}
-                      disabled={!overrideGenres}
+                      disabled={!overrideGenres || lockGenres}
                       title="Reset to auto"
                     >
                       Reset
@@ -984,6 +1204,7 @@ export function CollectionSettingsDrawer({
                     value={overrideGenres}
                     onChange={(e) => { setOverrideGenres(e.target.value); markChanged(); }}
                     placeholder={collection.derivedGenres || 'Comma-separated genres'}
+                    disabled={lockGenres}
                   />
                   <span className="form-hint">Separate genres with commas</span>
                 </div>

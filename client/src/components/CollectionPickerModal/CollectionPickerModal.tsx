@@ -225,11 +225,7 @@ export function CollectionPickerModal({
                   disabled={pendingToggles.has(collection.id)}
                 >
                   <span className="collection-picker-item-icon">
-                    <CollectionIcon
-                      iconName={collection.iconName}
-                      color={collection.color}
-                      size={18}
-                    />
+                    <CollectionIcon size={18} />
                   </span>
                   <span className="collection-picker-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (
@@ -257,11 +253,7 @@ export function CollectionPickerModal({
                   disabled={pendingToggles.has(collection.id)}
                 >
                   <span className="collection-picker-item-icon">
-                    <CollectionIcon
-                      iconName={collection.iconName}
-                      color={collection.color}
-                      size={18}
-                    />
+                    <CollectionIcon size={18} />
                   </span>
                   <span className="collection-picker-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (

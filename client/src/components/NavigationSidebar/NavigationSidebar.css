@@ -142,56 +142,10 @@
    Mobile Styles
    ============================================================================= */
 
+/* Hide navigation sidebar on mobile - not enough screen space */
 @media (max-width: 768px) {
   .navigation-sidebar {
-    right: 0;
-    padding: 6px 3px;
-    top: var(--nav-sidebar-top, 160px);
-    bottom: var(--nav-sidebar-bottom, 50px);
-  }
-
-  .nav-marker {
-    width: 20px;
-    font-size: 0.5rem;
-  }
-
-  .navigation-sidebar.year-mode .nav-marker {
-    width: 32px;
-    font-size: 0.5rem;
-  }
-
-  .navigation-sidebar.numeric-mode .nav-marker {
-    max-width: 40px;
-    font-size: 0.5rem;
-  }
-
-  .spectrum-track {
-    width: 2px;
-  }
-
-  .spectrum-thumb {
-    width: 6px;
-    height: 12px;
-    left: -2px;
-  }
-}
-
-/* Very small screens */
-@media (max-width: 480px) {
-  .navigation-sidebar {
-    right: 0;
-    padding: 4px 2px;
-    top: var(--nav-sidebar-top, 140px);
-    bottom: var(--nav-sidebar-bottom, 40px);
-  }
-
-  .nav-marker {
-    width: 18px;
-    font-size: 0.4375rem;
-  }
-
-  .navigation-sidebar.year-mode .nav-marker {
-    width: 28px;
+    display: none;
   }
 }
 

@@ -282,11 +282,7 @@ export function CollectionFlyout({
                   role="menuitem"
                 >
                   <span className="collection-flyout-item-icon">
-                    <CollectionIcon
-                      iconName={collection.iconName}
-                      color={collection.color}
-                      size={16}
-                    />
+                    <CollectionIcon size={16} />
                   </span>
                   <span className="collection-flyout-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (
@@ -315,11 +311,7 @@ export function CollectionFlyout({
                   role="menuitem"
                 >
                   <span className="collection-flyout-item-icon">
-                    <CollectionIcon
-                      iconName={collection.iconName}
-                      color={collection.color}
-                      size={16}
-                    />
+                    <CollectionIcon size={16} />
                   </span>
                   <span className="collection-flyout-item-name">{collection.name}</span>
                   {!isBulkMode && itemCollectionIds.has(collection.id) && (

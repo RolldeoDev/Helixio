@@ -12,6 +12,7 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Library,
   ComicFile,
@@ -69,6 +70,9 @@ interface AppState {
 
   // Display preferences
   preferFilenameOverMetadata: boolean;
+
+  // Mobile sidebar
+  mobileSidebarOpen: boolean;
 }
 
 interface AppContextValue extends AppState {
@@ -108,6 +112,10 @@ interface AppContextValue extends AppState {
 
   // Display preference actions
   setPreferFilenameOverMetadata: (prefer: boolean) => void;
+
+  // Mobile sidebar actions
+  setMobileSidebarOpen: (open: boolean) => void;
+  toggleMobileSidebar: () => void;
 }
 
 // =============================================================================
@@ -141,6 +149,8 @@ interface AppProviderProps {
 }
 
 export function AppProvider({ children }: AppProviderProps) {
+  const location = useLocation();
+
   // Libraries
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [selectedLibrary, setSelectedLibrary] = useState<Library | null>(null);
@@ -191,6 +201,18 @@ export function AppProvider({ children }: AppProviderProps) {
     const stored = localStorage.getItem(PREFER_FILENAME_KEY);
     return stored === 'true';
   });
+
+  // Mobile sidebar
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(prev => !prev);
+  }, []);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
 
   // ---------------------------------------------------------------------------
   // Display Preference Actions
@@ -564,6 +586,7 @@ export function AppProvider({ children }: AppProviderProps) {
     operationInProgress,
     operationMessage,
     preferFilenameOverMetadata,
+    mobileSidebarOpen,
 
     // Actions
     refreshLibraries,
@@ -590,6 +613,8 @@ export function AppProvider({ children }: AppProviderProps) {
     setPageSize,
     setOperation,
     setPreferFilenameOverMetadata,
+    setMobileSidebarOpen,
+    toggleMobileSidebar,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

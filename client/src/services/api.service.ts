@@ -3136,8 +3136,6 @@ export interface PromotedCollectionGridItem {
   userId: string;
   name: string;
   description: string | null;
-  iconName: string | null;
-  color: string | null;
   isPromoted: boolean;
   promotedOrder: number | null;
   coverType: string;
@@ -4623,8 +4621,6 @@ export interface Collection {
   deck: string | null;
   isSystem: boolean;
   systemKey: 'favorites' | 'want-to-read' | null;
-  iconName: string | null;
-  color: string | null;
   sortOrder: number;
   itemCount: number;
   createdAt: string;
@@ -4642,6 +4638,7 @@ export interface Collection {
   derivedStartYear?: number | null;
   derivedEndYear?: number | null;
   derivedGenres?: string | null;
+  derivedTags?: string | null;
   derivedIssueCount?: number | null;
   derivedReadCount?: number | null;
   // Override metadata
@@ -4649,6 +4646,20 @@ export interface Collection {
   overrideStartYear?: number | null;
   overrideEndYear?: number | null;
   overrideGenres?: string | null;
+  // Lock flags
+  lockName?: boolean;
+  lockDeck?: boolean;
+  lockDescription?: boolean;
+  lockPublisher?: boolean;
+  lockStartYear?: boolean;
+  lockEndYear?: boolean;
+  lockGenres?: boolean;
+  // New fields
+  rating?: number | null;
+  notes?: string | null;
+  visibility?: 'public' | 'private' | 'unlisted';
+  readingMode?: 'single' | 'double' | 'webtoon' | null;
+  tags?: string | null;
 }
 
 export interface CollectionItem {
@@ -4711,10 +4722,15 @@ export async function createCollection(
   name: string,
   description?: string,
   deck?: string,
-  iconName?: string,
-  color?: string
+  options?: {
+    rating?: number;
+    notes?: string;
+    visibility?: 'public' | 'private' | 'unlisted';
+    readingMode?: 'single' | 'double' | 'webtoon';
+    tags?: string;
+  }
 ): Promise<Collection> {
-  return post<Collection>('/collections', { name, description, deck, iconName, color });
+  return post<Collection>('/collections', { name, description, deck, ...options });
 }
 
 /**
@@ -4722,7 +4738,31 @@ export async function createCollection(
  */
 export async function updateCollection(
   id: string,
-  data: { name?: string; description?: string; deck?: string; iconName?: string; color?: string; sortOrder?: number }
+  data: {
+    name?: string;
+    description?: string;
+    deck?: string;
+    sortOrder?: number;
+    // Lock flags
+    lockName?: boolean;
+    lockDeck?: boolean;
+    lockDescription?: boolean;
+    lockPublisher?: boolean;
+    lockStartYear?: boolean;
+    lockEndYear?: boolean;
+    lockGenres?: boolean;
+    // Override metadata
+    overridePublisher?: string | null;
+    overrideStartYear?: number | null;
+    overrideEndYear?: number | null;
+    overrideGenres?: string | null;
+    // New fields
+    rating?: number | null;
+    notes?: string | null;
+    visibility?: 'public' | 'private' | 'unlisted';
+    readingMode?: 'single' | 'double' | 'webtoon' | null;
+    tags?: string | null;
+  }
 ): Promise<Collection> {
   return put<Collection>(`/collections/${id}`, data);
 }

@@ -13,6 +13,15 @@ import { useBreadcrumbs } from '../../contexts/BreadcrumbContext';
 import { GlobalSearchBar } from './GlobalSearchBar';
 import './GlobalHeader.css';
 
+// Menu icon for mobile
+const MenuIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+
 // Truncate text with ellipsis
 function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
@@ -62,7 +71,7 @@ const UserIcon = () => (
 export function GlobalHeader() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedLibrary, libraries, isAllLibraries } = useApp();
+  const { selectedLibrary, libraries, isAllLibraries, toggleMobileSidebar } = useApp();
   const { user, isAuthenticated } = useAuth();
   const { segments, clearBreadcrumbs } = useBreadcrumbs();
 
@@ -120,6 +129,16 @@ export function GlobalHeader() {
 
   return (
     <header className="global-header">
+      {/* Mobile menu toggle */}
+      <button
+        className="mobile-menu-toggle"
+        onClick={toggleMobileSidebar}
+        type="button"
+        aria-label="Toggle navigation menu"
+      >
+        <MenuIcon />
+      </button>
+
       {/* Left: Search */}
       <div className="header-left">
         <GlobalSearchBar />

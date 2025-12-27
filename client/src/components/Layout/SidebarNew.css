@@ -247,16 +247,39 @@
 }
 
 /* =============================================================================
+   Mobile Sidebar Backdrop
+   ============================================================================= */
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* =============================================================================
    Responsive - Mobile (< 768px)
    ============================================================================= */
 
 @media (max-width: 768px) {
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 99;
+    animation: backdropFadeIn 0.2s ease;
+  }
+
+  @keyframes backdropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   .sidebar-new {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
   }
 
-  .sidebar-new.visible {
+  .sidebar-new.open {
     transform: translateX(0);
   }
 }

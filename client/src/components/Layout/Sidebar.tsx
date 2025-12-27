@@ -45,6 +45,8 @@ export function Sidebar() {
     refreshLibraries,
     refreshFiles,
     setOperation,
+    mobileSidebarOpen,
+    setMobileSidebarOpen,
   } = useApp();
   const { activeJobs } = useMetadataJob();
 
@@ -149,9 +151,22 @@ export function Sidebar() {
   const isRouteActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
 
   return (
-    <div className="sidebar-shell" ref={containerRef}>
-      {/* Icon Rail - The Spine */}
-      <nav className="icon-rail" aria-label="Main navigation">
+    <>
+      {/* Mobile backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <div
+        className={`sidebar-shell ${mobileSidebarOpen ? 'open' : ''}`}
+        ref={containerRef}
+      >
+        {/* Icon Rail - The Spine */}
+        <nav className="icon-rail" aria-label="Main navigation">
         {/* Logo */}
         <div className="rail-logo" title="Helixio">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -351,12 +366,13 @@ export function Sidebar() {
         </div>
       </aside>
 
-      {/* Resize Handle */}
-      <div
-        className={`panel-resize-handle ${isResizing ? 'resizing' : ''}`}
-        onMouseDown={handleResizeStart}
-      />
-    </div>
+        {/* Resize Handle */}
+        <div
+          className={`panel-resize-handle ${isResizing ? 'resizing' : ''}`}
+          onMouseDown={handleResizeStart}
+        />
+      </div>
+    </>
   );
 }
 

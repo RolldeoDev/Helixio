@@ -142,7 +142,7 @@ const coverUpload = multer({
  * GET /api/series
  * List series with pagination, filtering, and sorting
  */
-router.get('/', asyncHandler(async (req: Request, res: Response) => {
+router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
   const fetchAll = req.query.all === 'true';
   const options: SeriesListOptions = {
     page: fetchAll ? 1 : (parseInt(req.query.page as string) || 1),
@@ -156,6 +156,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     hasUnread: req.query.hasUnread ? req.query.hasUnread === 'true' : undefined,
     libraryId: req.query.libraryId as string | undefined,
     includeHidden: req.query.includeHidden === 'true' ? true : undefined,
+    userId: req.user?.id,  // Filter progress by current user
   };
 
   const result = await getSeriesList(options);
@@ -167,7 +168,14 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     fetchAll,
   }, 'Listed series');
 
-  sendSuccess(res, { series: result.series }, {
+  // Transform progress arrays to single objects for backward compatibility
+  // When filtered by userId, progress is an array with 0 or 1 elements
+  const transformedSeries = result.series.map((s) => ({
+    ...s,
+    progress: Array.isArray(s.progress) ? s.progress[0] ?? null : s.progress,
+  }));
+
+  sendSuccess(res, { series: transformedSeries }, {
     pagination: {
       page: result.page,
       limit: result.limit,
@@ -411,17 +419,25 @@ router.get('/search-external', asyncHandler(async (req: Request, res: Response) 
 
 /**
  * GET /api/series/:id
- * Get a single series with issue count
+ * Get a single series with issue count and progress
  */
-router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-  const series = await getSeries(req.params.id!);
+router.get('/:id', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const series = await getSeries(req.params.id!, { userId });
 
   if (!series) {
     sendNotFound(res, 'Series not found');
     return;
   }
 
-  sendSuccess(res, { series });
+  // Transform progress array to single object for backward compatibility
+  // When filtered by userId, progress is an array with 0 or 1 elements
+  const transformedSeries = {
+    ...series,
+    progress: Array.isArray(series.progress) ? series.progress[0] ?? null : series.progress,
+  };
+
+  sendSuccess(res, { series: transformedSeries });
 }));
 
 /**
@@ -508,13 +524,14 @@ function parseIssueNumber(numberStr: string | null | undefined): { numericValue:
  * GET /api/series/:id/issues
  * List issues in a series with pagination
  */
-router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id/issues', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
   const db = getDatabase();
   const fetchAll = req.query.all === 'true';
   const page = fetchAll ? 1 : (parseInt(req.query.page as string) || 1);
   const limit = fetchAll ? undefined : (parseInt(req.query.limit as string) || 100);
   const sortBy = (req.query.sortBy as string) || 'number';
   const sortOrder = (req.query.sortOrder as 'asc' | 'desc') || 'asc';
+  const userId = req.user?.id;
 
   // Verify series exists
   const series = await db.series.findUnique({
@@ -526,6 +543,28 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
+  // Build userReadingProgress include - only filter by userId if authenticated
+  const userProgressInclude = userId ? {
+    userReadingProgress: {
+      where: { userId },
+      select: {
+        currentPage: true,
+        totalPages: true,
+        completed: true,
+        lastReadAt: true,
+      },
+    },
+  } : {};
+
+  // Helper to transform userReadingProgress array to readingProgress single object for backward compatibility
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const transformIssueProgress = (issue: any) => {
+    const progress = issue.userReadingProgress?.[0] ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { userReadingProgress, ...rest } = issue;
+    return { ...rest, readingProgress: progress };
+  };
+
   // For number sorting, we need to fetch all and sort in JS due to string vs numeric sorting
   if (sortBy === 'number') {
     // Fetch all issues for this series
@@ -533,14 +572,7 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
       where: { seriesId: req.params.id },
       include: {
         metadata: true,
-        readingProgress: {
-          select: {
-            currentPage: true,
-            totalPages: true,
-            completed: true,
-            lastReadAt: true,
-          },
-        },
+        ...userProgressInclude,
       },
     });
 
@@ -571,7 +603,10 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
       ? sortedIssues.slice((page - 1) * limit, page * limit)
       : sortedIssues;
 
-    sendSuccess(res, { issues: paginatedIssues }, {
+    // Transform userReadingProgress to readingProgress for backward compatibility
+    const transformedIssues = userId ? paginatedIssues.map(transformIssueProgress) : paginatedIssues;
+
+    sendSuccess(res, { issues: transformedIssues }, {
       pagination: {
         page,
         limit: limit || total,
@@ -587,24 +622,20 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
 
   // If fetchAll, get all issues; otherwise paginate
   if (fetchAll) {
-    const [issues, total] = await Promise.all([
+    const [issuesRaw, total] = await Promise.all([
       db.comicFile.findMany({
         where: { seriesId: req.params.id },
         orderBy,
         include: {
           metadata: true,
-          readingProgress: {
-            select: {
-              currentPage: true,
-              totalPages: true,
-              completed: true,
-              lastReadAt: true,
-            },
-          },
+          ...userProgressInclude,
         },
       }),
       db.comicFile.count({ where: { seriesId: req.params.id } }),
     ]);
+
+    // Transform userReadingProgress to readingProgress for backward compatibility
+    const issues = userId ? issuesRaw.map(transformIssueProgress) : issuesRaw;
 
     sendSuccess(res, { issues }, {
       pagination: {
@@ -617,7 +648,7 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const [issues, total] = await Promise.all([
+  const [issuesRaw, total] = await Promise.all([
     db.comicFile.findMany({
       where: { seriesId: req.params.id },
       skip: (page - 1) * (limit || 100),
@@ -625,18 +656,14 @@ router.get('/:id/issues', asyncHandler(async (req: Request, res: Response) => {
       orderBy,
       include: {
         metadata: true,
-        readingProgress: {
-          select: {
-            currentPage: true,
-            totalPages: true,
-            completed: true,
-            lastReadAt: true,
-          },
-        },
+        ...userProgressInclude,
       },
     }),
     db.comicFile.count({ where: { seriesId: req.params.id } }),
   ]);
+
+  // Transform userReadingProgress to readingProgress for backward compatibility
+  const issues = userId ? issuesRaw.map(transformIssueProgress) : issuesRaw;
 
   sendSuccess(res, { issues }, {
     pagination: {

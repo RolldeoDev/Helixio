@@ -988,13 +988,127 @@
   .collection-settings-drawer .drawer-content {
     padding: var(--spacing-md);
   }
+}
 
-  .icon-picker {
-    gap: var(--spacing-xs);
-  }
+/* ==========================================================================
+   Lock Toggle
+   ========================================================================== */
 
-  .icon-option {
-    width: 32px;
-    height: 32px;
-  }
+.label-with-lock {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.label-with-lock label {
+  margin: 0;
+}
+
+.lock-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lock-toggle:hover {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.lock-toggle.locked {
+  color: var(--color-primary);
+}
+
+.lock-toggle.locked:hover {
+  color: var(--color-primary-hover);
+}
+
+/* ==========================================================================
+   Star Rating
+   ========================================================================== */
+
+.star-rating {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.star-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.star-btn:hover {
+  color: #f59e0b;
+  transform: scale(1.1);
+}
+
+.star-btn.filled {
+  color: #f59e0b;
+}
+
+.clear-rating-btn {
+  margin-left: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.clear-rating-btn:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-text-muted);
+}
+
+/* ==========================================================================
+   Derived Tags Display
+   ========================================================================== */
+
+.derived-tags-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  min-height: 40px;
+}
+
+.derived-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: var(--color-bg-tertiary, var(--color-bg));
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.no-tags-message {
+  padding: var(--spacing-sm);
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  font-style: italic;
 }

@@ -8,6 +8,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 200px;
+  min-width: 0; /* Allow shrinking in flex context */
   overflow: hidden;
 }
 
@@ -85,6 +86,8 @@
   position: relative;
   flex: 1;
   min-height: 0;
+  min-width: 0; /* Allow shrinking in flex context */
+  overflow-x: hidden; /* Prevent horizontal overflow */
   /* Reserve space for the fixed navigation sidebar on the right */
   margin-right: 40px;
 }
@@ -354,30 +357,12 @@
 
 @media (max-width: 768px) {
   .series-grid-content-wrapper {
-    margin-right: 32px;
+    margin-right: 0; /* Nav sidebar is hidden on mobile */
   }
 
   .series-grid-header {
-    padding-right: 36px;
+    padding-right: var(--spacing-md); /* Nav sidebar is hidden on mobile */
   }
 }
 
-@media (max-width: 480px) {
-  .series-grid-content-wrapper {
-    margin-right: 24px;
-  }
-
-  .series-grid-header {
-    padding-right: 28px;
-  }
-}
-
-@media (max-width: 360px) {
-  .series-grid-content-wrapper {
-    margin-right: 0;
-  }
-
-  .series-grid-header {
-    padding-right: var(--spacing-md);
-  }
-}
+/* 480px and 360px breakpoints no longer needed - nav sidebar hidden at 768px */

@@ -211,12 +211,15 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { name, description, deck, iconName, color } = req.body as {
+    const { name, description, deck, rating, notes, visibility, readingMode, tags } = req.body as {
       name: string;
       description?: string;
       deck?: string;
-      iconName?: string;
-      color?: string;
+      rating?: number;
+      notes?: string;
+      visibility?: 'public' | 'private' | 'unlisted';
+      readingMode?: 'single' | 'double' | 'webtoon';
+      tags?: string;
     };
 
     if (!name || typeof name !== 'string') {
@@ -224,7 +227,7 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const collection = await createCollection(userId, { name, description, deck, iconName, color });
+    const collection = await createCollection(userId, { name, description, deck, rating, notes, visibility, readingMode, tags });
     res.status(201).json(collection);
   } catch (error) {
     console.error('Error creating collection:', error);
@@ -243,16 +246,46 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { name, description, deck, iconName, color, sortOrder } = req.body as {
+    const {
+      name, description, deck, sortOrder,
+      // Lock flags
+      lockName, lockDeck, lockDescription, lockPublisher, lockStartYear, lockEndYear, lockGenres,
+      // Override metadata
+      overridePublisher, overrideStartYear, overrideEndYear, overrideGenres,
+      // New fields
+      rating, notes, visibility, readingMode, tags
+    } = req.body as {
       name?: string;
       description?: string;
       deck?: string;
-      iconName?: string;
-      color?: string;
       sortOrder?: number;
+      // Lock flags
+      lockName?: boolean;
+      lockDeck?: boolean;
+      lockDescription?: boolean;
+      lockPublisher?: boolean;
+      lockStartYear?: boolean;
+      lockEndYear?: boolean;
+      lockGenres?: boolean;
+      // Override metadata
+      overridePublisher?: string | null;
+      overrideStartYear?: number | null;
+      overrideEndYear?: number | null;
+      overrideGenres?: string | null;
+      // New fields
+      rating?: number | null;
+      notes?: string | null;
+      visibility?: 'public' | 'private' | 'unlisted';
+      readingMode?: 'single' | 'double' | 'webtoon' | null;
+      tags?: string | null;
     };
 
-    const collection = await updateCollection(userId, id!, { name, description, deck, iconName, color, sortOrder });
+    const collection = await updateCollection(userId, id!, {
+      name, description, deck, sortOrder,
+      lockName, lockDeck, lockDescription, lockPublisher, lockStartYear, lockEndYear, lockGenres,
+      overridePublisher, overrideStartYear, overrideEndYear, overrideGenres,
+      rating, notes, visibility, readingMode, tags
+    });
     res.json(collection);
   } catch (error) {
     console.error('Error updating collection:', error);

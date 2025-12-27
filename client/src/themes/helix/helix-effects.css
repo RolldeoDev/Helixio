@@ -449,14 +449,14 @@
   color: var(--color-text);
 }
 
-/* Links */
-:root[data-theme^="default"] a {
+/* Links - exclude buttons and styled action links that have their own color schemes */
+:root[data-theme^="default"] a:not([class*="btn"]):not([class*="action-link"]):not([class*="button"]) {
   color: var(--color-primary);
   text-decoration: none;
   transition: color 0.2s ease;
 }
 
-:root[data-theme^="default"] a:hover {
+:root[data-theme^="default"] a:not([class*="btn"]):not([class*="action-link"]):not([class*="button"]):hover {
   color: var(--color-primary-hover);
   text-decoration: underline;
 }

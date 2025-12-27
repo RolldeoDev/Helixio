@@ -785,6 +785,20 @@ export function CollectionDetailPage() {
               <div className="collection-hero-info">
                 <h1 className="collection-title">{collection.name}</h1>
 
+                {/* Rating display */}
+                {collection.rating && (
+                  <div className="collection-rating">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`rating-star ${star <= collection.rating! ? 'filled' : ''}`}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 {collection.deck && (
                   <p className="collection-deck">{collection.deck}</p>
                 )}

@@ -7,6 +7,7 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 /* Header */
@@ -18,6 +19,8 @@
   padding: var(--spacing-md) var(--spacing-xl);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
+  min-width: 0; /* Allow shrinking in flex context */
+  overflow: hidden; /* Prevent header from causing horizontal overflow */
 }
 
 .series-page-header h1 {
@@ -35,7 +38,9 @@
   align-items: center;
   gap: var(--spacing-sm);
   flex: 1;
+  min-width: 0; /* Allow shrinking */
   justify-content: flex-end;
+  flex-wrap: wrap; /* Allow wrapping on smaller screens */
 }
 
 /* Search */
@@ -248,8 +253,14 @@
 
 /* Extra small screens */
 @media (max-width: 480px) {
+  .series-page-header {
+    overflow-x: auto;
+  }
+
   .series-page-header h1 {
     font-size: 1.25rem;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .filter-select {
@@ -265,6 +276,7 @@
 /* Series Grid Container */
 .series-page > .series-grid-container {
   flex: 1;
+  min-width: 0; /* Allow shrinking in flex context */
   /* Let the inner scroll container handle scrolling, not this one */
   overflow: hidden;
 }

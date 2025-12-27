@@ -20,6 +20,7 @@
   --color-primary: #d4a574;
   --color-primary-hover: #e5bc92;
   --color-primary-muted: rgba(212, 165, 116, 0.15);
+  --color-primary-text: #1a1a1a;
   --color-secondary: #2a3444;
   --color-accent: #8b7355;
 
@@ -132,6 +133,7 @@
   --color-primary: #8b6914;
   --color-primary-hover: #a37d1a;
   --color-primary-muted: rgba(139, 105, 20, 0.12);
+  --color-primary-text: #ffffff;
   --color-secondary: #e8e4de;
   --color-accent: #6b5344;
   --color-text: #2c2824;
@@ -179,6 +181,7 @@
   --color-primary: #c9a227;
   --color-primary-hover: #e5b82a;
   --color-primary-muted: rgba(201, 162, 39, 0.15);
+  --color-primary-text: #1a1a1a;
   --color-secondary: #2d1f4e;
   --color-accent: #7b68ee;
   --color-text: #e8e4f0;
@@ -216,6 +219,7 @@
   --color-primary: #8b6914;
   --color-primary-hover: #a37d1a;
   --color-primary-muted: rgba(139, 105, 20, 0.12);
+  --color-primary-text: #ffffff;
   --color-secondary: #e8e3d9;
   --color-accent: #4a3875;
   --color-text: #1a1520;
@@ -325,7 +329,7 @@ body {
   grid-template-columns: 1fr;
 }
 
-/* Global Header - spans column 2, row 1 */
+/* Global Header - column 2 (content area), row 1 */
 .global-header {
   grid-column: 2;
   grid-row: 1;
@@ -335,14 +339,24 @@ body {
   grid-column: 1;
 }
 
-/* Main content moves to row 2 */
+/* Main content - column 2 (content area), row 2 */
 .app .main-content {
+  grid-column: 2;
   grid-row: 2;
 }
 
-/* Status bar in row 3 */
+.app.no-sidebar .main-content {
+  grid-column: 1;
+}
+
+/* Status bar in row 3, column 2 */
 .app .status-bar {
+  grid-column: 2;
   grid-row: 3;
+}
+
+.app.no-sidebar .status-bar {
+  grid-column: 1;
 }
 
 /* Folder drawer pinned mode - adds a third column for the drawer */
@@ -350,19 +364,35 @@ body {
   grid-template-columns: auto auto 1fr;
 }
 
+.app.drawer-pinned .global-header,
+.app.drawer-pinned .main-content,
+.app.drawer-pinned .status-bar {
+  grid-column: 3;
+}
+
 .app.drawer-pinned.no-sidebar {
   grid-template-columns: auto 1fr;
+}
+
+.app.drawer-pinned.no-sidebar .global-header,
+.app.drawer-pinned.no-sidebar .main-content,
+.app.drawer-pinned.no-sidebar .status-bar {
+  grid-column: 2;
 }
 
 .main-content {
   background-color: var(--color-bg);
   overflow-y: auto;
+  overflow-x: hidden; /* Prevent horizontal overflow/scroll */
+  min-width: 0; /* Allow shrinking in flex/grid context */
 }
 
 /* Ensure all main content elements appear above fixed background effects (z-index: 0-1) */
+/* Also ensure pages can shrink properly with min-width: 0 */
 .main-content > * {
   position: relative;
   z-index: 2;
+  min-width: 0;
 }
 
 /* =============================================================================
@@ -5203,6 +5233,13 @@ body {
 @media (max-width: 768px) {
   .app {
     grid-template-columns: 1fr;
+  }
+
+  /* Single column layout - everything in column 1 */
+  .global-header,
+  .app .main-content,
+  .app .status-bar {
+    grid-column: 1;
   }
 
   .sidebar {

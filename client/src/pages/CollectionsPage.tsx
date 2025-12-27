@@ -15,7 +15,6 @@ import {
   CollectionItem,
   toggleCollectionPromotion,
   updateCollectionCover,
-  updateCollectionMetadata,
   removeFromCollection as apiRemoveFromCollection,
   reorderCollectionItems,
   updateCollection as apiUpdateCollection,
@@ -155,9 +154,26 @@ export function CollectionsPage() {
       // Update basic fields via collection update
       const basicUpdates: Record<string, unknown> = {};
       if (updates.name !== undefined) basicUpdates.name = updates.name;
+      if (updates.deck !== undefined) basicUpdates.deck = updates.deck;
       if (updates.description !== undefined) basicUpdates.description = updates.description;
-      if (updates.iconName !== undefined) basicUpdates.iconName = updates.iconName;
-      if (updates.color !== undefined) basicUpdates.color = updates.color;
+      // Lock flags
+      if (updates.lockName !== undefined) basicUpdates.lockName = updates.lockName;
+      if (updates.lockDeck !== undefined) basicUpdates.lockDeck = updates.lockDeck;
+      if (updates.lockDescription !== undefined) basicUpdates.lockDescription = updates.lockDescription;
+      if (updates.lockPublisher !== undefined) basicUpdates.lockPublisher = updates.lockPublisher;
+      if (updates.lockStartYear !== undefined) basicUpdates.lockStartYear = updates.lockStartYear;
+      if (updates.lockEndYear !== undefined) basicUpdates.lockEndYear = updates.lockEndYear;
+      if (updates.lockGenres !== undefined) basicUpdates.lockGenres = updates.lockGenres;
+      // Override metadata (now included in basicUpdates since route handles them)
+      if (updates.overridePublisher !== undefined) basicUpdates.overridePublisher = updates.overridePublisher;
+      if (updates.overrideStartYear !== undefined) basicUpdates.overrideStartYear = updates.overrideStartYear;
+      if (updates.overrideEndYear !== undefined) basicUpdates.overrideEndYear = updates.overrideEndYear;
+      if (updates.overrideGenres !== undefined) basicUpdates.overrideGenres = updates.overrideGenres;
+      // New fields
+      if (updates.rating !== undefined) basicUpdates.rating = updates.rating;
+      if (updates.notes !== undefined) basicUpdates.notes = updates.notes;
+      if (updates.visibility !== undefined) basicUpdates.visibility = updates.visibility;
+      if (updates.readingMode !== undefined) basicUpdates.readingMode = updates.readingMode;
 
       if (Object.keys(basicUpdates).length > 0) {
         await apiUpdateCollection(selectedCollection.id, basicUpdates);
@@ -172,21 +188,6 @@ export function CollectionsPage() {
             ? updates.coverFileId ?? undefined
             : undefined;
         await updateCollectionCover(selectedCollection.id, updates.coverType, sourceId);
-      }
-
-      // Update metadata overrides if changed
-      if (
-        updates.overridePublisher !== undefined ||
-        updates.overrideStartYear !== undefined ||
-        updates.overrideEndYear !== undefined ||
-        updates.overrideGenres !== undefined
-      ) {
-        await updateCollectionMetadata(selectedCollection.id, {
-          overridePublisher: updates.overridePublisher,
-          overrideStartYear: updates.overrideStartYear,
-          overrideEndYear: updates.overrideEndYear,
-          overrideGenres: updates.overrideGenres,
-        });
       }
 
       // Toggle promotion if changed
@@ -290,7 +291,7 @@ export function CollectionsPage() {
                   return (
                     <div
                       key={collection.id}
-                      className={`list-item system-collection ${collection.iconName} ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
+                      className={`list-item system-collection ${selectedCollection?.id === collection.id ? 'selected' : ''}`}
                       onClick={() => handleSelectCollection(collection)}
                     >
                       <div className="item-cover-preview">
@@ -298,11 +299,7 @@ export function CollectionsPage() {
                           <img src={coverUrl} alt="" />
                         ) : (
                           <div className="item-cover-placeholder">
-                            <CollectionIcon
-                              iconName={collection.iconName}
-                              color={collection.color}
-                              size={16}
-                            />
+                            <CollectionIcon size={16} />
                           </div>
                         )}
                       </div>
@@ -393,11 +390,7 @@ export function CollectionsPage() {
                           <img src={coverUrl} alt="" />
                         ) : (
                           <div className="item-cover-placeholder">
-                            <CollectionIcon
-                              iconName={collection.iconName}
-                              color={collection.color}
-                              size={16}
-                            />
+                            <CollectionIcon size={16} />
                           </div>
                         )}
                       </div>

@@ -29,12 +29,24 @@ export interface Collection {
   deck: string | null;
   isSystem: boolean;
   systemKey: string | null;
-  iconName: string | null;
-  color: string | null;
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
   itemCount?: number;
+  // Lock flags
+  lockName: boolean;
+  lockDeck: boolean;
+  lockDescription: boolean;
+  lockPublisher: boolean;
+  lockStartYear: boolean;
+  lockEndYear: boolean;
+  lockGenres: boolean;
+  // User metadata
+  rating: number | null;
+  notes: string | null;
+  visibility: string;
+  readingMode: string | null;
+  tags: string | null;
   // Promotion fields
   isPromoted?: boolean;
   promotedOrder?: number | null;
@@ -48,6 +60,7 @@ export interface Collection {
   derivedStartYear?: number | null;
   derivedEndYear?: number | null;
   derivedGenres?: string | null;
+  derivedTags?: string | null;
   derivedIssueCount?: number | null;
   derivedReadCount?: number | null;
   // Override metadata
@@ -105,17 +118,37 @@ export interface CreateCollectionInput {
   name: string;
   description?: string;
   deck?: string;
-  iconName?: string;
-  color?: string;
+  rating?: number;
+  notes?: string;
+  visibility?: string;
+  readingMode?: string;
+  tags?: string;
 }
 
 export interface UpdateCollectionInput {
   name?: string;
   description?: string;
   deck?: string;
-  iconName?: string;
-  color?: string;
   sortOrder?: number;
+  // Override metadata
+  overridePublisher?: string | null;
+  overrideStartYear?: number | null;
+  overrideEndYear?: number | null;
+  overrideGenres?: string | null;
+  // Lock toggles
+  lockName?: boolean;
+  lockDeck?: boolean;
+  lockDescription?: boolean;
+  lockPublisher?: boolean;
+  lockStartYear?: boolean;
+  lockEndYear?: boolean;
+  lockGenres?: boolean;
+  // New fields
+  rating?: number | null;
+  notes?: string | null;
+  visibility?: string;
+  readingMode?: string | null;
+  tags?: string | null;
 }
 
 export interface AddItemInput {
@@ -137,13 +170,11 @@ const SYSTEM_COLLECTIONS = [
   {
     systemKey: 'favorites',
     name: 'Favorites',
-    iconName: 'heart',
     sortOrder: 0,
   },
   {
     systemKey: 'want-to-read',
     name: 'Want to Read',
-    iconName: 'bookmark',
     sortOrder: 1,
   },
 ];
@@ -169,7 +200,6 @@ export async function ensureSystemCollections(userId: string): Promise<void> {
           name: systemCollection.name,
           isSystem: true,
           systemKey: systemCollection.systemKey,
-          iconName: systemCollection.iconName,
           sortOrder: systemCollection.sortOrder,
         },
       });
@@ -474,9 +504,21 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     deck: c.deck,
     isSystem: c.isSystem,
     systemKey: c.systemKey,
-    iconName: c.iconName,
-    color: c.color,
     sortOrder: c.sortOrder,
+    // Lock flags
+    lockName: c.lockName,
+    lockDeck: c.lockDeck,
+    lockDescription: c.lockDescription,
+    lockPublisher: c.lockPublisher,
+    lockStartYear: c.lockStartYear,
+    lockEndYear: c.lockEndYear,
+    lockGenres: c.lockGenres,
+    // New fields
+    rating: c.rating,
+    notes: c.notes,
+    visibility: c.visibility,
+    readingMode: c.readingMode,
+    tags: c.tags,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     itemCount: c._count.items,
@@ -494,6 +536,7 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     derivedStartYear: c.derivedStartYear,
     derivedEndYear: c.derivedEndYear,
     derivedGenres: c.derivedGenres,
+    derivedTags: c.derivedTags,
   }));
 }
 
@@ -603,8 +646,6 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     deck: collection.deck,
     isSystem: collection.isSystem,
     systemKey: collection.systemKey,
-    iconName: collection.iconName,
-    color: collection.color,
     sortOrder: collection.sortOrder,
     createdAt: collection.createdAt,
     updatedAt: collection.updatedAt,
@@ -619,12 +660,27 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     derivedStartYear: collection.derivedStartYear,
     derivedEndYear: collection.derivedEndYear,
     derivedGenres: collection.derivedGenres,
+    derivedTags: collection.derivedTags,
     derivedIssueCount: collection.derivedIssueCount,
     derivedReadCount: collection.derivedReadCount,
     overridePublisher: collection.overridePublisher,
     overrideStartYear: collection.overrideStartYear,
     overrideEndYear: collection.overrideEndYear,
     overrideGenres: collection.overrideGenres,
+    // Lock flags
+    lockName: collection.lockName,
+    lockDeck: collection.lockDeck,
+    lockDescription: collection.lockDescription,
+    lockPublisher: collection.lockPublisher,
+    lockStartYear: collection.lockStartYear,
+    lockEndYear: collection.lockEndYear,
+    lockGenres: collection.lockGenres,
+    // New fields
+    rating: collection.rating,
+    notes: collection.notes,
+    visibility: collection.visibility,
+    readingMode: collection.readingMode,
+    tags: collection.tags,
     items,
   };
 }
@@ -648,10 +704,14 @@ export async function createCollection(userId: string, input: CreateCollectionIn
       name: input.name,
       description: input.description,
       deck: input.deck,
-      iconName: input.iconName,
-      color: input.color,
       sortOrder: nextSortOrder,
       isSystem: false,
+      // New fields
+      rating: input.rating,
+      notes: input.notes,
+      visibility: input.visibility ?? 'private',
+      readingMode: input.readingMode,
+      tags: input.tags,
     },
   });
 
@@ -679,6 +739,34 @@ export async function updateCollection(
 
   if (!existing) {
     throw new Error('Collection not found');
+  }
+
+  // Check for locked fields (unless explicitly unlocking)
+  const lockedFields: string[] = [];
+  if (existing.lockName && input.name !== undefined && input.lockName !== false) {
+    lockedFields.push('name');
+  }
+  if (existing.lockDeck && input.deck !== undefined && input.lockDeck !== false) {
+    lockedFields.push('deck');
+  }
+  if (existing.lockDescription && input.description !== undefined && input.lockDescription !== false) {
+    lockedFields.push('description');
+  }
+  if (existing.lockPublisher && input.overridePublisher !== undefined && input.lockPublisher !== false) {
+    lockedFields.push('publisher');
+  }
+  if (existing.lockStartYear && input.overrideStartYear !== undefined && input.lockStartYear !== false) {
+    lockedFields.push('startYear');
+  }
+  if (existing.lockEndYear && input.overrideEndYear !== undefined && input.lockEndYear !== false) {
+    lockedFields.push('endYear');
+  }
+  if (existing.lockGenres && input.overrideGenres !== undefined && input.lockGenres !== false) {
+    lockedFields.push('genres');
+  }
+
+  if (lockedFields.length > 0) {
+    throw new Error(`Cannot update locked fields: ${lockedFields.join(', ')}. Unlock them first.`);
   }
 
   const collection = await db.collection.update({
@@ -957,8 +1045,6 @@ export async function getCollectionsForItem(
     deck: c.deck,
     isSystem: c.isSystem,
     systemKey: c.systemKey,
-    iconName: c.iconName,
-    color: c.color,
     sortOrder: c.sortOrder,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
@@ -969,6 +1055,20 @@ export async function getCollectionsForItem(
     coverSeriesId: c.coverSeriesId,
     coverFileId: c.coverFileId,
     coverHash: c.coverHash,
+    // Lock flags
+    lockName: c.lockName,
+    lockDeck: c.lockDeck,
+    lockDescription: c.lockDescription,
+    lockPublisher: c.lockPublisher,
+    lockStartYear: c.lockStartYear,
+    lockEndYear: c.lockEndYear,
+    lockGenres: c.lockGenres,
+    // New fields
+    rating: c.rating,
+    notes: c.notes,
+    visibility: c.visibility,
+    readingMode: c.readingMode,
+    tags: c.tags,
   }));
 }
 
@@ -1224,8 +1324,6 @@ export interface PromotedCollectionWithMeta {
   userId: string;
   name: string;
   description: string | null;
-  iconName: string | null;
-  color: string | null;
   isPromoted: boolean;
   promotedOrder: number | null;
   // Cover info
@@ -1380,8 +1478,6 @@ export async function getPromotedCollections(
         userId: collection.userId,
         name: collection.name,
         description: collection.description,
-        iconName: collection.iconName,
-        color: collection.color,
         isPromoted: collection.isPromoted,
         promotedOrder: collection.promotedOrder,
         coverType: collection.coverType,
@@ -1425,8 +1521,6 @@ export interface PromotedCollectionForGrid {
   userId: string;
   name: string;
   description: string | null;
-  iconName: string | null;
-  color: string | null;
   isPromoted: boolean;
   promotedOrder: number | null;
   coverType: string;
@@ -1687,8 +1781,6 @@ export async function getPromotedCollectionsForGrid(
       userId: collection.userId,
       name: collection.name,
       description: collection.description,
-      iconName: collection.iconName,
-      color: collection.color,
       isPromoted: collection.isPromoted,
       promotedOrder: collection.promotedOrder,
       coverType: collection.coverType,
@@ -1775,6 +1867,7 @@ export async function recalculateCollectionMetadata(
           startYear: true,
           endYear: true,
           genres: true,
+          tags: true,
           updatedAt: true,
           _count: { select: { issues: true } },
         },
@@ -1847,6 +1940,14 @@ export async function recalculateCollectionMetadata(
   const uniqueGenres = [...new Set(allGenres)];
   const derivedGenres = uniqueGenres.length > 0 ? uniqueGenres.join(', ') : null;
 
+  // Calculate derived tags from child series
+  const allTags = seriesItems
+    .flatMap(s => (s.tags || '').split(',').map(t => t.trim()))
+    .filter(t => t.length > 0);
+
+  const uniqueTags = [...new Set(allTags)];
+  const derivedTags = uniqueTags.length > 0 ? uniqueTags.join(', ') : null;
+
   // Calculate issue counts
   const derivedIssueCount = seriesItems.reduce(
     (sum, s) => sum + (s._count?.issues || 0),
@@ -1900,6 +2001,7 @@ export async function recalculateCollectionMetadata(
       derivedStartYear,
       derivedEndYear,
       derivedGenres,
+      derivedTags,
       derivedIssueCount,
       derivedReadCount,
       contentUpdatedAt,
@@ -1953,8 +2055,6 @@ export async function toggleCollectionPromotion(
     deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
-    iconName: updated.iconName,
-    color: updated.color,
     sortOrder: updated.sortOrder,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
@@ -1968,12 +2068,27 @@ export async function toggleCollectionPromotion(
     derivedStartYear: updated.derivedStartYear,
     derivedEndYear: updated.derivedEndYear,
     derivedGenres: updated.derivedGenres,
+    derivedTags: updated.derivedTags,
     derivedIssueCount: updated.derivedIssueCount,
     derivedReadCount: updated.derivedReadCount,
     overridePublisher: updated.overridePublisher,
     overrideStartYear: updated.overrideStartYear,
     overrideEndYear: updated.overrideEndYear,
     overrideGenres: updated.overrideGenres,
+    // Lock flags
+    lockName: updated.lockName,
+    lockDeck: updated.lockDeck,
+    lockDescription: updated.lockDescription,
+    lockPublisher: updated.lockPublisher,
+    lockStartYear: updated.lockStartYear,
+    lockEndYear: updated.lockEndYear,
+    lockGenres: updated.lockGenres,
+    // New fields
+    rating: updated.rating,
+    notes: updated.notes,
+    visibility: updated.visibility,
+    readingMode: updated.readingMode,
+    tags: updated.tags,
   };
 }
 
@@ -2028,11 +2143,23 @@ export async function updateCollectionCover(
     deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
-    iconName: updated.iconName,
-    color: updated.color,
     sortOrder: updated.sortOrder,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
+    // Lock flags
+    lockName: updated.lockName,
+    lockDeck: updated.lockDeck,
+    lockDescription: updated.lockDescription,
+    lockPublisher: updated.lockPublisher,
+    lockStartYear: updated.lockStartYear,
+    lockEndYear: updated.lockEndYear,
+    lockGenres: updated.lockGenres,
+    // New fields
+    rating: updated.rating,
+    notes: updated.notes,
+    visibility: updated.visibility,
+    readingMode: updated.readingMode,
+    tags: updated.tags,
   };
 }
 
@@ -2073,11 +2200,23 @@ export async function setCollectionCoverHash(
     deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
-    iconName: updated.iconName,
-    color: updated.color,
     sortOrder: updated.sortOrder,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
+    // Lock flags
+    lockName: updated.lockName,
+    lockDeck: updated.lockDeck,
+    lockDescription: updated.lockDescription,
+    lockPublisher: updated.lockPublisher,
+    lockStartYear: updated.lockStartYear,
+    lockEndYear: updated.lockEndYear,
+    lockGenres: updated.lockGenres,
+    // New fields
+    rating: updated.rating,
+    notes: updated.notes,
+    visibility: updated.visibility,
+    readingMode: updated.readingMode,
+    tags: updated.tags,
   };
 }
 
@@ -2124,11 +2263,23 @@ export async function updateCollectionMetadata(
     deck: updated.deck,
     isSystem: updated.isSystem,
     systemKey: updated.systemKey,
-    iconName: updated.iconName,
-    color: updated.color,
     sortOrder: updated.sortOrder,
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
+    // Lock flags
+    lockName: updated.lockName,
+    lockDeck: updated.lockDeck,
+    lockDescription: updated.lockDescription,
+    lockPublisher: updated.lockPublisher,
+    lockStartYear: updated.lockStartYear,
+    lockEndYear: updated.lockEndYear,
+    lockGenres: updated.lockGenres,
+    // New fields
+    rating: updated.rating,
+    notes: updated.notes,
+    visibility: updated.visibility,
+    readingMode: updated.readingMode,
+    tags: updated.tags,
   };
 }
 

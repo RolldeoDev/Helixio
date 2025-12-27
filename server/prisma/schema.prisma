@@ -1195,12 +1195,28 @@ model Collection {
   isSystem    Boolean  @default(false)
   systemKey   String?  // "favorites" | "want-to-read" | null for user collections
 
-  // Visual customization
-  iconName    String?            // Icon identifier (e.g., "heart", "bookmark", "star")
-  color       String?            // Hex color for UI accent
-
   // Ordering
   sortOrder   Int      @default(0)  // For custom ordering in UI
+
+  // ===========================================
+  // Lock flags for metadata fields
+  // ===========================================
+  lockName         Boolean @default(false)
+  lockDeck         Boolean @default(false)
+  lockDescription  Boolean @default(false)
+  lockPublisher    Boolean @default(false)
+  lockStartYear    Boolean @default(false)
+  lockEndYear      Boolean @default(false)
+  lockGenres       Boolean @default(false)
+
+  // ===========================================
+  // User collection metadata
+  // ===========================================
+  rating       Int?                          // 1-5 star rating
+  notes        String?                       // Private notes/reminders
+  visibility   String    @default("private") // "public", "private", "unlisted"
+  readingMode  String?                       // Preferred reader mode: "single", "double", "webtoon"
+  tags         String?                       // Comma-separated tags for filtering
 
   // ===========================================
   // Promotion (show in Series view)
@@ -1223,6 +1239,7 @@ model Collection {
   derivedStartYear   Int?     // Earliest year from contained series
   derivedEndYear     Int?     // Latest year from contained series
   derivedGenres      String?  // Comma-separated aggregated genres
+  derivedTags        String?  // Comma-separated aggregated tags from child series
   derivedIssueCount  Int?     // Total issues across all series
   derivedReadCount   Int?     // Total issues read across all series (user-specific)
 
