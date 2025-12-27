@@ -48,6 +48,20 @@ export interface LinkResult {
   error?: string;
   needsConfirmation?: boolean;
   suggestions?: SuggestionResult[];
+  /** Non-fatal warnings about the operation (e.g., similar series existed). */
+  warnings?: string[];
+}
+
+/**
+ * Options for autoLinkFileToSeries.
+ */
+export interface AutoLinkOptions {
+  /**
+   * When true, trust the metadata and create a new series if no exact match exists.
+   * Skip the "needsConfirmation" state for fuzzy matches.
+   * Used for user-initiated metadata edits where we trust the metadata source.
+   */
+  trustMetadata?: boolean;
 }
 
 // =============================================================================
@@ -377,8 +391,16 @@ export async function unlinkFileFromSeries(fileId: string): Promise<void> {
 /**
  * Automatically link a file to a series based on its metadata.
  * Returns the linked series or null if no confident match found.
+ *
+ * @param fileId - The file to link
+ * @param options - Options controlling linking behavior
+ * @param options.trustMetadata - When true, create new series on fuzzy match instead of asking for confirmation
  */
-export async function autoLinkFileToSeries(fileId: string): Promise<LinkResult> {
+export async function autoLinkFileToSeries(
+  fileId: string,
+  options: AutoLinkOptions = {}
+): Promise<LinkResult> {
+  const { trustMetadata = false } = options;
   const db = getDatabase();
 
   const file = await db.comicFile.findUnique({
@@ -414,14 +436,57 @@ export async function autoLinkFileToSeries(fileId: string): Promise<LinkResult> 
     };
   }
 
-  // Medium confidence - suggest but don't auto-link
+  // Medium confidence (0.7-0.9) - behavior depends on trustMetadata flag
   if (match.series && match.confidence >= 0.7) {
-    const suggestions = await suggestSeriesForFile(fileId);
-    return {
-      success: false,
-      needsConfirmation: true,
-      suggestions,
-    };
+    if (trustMetadata) {
+      // User trusts metadata - create new series with the exact metadata name
+      // but warn about similar series that exist
+      const warnings: string[] = [];
+      warnings.push(
+        `Similar series "${match.series.name}" exists (${Math.round(match.confidence * 100)}% match). Created new series "${seriesName}" instead.`
+      );
+
+      // Include up to 2 alternate matches in warnings
+      if (match.alternates && match.alternates.length > 0) {
+        for (const alt of match.alternates.slice(0, 2)) {
+          warnings.push(`Also similar: "${alt.name}"`);
+        }
+      }
+
+      // Create new series with exact metadata name
+      const createResult = await createSeriesWithExactName(
+        seriesName,
+        file.metadata,
+        file.relativePath
+      );
+
+      if (createResult.alreadyExisted) {
+        // Exact match was found (case-insensitive), link to existing
+        await linkFileToSeries(fileId, createResult.series.id);
+        return {
+          success: true,
+          seriesId: createResult.series.id,
+          matchType: 'exact',
+        };
+      }
+
+      await linkFileToSeries(fileId, createResult.series.id);
+
+      return {
+        success: true,
+        seriesId: createResult.series.id,
+        matchType: 'created',
+        warnings,
+      };
+    } else {
+      // Normal behavior - suggest but don't auto-link
+      const suggestions = await suggestSeriesForFile(fileId);
+      return {
+        success: false,
+        needsConfirmation: true,
+        suggestions,
+      };
+    }
   }
 
   // No match - create new series
@@ -480,6 +545,68 @@ function getFolderPathFromRelativePath(relativePath: string): string | null {
     return relativePath.substring(0, lastSlash);
   }
   return null;
+}
+
+/**
+ * Result from createSeriesWithExactName.
+ */
+interface CreateSeriesResult {
+  series: Series;
+  alreadyExisted: boolean;
+}
+
+/**
+ * Create a new series with the exact metadata name, or return existing if found.
+ * Uses case-insensitive matching to prevent duplicates like "TRIGUN" vs "Trigun".
+ * Handles race conditions where multiple files try to create the same series.
+ *
+ * @param seriesName - The exact series name from metadata
+ * @param metadata - File metadata for additional series fields
+ * @param relativePath - File path for primary folder extraction
+ */
+async function createSeriesWithExactName(
+  seriesName: string,
+  metadata: FileMetadata | null,
+  relativePath: string
+): Promise<CreateSeriesResult> {
+  // First check for case-insensitive exact match to prevent duplicates
+  // getSeriesByIdentity already does case-insensitive comparison
+  const existingExact = await getSeriesByIdentity(seriesName, null, metadata?.publisher);
+
+  if (existingExact) {
+    // Exact match exists (possibly different case) - use it instead of creating
+    return { series: existingExact, alreadyExisted: true };
+  }
+
+  // No exact match - create new series
+  try {
+    const newSeries = await createSeries({
+      name: seriesName,
+      startYear: metadata?.year ?? null,
+      publisher: metadata?.publisher ?? null,
+      genres: metadata?.genre ?? null,
+      tags: metadata?.tags ?? null,
+      languageISO: metadata?.languageISO ?? null,
+      ageRating: metadata?.ageRating ?? null,
+      comicVineId: metadata?.comicVineId ?? null,
+      metronId: metadata?.metronId ?? null,
+      primaryFolder: getFolderPathFromRelativePath(relativePath),
+    });
+
+    return { series: newSeries, alreadyExisted: false };
+  } catch (error) {
+    // Handle race condition: another process may have created the series concurrently
+    if (error instanceof Error && error.message.includes('already exists')) {
+      // Retry finding the series that was just created by another process
+      const retryMatch = await getSeriesByIdentity(seriesName, null, metadata?.publisher);
+
+      if (retryMatch) {
+        return { series: retryMatch, alreadyExisted: true };
+      }
+    }
+    // Re-throw if it's a different error
+    throw error;
+  }
 }
 
 /**

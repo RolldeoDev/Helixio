@@ -470,6 +470,7 @@ router.patch('/file/:fileId', async (req: Request, res: Response): Promise<void>
       cached: invalidationResult.fileMetadataRefreshed,
       seriesUpdated: invalidationResult.seriesUpdated,
       errors: invalidationResult.errors?.length ? invalidationResult.errors : undefined,
+      warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (err) {
     console.error('Error updating file metadata:', err);

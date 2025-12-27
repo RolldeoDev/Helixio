@@ -66,7 +66,7 @@ export const pulpDarkTheme: ThemeDefinition = {
   scheme: 'dark',
   meta: {
     id: 'pulp',
-    name: 'Midnight Confessions',
+    name: 'Old Time Confessions',
     description: 'Smoky detective office with candlelight amber and blood red accents',
     author: 'Helixio',
     previewColors: {

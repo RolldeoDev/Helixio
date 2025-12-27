@@ -17,6 +17,7 @@ import {
   setFileCover,
   uploadFileCover,
 } from '../../services/api.service';
+import { PageBrowserModal } from './PageBrowserModal';
 import './IssueCoverPicker.css';
 
 export type IssueCoverMode = 'auto' | 'page' | 'url' | 'upload';
@@ -59,6 +60,7 @@ export function IssueCoverPicker({
   const [saving, setSaving] = useState(false);
   // Track uploaded cover hash, initialized from prop if already custom
   const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(currentCoverHash);
+  const [showPageBrowser, setShowPageBrowser] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load pages when switching to page mode
@@ -305,9 +307,19 @@ export function IssueCoverPicker({
                     ))}
                   </div>
                   {pages.length > 12 && (
-                    <p className="more-pages">
-                      Showing first 12 of {pages.length} pages
-                    </p>
+                    <div className="more-pages-section">
+                      <p className="more-pages">
+                        Showing first 12 of {pages.length} pages
+                      </p>
+                      <button
+                        type="button"
+                        className="browse-all-pages-btn"
+                        onClick={() => setShowPageBrowser(true)}
+                        disabled={disabled}
+                      >
+                        Browse All Pages
+                      </button>
+                    </div>
                   )}
                 </>
               )}
@@ -383,6 +395,19 @@ export function IssueCoverPicker({
           </button>
         </div>
       )}
+
+      {/* Page browser modal for viewing all pages */}
+      <PageBrowserModal
+        isOpen={showPageBrowser}
+        fileId={fileId}
+        pages={pages}
+        currentSelectedIndex={selectedPageIndex}
+        onClose={() => setShowPageBrowser(false)}
+        onPageSelect={(index) => {
+          setSelectedPageIndex(index);
+          setShowPageBrowser(false);
+        }}
+      />
     </div>
   );
 }

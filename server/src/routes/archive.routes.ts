@@ -425,6 +425,7 @@ router.put('/:fileId/comicinfo', async (req: Request, res: Response) => {
       fileId: file.id,
       message: 'ComicInfo.xml updated',
       seriesUpdated: invalidationResult.seriesUpdated,
+      warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (error) {
     console.error('Error writing ComicInfo:', error);
@@ -538,6 +539,7 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
       fileId: file.id,
       message: 'ComicInfo.xml fields updated',
       seriesUpdated: invalidationResult.seriesUpdated,
+      warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (error) {
     console.error('Error updating ComicInfo:', error);

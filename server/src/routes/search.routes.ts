@@ -476,6 +476,7 @@ router.post('/apply/:fileId', async (req: Request, res: Response): Promise<void>
       type,
       appliedFields: Object.keys(comicInfoUpdates),
       seriesUpdated: invalidationResult.seriesUpdated,
+      warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
     });
   } catch (err) {
     console.error('Error applying metadata:', err);
@@ -507,6 +508,7 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
       fileId: string;
       success: boolean;
       error?: string;
+      warnings?: string[];
     }> = [];
 
     const prisma = getDatabase();
@@ -597,12 +599,16 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
 
         // Invalidate and refresh all related data (cache, series linkage, etc.)
         // This handles moving the file to a new series if the metadata series changed
-        await invalidateFileMetadata(fileId, {
+        const invalidationResult = await invalidateFileMetadata(fileId, {
           refreshFromArchive: true,
           updateSeriesLinkage: true,
         });
 
-        results.push({ fileId, success: true });
+        results.push({
+          fileId,
+          success: true,
+          warnings: invalidationResult.warnings?.length ? invalidationResult.warnings : undefined,
+        });
       } catch (err) {
         results.push({
           fileId,
@@ -615,11 +621,20 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
     const successful = results.filter((r) => r.success).length;
     const failed = results.filter((r) => !r.success).length;
 
+    // Aggregate all warnings from individual results
+    const allWarnings: string[] = [];
+    for (const r of results) {
+      if (r.warnings && r.warnings.length > 0) {
+        allWarnings.push(...r.warnings);
+      }
+    }
+
     res.json({
       total: results.length,
       successful,
       failed,
       results,
+      warnings: allWarnings.length > 0 ? allWarnings : undefined,
     });
   } catch (err) {
     console.error('Error in batch apply:', err);

@@ -36,6 +36,8 @@ export interface InvalidationResult {
   seriesJsonSynced?: boolean;
   relatedFilesUpdated?: number;
   errors?: string[];
+  /** Non-fatal warnings about the operation (e.g., similar series existed when creating new). */
+  warnings?: string[];
 }
 
 export interface FileMetadataChangeEvent {
@@ -199,7 +201,9 @@ async function updateFileSeriesLinkage(
       data: { seriesId: null },
     });
 
-    const linkResult = await autoLinkFileToSeries(fileId);
+    // Use trustMetadata: true since this is triggered by user-initiated metadata changes
+    // This will create new series when no exact match exists, with warnings about similar series
+    const linkResult = await autoLinkFileToSeries(fileId, { trustMetadata: true });
 
     if (linkResult.success && linkResult.seriesId) {
       // Successfully linked to a new series
@@ -209,6 +213,7 @@ async function updateFileSeriesLinkage(
           oldSeriesId,
           newSeriesId: linkResult.seriesId,
           matchType: linkResult.matchType,
+          warnings: linkResult.warnings,
         },
         linkResult.matchType === 'created'
           ? 'Created new series and relinked file'
@@ -216,16 +221,24 @@ async function updateFileSeriesLinkage(
       );
       result.seriesUpdated = true;
 
+      // Propagate warnings from linking to result
+      if (linkResult.warnings && linkResult.warnings.length > 0) {
+        if (!result.warnings) {
+          result.warnings = [];
+        }
+        result.warnings.push(...linkResult.warnings);
+      }
+
       // Update progress for the old series
       if (oldSeriesId) {
         await updateSeriesProgress(oldSeriesId);
         sendSeriesRefresh([oldSeriesId]);
       }
     } else if (linkResult.needsConfirmation) {
-      // Auto-link needs confirmation - restore the original link to prevent orphaning
-      logger.info(
+      // This shouldn't happen with trustMetadata: true, but handle as fallback
+      logger.warn(
         { fileId, suggestions: linkResult.suggestions?.length },
-        'Auto-link needs confirmation, keeping file linked to original series'
+        'Unexpected needsConfirmation with trustMetadata mode, keeping file linked to original series'
       );
       await prisma.comicFile.update({
         where: { id: fileId },
@@ -248,7 +261,8 @@ async function updateFileSeriesLinkage(
   }
 
   // File is not linked to any series but has metadata - try to link it
-  const linkResult = await autoLinkFileToSeries(fileId);
+  // Use trustMetadata: true for consistency with the re-linking case above
+  const linkResult = await autoLinkFileToSeries(fileId, { trustMetadata: true });
 
   if (linkResult.success && linkResult.seriesId) {
     logger.info(
@@ -256,16 +270,26 @@ async function updateFileSeriesLinkage(
         fileId,
         seriesId: linkResult.seriesId,
         matchType: linkResult.matchType,
+        warnings: linkResult.warnings,
       },
       linkResult.matchType === 'created'
         ? 'Created new series and linked file'
         : 'Linked file to existing series'
     );
     result.seriesUpdated = true;
+
+    // Propagate warnings from linking to result
+    if (linkResult.warnings && linkResult.warnings.length > 0) {
+      if (!result.warnings) {
+        result.warnings = [];
+      }
+      result.warnings.push(...linkResult.warnings);
+    }
   } else if (linkResult.needsConfirmation) {
-    logger.info(
+    // This shouldn't happen with trustMetadata: true, but log for debugging
+    logger.warn(
       { fileId, suggestions: linkResult.suggestions?.length },
-      'File needs manual series confirmation'
+      'Unexpected needsConfirmation with trustMetadata mode for unlinked file'
     );
   } else {
     logger.warn(
@@ -479,11 +503,13 @@ export async function invalidateAfterApplyChanges(
   filesProcessed: number;
   seriesProcessed: number;
   errors: string[];
+  warnings: string[];
 }> {
   const result = {
     filesProcessed: 0,
     seriesProcessed: 0,
     errors: [] as string[],
+    warnings: [] as string[],
   };
 
   const prisma = getDatabase();
@@ -530,7 +556,7 @@ export async function invalidateAfterApplyChanges(
         const oldSeriesId = fileBefore?.seriesId;
 
         // Create a temporary result object for updateFileSeriesLinkage
-        const linkageResult: InvalidationResult = { success: true, errors: [] };
+        const linkageResult: InvalidationResult = { success: true, errors: [], warnings: [] };
         await updateFileSeriesLinkage(fileId, linkageResult);
 
         if (linkageResult.seriesUpdated) {
@@ -549,8 +575,12 @@ export async function invalidateAfterApplyChanges(
           }
         }
 
+        // Collect errors and warnings from linkage
         if (linkageResult.errors && linkageResult.errors.length > 0) {
           result.errors.push(...linkageResult.errors);
+        }
+        if (linkageResult.warnings && linkageResult.warnings.length > 0) {
+          result.warnings.push(...linkageResult.warnings);
         }
       } catch (error) {
         result.errors.push(
@@ -596,6 +626,7 @@ export async function invalidateAfterApplyChanges(
       filesProcessed: result.filesProcessed,
       seriesProcessed: result.seriesProcessed,
       errorCount: result.errors.length,
+      warningCount: result.warnings.length,
     },
     'Post-apply invalidation complete'
   );
