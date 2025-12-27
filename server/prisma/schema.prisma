@@ -289,6 +289,7 @@ model FileMetadata {
   // Core identification
   series      String?
   number      String? // Issue/volume number (string to handle "1.5", "Annual 1", etc.)
+  issueNumberSort Float?  // Numeric sort key for proper ordering (null for non-numeric)
   title       String?
   volume      Int? // Volume number for multi-volume series
 
@@ -358,6 +359,7 @@ model FileMetadata {
   @@index([writer])
   @@index([publisher])
   @@index([year])
+  @@index([issueNumberSort])
 }
 
 // =============================================================================

@@ -766,3 +766,37 @@
 .scrolling .cover-card__skeleton {
   background: var(--color-surface-card, #1a1a2e) !important;
 }
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (hover: none), (pointer: coarse) {
+  /* Always show checkbox on touch devices */
+  .cover-card__checkbox {
+    opacity: 1;
+  }
+
+  /* Larger checkbox touch target */
+  .cover-card__checkbox input {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Always show read overlay on touch (no hover) */
+  .cover-card__read-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Disable hover transforms on touch */
+  .cover-card:hover {
+    transform: none;
+  }
+
+  /* Add active state for touch feedback */
+  .cover-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}

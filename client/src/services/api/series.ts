@@ -1071,6 +1071,10 @@ export interface RelatedSeriesInfo {
   coverUrl: string | null;
   coverFileId: string | null;
   coverSource: string;
+  /** First issue ID for cover fallback */
+  firstIssueId?: string | null;
+  relationshipType: RelationshipType;
+  sortOrder: number;
   _count?: { issues: number };
 }
 

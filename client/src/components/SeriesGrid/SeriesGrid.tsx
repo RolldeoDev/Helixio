@@ -30,6 +30,7 @@ import { CollectionCoverCard, type PromotedCollectionData } from '../CollectionC
 import { CoverSizeSlider } from '../CoverSizeSlider';
 import { SeriesSelectModal } from '../SeriesSelectModal';
 import { MergeSeriesModal } from '../MergeSeriesModal';
+import { LinkSeriesModal } from '../LinkSeriesModal';
 import { NavigationSidebar } from '../NavigationSidebar';
 import { Spinner } from '../LoadingState';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
@@ -259,6 +260,10 @@ export function SeriesGrid({
   const [mergeSourceSeries, setMergeSourceSeries] = useState<Series | null>(null);
   const [selectedMergeSeries, setSelectedMergeSeries] = useState<SeriesForMerge[]>([]);
 
+  // Link series modal state
+  const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
+  const [linkSourceSeries, setLinkSourceSeries] = useState<{ id: string; name: string } | null>(null);
+
   // Cover size state (1-10 scale) - persisted in localStorage
   const [coverSize, setCoverSize] = useState(() => {
     const saved = localStorage.getItem('helixio-cover-size');
@@ -400,6 +405,15 @@ export function SeriesGrid({
         }
         break;
 
+      case 'linkSeries':
+        // Find the series to link (only works for series items)
+        const linkItem = gridItems.find((item) => item.id === seriesId && item.itemType === 'series');
+        if (linkItem && linkItem.itemType === 'series') {
+          setLinkSourceSeries({ id: linkItem.series.id, name: linkItem.series.name });
+          setShowLinkSeriesModal(true);
+        }
+        break;
+
       case 'hide':
         try {
           setOperationMessage('Hiding series...');
@@ -538,6 +552,26 @@ export function SeriesGrid({
           onMergeComplete={handleMergeComplete}
           initialSeries={selectedMergeSeries}
           initialTargetId={mergeSourceSeries?.id}
+        />
+      )}
+
+      {/* Link Series Modal */}
+      {linkSourceSeries && (
+        <LinkSeriesModal
+          isOpen={showLinkSeriesModal}
+          onClose={() => {
+            setShowLinkSeriesModal(false);
+            setLinkSourceSeries(null);
+          }}
+          currentSeries={linkSourceSeries}
+          existingParentIds={[]}
+          existingChildIds={[]}
+          onLinked={() => {
+            setShowLinkSeriesModal(false);
+            setLinkSourceSeries(null);
+            setOperationMessage('Series linked successfully');
+            setTimeout(() => setOperationMessage(null), 2000);
+          }}
         />
       )}
 

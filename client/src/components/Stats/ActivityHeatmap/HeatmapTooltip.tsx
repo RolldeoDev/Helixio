@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { HeatmapDay } from './heatmap-utils';
 import { formatDurationShort } from './heatmap-utils';
 import './ActivityHeatmap.css';
@@ -10,11 +10,14 @@ interface HeatmapTooltipProps {
 
 export function HeatmapTooltip({ day, position }: HeatmapTooltipProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const [adjustedPosition, setAdjustedPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isPositioned, setIsPositioned] = useState(false);
 
-  useEffect(() => {
+  // Use useLayoutEffect to calculate position before paint, preventing visual jump
+  useLayoutEffect(() => {
     if (!position || !tooltipRef.current) {
-      setAdjustedPosition(position);
+      setAdjustedPosition(null);
+      setIsPositioned(false);
       return;
     }
 
@@ -34,6 +37,7 @@ export function HeatmapTooltip({ day, position }: HeatmapTooltipProps) {
     }
 
     setAdjustedPosition({ x, y });
+    setIsPositioned(true);
   }, [position]);
 
   if (!day || !position || day.intensity === -1) {
@@ -52,8 +56,10 @@ export function HeatmapTooltip({ day, position }: HeatmapTooltipProps) {
       ref={tooltipRef}
       className="heatmap-tooltip"
       style={{
-        left: adjustedPosition?.x ?? 0,
-        top: adjustedPosition?.y ?? 0,
+        left: adjustedPosition?.x ?? position.x,
+        top: adjustedPosition?.y ?? position.y,
+        // Hide tooltip until position is calculated to prevent visual jump
+        visibility: isPositioned ? 'visible' : 'hidden',
       }}
     >
       <div className="heatmap-tooltip__date">{formattedDate}</div>

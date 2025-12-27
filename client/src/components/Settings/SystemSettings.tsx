@@ -465,7 +465,8 @@ export function SystemSettings() {
       const errors: string[] = [];
 
       if (useMetadataFiles.length > 0) {
-        const repairResult = await repairSeriesLinkages();
+        // Pass only the selected file IDs, not all mismatched files
+        const repairResult = await repairSeriesLinkages(useMetadataFiles.map(f => f.fileId));
         repaired = repairResult.repaired;
         newSeriesCreated = repairResult.newSeriesCreated;
         errors.push(...repairResult.errors);
@@ -944,55 +945,86 @@ export function SystemSettings() {
             <div className="manual-control-mode">
               <div className="manual-control-header">
                 <h5>Manual Control Mode</h5>
-                <p className="setting-description">
-                  <strong>Use Metadata</strong>: Move file to new/matching series<br/>
-                  <strong>Keep Current</strong>: Update file's metadata to match current series
-                </p>
+                <p>Click a side to choose: keep the current series or use the metadata series.</p>
               </div>
 
-              <div className="bulk-actions">
-                <button className="btn-ghost" onClick={() => handleSetAllDecisions('use-metadata')}>
-                  Set All: Use Metadata
-                </button>
+              <div className="bulk-action-bar">
+                <span className="bulk-label">Quick:</span>
                 <button className="btn-ghost" onClick={() => handleSetAllDecisions('keep-current')}>
-                  Set All: Keep Current
+                  All Keep Current
                 </button>
-              </div>
-
-              <div className="decision-summary">
-                Selected: {Object.values(fileDecisions).filter(d => d === 'use-metadata').length} use metadata,{' '}
-                {Object.values(fileDecisions).filter(d => d === 'keep-current').length} keep current,{' '}
-                {mismatchedFiles.length - Object.keys(fileDecisions).length} undecided
+                <button className="btn-ghost" onClick={() => handleSetAllDecisions('use-metadata')}>
+                  All Use Metadata
+                </button>
+                <button className="btn-ghost" onClick={() => setFileDecisions({})}>
+                  Clear All
+                </button>
+                <div className="decision-summary">
+                  {Object.values(fileDecisions).filter(d => d === 'keep-current').length > 0 && (
+                    <span className="count-badge keep">
+                      {Object.values(fileDecisions).filter(d => d === 'keep-current').length} keep
+                    </span>
+                  )}
+                  {Object.values(fileDecisions).filter(d => d === 'use-metadata').length > 0 && (
+                    <span className="count-badge metadata">
+                      {Object.values(fileDecisions).filter(d => d === 'use-metadata').length} use metadata
+                    </span>
+                  )}
+                  {mismatchedFiles.length - Object.keys(fileDecisions).length > 0 && (
+                    <span className="count-badge undecided">
+                      {mismatchedFiles.length - Object.keys(fileDecisions).length} undecided
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="files-scroll-container">
-                {mismatchedFiles.map((file) => (
-                  <div
-                    key={file.fileId}
-                    className={`manual-file-item ${fileDecisions[file.fileId] ? 'decided' : ''}`}
-                  >
-                    <div className="file-info">
+                {mismatchedFiles.map((file) => {
+                  const decision = fileDecisions[file.fileId];
+                  return (
+                    <div
+                      key={file.fileId}
+                      className={`linkage-file-card ${decision ? 'decided' : ''}`}
+                    >
                       <span className="file-name">{file.fileName}</span>
-                      <span className="file-meta">
-                        "{file.linkedSeriesName || '(none)'}" → "{file.metadataSeries}"
-                      </span>
+                      <div className="linkage-comparison">
+                        <div
+                          className={`linkage-side current ${decision === 'keep-current' ? 'selected' : ''}`}
+                          onClick={() => handleSetFileDecision(file.fileId, 'keep-current')}
+                        >
+                          <span className="side-label">Current Series</span>
+                          <span className={`series-name ${!file.linkedSeriesName ? 'empty' : ''}`}>
+                            {file.linkedSeriesName || '(no series)'}
+                          </span>
+                          <span className="action-indicator">
+                            {decision === 'keep-current' ? (
+                              <><span className="check-icon">✓</span> Keep this</>
+                            ) : (
+                              'Keep this'
+                            )}
+                          </span>
+                        </div>
+                        <span className="or-divider">or</span>
+                        <div
+                          className={`linkage-side metadata ${decision === 'use-metadata' ? 'selected' : ''}`}
+                          onClick={() => handleSetFileDecision(file.fileId, 'use-metadata')}
+                        >
+                          <span className="side-label">Metadata Says</span>
+                          <span className={`series-name ${!file.metadataSeries ? 'empty' : ''}`}>
+                            {file.metadataSeries || '(no metadata)'}
+                          </span>
+                          <span className="action-indicator">
+                            {decision === 'use-metadata' ? (
+                              <><span className="check-icon">✓</span> Use this</>
+                            ) : (
+                              'Use this'
+                            )}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="decision-buttons">
-                      <button
-                        className={`btn-decision ${fileDecisions[file.fileId] === 'use-metadata' ? 'active-metadata' : ''}`}
-                        onClick={() => handleSetFileDecision(file.fileId, 'use-metadata')}
-                      >
-                        Use Metadata
-                      </button>
-                      <button
-                        className={`btn-decision ${fileDecisions[file.fileId] === 'keep-current' ? 'active-keep' : ''}`}
-                        onClick={() => handleSetFileDecision(file.fileId, 'keep-current')}
-                      >
-                        Keep Current
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <button
@@ -1000,7 +1032,7 @@ export function SystemSettings() {
                 onClick={handleApplyManualDecisions}
                 disabled={processingManual || Object.keys(fileDecisions).length === 0}
               >
-                {processingManual ? 'Processing...' : 'Apply Decisions'}
+                {processingManual ? 'Processing...' : `Apply ${Object.keys(fileDecisions).length} Decision${Object.keys(fileDecisions).length !== 1 ? 's' : ''}`}
               </button>
             </div>
           )}

@@ -39,6 +39,8 @@ export interface UseMenuActionsOptions {
   onMergeWith?: () => void;
   /** Callback when Series Metadata Search modal should open */
   onFetchSeriesMetadata?: () => void;
+  /** Callback when Link Series modal should open */
+  onLinkSeries?: () => void;
 }
 
 export interface UseMenuActionsReturn {
@@ -79,6 +81,7 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
     onEditSeries,
     onMergeWith,
     onFetchSeriesMetadata,
+    onLinkSeries,
   } = options;
   void _onClearSelection; // Suppress unused warning
 
@@ -250,6 +253,10 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
             onMergeWith?.();
             break;
 
+          case 'linkSeries':
+            onLinkSeries?.();
+            break;
+
           case 'hideSeries':
             await setSeriesHidden(entityId, true);
             addToast('success', 'Series hidden');
@@ -303,6 +310,7 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
       onEditSeries,
       onMergeWith,
       onFetchSeriesMetadata,
+      onLinkSeries,
       openMetadataEditor,
       openCollectionPicker,
       openRenameDialog,

@@ -103,6 +103,33 @@ export const MENU_ITEM_DEFINITIONS: Record<MenuActionId, MenuItemDefinition> = {
     label: 'Merge with...',
     dividerBefore: true,
   },
+  linkSeries: {
+    label: 'Link Series...',
+  },
+  unlinkSeries: {
+    label: 'Unlink Series',
+    danger: true,
+    dividerBefore: true,
+  },
+  manageRelationships: {
+    label: 'Manage Relationships',
+  },
+  changeTypeSpinoff: {
+    label: 'Change to Spinoff',
+    dividerBefore: true,
+  },
+  changeTypePrequel: {
+    label: 'Change to Prequel',
+  },
+  changeTypeSequel: {
+    label: 'Change to Sequel',
+  },
+  changeTypeBonus: {
+    label: 'Change to Bonus',
+  },
+  changeTypeRelated: {
+    label: 'Change to Related',
+  },
   hideSeries: {
     label: 'Hide Series',
     dividerBefore: true,
@@ -187,6 +214,7 @@ export const MENU_PRESETS = {
     'markAllRead',
     'markAllUnread',
     'mergeWith',
+    'linkSeries',
     'hideSeries',
     'unhideSeries',
   ] as MenuActionId[],
@@ -202,6 +230,7 @@ export const MENU_PRESETS = {
     'markAllUnread',
     'downloadAll',
     'mergeWith',
+    'linkSeries',
     'rebuildAllCache',
   ] as MenuActionId[],
 

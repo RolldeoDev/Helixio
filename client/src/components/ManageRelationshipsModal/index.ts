@@ -1,0 +1,1 @@
+export { ManageRelationshipsModal } from './ManageRelationshipsModal';

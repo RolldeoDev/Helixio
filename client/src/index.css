@@ -2430,7 +2430,7 @@ body {
 .col-checkbox { width: 40px; }
 .col-filename { min-width: 250px; }
 .col-title { min-width: 200px; }
-.col-size { width: 100px; }
+.col-size { width: 100px; white-space: nowrap; }
 .col-status { width: 100px; }
 .col-modified { width: 120px; }
 
@@ -2448,6 +2448,327 @@ body {
 
 .file-title {
   color: var(--color-text-secondary, var(--text-muted, #888));
+}
+
+/* =============================================================================
+   Compact File List Mode
+   ============================================================================= */
+
+.file-list-compact .file-table th,
+.file-list-compact .file-table td {
+  padding: 4px var(--spacing-sm); /* 4px vertical, 8px horizontal */
+}
+
+/* Hide Status and Modified columns in compact mode */
+.file-list-compact .col-status,
+.file-list-compact .col-modified {
+  display: none;
+}
+
+/* Minimal checkbox column - not resizable */
+.file-list-compact .col-checkbox {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  padding: 4px 2px;
+  text-align: center;
+}
+
+/* Compact file icon styling */
+.file-list-compact .file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.file-list-compact .file-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Status dot indicator */
+.file-list-compact .status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: 6px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.file-list-compact .status-dot-pending {
+  background-color: var(--color-warning);
+}
+
+.file-list-compact .status-dot-orphaned {
+  background-color: #f97316; /* orange */
+}
+
+.file-list-compact .status-dot-quarantined {
+  background-color: var(--color-danger);
+}
+
+.file-list-compact .status-dot-indexed {
+  display: none; /* No dot for indexed files */
+}
+
+/* Filename column content wrapper for proper truncation */
+.file-list-compact .col-filename .file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Title column truncation */
+.file-list-compact .col-title .file-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* TanStack Table resize handle */
+.file-list-compact .resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 100;
+  touch-action: none; /* Prevent touch scrolling during resize */
+  /* Extend hitbox beyond visual boundary */
+  margin-right: -4px;
+}
+
+.file-list-compact .resizer::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: transparent;
+  border-radius: 1px;
+  transition: background-color 0.15s;
+}
+
+.file-list-compact .resizer:hover::after,
+.file-list-compact .resizer.isResizing::after {
+  background-color: var(--color-primary);
+}
+
+/* Prevent text selection during resize */
+.file-list-compact.isResizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+.file-list-compact.isResizing * {
+  cursor: col-resize !important;
+}
+
+/* Table toolbar with column visibility toggle */
+.file-list-compact .table-toolbar {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 20;
+}
+
+.file-list-compact .column-toggle-btn {
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.file-list-compact .column-toggle-btn:hover {
+  opacity: 1;
+}
+
+.file-list-compact .column-visibility-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  min-width: 150px;
+  padding: 4px 0;
+}
+
+.file-list-compact .column-visibility-header {
+  padding: 8px 12px 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+
+.file-list-compact .column-visibility-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.file-list-compact .column-visibility-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.file-list-compact .column-visibility-item input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Table container */
+.file-list-compact .table-container {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: auto;
+  height: 100%;
+}
+
+/* Virtual header - uses same flex layout as body rows */
+.file-list-compact .virtual-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-list-compact .virtual-header-row {
+  display: flex;
+  align-items: center;
+  height: 32px;
+}
+
+.file-list-compact .virtual-header-cell {
+  flex-shrink: 0;
+  padding: 4px var(--spacing-sm);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+}
+
+.file-list-compact .virtual-header-cell.col-checkbox {
+  padding: 4px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-list-compact .virtual-header-cell.sortable {
+  cursor: pointer;
+}
+
+.file-list-compact .virtual-header-cell.sortable:hover {
+  color: var(--text-primary);
+}
+
+.file-list-compact .virtual-header-cell .th-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-list-compact .virtual-header-cell .sort-icon {
+  opacity: 0.5;
+  font-size: 0.8em;
+}
+
+/* Virtualized table body */
+.file-list-compact .virtual-table-body {
+  will-change: transform;
+}
+
+.file-list-compact .virtual-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  cursor: pointer;
+  will-change: transform;
+}
+
+.file-list-compact .virtual-row:hover {
+  background: var(--bg-tertiary);
+}
+
+.file-list-compact .virtual-row.selected {
+  background: var(--color-primary-transparent, rgba(99, 147, 193, 0.15));
+}
+
+.file-list-compact .virtual-row.selected:hover {
+  background: var(--color-primary-transparent-hover, rgba(99, 147, 193, 0.25));
+}
+
+.file-list-compact .virtual-cell {
+  flex-shrink: 0;
+  padding: 4px var(--spacing-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-list-compact .virtual-cell.col-checkbox {
+  padding: 4px 2px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* New column styles */
+.file-list-compact .col-empty {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.file-list-compact .col-number {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-list-compact .col-volume {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.file-list-compact .col-year {
+  font-variant-numeric: tabular-nums;
+}
+
+.file-list-compact .col-pagecount {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.file-list-compact .col-writer,
+.file-list-compact .col-publisher,
+.file-list-compact .col-series {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* =============================================================================
@@ -3803,6 +4124,28 @@ body {
 
 .range-value {
   color: var(--color-text-muted);
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.radio-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
 }
 
 .unit {
@@ -5842,4 +6185,188 @@ body {
   padding: var(--spacing-md) var(--spacing-lg);
   border-top: 1px solid var(--color-border-subtle);
   background-color: var(--color-bg-tertiary);
+}
+
+/* =============================================================================
+   Global Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Global button touch targets - 44px minimum for all buttons */
+  button:not([class*="btn-"]):not([class*="action-"]):not([class*="rail-"]) {
+    min-height: 36px;
+  }
+
+  /* Global input touch targets */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  select {
+    min-height: 44px;
+  }
+
+  /* Global checkbox and radio targets */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 24px;
+    min-height: 24px;
+  }
+
+  /* Global link touch targets in navigation contexts */
+  nav a,
+  .nav-link,
+  .menu-item {
+    min-height: 44px;
+  }
+
+  /* Disable hover effects globally on touch devices - use :active instead */
+  *:hover {
+    /* Let individual components override this if needed */
+  }
+
+  /* Global active state for interactive elements */
+  button:active:not(:disabled),
+  a:active,
+  [role="button"]:active:not([aria-disabled="true"]) {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* Prevent text selection during touch interactions */
+  button,
+  a,
+  [role="button"],
+  .interactive {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better tap highlighting for interactive elements */
+  .interactive:active,
+  .clickable:active {
+    background-color: var(--color-hover);
+  }
+
+  /* Improve scrolling performance on touch */
+  .scroll-container,
+  [data-scroll],
+  .overflow-auto,
+  .overflow-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Ensure proper touch action on scrollable containers */
+  .horizontal-scroll {
+    touch-action: pan-x;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vertical-scroll {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Safe area insets for notched devices */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* =============================================================================
+   Pull-to-Refresh Indicator
+   ============================================================================= */
+
+.pull-to-refresh-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.pull-to-refresh-indicator.visible {
+  opacity: 1;
+}
+
+.pull-to-refresh-indicator.threshold-reached {
+  background: var(--color-primary-muted);
+  border-color: var(--color-primary);
+}
+
+.pull-to-refresh-indicator.refreshing .refresh-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+.pull-to-refresh-indicator .refresh-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.pull-to-refresh-indicator.threshold-reached .refresh-icon {
+  color: var(--color-primary);
+  transform: rotate(180deg);
+}
+
+.pull-to-refresh-indicator .refresh-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Position adjustment when sidebar is present */
+@media (min-width: 768px) {
+  .pull-to-refresh-indicator {
+    left: calc(50% + 24px); /* Half of sidebar rail width */
+  }
 }

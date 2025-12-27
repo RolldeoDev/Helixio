@@ -50,7 +50,7 @@ interface AppConfig {
 type SettingsTab = 'appearance' | 'general' | 'libraries' | 'reader' | 'system' | 'account' | 'admin';
 
 export function Settings() {
-  const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata } = useApp();
+  const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata, relatedSeriesPosition, setRelatedSeriesPosition } = useApp();
   const { isAuthenticated, user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { colorScheme } = useTheme();
@@ -442,6 +442,35 @@ export function Settings() {
                   label="Prefer filename over metadata for titles"
                   description="When enabled, card titles will show the original filename instead of metadata titles. Useful if you have a well-organized file naming convention."
                 />
+
+                <div className="setting-group" style={{ marginTop: '1rem' }}>
+                  <label>Related Series Position</label>
+                  <p className="setting-description">
+                    Where to display related series on the Series Detail page.
+                  </p>
+                  <div className="radio-group">
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="relatedSeriesPosition"
+                        value="below"
+                        checked={relatedSeriesPosition === 'below'}
+                        onChange={() => setRelatedSeriesPosition('below')}
+                      />
+                      Below issues (default)
+                    </label>
+                    <label className="radio-option">
+                      <input
+                        type="radio"
+                        name="relatedSeriesPosition"
+                        value="above"
+                        checked={relatedSeriesPosition === 'above'}
+                        onChange={() => setRelatedSeriesPosition('above')}
+                      />
+                      Above issues
+                    </label>
+                  </div>
+                </div>
               </SectionCard>
 
               <div className="settings-actions">

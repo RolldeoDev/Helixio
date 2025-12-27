@@ -81,7 +81,14 @@
 }
 
 .series-cover-card:hover {
-  transform: translateY(var(--series-card-hover-lift)) scale(var(--series-card-hover-scale));
+  /*
+   * Transform anchored to bottom center to prevent jitter.
+   * Scale expands upward/outward while bottom edge stays fixed.
+   * No translateY - it would move the bottom edge and cause jitter
+   * when cursor approaches from below.
+   */
+  transform-origin: bottom center;
+  transform: scale(var(--series-card-hover-scale));
   box-shadow: var(--series-card-shadow-hover), var(--series-card-hover-glow);
   background: var(--series-card-bg-hover);
   /* Faster transition for hover-on */
@@ -406,6 +413,66 @@
 }
 
 /* =============================================================================
+   Relationship Type Badge
+   ============================================================================= */
+
+.series-cover-card__relationship-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+}
+
+/* =============================================================================
+   Remove Button
+   ============================================================================= */
+
+.series-cover-card__remove-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--series-card-transition), background var(--series-card-transition);
+  backdrop-filter: blur(4px);
+}
+
+.series-cover-card__remove-btn:hover {
+  background: var(--color-error, #ef4444);
+}
+
+.series-cover-card__remove-btn:focus-visible {
+  outline: 2px solid var(--series-card-border-focus);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+/* Show remove button on hover */
+.series-cover-card:hover .series-cover-card__remove-btn {
+  opacity: 1;
+}
+
+/* Hide progress ring when remove button is shown to avoid overlap */
+.series-cover-card:hover .series-cover-card__progress-ring {
+  opacity: 0.3;
+}
+
+.series-cover-card:hover .series-cover-card__completed-badge {
+  opacity: 0.3;
+}
+
+/* =============================================================================
    Reduced Motion
    ============================================================================= */
 
@@ -421,5 +488,41 @@
 
   .series-cover-card__spinner {
     animation: none;
+  }
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (hover: none), (pointer: coarse) {
+  /* Always show checkbox on touch devices */
+  .series-cover-card__checkbox {
+    opacity: 1;
+  }
+
+  /* Larger checkbox touch target */
+  .series-cover-card__checkbox input {
+    width: 28px;
+    height: 28px;
+  }
+
+  /* Disable hover scale on touch - prevents janky transforms */
+  .series-cover-card {
+    --series-card-hover-scale: 1;
+    --series-card-image-hover-scale: 1;
+  }
+
+  /* Add active state for touch feedback */
+  .series-cover-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* Always show remove button on touch devices */
+  .series-cover-card__remove-btn {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
   }
 }

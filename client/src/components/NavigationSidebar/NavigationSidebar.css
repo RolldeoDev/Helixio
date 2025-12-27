@@ -182,3 +182,40 @@
 .navigation-sidebar {
   animation: sidebar-fade-in 0.2s ease-out;
 }
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Larger touch targets for nav markers */
+  .nav-marker {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 0.75rem;
+  }
+
+  .navigation-sidebar.year-mode .nav-marker {
+    min-width: 48px;
+    min-height: 44px;
+  }
+
+  /* Larger spectrum thumb for touch */
+  .spectrum-thumb {
+    width: 12px;
+    height: 24px;
+    left: -4px;
+  }
+
+  /* Active state for touch feedback */
+  .nav-marker:active:not(.empty) {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+
+  /* Wider sidebar for touch usability */
+  .navigation-sidebar {
+    min-width: 44px;
+    padding: 12px 6px;
+  }
+}

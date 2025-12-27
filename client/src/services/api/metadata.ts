@@ -859,9 +859,11 @@ export async function getMismatchedSeriesFiles(): Promise<{
  * Repair mismatched series linkages.
  * Re-links files to the correct series based on their FileMetadata.series,
  * creating new series if needed.
+ *
+ * @param fileIds - Optional array of file IDs to repair. If not provided, repairs all mismatched files.
  */
-export async function repairSeriesLinkages(): Promise<RepairResult> {
-  return post('/series/admin/repair');
+export async function repairSeriesLinkages(fileIds?: string[]): Promise<RepairResult> {
+  return post('/series/admin/repair', fileIds ? { fileIds } : undefined);
 }
 
 /**

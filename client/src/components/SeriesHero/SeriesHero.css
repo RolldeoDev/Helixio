@@ -185,6 +185,18 @@
   color: var(--color-primary);
 }
 
+.series-hero__meta-badge.related {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: rgba(126, 166, 216, 0.2);
+  color: #7ea6d8;
+}
+
+.series-hero__meta-badge.related svg {
+  opacity: 0.9;
+}
+
 /* Title */
 .series-hero__title {
   font-family: var(--font-display);

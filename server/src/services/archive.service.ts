@@ -125,6 +125,120 @@ export interface ArchiveCreationResult {
 }
 
 // =============================================================================
+// Archive Listing Cache
+// =============================================================================
+
+/**
+ * Cache configuration for archive listings.
+ * Uses file mtime + size as a quick change detection key.
+ */
+const ARCHIVE_CACHE_MAX_SIZE = 500;
+const ARCHIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface CachedArchiveInfo {
+  info: ArchiveInfo;
+  timestamp: number;
+  cacheKey: string; // mtime:size
+}
+
+/** In-memory LRU cache for archive listings */
+const archiveListingCache = new Map<string, CachedArchiveInfo>();
+
+/**
+ * Generate a cache key from file stats.
+ * Uses mtime and size for quick change detection without reading file content.
+ */
+async function generateArchiveCacheKey(archivePath: string): Promise<string | null> {
+  try {
+    const stats = await stat(archivePath);
+    return `${stats.mtimeMs}:${stats.size}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Evict oldest cache entries when over limit.
+ */
+function evictOldArchiveCacheEntries(): void {
+  if (archiveListingCache.size <= ARCHIVE_CACHE_MAX_SIZE) return;
+
+  // Sort by timestamp (oldest first)
+  const entries = Array.from(archiveListingCache.entries())
+    .sort((a, b) => a[1].timestamp - b[1].timestamp);
+
+  // Remove oldest entries until under limit
+  const toRemove = entries.slice(0, entries.length - ARCHIVE_CACHE_MAX_SIZE);
+  for (const [key] of toRemove) {
+    archiveListingCache.delete(key);
+  }
+}
+
+/**
+ * Get cached archive listing if valid.
+ */
+async function getCachedArchiveListing(archivePath: string): Promise<ArchiveInfo | null> {
+  const cached = archiveListingCache.get(archivePath);
+  if (!cached) return null;
+
+  // Check TTL
+  if (Date.now() - cached.timestamp > ARCHIVE_CACHE_TTL_MS) {
+    archiveListingCache.delete(archivePath);
+    return null;
+  }
+
+  // Verify cache key matches current file state
+  const currentKey = await generateArchiveCacheKey(archivePath);
+  if (!currentKey || currentKey !== cached.cacheKey) {
+    archiveListingCache.delete(archivePath);
+    return null;
+  }
+
+  // Update timestamp for LRU behavior
+  cached.timestamp = Date.now();
+  return cached.info;
+}
+
+/**
+ * Store archive listing in cache.
+ */
+async function cacheArchiveListing(archivePath: string, info: ArchiveInfo): Promise<void> {
+  const cacheKey = await generateArchiveCacheKey(archivePath);
+  if (!cacheKey) return;
+
+  archiveListingCache.set(archivePath, {
+    info,
+    timestamp: Date.now(),
+    cacheKey,
+  });
+
+  evictOldArchiveCacheEntries();
+}
+
+/**
+ * Clear the archive listing cache (for testing or manual cleanup).
+ */
+export function clearArchiveListingCache(): void {
+  archiveListingCache.clear();
+  logger.info('Archive listing cache cleared');
+}
+
+/**
+ * Get archive cache statistics.
+ */
+export function getArchiveCacheStats(): {
+  size: number;
+  maxSize: number;
+  ttlMs: number;
+} {
+  return {
+    size: archiveListingCache.size,
+    maxSize: ARCHIVE_CACHE_MAX_SIZE,
+    ttlMs: ARCHIVE_CACHE_TTL_MS,
+  };
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 
@@ -384,14 +498,37 @@ async function extractRarFileToBuffer(
 
 /**
  * List contents of an archive.
+ * Results are cached to improve performance during library scans.
  */
 export async function listArchiveContents(archivePath: string): Promise<ArchiveInfo> {
-  // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
-  if (await isRarArchive(archivePath)) {
-    return listRarContents(archivePath);
+  // Check cache first
+  const cached = await getCachedArchiveListing(archivePath);
+  if (cached) {
+    logger.debug({ archivePath }, 'Using cached archive listing');
+    return cached;
   }
 
-  // Use 7-zip for other formats
+  // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
+  const isRar = await isRarArchive(archivePath);
+  let result: ArchiveInfo;
+
+  if (isRar) {
+    result = await listRarContents(archivePath);
+  } else {
+    // Use 7-zip for other formats
+    result = await listArchiveContentsWithSevenZip(archivePath);
+  }
+
+  // Cache the result for future use
+  await cacheArchiveListing(archivePath, result);
+
+  return result;
+}
+
+/**
+ * List archive contents using 7-zip (internal helper).
+ */
+async function listArchiveContentsWithSevenZip(archivePath: string): Promise<ArchiveInfo> {
   return new Promise((resolve, reject) => {
     const entries: ArchiveEntry[] = [];
     let totalSize = 0;

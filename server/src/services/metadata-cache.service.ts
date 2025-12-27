@@ -13,6 +13,7 @@ import {
   getFormatLabel,
   type ComicFormat,
 } from './comic-classification.service.js';
+import { computeIssueNumberSort } from './issue-number-utils.js';
 
 // =============================================================================
 // Types
@@ -116,9 +117,11 @@ export async function cacheFileMetadata(
     const format = classifyAndGetFormatLabel(filename, pageCount, comicInfo.Format);
 
     // Prepare metadata record
+    const issueNumber = comicInfo.Number || null;
     const metadataData = {
       series: comicInfo.Series || null,
-      number: comicInfo.Number || null,
+      number: issueNumber,
+      issueNumberSort: computeIssueNumberSort(issueNumber),
       title: comicInfo.Title || null,
       volume: comicInfo.Volume || null,
       publisher: comicInfo.Publisher || null,

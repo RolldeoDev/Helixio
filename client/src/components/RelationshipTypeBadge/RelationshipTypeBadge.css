@@ -1,0 +1,53 @@
+/**
+ * RelationshipTypeBadge Styles
+ *
+ * Colored badges for series relationship types.
+ * Uses the same pattern as other badges in the app.
+ */
+
+.relationship-type-badge {
+  display: inline-block;
+  font-weight: 600;
+  border-radius: 12px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Size variants */
+.relationship-type-badge--small {
+  padding: 2px 6px;
+  font-size: 0.6rem;
+}
+
+.relationship-type-badge--medium {
+  padding: 3px 10px;
+  font-size: 0.7rem;
+}
+
+/* Type colors */
+.relationship-type-badge--spinoff {
+  background-color: rgba(126, 166, 216, 0.4);
+  color: #7ea6d8;
+}
+
+.relationship-type-badge--prequel {
+  background-color: rgba(179, 136, 209, 0.4);
+  color: #b388d1;
+}
+
+.relationship-type-badge--sequel {
+  background-color: rgba(125, 206, 160, 0.4);
+  color: #7dcea0;
+}
+
+.relationship-type-badge--bonus {
+  background-color: rgba(229, 181, 103, 0.4);
+  color: #e5b567;
+}
+
+/* Related is neutral (though usually not shown) */
+.relationship-type-badge--related {
+  background-color: rgba(125, 133, 144, 0.15);
+  color: var(--color-text-muted);
+}

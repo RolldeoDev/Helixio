@@ -6,7 +6,89 @@
  */
 
 import pLimit, { LimitFunction } from 'p-limit';
+import os from 'os';
 import { batchLogger } from './logger.service.js';
+
+// =============================================================================
+// Concurrency Auto-Detection
+// =============================================================================
+
+/** Cached concurrency values by type */
+const concurrencyCache = new Map<'io' | 'cpu', number>();
+
+/**
+ * Get optimal concurrency based on CPU cores and operation type.
+ *
+ * @param type - 'io' for I/O-bound operations (archive extraction, file reads)
+ *               'cpu' for CPU-bound operations (Sharp image processing)
+ * @returns Optimal concurrency value
+ *
+ * For I/O-bound operations: Higher concurrency (2x CPU cores, max 8)
+ * For CPU-bound operations: Match CPU cores minus 1 (leave headroom)
+ */
+export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
+  // Check cache first
+  const cached = concurrencyCache.get(type);
+  if (cached !== undefined) return cached;
+
+  const cpuCount = os.cpus().length;
+  let concurrency: number;
+
+  if (type === 'io') {
+    // I/O-bound operations can handle higher concurrency
+    // because they spend most time waiting for disk/network
+    concurrency = Math.min(cpuCount * 2, 8);
+  } else {
+    // CPU-bound operations should not exceed available cores
+    // Leave 1 core free for OS and other processes
+    concurrency = Math.max(cpuCount - 1, 2);
+  }
+
+  // Cache the result
+  concurrencyCache.set(type, concurrency);
+
+  batchLogger.info({
+    type,
+    cpuCount,
+    concurrency,
+  }, `Auto-detected optimal concurrency: ${concurrency} for ${type}-bound operations`);
+
+  return concurrency;
+}
+
+/**
+ * Override the auto-detected concurrency for a specific type.
+ * Useful for testing or manual tuning.
+ */
+export function setCustomConcurrency(type: 'io' | 'cpu', value: number): void {
+  if (value < 1) {
+    throw new Error('Concurrency must be at least 1');
+  }
+  concurrencyCache.set(type, value);
+  batchLogger.info({ type, value }, `Custom concurrency set: ${value} for ${type}-bound operations`);
+}
+
+/**
+ * Clear cached concurrency values (for testing).
+ */
+export function clearConcurrencyCache(): void {
+  concurrencyCache.clear();
+}
+
+/**
+ * Get current concurrency settings for diagnostics.
+ */
+export function getConcurrencyStats(): {
+  cpuCount: number;
+  ioConcurrency: number;
+  cpuConcurrency: number;
+} {
+  return {
+    cpuCount: os.cpus().length,
+    ioConcurrency: getOptimalConcurrency('io'),
+    cpuConcurrency: getOptimalConcurrency('cpu'),
+  };
+}
 
 // =============================================================================
 // Types
@@ -292,6 +374,10 @@ export const Parallel = {
   sequential: sequentialMap,
   batches: processBatches,
   createBatches,
+  getOptimalConcurrency,
+  setCustomConcurrency,
+  clearConcurrencyCache,
+  getConcurrencyStats,
 };
 
 export default Parallel;

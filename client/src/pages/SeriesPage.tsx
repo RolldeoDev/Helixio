@@ -16,10 +16,12 @@ import { SeriesGrid } from '../components/SeriesGrid';
 import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { BatchSeriesMetadataModal } from '../components/BatchSeriesMetadataModal';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
+import { LinkSeriesModal } from '../components/LinkSeriesModal';
 import {
   getSeriesPublishers,
   getSeriesGenres,
   getSeriesIssues,
+  getSeries,
   bulkToggleFavorite,
   bulkToggleWantToRead,
   bulkMarkSeriesRead,
@@ -72,6 +74,8 @@ export function SeriesPage() {
   // Modal states for bulk actions
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
+  const [linkSeriesInfo, setLinkSeriesInfo] = useState<{ id: string; name: string } | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   // Track all series IDs for range selection
@@ -233,6 +237,20 @@ export function SeriesPage() {
     clearSeriesSelection();
     addToast('success', `Updated ${updatedCount} series`);
   }, [clearSeriesSelection, addToast]);
+
+  const handleLinkSeries = useCallback(async () => {
+    if (selectedSeries.size !== 1) return;
+    const seriesId = Array.from(selectedSeries)[0];
+    if (!seriesId) return;
+    try {
+      const { series } = await getSeries(seriesId);
+      setLinkSeriesInfo({ id: series.id, name: series.name });
+      setShowLinkSeriesModal(true);
+    } catch (err) {
+      console.error('Failed to fetch series info:', err);
+      addToast('error', 'Failed to load series info');
+    }
+  }, [selectedSeries, addToast]);
 
   // Build options for SeriesGrid - memoized to prevent unnecessary refetches
   const options: SeriesListOptions = useMemo(() => ({
@@ -431,6 +449,7 @@ export function SeriesPage() {
           onMarkUnread={handleMarkUnread}
           onFetchMetadata={handleFetchMetadata}
           onBatchEdit={() => setShowBatchEditModal(true)}
+          onLinkSeries={handleLinkSeries}
           onSetHidden={handleSetHidden}
           isLoading={isBulkLoading}
         />
@@ -450,6 +469,25 @@ export function SeriesPage() {
         seriesIds={Array.from(selectedSeries)}
         onComplete={handleBatchEditComplete}
       />
+
+      {/* Link Series Modal */}
+      {linkSeriesInfo && (
+        <LinkSeriesModal
+          isOpen={showLinkSeriesModal}
+          onClose={() => {
+            setShowLinkSeriesModal(false);
+            setLinkSeriesInfo(null);
+          }}
+          currentSeries={linkSeriesInfo}
+          existingParentIds={[]}
+          existingChildIds={[]}
+          onLinked={() => {
+            setShowLinkSeriesModal(false);
+            setLinkSeriesInfo(null);
+            addToast('success', 'Series linked successfully');
+          }}
+        />
+      )}
     </div>
   );
 }

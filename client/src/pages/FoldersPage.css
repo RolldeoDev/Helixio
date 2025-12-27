@@ -520,3 +520,95 @@
     display: none;
   }
 }
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Wider resize handle for touch - easier to grab */
+  .folders-resize-handle {
+    width: 16px;
+    margin: 0 -6px;
+    touch-action: none;
+  }
+
+  /* Folder items - larger touch targets */
+  .folder-item {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Scan button - 44px minimum */
+  .scan-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Breadcrumb back button - 44px minimum */
+  .breadcrumb-back {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Browse button - larger touch target */
+  .btn-browse {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Form buttons - 44px minimum */
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+  }
+
+  /* Context menu items - 44px minimum */
+  .folder-context-menu button {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Folder chevron - larger tap area */
+  .folder-chevron {
+    width: 28px;
+    height: 28px;
+    margin: -4px;
+    padding: 4px;
+  }
+
+  /* Active feedback for touch */
+  .folder-item:active:not(.renaming) {
+    background: var(--color-primary-muted, rgba(212, 165, 116, 0.15));
+    transition: background 0.1s ease;
+  }
+
+  .scan-btn:active:not(:disabled),
+  .breadcrumb-back:active,
+  .btn-browse:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+
+  /* Form inputs - larger touch targets */
+  .add-library-form input,
+  .add-library-form select {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
+/* Tablet - show resize handle but make it more visible */
+@media (min-width: 768px) and (max-width: 1024px) and (pointer: coarse) {
+  .folders-resize-handle {
+    display: block;
+    width: 20px;
+    margin: 0 -8px;
+    background: var(--color-border-subtle);
+  }
+
+  .folders-resize-handle:active,
+  .folders-resize-handle.resizing {
+    background: var(--color-primary);
+  }
+}

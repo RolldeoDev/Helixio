@@ -465,3 +465,57 @@
   overflow: auto;
 }
 
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Description toggle - touch-friendly */
+  .issue-description-toggle {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Collapsible section toggle - 44px minimum */
+  .issue-collapsible-toggle {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* External links - touch-friendly */
+  .external-link {
+    min-height: 36px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* History rows - larger touch targets */
+  .history-row {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Active feedback for touch */
+  .issue-description-toggle:active,
+  .issue-collapsible-toggle:active,
+  .external-link:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* Tablet landscape - improve two-column layout */
+@media (min-width: 768px) and (max-width: 1024px) and (pointer: coarse) {
+  .issue-hero-grid {
+    grid-template-columns: 1.5fr 1fr;
+    gap: var(--spacing-lg);
+  }
+
+  .issue-hero-sidebar {
+    padding: var(--spacing-md);
+  }
+
+  .issue-description-section {
+    padding: var(--spacing-md);
+  }
+}
+

@@ -11,7 +11,7 @@
  * - Keyboard dismissible (Escape)
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react';
 import { type FileChange, type FieldChange } from '../../services/api.service';
 import './HoverPreviewCard.css';
 
@@ -38,10 +38,14 @@ export function HoverPreviewCard({
 }: HoverPreviewCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0, flipHorizontal: false, flipVertical: false });
+  const [isPositioned, setIsPositioned] = useState(false);
 
   // Calculate position based on anchor and viewport
   const updatePosition = useCallback(() => {
-    if (!anchorRect || !cardRef.current) return;
+    if (!anchorRect || !cardRef.current) {
+      setIsPositioned(false);
+      return;
+    }
 
     const card = cardRef.current;
     const cardRect = card.getBoundingClientRect();
@@ -78,13 +82,16 @@ export function HoverPreviewCard({
     }
 
     setPosition({ top, left, flipHorizontal, flipVertical });
+    setIsPositioned(true);
   }, [anchorRect]);
 
   // Update position when visible or anchor changes
-  useEffect(() => {
+  // Use useLayoutEffect to calculate position before paint, preventing visual jump
+  useLayoutEffect(() => {
     if (isVisible) {
-      // Small delay to ensure card is rendered before measuring
-      requestAnimationFrame(updatePosition);
+      updatePosition();
+    } else {
+      setIsPositioned(false);
     }
   }, [isVisible, anchorRect, updatePosition]);
 
@@ -149,6 +156,8 @@ export function HoverPreviewCard({
       style={{
         top: position.top,
         left: position.left,
+        // Hide card until position is calculated to prevent visual jump
+        visibility: isPositioned ? 'visible' : 'hidden',
       }}
       role="tooltip"
       aria-label={`Preview for ${fileChange.filename}`}

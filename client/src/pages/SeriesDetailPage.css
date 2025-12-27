@@ -238,9 +238,83 @@
 }
 
 /* =============================================================================
-   Issues Section
+   Issues Section with Tabs
    ============================================================================= */
 
+.series-content-section {
+  /* No top margin - flows naturally after content grid */
+  margin-top: 0;
+}
+
+/* Tab navigation */
+.series-content-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.series-content-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  margin-bottom: -1px;
+}
+
+.series-content-tab:hover {
+  color: var(--color-text);
+}
+
+.series-content-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.series-content-tab .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.series-content-tab.active .tab-count {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+/* Tab content area */
+.series-tab-content {
+  min-height: 200px;
+}
+
+/* Issues tab header with actions (when using tabs) */
+.series-issues-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: var(--spacing-md);
+}
+
+/* Legacy issues section (when no tabs) */
 .series-issues-section {
   /* No top margin - flows naturally after content grid */
   margin-top: 0;
@@ -465,68 +539,374 @@
    ============================================================================= */
 
 .series-related-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
-  padding: var(--spacing-lg);
-  background: var(--color-surface-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-}
-
-.series-related-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
+  margin: var(--spacing-lg) 0;
+  padding: 0 var(--spacing-lg);
 }
 
 .series-related-title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
-.series-related-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  font-family: var(--font-body);
-  font-size: 11px;
-  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--color-text-muted);
-  background: var(--color-surface-hover);
-  border-radius: 10px;
+  margin: 0 0 var(--spacing-sm) 0;
 }
 
-.series-related-grid {
+/* Horizontal row for related series covers */
+.series-related-row {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+  border-top: 1px solid var(--color-border-subtle);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
-.series-related-grid .series-cover-card {
-  flex: 0 0 auto;
+.series-related-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.series-related-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.series-related-row::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+.series-related-row::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-hover);
+}
+
+.series-related-row .series-cover-card {
+  flex-shrink: 0;
   width: 120px;
 }
 
 @media (max-width: 768px) {
-  .series-related-grid {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: var(--spacing-sm);
-    -webkit-overflow-scrolling: touch;
+  .series-related-section {
+    padding: 0 var(--spacing-md);
   }
 
-  .series-related-grid .series-cover-card {
-    flex-shrink: 0;
+  .series-related-row {
+    padding: var(--spacing-sm) 0;
+  }
+
+  .series-related-row .series-cover-card {
+    width: 100px;
+  }
+}
+
+/* =============================================================================
+   Related Series Tab Content - Editorial Card Design
+   Elegant vertical cards that showcase full series names and metadata
+   ============================================================================= */
+
+.series-related-tab-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-xl);
+  padding: var(--spacing-md) 0;
+}
+
+/* The card: vertical layout with cover on top */
+.related-series-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-card) 0%,
+    rgba(26, 34, 44, 0.95) 100%
+  );
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform var(--transition-medium),
+    box-shadow var(--transition-medium),
+    border-color var(--transition-fast);
+}
+
+.related-series-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--color-primary);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(212, 165, 116, 0.15),
+    var(--shadow-glow);
+}
+
+/* Cover container with elegant aspect ratio */
+.related-series-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+}
+
+.related-series-card__cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 50%,
+    rgba(15, 20, 25, 0.3) 80%,
+    rgba(15, 20, 25, 0.6) 100%
+  );
+  pointer-events: none;
+}
+
+.related-series-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-slow);
+}
+
+.related-series-card:hover .related-series-card__cover img {
+  transform: scale(1.05);
+}
+
+.related-series-card__cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    var(--color-bg-secondary) 0%,
+    var(--color-bg-tertiary) 100%
+  );
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0.6;
+}
+
+/* Info section below the cover */
+.related-series-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  flex: 1;
+}
+
+/* Series name - allows 2-line wrap for long titles */
+.related-series-card__name {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-text);
+  margin: 0;
+  /* Allow up to 2 lines, then ellipsis */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.6em; /* Reserve space for 2 lines */
+}
+
+/* Metadata line - publisher, year, issues */
+.related-series-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.related-series-card__meta span {
+  white-space: nowrap;
+}
+
+/* Subtle separator dots */
+.related-series-card__meta-separator {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+  opacity: 0.6;
+}
+
+/* Relationship badge positioned elegantly */
+.related-series-card__relationship {
+  margin-top: auto;
+  padding-top: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* Actions menu - positioned in top-right corner */
+.related-series-card__actions {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  z-index: 2;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.related-series-card:hover .related-series-card__actions {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.related-series-card__actions .action-menu-trigger {
+  padding: var(--spacing-xs);
+  background: rgba(15, 20, 25, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.related-series-card__actions .action-menu-trigger:hover {
+  background: rgba(212, 165, 116, 0.2);
+  border-color: var(--color-primary);
+}
+
+/* Relationship type indicator as subtle corner accent */
+.related-series-card__type-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.related-series-card__type-accent::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  left: -30px;
+  width: 60px;
+  height: 60px;
+  transform: rotate(45deg);
+  background: var(--relationship-accent-color, var(--color-primary));
+  opacity: 0.15;
+}
+
+/* Responsive grid adjustments */
+@media (min-width: 768px) {
+  .series-related-tab-content {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--spacing-lg);
+  }
+}
+
+@media (min-width: 1200px) {
+  .series-related-tab-content {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-xl);
+  }
+}
+
+@media (max-width: 640px) {
+  .series-related-tab-content {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-md);
+  }
+
+  .related-series-card__name {
+    font-size: 1rem;
+  }
+
+  .related-series-card__meta {
+    font-size: 0.75rem;
+  }
+
+  .related-series-card__info {
+    padding: var(--spacing-sm);
+  }
+
+  /* Always show actions on mobile */
+  .related-series-card__actions {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .series-content-tab {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem;
+  }
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Description toggle - touch-friendly */
+  .series-description-toggle {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Ghost button (selection clear) - 44px minimum */
+  .btn-ghost {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Entity chips - larger touch targets */
+  .entity-chip {
+    min-height: 36px;
+    padding: 8px 14px;
+  }
+
+  /* Issues header actions spacing */
+  .series-issues-header-actions {
+    gap: var(--spacing-sm);
+  }
+
+  /* Active feedback for touch */
+  .series-description-toggle:active,
+  .btn-ghost:active,
+  .entity-chip:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* Tablet landscape - improve two-column layout */
+@media (min-width: 768px) and (max-width: 1024px) and (pointer: coarse) {
+  .series-hero-grid {
+    grid-template-columns: 1.5fr 1fr;
+    gap: var(--spacing-lg);
+  }
+
+  .series-hero-sidebar {
+    padding: var(--spacing-md);
+  }
+
+  .series-description-section {
+    padding: var(--spacing-md);
   }
 }

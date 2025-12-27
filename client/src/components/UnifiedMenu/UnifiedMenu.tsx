@@ -12,7 +12,7 @@
  * - ARIA accessibility
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { MenuItem, MenuContext, MenuState, MenuPosition } from './types';
 import './UnifiedMenu.css';
@@ -157,7 +157,8 @@ export function UnifiedMenu({
   );
 
   // Adjust position to keep menu within viewport
-  useEffect(() => {
+  // Using useLayoutEffect to calculate position before paint, preventing visual jump
+  useLayoutEffect(() => {
     if (!state.isOpen || !state.position || !menuRef.current) {
       setAdjustedPosition(null);
       return;
@@ -245,7 +246,12 @@ export function UnifiedMenu({
     <div
       ref={menuRef}
       className={menuClass}
-      style={{ top: position.y, left: position.x }}
+      style={{
+        top: position.y,
+        left: position.x,
+        // Hide menu until position is calculated to prevent visual jump
+        visibility: adjustedPosition ? 'visible' : 'hidden',
+      }}
       role="menu"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={handleKeyDown}

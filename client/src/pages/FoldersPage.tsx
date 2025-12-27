@@ -12,6 +12,8 @@ import { useApp } from '../contexts/AppContext';
 import { useSmartFilter } from '../contexts/SmartFilterContext';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { GridView } from '../components/GridView';
+import { ListView } from '../components/ListView';
+import { FileList } from '../components/FileList';
 import { LibraryToolbar } from '../components/LibraryToolbar';
 import { SmartFilterPanel } from '../components/SmartFilter/SmartFilterPanel';
 import { LibraryDropdown } from '../components/Layout/LibraryDropdown';
@@ -30,6 +32,9 @@ const FOLDER_PANEL_MIN_WIDTH = 200;
 const FOLDER_PANEL_MAX_WIDTH = 500;
 const FOLDER_PANEL_DEFAULT_WIDTH = 280;
 const GROUP_STORAGE_KEY = 'helixio-group-field';
+const VIEW_MODE_STORAGE_KEY = 'helixio-folders-view-mode';
+
+type ViewMode = 'grid' | 'list' | 'compact';
 
 export function FoldersPage() {
   const navigate = useNavigate();
@@ -101,6 +106,14 @@ export function FoldersPage() {
       return 'none';
     }
   });
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      return (stored as ViewMode) || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
 
   // Navigation sidebar state
   const contentRef = useRef<HTMLDivElement>(null);
@@ -116,7 +129,12 @@ export function FoldersPage() {
     localStorage.setItem(GROUP_STORAGE_KEY, groupField);
   }, [groupField]);
 
-  // Handle resize drag
+  // Persist view mode
+  useEffect(() => {
+    localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
+  }, [viewMode]);
+
+  // Handle resize drag (mouse and touch)
   useEffect(() => {
     if (!isResizing) return;
 
@@ -128,30 +146,64 @@ export function FoldersPage() {
       setPanelWidth(newWidth);
     };
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0]!;
+        const newWidth = Math.min(
+          FOLDER_PANEL_MAX_WIDTH,
+          Math.max(FOLDER_PANEL_MIN_WIDTH, touch.clientX - 48)
+        );
+        setPanelWidth(newWidth);
+      }
+    };
+
     const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    const handleTouchEnd = () => {
       setIsResizing(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd);
+    document.addEventListener('touchcancel', handleTouchEnd);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
   }, [isResizing]);
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+  const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsResizing(true);
   }, []);
 
-  // Apply smart filter to files
-  const filteredFiles = applyFilterToFiles(files);
+  // Filter files by selected folder (local to FoldersPage, doesn't affect other pages)
+  const folderFilteredFiles = useMemo(() => {
+    if (!selectedFolder) return files;
+    return files.filter((file) => {
+      // Extract folder path from relativePath (e.g., "Folder/Subfolder/file.cbz" -> "Folder/Subfolder")
+      const fileFolder = file.relativePath.includes('/')
+        ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/'))
+        : '';
+      // Match files in the selected folder or its subfolders
+      return fileFolder === selectedFolder || fileFolder.startsWith(selectedFolder + '/');
+    });
+  }, [files, selectedFolder]);
+
+  // Apply smart filter to folder-filtered files
+  const filteredFiles = applyFilterToFiles(folderFilteredFiles);
 
   // Get files in display order (flattened from groups when grouping is active)
   // This ensures NavigationSidebar markers match the actual display order
@@ -771,13 +823,14 @@ export function FoldersPage() {
       <div
         className={`folders-resize-handle ${isResizing ? 'resizing' : ''}`}
         onMouseDown={handleResizeStart}
+        onTouchStart={handleResizeStart}
       />
 
       {/* Right Panel - Cover Gallery */}
       <main className="folders-content" ref={contentRef}>
         <LibraryToolbar
-          viewMode="grid"
-          onViewModeChange={() => {}}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
           filteredCount={filteredFiles.length}
           totalCount={files.length}
           onEditMetadata={selectedFiles.size > 0 ? handleToolbarEditMetadata : undefined}
@@ -796,13 +849,30 @@ export function FoldersPage() {
         )}
 
         {/* Cover Gallery */}
-        <GridView
-          onFileDoubleClick={handleFileDoubleClick}
-          onFetchMetadata={handleFetchMetadata}
-          onEditMetadata={handleEditMetadata}
-          filteredFiles={filteredFiles}
-          groupField={groupField}
-        />
+        {viewMode === 'list' ? (
+          <ListView
+            onFileDoubleClick={handleFileDoubleClick}
+            onFetchMetadata={handleFetchMetadata}
+            onEditMetadata={handleEditMetadata}
+            filteredFiles={filteredFiles}
+            groupField={groupField}
+          />
+        ) : viewMode === 'compact' ? (
+          <FileList
+            onFetchMetadata={handleFetchMetadata}
+            onEditMetadata={handleEditMetadata}
+            filteredFiles={filteredFiles}
+            compact
+          />
+        ) : (
+          <GridView
+            onFileDoubleClick={handleFileDoubleClick}
+            onFetchMetadata={handleFetchMetadata}
+            onEditMetadata={handleEditMetadata}
+            filteredFiles={filteredFiles}
+            groupField={groupField}
+          />
+        )}
 
         {/* Navigation Sidebar */}
         {displayOrderedFiles.length >= 10 && (

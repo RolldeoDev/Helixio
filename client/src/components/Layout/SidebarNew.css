@@ -159,80 +159,6 @@
 }
 
 /* =============================================================================
-   Command Palette
-   ============================================================================= */
-
-.command-palette-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 15vh;
-  z-index: 1000;
-  animation: fadeIn 0.15s ease;
-}
-
-.command-palette-placeholder {
-  width: 100%;
-  max-width: 560px;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  animation: slideDown 0.2s ease;
-}
-
-.command-palette-placeholder input {
-  width: 100%;
-  padding: 16px 20px;
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  font-size: 1.125rem;
-  outline: none;
-}
-
-.command-palette-placeholder input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.command-palette-hint {
-  padding: 12px 20px;
-  border-top: 1px solid var(--color-border-subtle);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.command-palette-hint kbd {
-  display: inline-block;
-  padding: 2px 6px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 0.7rem;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* =============================================================================
    Responsive - Tablet (< 1024px)
    ============================================================================= */
 
@@ -247,34 +173,102 @@
 }
 
 /* =============================================================================
-   Mobile Sidebar Backdrop
+   Drawer Mode (JS-controlled for touch + portrait)
    ============================================================================= */
 
 .sidebar-backdrop {
   display: none;
 }
 
+/* Drawer mode styles - applied when JS adds .drawer-mode class */
+.sidebar-new.drawer-mode {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.sidebar-new.drawer-mode.open {
+  transform: translateX(0);
+}
+
+/* Show backdrop when drawer mode is active and sidebar is open */
+.sidebar-new.drawer-mode ~ .sidebar-backdrop,
+.sidebar-backdrop {
+  display: none;
+}
+
+/* Backdrop visible when drawer is open (handled by JS conditional rendering) */
+body:has(.sidebar-new.drawer-mode.open) .sidebar-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 99;
+  animation: backdropFadeIn 0.2s ease;
+}
+
+/* Direct sibling backdrop (for the React conditional rendering) */
+.sidebar-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  z-index: 99;
+  animation: backdropFadeIn 0.2s ease;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* =============================================================================
-   Responsive - Mobile (< 768px)
+   Orientation-Aware Tablet Behavior (CSS fallback)
+   ============================================================================= */
+
+/* Tablet portrait: drawer behavior */
+@media (max-width: 1024px) and (orientation: portrait) and (pointer: coarse) {
+  .sidebar-new:not(.drawer-mode) {
+    /* CSS fallback in case JS drawer-mode class isn't applied */
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-new:not(.drawer-mode).open {
+    transform: translateX(0);
+  }
+}
+
+/* Tablet landscape: persistent sidebar */
+@media (min-width: 768px) and (orientation: landscape) and (pointer: coarse) {
+  .sidebar-new:not(.drawer-mode) {
+    position: relative;
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Responsive - Mobile (< 768px) - Always drawer
    ============================================================================= */
 
 @media (max-width: 768px) {
-  .sidebar-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(2px);
-    z-index: 99;
-    animation: backdropFadeIn 0.2s ease;
-  }
-
-  @keyframes backdropFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
   .sidebar-new {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
   }
@@ -312,9 +306,7 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebar-new,
   .sidebar-new .rail-btn,
-  .sidebar-new .rail-btn svg,
-  .command-palette-overlay,
-  .command-palette-placeholder {
+  .sidebar-new .rail-btn svg {
     transition: none;
     animation: none;
   }

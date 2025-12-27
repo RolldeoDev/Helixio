@@ -78,11 +78,10 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
     include: {
       metadata: true,
     },
-    orderBy: {
-      metadata: {
-        number: 'asc',
-      },
-    },
+    orderBy: [
+      { metadata: { issueNumberSort: 'asc' } },
+      { filename: 'asc' },
+    ],
   });
 
   // If a specific userId is provided, update just that user

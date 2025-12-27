@@ -23,6 +23,7 @@ import {
   type ScanJobStatus,
   type ProgressCallback,
 } from './library-scan-job.service.js';
+import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
 
 // =============================================================================
 // Types
@@ -46,6 +47,9 @@ export interface ScanQueueItem {
 /** Maximum number of scan jobs allowed in the queue */
 const MAX_QUEUE_SIZE = 20;
 
+/** Maximum number of concurrent library scans */
+const MAX_CONCURRENT_SCANS = 3;
+
 // =============================================================================
 // Queue State
 // =============================================================================
@@ -53,8 +57,8 @@ const MAX_QUEUE_SIZE = 20;
 /** In-memory queue of pending scan jobs */
 const queue: ScanQueueItem[] = [];
 
-/** Currently processing item (only one at a time) */
-let currentItem: ScanQueueItem | null = null;
+/** Currently processing items (multiple allowed for multi-library parallelism) */
+const activeScans = new Map<string, ScanQueueItem>();
 
 /** Whether the worker loop is running */
 let isWorkerRunning = false;
@@ -91,6 +95,20 @@ export function getMaxQueueSize(): number {
 }
 
 /**
+ * Get the number of currently active scans.
+ */
+export function getActiveScansCount(): number {
+  return activeScans.size;
+}
+
+/**
+ * Get the maximum number of concurrent scans.
+ */
+export function getMaxConcurrentScans(): number {
+  return MAX_CONCURRENT_SCANS;
+}
+
+/**
  * Enqueue a scan job for background processing.
  * Returns immediately - the job will be processed asynchronously.
  * @throws {ScanQueueFullError} When the queue is at maximum capacity
@@ -102,8 +120,10 @@ export function enqueueScanJob(jobId: string): ScanQueueItem {
     return existing;
   }
 
-  if (currentItem?.jobId === jobId) {
-    return currentItem;
+  // Check if already processing
+  const activeItem = activeScans.get(jobId);
+  if (activeItem) {
+    return activeItem;
   }
 
   // Check queue capacity before adding new items
@@ -131,8 +151,9 @@ export function enqueueScanJob(jobId: string): ScanQueueItem {
  */
 export function getScanQueueStatus(jobId: string): ScanQueueItem | null {
   // Check if currently processing
-  if (currentItem?.jobId === jobId) {
-    return currentItem;
+  const activeItem = activeScans.get(jobId);
+  if (activeItem) {
+    return activeItem;
   }
 
   // Check queue
@@ -143,7 +164,7 @@ export function getScanQueueStatus(jobId: string): ScanQueueItem | null {
  * Check if a scan job is in the queue
  */
 export function isScanJobInQueue(jobId: string): boolean {
-  if (currentItem?.jobId === jobId) {
+  if (activeScans.has(jobId)) {
     return true;
   }
   return queue.some((item) => item.jobId === jobId && item.status === 'queued');
@@ -184,63 +205,92 @@ function startWorker(): void {
 }
 
 /**
- * Process the next item in the queue
+ * Handle successful scan completion
+ */
+function handleScanComplete(item: ScanQueueItem): void {
+  item.status = 'completed';
+  item.completedAt = new Date();
+  logger.info({ jobId: item.jobId }, 'Scan job completed');
+  cleanupScan(item);
+}
+
+/**
+ * Handle scan error
+ */
+function handleScanError(item: ScanQueueItem, error: unknown): void {
+  item.status = 'failed';
+  item.completedAt = new Date();
+  item.error = error instanceof Error ? error.message : 'Unknown error';
+  logger.error({ jobId: item.jobId, err: error }, 'Scan job failed');
+  cleanupScan(item);
+}
+
+/**
+ * Clean up after a scan completes or fails
+ */
+function cleanupScan(item: ScanQueueItem): void {
+  // Cleanup cancellation token
+  cancellationTokens.delete(item.jobId);
+
+  // Remove from active scans
+  activeScans.delete(item.jobId);
+
+  // Remove from queue
+  const index = queue.indexOf(item);
+  if (index !== -1) {
+    queue.splice(index, 1);
+  }
+
+  // Check for more items to process
+  scheduleNextProcess();
+}
+
+/**
+ * Process the queue - supports multiple concurrent scans
  */
 async function processQueue(): Promise<void> {
-  // If already processing something, wait
-  if (currentItem) {
-    scheduleNextProcess();
+  // Check how many slots are available
+  const availableSlots = MAX_CONCURRENT_SCANS - activeScans.size;
+  if (availableSlots <= 0) {
+    // All slots full, wait for a scan to complete
     return;
   }
 
-  // Get next queued item
-  const nextItem = queue.find((item) => item.status === 'queued');
-  if (!nextItem) {
+  // Get queued items that can be started
+  const queuedItems = queue.filter((item) => item.status === 'queued');
+  if (queuedItems.length === 0) {
     // No more items to process
-    isWorkerRunning = false;
+    if (activeScans.size === 0) {
+      isWorkerRunning = false;
+    }
     return;
   }
 
-  // Mark as processing
-  currentItem = nextItem;
-  currentItem.status = 'processing';
-  currentItem.startedAt = new Date();
+  // Start up to availableSlots scans
+  const itemsToStart = queuedItems.slice(0, availableSlots);
 
-  // Create cancellation token
-  const cancellationToken = { cancelled: false };
-  cancellationTokens.set(currentItem.jobId, cancellationToken);
+  for (const item of itemsToStart) {
+    // Mark as processing
+    item.status = 'processing';
+    item.startedAt = new Date();
 
-  logger.info({ jobId: currentItem.jobId }, 'Starting scan job');
+    // Add to active scans
+    activeScans.set(item.jobId, item);
 
-  try {
-    // Execute the scan
-    await executeFullScan(currentItem.jobId, cancellationToken);
+    // Create cancellation token
+    const cancellationToken = { cancelled: false };
+    cancellationTokens.set(item.jobId, cancellationToken);
 
-    // Mark as completed
-    currentItem.status = 'completed';
-    currentItem.completedAt = new Date();
+    logger.info({
+      jobId: item.jobId,
+      activeScans: activeScans.size,
+      maxConcurrent: MAX_CONCURRENT_SCANS,
+    }, 'Starting scan job (parallel mode)');
 
-    logger.info({ jobId: currentItem.jobId }, 'Scan job completed');
-  } catch (error) {
-    // Mark as failed
-    currentItem.status = 'failed';
-    currentItem.completedAt = new Date();
-    currentItem.error = error instanceof Error ? error.message : 'Unknown error';
-
-    logger.error({ jobId: currentItem.jobId, err: error }, 'Scan job failed');
-  } finally {
-    // Cleanup
-    cancellationTokens.delete(currentItem.jobId);
-
-    // Remove from queue
-    const index = queue.indexOf(currentItem);
-    if (index !== -1) {
-      queue.splice(index, 1);
-    }
-    currentItem = null;
-
-    // Process next item
-    scheduleNextProcess();
+    // Start scan without awaiting - fire and forget with callbacks
+    executeFullScan(item.jobId, cancellationToken)
+      .then(() => handleScanComplete(item))
+      .catch((err) => handleScanError(item, err));
   }
 }
 
@@ -364,7 +414,7 @@ async function executeFullScan(
     if (await checkCancellation()) return;
 
     // =============================================================================
-    // Stage 3: Indexing (ComicInfo.xml extraction)
+    // Stage 3: Indexing (ComicInfo.xml extraction) - PARALLEL
     // =============================================================================
     await updateScanJobStatus(jobId, 'indexing', 'indexing');
     await addScanJobLog(jobId, 'indexing', 'Extracting metadata from files', undefined, 'info');
@@ -383,43 +433,68 @@ async function executeFullScan(
     // Import metadata cache service
     const { refreshMetadataCache } = await import('./metadata-cache.service.js');
 
-    let indexedCount = 0;
-    const indexBatchSize = 10;
+    // Filter to only files that need indexing
+    const filesToActuallyIndex = filesToIndex.filter(
+      (file) => !file.metadata || !file.metadata.lastScanned
+    );
 
-    for (let i = 0; i < filesToIndex.length; i += indexBatchSize) {
+    let indexedCount = 0;
+    let indexErrorCount = 0;
+    const indexBatchSize = 20; // Increased batch size for parallel processing
+    const indexConcurrency = getOptimalConcurrency('io'); // Metadata extraction is I/O bound
+
+    for (let i = 0; i < filesToActuallyIndex.length; i += indexBatchSize) {
       if (await checkCancellation()) return;
 
-      const batch = filesToIndex.slice(i, i + indexBatchSize);
+      const batch = filesToActuallyIndex.slice(i, i + indexBatchSize);
 
-      for (const file of batch) {
-        try {
-          // Only refresh if no metadata or metadata is stale
-          if (!file.metadata || !file.metadata.lastScanned) {
-            await refreshMetadataCache(file.id);
-          }
+      // Process batch in parallel
+      const batchResult = await parallelMap(
+        batch,
+        async (file) => {
+          await refreshMetadataCache(file.id);
+          return { fileId: file.id, success: true };
+        },
+        {
+          concurrency: indexConcurrency,
+          shouldCancel: () => cancellationToken.cancelled,
+        }
+      );
+
+      // Count results
+      for (const result of batchResult.results) {
+        if (result.success) {
           indexedCount++;
-        } catch (error) {
-          logger.warn({ fileId: file.id, err: error }, 'Failed to extract metadata');
-          await updateScanJobProgress(jobId, { errorCount: job.errorCount + 1 });
+        } else {
+          indexErrorCount++;
+          logger.warn({ fileId: batch[result.index]?.id, error: result.error }, 'Failed to extract metadata');
         }
       }
 
-      await updateScanJobProgress(jobId, { indexedFiles: indexedCount });
+      await updateScanJobProgress(jobId, {
+        indexedFiles: indexedCount,
+        errorCount: job.errorCount + indexErrorCount,
+      });
+
+      // Log progress every batch
       await addScanJobLog(
         jobId,
         'indexing',
-        `Indexed ${indexedCount} of ${filesToIndex.length} files`,
-        undefined,
+        `Indexed ${indexedCount} of ${filesToActuallyIndex.length} files`,
+        indexErrorCount > 0 ? `${indexErrorCount} errors` : undefined,
         'info'
       );
     }
+
+    // Add files that didn't need indexing to the count
+    indexedCount += filesToIndex.length - filesToActuallyIndex.length;
 
     await addScanJobLog(jobId, 'indexing', `Completed metadata extraction`, `${indexedCount} files indexed`, 'success');
 
     if (await checkCancellation()) return;
 
     // =============================================================================
-    // Stage 4: Linking (Series assignment with folder fallback)
+    // Stage 4: Linking (Series assignment with folder fallback) - PARALLEL
     // =============================================================================
     await updateScanJobStatus(jobId, 'linking', 'linking');
     await addScanJobLog(jobId, 'linking', 'Linking files to series', undefined, 'info');
@@ -438,24 +513,43 @@ async function executeFullScan(
 
     let linkedCount = 0;
     let seriesCreatedCount = 0;
-    const linkBatchSize = 10;
+    const linkBatchSize = 20; // Increased batch size for parallel processing
+    // Use lower concurrency for linking since it involves DB writes and potential series creation
+    const linkConcurrency = Math.min(getOptimalConcurrency('io'), 4);
 
     for (let i = 0; i < filesToLink.length; i += linkBatchSize) {
       if (await checkCancellation()) return;
 
       const batch = filesToLink.slice(i, i + linkBatchSize);
 
-      for (const file of batch) {
-        try {
+      // Process batch in parallel
+      const batchResult = await parallelMap(
+        batch,
+        async (file) => {
           const result = await linkFileToSeriesWithFolderFallback(file.id);
-          if (result.linked) {
+          return {
+            fileId: file.id,
+            linked: result.linked,
+            seriesCreated: result.seriesCreated || false,
+          };
+        },
+        {
+          concurrency: linkConcurrency,
+          shouldCancel: () => cancellationToken.cancelled,
+        }
+      );
+
+      // Count results
+      for (const result of batchResult.results) {
+        if (result.success && result.result) {
+          if (result.result.linked) {
             linkedCount++;
-            if (result.seriesCreated) {
+            if (result.result.seriesCreated) {
               seriesCreatedCount++;
             }
           }
-        } catch (error) {
-          logger.warn({ fileId: file.id, err: error }, 'Failed to link file to series');
+        } else {
+          logger.warn({ fileId: batch[result.index]?.id, error: result.error }, 'Failed to link file to series');
         }
       }
 
@@ -464,15 +558,14 @@ async function executeFullScan(
         seriesCreated: seriesCreatedCount,
       });
 
-      if (i % 50 === 0) {
-        await addScanJobLog(
-          jobId,
-          'linking',
-          `Linked ${linkedCount} of ${filesToLink.length} files`,
-          `${seriesCreatedCount} series created`,
-          'info'
-        );
-      }
+      // Log progress every batch
+      await addScanJobLog(
+        jobId,
+        'linking',
+        `Linked ${linkedCount} of ${filesToLink.length} files`,
+        `${seriesCreatedCount} series created`,
+        'info'
+      );
     }
 
     // Also run the standard auto-link for any remaining files
@@ -590,6 +683,8 @@ export const ScanQueue = {
   requestCancellation,
   getQueueLength,
   getMaxQueueSize,
+  getActiveScansCount,
+  getMaxConcurrentScans,
   initializeScanQueue,
   ScanQueueFullError,
 };

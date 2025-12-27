@@ -495,33 +495,6 @@ router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
 // =============================================================================
 
 /**
- * Parse issue number string to a sortable numeric value.
- * Handles formats like: "1", "1.5", "Annual 1", "Special", etc.
- * Returns { numericValue, hasNumber } where numericValue is the parsed number
- * and hasNumber indicates if a number was found.
- */
-function parseIssueNumber(numberStr: string | null | undefined): { numericValue: number; hasNumber: boolean } {
-  if (!numberStr) {
-    return { numericValue: Infinity, hasNumber: false };
-  }
-
-  // Try direct number parse first (handles "1", "1.5", "10", etc.)
-  const directParse = parseFloat(numberStr);
-  if (!isNaN(directParse)) {
-    return { numericValue: directParse, hasNumber: true };
-  }
-
-  // Try extracting number from string (handles "Annual 1", "Issue #5", etc.)
-  const match = numberStr.match(/(\d+(?:\.\d+)?)/);
-  if (match && match[1]) {
-    return { numericValue: parseFloat(match[1]), hasNumber: true };
-  }
-
-  // No number found
-  return { numericValue: Infinity, hasNumber: false };
-}
-
-/**
  * GET /api/series/:id/issues
  * List issues in a series with pagination
  */
@@ -566,48 +539,30 @@ router.get('/:id/issues', optionalAuth, asyncHandler(async (req: Request, res: R
     return { ...rest, readingProgress: progress };
   };
 
-  // For number sorting, we need to fetch all and sort in JS due to string vs numeric sorting
+  // For number sorting, use issueNumberSort column for proper numeric ordering
   if (sortBy === 'number') {
-    // Fetch all issues for this series
-    const allIssues = await db.comicFile.findMany({
-      where: { seriesId: req.params.id },
-      include: {
-        metadata: true,
-        ...userProgressInclude,
-      },
-    });
-
-    // Sort issues: numeric issues first (by number), then non-numeric (alphabetically by filename)
-    const sortedIssues = allIssues.sort((a, b) => {
-      const aNum = parseIssueNumber(a.metadata?.number);
-      const bNum = parseIssueNumber(b.metadata?.number);
-
-      // Both have numbers - sort numerically
-      if (aNum.hasNumber && bNum.hasNumber) {
-        const diff = aNum.numericValue - bNum.numericValue;
-        return sortOrder === 'asc' ? diff : -diff;
-      }
-
-      // One has number, one doesn't - numbered issues come first
-      if (aNum.hasNumber !== bNum.hasNumber) {
-        return aNum.hasNumber ? -1 : 1;
-      }
-
-      // Neither has number - sort alphabetically by filename
-      const cmp = a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' });
-      return sortOrder === 'asc' ? cmp : -cmp;
-    });
-
-    // Apply pagination (or return all if fetchAll)
-    const total = sortedIssues.length;
-    const paginatedIssues = limit
-      ? sortedIssues.slice((page - 1) * limit, page * limit)
-      : sortedIssues;
+    const [issuesRaw, total] = await Promise.all([
+      db.comicFile.findMany({
+        where: { seriesId: req.params.id },
+        ...(fetchAll ? {} : { skip: (page - 1) * limit!, take: limit! }),
+        orderBy: [
+          // Primary: numeric sort key (nulls sort to end)
+          { metadata: { issueNumberSort: sortOrder } },
+          // Secondary: filename for ties and null values
+          { filename: sortOrder },
+        ],
+        include: {
+          metadata: true,
+          ...userProgressInclude,
+        },
+      }),
+      db.comicFile.count({ where: { seriesId: req.params.id } }),
+    ]);
 
     // Transform userReadingProgress to readingProgress for backward compatibility
-    const transformedIssues = userId ? paginatedIssues.map(transformIssueProgress) : paginatedIssues;
+    const issues = userId ? issuesRaw.map(transformIssueProgress) : issuesRaw;
 
-    sendSuccess(res, { issues: transformedIssues }, {
+    sendSuccess(res, { issues }, {
       pagination: {
         page,
         limit: limit || total,
@@ -1169,9 +1124,10 @@ router.get('/:id/reading-order', asyncHandler(async (req: Request, res: Response
     where: { id: req.params.id },
     include: {
       issues: {
-        orderBy: {
-          metadata: { number: 'asc' },
-        },
+        orderBy: [
+          { metadata: { issueNumberSort: 'asc' } },
+          { filename: 'asc' },
+        ],
         include: {
           metadata: {
             select: { number: true, title: true },
@@ -1586,10 +1542,13 @@ router.get('/admin/mismatched', asyncHandler(async (_req: Request, res: Response
  * Repair mismatched series linkages
  * Re-links files to the correct series based on their FileMetadata.series,
  * creating new series if needed.
+ *
+ * Optional body: { fileIds: string[] } - If provided, only repair these specific files.
  */
-router.post('/admin/repair', asyncHandler(async (_req: Request, res: Response) => {
-  logger.info('Starting series linkage repair');
-  const result = await repairSeriesLinkages();
+router.post('/admin/repair', asyncHandler(async (req: Request, res: Response) => {
+  const { fileIds } = req.body as { fileIds?: string[] };
+  logger.info({ fileIds: fileIds?.length }, 'Starting series linkage repair');
+  const result = await repairSeriesLinkages({ fileIds });
   logger.info(
     {
       totalMismatched: result.totalMismatched,

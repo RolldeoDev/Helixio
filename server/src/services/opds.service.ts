@@ -367,7 +367,10 @@ export async function generateSeriesFeed(baseUrl: string, series: string): Promi
       metadata: { series },
     },
     include: { metadata: true },
-    orderBy: { metadata: { number: 'asc' } },
+    orderBy: [
+      { metadata: { issueNumberSort: 'asc' } },
+      { filename: 'asc' },
+    ],
   });
 
   const entries = comics.map((comic) => createComicEntry(comic, baseUrl));

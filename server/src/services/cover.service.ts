@@ -24,6 +24,7 @@ import {
   cleanupTempDir,
 } from './archive.service.js';
 import { getDatabase } from './database.service.js';
+import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
 
 // =============================================================================
 // Cover Optimization Config
@@ -806,6 +807,7 @@ export async function enforceCacheSizeLimit(maxSizeBytes: number): Promise<{
 
 /**
  * Pre-extract covers for multiple files.
+ * Uses parallel processing for improved performance on multi-core systems.
  */
 export async function batchExtractCovers(
   fileIds: string[],
@@ -815,36 +817,83 @@ export async function batchExtractCovers(
   failed: number;
   cached: number;
   errors: Array<{ fileId: string; error: string }>;
+  duration: number;
 }> {
+  if (fileIds.length === 0) {
+    return { success: 0, failed: 0, cached: 0, errors: [], duration: 0 };
+  }
+
+  // Use CPU-based concurrency since cover extraction involves Sharp processing
+  const concurrency = getOptimalConcurrency('cpu');
+
+  const startTime = Date.now();
+  let processedCount = 0;
+
+  const result = await parallelMap(
+    fileIds,
+    async (fileId) => {
+      const extractionResult = await getCoverForFile(fileId);
+      return { fileId, ...extractionResult };
+    },
+    {
+      concurrency,
+      onProgress: (completed, total, itemResult) => {
+        processedCount = completed;
+        if (onProgress && itemResult.success) {
+          const fileId = fileIds[itemResult.index];
+          if (fileId) {
+            onProgress(completed, total, fileId);
+          }
+        }
+      },
+    }
+  );
+
+  // Aggregate results
   let success = 0;
   let failed = 0;
   let cached = 0;
   const errors: Array<{ fileId: string; error: string }> = [];
 
-  for (let i = 0; i < fileIds.length; i++) {
-    const fileId = fileIds[i]!;
-    onProgress?.(i + 1, fileIds.length, fileId);
-
-    const result = await getCoverForFile(fileId);
-
-    if (result.success) {
-      if (result.fromCache) {
-        cached++;
+  for (const item of result.results) {
+    if (item.success && item.result) {
+      if (item.result.success) {
+        if (item.result.fromCache) {
+          cached++;
+        } else {
+          success++;
+        }
       } else {
-        success++;
+        failed++;
+        errors.push({
+          fileId: item.result.fileId,
+          error: item.result.error || 'Unknown error',
+        });
       }
     } else {
+      // parallelMap itself failed for this item
       failed++;
-      errors.push({ fileId, error: result.error || 'Unknown error' });
+      const fileId = fileIds[item.index];
+      errors.push({
+        fileId: fileId || `index-${item.index}`,
+        error: item.error || 'Parallel processing error',
+      });
     }
   }
 
-  return { success, failed, cached, errors };
+  return {
+    success,
+    failed,
+    cached,
+    errors,
+    duration: Date.now() - startTime,
+  };
 }
 
 /**
  * Rebuild all covers for a library with new optimization.
  * Deletes existing covers and re-extracts with Sharp optimization.
+ * Uses parallel processing for improved performance.
  */
 export async function rebuildAllCovers(
   libraryId?: string,
@@ -854,6 +903,7 @@ export async function rebuildAllCovers(
   success: number;
   failed: number;
   errors: Array<{ fileId: string; filename: string; error: string }>;
+  duration: number;
 }> {
   const prisma = getDatabase();
 
@@ -863,35 +913,85 @@ export async function rebuildAllCovers(
     select: { id: true, path: true, hash: true, libraryId: true, filename: true },
   });
 
+  if (files.length === 0) {
+    return { total: 0, success: 0, failed: 0, errors: [], duration: 0 };
+  }
+
+  // Use CPU-based concurrency since cover extraction involves Sharp processing
+  const concurrency = getOptimalConcurrency('cpu');
+  const startTime = Date.now();
+
+  const result = await parallelMap(
+    files,
+    async (file) => {
+      if (!file.hash) {
+        return {
+          fileId: file.id,
+          filename: file.filename,
+          success: false,
+          error: 'File hash not available',
+        };
+      }
+
+      // Delete existing cover (all formats)
+      await deleteCachedCover(file.libraryId, file.hash);
+
+      // Re-extract with optimization
+      const extractResult = await extractCover(file.path, file.libraryId, file.hash);
+
+      return {
+        fileId: file.id,
+        filename: file.filename,
+        success: extractResult.success,
+        error: extractResult.error,
+      };
+    },
+    {
+      concurrency,
+      onProgress: (completed, total, itemResult) => {
+        if (onProgress && itemResult.success && itemResult.result) {
+          const res = itemResult.result as { filename: string };
+          onProgress(completed, total, res.filename);
+        }
+      },
+    }
+  );
+
+  // Aggregate results
   let success = 0;
   let failed = 0;
   const errors: Array<{ fileId: string; filename: string; error: string }> = [];
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]!;
-    onProgress?.(i + 1, files.length, file.filename);
-
-    if (!file.hash) {
-      failed++;
-      errors.push({ fileId: file.id, filename: file.filename, error: 'File hash not available' });
-      continue;
-    }
-
-    // Delete existing cover (all formats)
-    await deleteCachedCover(file.libraryId, file.hash);
-
-    // Re-extract with optimization
-    const result = await extractCover(file.path, file.libraryId, file.hash);
-
-    if (result.success) {
-      success++;
+  for (const item of result.results) {
+    if (item.success && item.result) {
+      if (item.result.success) {
+        success++;
+      } else {
+        failed++;
+        errors.push({
+          fileId: item.result.fileId,
+          filename: item.result.filename,
+          error: item.result.error || 'Unknown error',
+        });
+      }
     } else {
       failed++;
-      errors.push({ fileId: file.id, filename: file.filename, error: result.error || 'Unknown error' });
+      const file = files[item.index];
+      errors.push({
+        fileId: file?.id || `index-${item.index}`,
+        filename: file?.filename || 'unknown',
+        error: item.error || 'Parallel processing error',
+      });
     }
   }
 
-  return { total: files.length, success, failed, errors };
+  return {
+    total: files.length,
+    success,
+    failed,
+    errors,
+    duration: Date.now() - startTime,
+  };
 }
 
 /**

@@ -16,9 +16,11 @@ import { JumpToPageModal } from './JumpToPageModal';
 import { ReadingQueue } from './ReadingQueue';
 import { UpNextIndicator } from './UpNextIndicator';
 import { TransitionScreen } from './TransitionScreen';
+import { MobileReaderUI } from './MobileReaderUI';
 import { useKeyboardShortcuts, ShortcutAction } from './hooks/useKeyboardShortcuts';
 import { useTouchGestures } from './hooks/useTouchGestures';
 import { useReadingSession } from './hooks/useReadingSession';
+import { useDeviceDetection } from '../../hooks';
 import './Reader.css';
 
 interface ReaderProps {
@@ -71,6 +73,9 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
   const [isJumpToPageOpen, setIsJumpToPageOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [pinchBaseZoom, setPinchBaseZoom] = useState(1);
+
+  // Device detection for mobile/tablet UI
+  const { isTouchDevice } = useDeviceDetection();
 
   const openJumpToPage = useCallback(() => {
     setIsJumpToPageOpen(true);
@@ -459,14 +464,25 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         filter: state.brightness !== 100 ? `brightness(${state.brightness}%)` : undefined,
       }}
     >
-      {/* Toolbar */}
-      <ReaderToolbar
-        onClose={onClose}
-        visible={state.isUIVisible}
-        onNavigateToFile={onNavigateToFile}
-        onToggleQueue={toggleQueue}
-        isQueueOpen={isQueueOpen}
-      />
+      {/* Desktop Toolbar - hidden on touch devices */}
+      {!isTouchDevice && (
+        <ReaderToolbar
+          onClose={onClose}
+          visible={state.isUIVisible}
+          onNavigateToFile={onNavigateToFile}
+          onToggleQueue={toggleQueue}
+          isQueueOpen={isQueueOpen}
+        />
+      )}
+
+      {/* Mobile/Tablet UI - shown on touch devices */}
+      {isTouchDevice && (
+        <MobileReaderUI
+          onExit={onClose}
+          onToggleGuidedView={() => {/* Guided view not yet implemented */}}
+          isGuidedViewActive={false}
+        />
+      )}
 
       {/* Main page display area */}
       <div
@@ -487,8 +503,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       >
         <ReaderPage />
 
-        {/* Edge navigation zones - always match physical position regardless of RTL setting */}
-        {state.mode !== 'continuous' && state.mode !== 'webtoon' && (
+        {/* Edge navigation zones - desktop only, hidden on touch devices */}
+        {!isTouchDevice && state.mode !== 'continuous' && state.mode !== 'webtoon' && (
           <>
             <div
               className={`reader-edge-zone reader-edge-left ${hoveredEdge === 'left' ? 'active' : ''}`}
@@ -520,8 +536,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         )}
       </div>
 
-      {/* Footer with scrubber */}
-      <ReaderFooter visible={state.isUIVisible} />
+      {/* Desktop Footer with scrubber - hidden on touch devices */}
+      {!isTouchDevice && <ReaderFooter visible={state.isUIVisible} />}
 
       {/* Thumbnail strip navigation */}
       <ThumbnailStrip visible={state.isUIVisible && state.isThumbnailStripOpen} />

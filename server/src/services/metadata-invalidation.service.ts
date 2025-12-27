@@ -731,8 +731,8 @@ export async function findMismatchedSeriesFiles(): Promise<Array<{
           linkedSeriesName: null,
           linkedSeriesId: null,
         });
-      } else if (linkedSeriesName && linkedSeriesName !== metadataSeries) {
-        // Linked to wrong series
+      } else if (linkedSeriesName && linkedSeriesName.toLowerCase() !== metadataSeries.toLowerCase()) {
+        // Linked to wrong series (case-insensitive comparison to avoid false positives)
         mismatched.push({
           fileId: file.id,
           fileName: file.filename,
@@ -751,10 +751,17 @@ export async function findMismatchedSeriesFiles(): Promise<Array<{
  * Repair mismatched series linkages.
  * This re-links files to the correct series based on their FileMetadata.series,
  * creating new series if needed.
+ *
+ * @param options.fileIds - Optional array of file IDs to repair. If not provided, repairs all mismatched files.
+ * @param options.onProgress - Optional progress callback.
  */
 export async function repairSeriesLinkages(
-  onProgress?: (current: number, total: number, message: string) => void
+  options: {
+    fileIds?: string[];
+    onProgress?: (current: number, total: number, message: string) => void;
+  } = {}
 ): Promise<RepairResult> {
+  const { fileIds, onProgress } = options;
   const prisma = getDatabase();
   const result: RepairResult = {
     totalMismatched: 0,
@@ -765,7 +772,14 @@ export async function repairSeriesLinkages(
   };
 
   // Find all mismatched files
-  const mismatched = await findMismatchedSeriesFiles();
+  let mismatched = await findMismatchedSeriesFiles();
+
+  // Filter to specific file IDs if provided
+  if (fileIds && fileIds.length > 0) {
+    const fileIdSet = new Set(fileIds);
+    mismatched = mismatched.filter((f) => fileIdSet.has(f.fileId));
+  }
+
   result.totalMismatched = mismatched.length;
 
   if (mismatched.length === 0) {
@@ -792,7 +806,9 @@ export async function repairSeriesLinkages(
       }
 
       // Use autoLinkFileToSeries which handles finding or creating the series
-      const linkResult = await autoLinkFileToSeries(file.fileId);
+      // trustMetadata: true ensures medium-confidence matches (0.7-0.9) are auto-linked
+      // instead of returning needsConfirmation, since the user explicitly triggered repair
+      const linkResult = await autoLinkFileToSeries(file.fileId, { trustMetadata: true });
 
       if (linkResult.success && linkResult.seriesId) {
         affectedSeriesIds.add(linkResult.seriesId);

@@ -420,6 +420,25 @@ export async function autoLinkFileToSeries(
     return { success: false, error: 'No series name found' };
   }
 
+  // When trustMetadata is true, skip fuzzy matching entirely.
+  // Use exact match or create a new series with the exact metadata name.
+  // This ensures "Trigun Maximum" creates a new series instead of fuzzy-matching to "Trigun".
+  if (trustMetadata) {
+    const createResult = await createSeriesWithExactName(
+      seriesName,
+      file.metadata,
+      file.relativePath
+    );
+
+    await linkFileToSeries(fileId, createResult.series.id);
+
+    return {
+      success: true,
+      seriesId: createResult.series.id,
+      matchType: createResult.alreadyExisted ? 'exact' : 'created',
+    };
+  }
+
   const match = await findMatchingSeries(
     seriesName,
     file.metadata?.year,

@@ -46,6 +46,9 @@ import { MetadataEditor } from '../components/MetadataEditor';
 import { EditSeriesModal } from '../components/EditSeriesModal';
 import { SeriesSelectModal } from '../components/SeriesSelectModal';
 import { MergeSeriesModal } from '../components/MergeSeriesModal';
+import { LinkSeriesModal } from '../components/LinkSeriesModal';
+import { ManageRelationshipsModal } from '../components/ManageRelationshipsModal';
+import { removeChildSeries, updateRelationshipType, type RelationshipType } from '../services/api/series';
 import { SeriesMetadataSearchModal } from '../components/SeriesMetadataSearchModal';
 import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
@@ -55,25 +58,13 @@ import { DetailHeroSection } from '../components/DetailHeroSection';
 import { SeriesHero } from '../components/SeriesHero';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
-import { SeriesCoverCard } from '../components/SeriesCoverCard';
+import { RelationshipTypeBadge } from '../components/RelationshipTypeBadge';
 import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import './SeriesDetailPage.css';
 
 // =============================================================================
 // Menu Configurations
 // =============================================================================
-
-/** Series-level actions */
-const SERIES_ACTION_ITEMS: ActionMenuItem[] = [
-  { id: 'editSeries', label: 'Edit Series' },
-  { id: 'fetchSeriesMetadata', label: 'Fetch Metadata (Series)', dividerBefore: true },
-  { id: 'fetchAllIssuesMetadata', label: 'Fetch Metadata (All Issues)' },
-  { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
-  { id: 'markAllUnread', label: 'Mark All as Unread' },
-  { id: 'downloadAll', label: 'Download All Issues', dividerBefore: true },
-  { id: 'mergeWith', label: 'Merge with...', dividerBefore: true },
-  { id: 'rebuildCache', label: 'Rebuild All Covers', dividerBefore: true },
-];
 
 /** Issue-level actions (for selected issues) */
 const ISSUE_BULK_ACTION_ITEMS: ActionMenuItem[] = [
@@ -189,10 +180,41 @@ export function SeriesDetailPage() {
   const [parentSeries, setParentSeries] = useState<RelatedSeriesInfo[]>([]);
   const [childSeries, setChildSeries] = useState<RelatedSeriesInfo[]>([]);
 
+  // Tab state for Issues/Related Series tabs
+  const [activeTab, setActiveTab] = useState<'issues' | 'related'>('issues');
+
+  // Combined related series for the unified row with isParent flag
+  const allRelatedSeries = useMemo(() => {
+    const parentsWithFlag = parentSeries.map(p => ({ ...p, isParent: true as const }));
+    const childrenWithFlag = childSeries.map(c => ({ ...c, isParent: false as const }));
+    return [...parentsWithFlag, ...childrenWithFlag];
+  }, [parentSeries, childSeries]);
+
+  // Dynamic series action menu items - conditionally show Link/Manage based on relationships
+  const seriesMenuItems: ActionMenuItem[] = useMemo(() => {
+    const hasRelationships = parentSeries.length > 0 || childSeries.length > 0;
+    return [
+      { id: 'editSeries', label: 'Edit Series' },
+      { id: 'fetchSeriesMetadata', label: 'Fetch Metadata (Series)', dividerBefore: true },
+      { id: 'fetchAllIssuesMetadata', label: 'Fetch Metadata (All Issues)' },
+      { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
+      { id: 'markAllUnread', label: 'Mark All as Unread' },
+      { id: 'downloadAll', label: 'Download All Issues', dividerBefore: true },
+      { id: 'linkSeries', label: 'Link Series...', dividerBefore: true },
+      ...(hasRelationships ? [{ id: 'manageRelationships', label: 'Manage Relationships' }] : []),
+      { id: 'mergeWith', label: 'Merge with...' },
+      { id: 'rebuildCache', label: 'Rebuild All Covers', dividerBefore: true },
+    ];
+  }, [parentSeries.length, childSeries.length]);
+
   // Merge modal state
   const [showSeriesSelectModal, setShowSeriesSelectModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [selectedMergeSeries, setSelectedMergeSeries] = useState<SeriesForMerge[]>([]);
+
+  // Relationship modal state
+  const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
+  const [showManageRelationshipsModal, setShowManageRelationshipsModal] = useState(false);
 
   // Description expand/collapse state
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -254,6 +276,88 @@ export function SeriesDetailPage() {
     }
   }, [lastCompletedJobAt, fetchSeries]);
 
+  // Handle removing a parent relationship
+  const handleRemoveParentRelationship = useCallback(
+    async (parentId: string, parentName: string) => {
+      if (!seriesId) return;
+
+      // Optimistically remove from UI
+      const removed = parentSeries.find((p) => p.id === parentId);
+      setParentSeries((prev) => prev.filter((p) => p.id !== parentId));
+
+      try {
+        await removeChildSeries(parentId, seriesId);
+        addToast('success', `Removed "${parentName}"`);
+      } catch (err) {
+        console.error('Failed to remove relationship:', err);
+        if (removed) {
+          setParentSeries((prev) => [...prev, removed]);
+        }
+        addToast('error', 'Failed to remove relationship');
+      }
+    },
+    [seriesId, parentSeries, addToast]
+  );
+
+  // Handle removing a child relationship
+  const handleRemoveChildRelationship = useCallback(
+    async (childId: string, childName: string) => {
+      if (!seriesId) return;
+
+      // Optimistically remove from UI
+      const removed = childSeries.find((c) => c.id === childId);
+      setChildSeries((prev) => prev.filter((c) => c.id !== childId));
+
+      try {
+        await removeChildSeries(seriesId, childId);
+        addToast('success', `Removed "${childName}"`);
+      } catch (err) {
+        console.error('Failed to remove relationship:', err);
+        if (removed) {
+          setChildSeries((prev) => [...prev, removed]);
+        }
+        addToast('error', 'Failed to remove relationship');
+      }
+    },
+    [seriesId, childSeries, addToast]
+  );
+
+  // Handle unlink from the combined related series row (works for both parent and child)
+  const handleUnlinkSeries = useCallback(
+    async (related: RelatedSeriesInfo) => {
+      const isParent = parentSeries.some((p) => p.id === related.id);
+      if (isParent) {
+        await handleRemoveParentRelationship(related.id, related.name);
+      } else {
+        await handleRemoveChildRelationship(related.id, related.name);
+      }
+    },
+    [parentSeries, handleRemoveParentRelationship, handleRemoveChildRelationship]
+  );
+
+  // Handle changing relationship type from the context menu
+  const handleChangeRelationshipType = useCallback(
+    async (relatedId: string, newType: RelationshipType) => {
+      if (!seriesId) return;
+
+      const isParent = parentSeries.some((p) => p.id === relatedId);
+
+      try {
+        await updateRelationshipType(
+          isParent ? relatedId : seriesId,
+          isParent ? seriesId : relatedId,
+          newType
+        );
+        fetchSeries();
+        addToast('success', 'Relationship type updated');
+      } catch (err) {
+        console.error('Failed to update relationship type:', err);
+        addToast('error', 'Failed to update relationship type');
+      }
+    },
+    [seriesId, parentSeries, fetchSeries, addToast]
+  );
+
   // Set breadcrumbs when series data loads
   useEffect(() => {
     if (series && seriesId) {
@@ -286,6 +390,7 @@ export function SeriesDetailPage() {
     issues,
     onEditSeries: () => setIsEditSeriesModalOpen(true),
     onMergeWith: () => setShowSeriesSelectModal(true),
+    onLinkSeries: () => setShowLinkSeriesModal(true),
     onFetchSeriesMetadata: async () => {
       if (!series) return;
       try {
@@ -511,6 +616,17 @@ export function SeriesDetailPage() {
   const handleSeriesAction = useCallback(
     (actionId: string) => {
       if (!seriesId) return;
+
+      // Handle local actions first
+      if (actionId === 'linkSeries') {
+        setShowLinkSeriesModal(true);
+        return;
+      }
+      if (actionId === 'manageRelationships') {
+        setShowManageRelationshipsModal(true);
+        return;
+      }
+
       const context: MenuContext = {
         entityType: 'series',
         entityId: seriesId,
@@ -583,15 +699,28 @@ export function SeriesDetailPage() {
   const progress = series.progress;
   const totalOwned = progress?.totalOwned ?? series._count?.issues ?? issues.length;
 
-  // Cover URL with fallback priority: User-set file > API cover (local cache) > First Issue
+  // Cover URL respecting coverSource setting
   const firstIssueId = issues[0]?.id;
-  const coverUrl = series.coverFileId
-    ? getCoverUrl(series.coverFileId)
-    : series.coverHash
-      ? getApiCoverUrl(series.coverHash)
-      : firstIssueId
-        ? getCoverUrl(firstIssueId)
-        : null;
+  const coverUrl = (() => {
+    if (series.coverSource === 'api') {
+      // Explicit API cover mode - only use coverHash
+      if (series.coverHash) return getApiCoverUrl(series.coverHash);
+      if (firstIssueId) return getCoverUrl(firstIssueId);
+      return null;
+    }
+    if (series.coverSource === 'user') {
+      // Explicit user selection mode - use coverFileId
+      if (series.coverFileId) return getCoverUrl(series.coverFileId);
+      if (firstIssueId) return getCoverUrl(firstIssueId);
+      return null;
+    }
+    // 'auto' or unset: Priority fallback chain
+    // API cover (local cache) > User-set file > First issue in series
+    if (series.coverHash) return getApiCoverUrl(series.coverHash);
+    if (series.coverFileId) return getCoverUrl(series.coverFileId);
+    if (firstIssueId) return getCoverUrl(firstIssueId);
+    return null;
+  })();
 
   // Parse entity lists
   const genreList = series.genres?.split(',').map((g) => g.trim()).filter(Boolean) ?? [];
@@ -628,9 +757,10 @@ export function SeriesDetailPage() {
               coverUrl={coverUrl}
               issues={issues}
               nextIssue={nextIssue}
-              actionItems={SERIES_ACTION_ITEMS}
+              actionItems={seriesMenuItems}
               onContinueReading={handleContinueReading}
               onSeriesAction={handleSeriesAction}
+              hasRelatedSeries={allRelatedSeries.length > 0}
             />
 
             {/* Description & Creators - Combined Section */}
@@ -737,75 +867,6 @@ export function SeriesDetailPage() {
         </div>
       </DetailHeroSection>
 
-      {/* Related Series Section - Shows parent and child series */}
-      {(parentSeries.length > 0 || childSeries.length > 0) && (
-        <div className="series-related-section">
-          {/* Parent series (this series is a spinoff/sequel of) */}
-          {parentSeries.length > 0 && (
-            <div className="series-related-group">
-              <h3 className="series-related-title">
-                Related To
-                <span className="series-related-count">{parentSeries.length}</span>
-              </h3>
-              <div className="series-related-grid">
-                {parentSeries.map((parent) => (
-                  <SeriesCoverCard
-                    key={parent.id}
-                    series={{
-                      id: parent.id,
-                      name: parent.name,
-                      publisher: parent.publisher,
-                      startYear: parent.startYear,
-                      coverHash: parent.coverHash,
-                      coverUrl: parent.coverUrl,
-                      coverFileId: parent.coverFileId,
-                      coverSource: parent.coverSource as 'api' | 'user' | 'auto',
-                      _count: parent._count,
-                    } as Series}
-                    size="small"
-                    onClick={(id) => navigate(`/series/${id}`)}
-                    showYear={true}
-                    showPublisher={false}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Child series (spinoffs/sequels of this series) */}
-          {childSeries.length > 0 && (
-            <div className="series-related-group">
-              <h3 className="series-related-title">
-                Related Series
-                <span className="series-related-count">{childSeries.length}</span>
-              </h3>
-              <div className="series-related-grid">
-                {childSeries.map((child) => (
-                  <SeriesCoverCard
-                    key={child.id}
-                    series={{
-                      id: child.id,
-                      name: child.name,
-                      publisher: child.publisher,
-                      startYear: child.startYear,
-                      coverHash: child.coverHash,
-                      coverUrl: child.coverUrl,
-                      coverFileId: child.coverFileId,
-                      coverSource: child.coverSource as 'api' | 'user' | 'auto',
-                      _count: child._count,
-                    } as Series}
-                    size="small"
-                    onClick={(id) => navigate(`/series/${id}`)}
-                    showYear={true}
-                    showPublisher={false}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* User notes - separate if exists */}
       {series.userNotes && (
         <div className="series-user-notes">
@@ -813,44 +874,208 @@ export function SeriesDetailPage() {
         </div>
       )}
 
-      {/* Issues section */}
-      <div className="series-issues-section">
-        <div className="series-issues-header">
-          <h2>Issues <span className="issue-count-pill">{totalOwned}</span></h2>
-          <div className="series-issues-header-actions">
-            {selectedFiles.size > 0 && (
-              <div className="series-issues-selection-info">
-                <span>{selectedFiles.size} selected</span>
-                <button
-                  className="btn-ghost"
-                  onClick={() => setSelectedFiles(new Set())}
-                >
-                  Clear
-                </button>
-                <ActionMenu
-                  items={ISSUE_BULK_ACTION_ITEMS.map(item => ({
-                    ...item,
-                    label: item.label + ` (${selectedFiles.size})`,
-                  }))}
-                  onAction={handleBulkIssueAction}
-                  ariaLabel="Bulk issue actions"
-                  size="small"
+      {/* Content Section - Tabbed when related series exist, simple when not */}
+      {allRelatedSeries.length > 0 ? (
+        <div className="series-content-section">
+          {/* Tab Navigation */}
+          <div className="series-content-tabs">
+            <button
+              className={`series-content-tab ${activeTab === 'issues' ? 'active' : ''}`}
+              onClick={() => setActiveTab('issues')}
+            >
+              Issues
+              <span className="tab-count">{totalOwned}</span>
+            </button>
+            <button
+              className={`series-content-tab ${activeTab === 'related' ? 'active' : ''}`}
+              onClick={() => setActiveTab('related')}
+            >
+              Related Series
+              <span className="tab-count">{allRelatedSeries.length}</span>
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="series-tab-content">
+            {activeTab === 'issues' && (
+              <>
+                {/* Selection actions header */}
+                {selectedFiles.size > 0 && (
+                  <div className="series-issues-tab-header">
+                    <div className="series-issues-selection-info">
+                      <span>{selectedFiles.size} selected</span>
+                      <button
+                        className="btn-ghost"
+                        onClick={() => setSelectedFiles(new Set())}
+                      >
+                        Clear
+                      </button>
+                      <ActionMenu
+                        items={ISSUE_BULK_ACTION_ITEMS.map(item => ({
+                          ...item,
+                          label: item.label + ` (${selectedFiles.size})`,
+                        }))}
+                        onAction={handleBulkIssueAction}
+                        ariaLabel="Bulk issue actions"
+                        size="small"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Virtualized Issues Grid */}
+                <VirtualizedIssuesGrid
+                  issues={issues}
+                  selectedFiles={selectedFiles}
+                  onIssueClick={handleIssueClick}
+                  onReadIssue={handleReadIssue}
+                  onSelectionChange={handleSelectionChange}
+                  onMenuAction={handleMenuAction}
                 />
+              </>
+            )}
+
+            {activeTab === 'related' && (
+              <div className="series-related-tab-content">
+                {allRelatedSeries.map((related) => {
+                  const relatedCoverUrl = related.coverHash
+                    ? getApiCoverUrl(related.coverHash)
+                    : related.coverFileId
+                      ? getCoverUrl(related.coverFileId)
+                      : related.firstIssueId
+                        ? getCoverUrl(related.firstIssueId)
+                        : null;
+
+                  return (
+                    <div
+                      key={related.id}
+                      className="related-series-card"
+                      onClick={() => navigate(`/series/${related.id}`)}
+                    >
+                      {/* Cover image - prominent at top */}
+                      <div className="related-series-card__cover">
+                        {relatedCoverUrl ? (
+                          <img src={relatedCoverUrl} alt={related.name} loading="lazy" />
+                        ) : (
+                          <div className="related-series-card__cover-placeholder">
+                            {related.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info section below cover */}
+                      <div className="related-series-card__info">
+                        <h4 className="related-series-card__name" title={related.name}>
+                          {related.name}
+                        </h4>
+                        <div className="related-series-card__meta">
+                          {related.publisher && (
+                            <span>{related.publisher}</span>
+                          )}
+                          {related.publisher && related.startYear && (
+                            <span className="related-series-card__meta-separator" aria-hidden="true" />
+                          )}
+                          {related.startYear && (
+                            <span>{related.startYear}</span>
+                          )}
+                          {(related.publisher || related.startYear) && related._count?.issues && (
+                            <span className="related-series-card__meta-separator" aria-hidden="true" />
+                          )}
+                          {related._count?.issues && (
+                            <span>{related._count.issues} issues</span>
+                          )}
+                        </div>
+                        <div className="related-series-card__relationship">
+                          <RelationshipTypeBadge
+                            type={related.relationshipType}
+                            size="medium"
+                            isParent={related.isParent}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Actions menu - overlaid in corner */}
+                      <div
+                        className="related-series-card__actions"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ActionMenu
+                          items={[
+                            { id: 'unlinkSeries', label: 'Unlink Series', danger: true },
+                            { id: 'changeTypeSpinoff', label: 'Change to Spinoff', dividerBefore: true },
+                            { id: 'changeTypePrequel', label: 'Change to Prequel' },
+                            { id: 'changeTypeSequel', label: 'Change to Sequel' },
+                            { id: 'changeTypeBonus', label: 'Change to Bonus' },
+                            { id: 'changeTypeRelated', label: 'Change to Related' },
+                          ]}
+                          onAction={(actionId) => {
+                            if (actionId === 'unlinkSeries') {
+                              handleUnlinkSeries(related);
+                            } else if (actionId.startsWith('changeType')) {
+                              const typeMap: Record<string, RelationshipType> = {
+                                changeTypeSpinoff: 'spinoff',
+                                changeTypePrequel: 'prequel',
+                                changeTypeSequel: 'sequel',
+                                changeTypeBonus: 'bonus',
+                                changeTypeRelated: 'related',
+                              };
+                              const newType = typeMap[actionId];
+                              if (newType) {
+                                handleChangeRelationshipType(related.id, newType);
+                              }
+                            }
+                          }}
+                          ariaLabel={`Actions for ${related.name}`}
+                          size="small"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
+      ) : (
+        /* Original issues section when no related series */
+        <div className="series-issues-section">
+          <div className="series-issues-header">
+            <h2>Issues <span className="issue-count-pill">{totalOwned}</span></h2>
+            <div className="series-issues-header-actions">
+              {selectedFiles.size > 0 && (
+                <div className="series-issues-selection-info">
+                  <span>{selectedFiles.size} selected</span>
+                  <button
+                    className="btn-ghost"
+                    onClick={() => setSelectedFiles(new Set())}
+                  >
+                    Clear
+                  </button>
+                  <ActionMenu
+                    items={ISSUE_BULK_ACTION_ITEMS.map(item => ({
+                      ...item,
+                      label: item.label + ` (${selectedFiles.size})`,
+                    }))}
+                    onAction={handleBulkIssueAction}
+                    ariaLabel="Bulk issue actions"
+                    size="small"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
 
-        {/* Virtualized Issues Grid */}
-        <VirtualizedIssuesGrid
-          issues={issues}
-          selectedFiles={selectedFiles}
-          onIssueClick={handleIssueClick}
-          onReadIssue={handleReadIssue}
-          onSelectionChange={handleSelectionChange}
-          onMenuAction={handleMenuAction}
-        />
-      </div>
+          {/* Virtualized Issues Grid */}
+          <VirtualizedIssuesGrid
+            issues={issues}
+            selectedFiles={selectedFiles}
+            onIssueClick={handleIssueClick}
+            onReadIssue={handleReadIssue}
+            onSelectionChange={handleSelectionChange}
+            onMenuAction={handleMenuAction}
+          />
+        </div>
+      )}
 
       {/* Metadata Editor Modal */}
       {editingMetadataFileIds && (
@@ -933,6 +1158,31 @@ export function SeriesDetailPage() {
         currentSeries={series}
         isApplying={isApplyingMetadata}
       />
+
+      {/* Link Series Modal */}
+      {series && seriesId && (
+        <LinkSeriesModal
+          isOpen={showLinkSeriesModal}
+          onClose={() => setShowLinkSeriesModal(false)}
+          currentSeries={{ id: seriesId, name: series.name }}
+          existingParentIds={parentSeries.map((p) => p.id)}
+          existingChildIds={childSeries.map((c) => c.id)}
+          onLinked={fetchSeries}
+        />
+      )}
+
+      {/* Manage Relationships Modal */}
+      {series && seriesId && (
+        <ManageRelationshipsModal
+          isOpen={showManageRelationshipsModal}
+          onClose={() => setShowManageRelationshipsModal(false)}
+          seriesId={seriesId}
+          seriesName={series.name}
+          parents={parentSeries}
+          children={childSeries}
+          onUpdate={fetchSeries}
+        />
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { convertCbrToCbz } from './conversion.service.js';
 import { getArchiveFormat } from './archive.service.js';
 import { createServiceLogger } from './logger.service.js';
 import { basename, extname } from 'path';
+import { computeIssueNumberSort } from './issue-number-utils.js';
 
 const logger = createServiceLogger('issue-metadata-fetch');
 
@@ -632,6 +633,10 @@ export async function applyIssueMetadata(
         const value = proposedMetadata[fieldName as keyof IssueMetadata];
         if (value !== undefined && value !== null) {
           metadataUpdate[fieldName] = value;
+          // Also update issueNumberSort when number field is updated
+          if (fieldName === 'number') {
+            metadataUpdate.issueNumberSort = computeIssueNumberSort(value as string);
+          }
         }
       }
     }

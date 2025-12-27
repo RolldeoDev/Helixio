@@ -252,61 +252,17 @@ export async function getSeriesList(
         select: { issues: true },
       },
       progress: progressWhere ? { where: progressWhere } : true,
-      // Include candidate issues for cover fallback - we need to sort them properly
-      // since Prisma's string ordering doesn't handle numeric sorting correctly
-      // (e.g., "10" < "2" in string sort). Fetch 10 candidates and sort in JS.
+      // Include first issue for cover fallback using numeric sort
       issues: {
-        take: 10,
+        take: 1,
         orderBy: [
+          { metadata: { issueNumberSort: 'asc' } },
           { filename: 'asc' },
         ],
-        select: { id: true, filename: true, metadata: { select: { number: true } } },
+        select: { id: true },
       },
     },
   });
-
-  // Helper to parse issue number for proper numeric sorting (same logic as routes/series.routes.ts)
-  const parseIssueNumber = (numberStr: string | null | undefined): { numericValue: number; hasNumber: boolean } => {
-    if (!numberStr) return { numericValue: Infinity, hasNumber: false };
-    const directParse = parseFloat(numberStr);
-    if (!isNaN(directParse)) return { numericValue: directParse, hasNumber: true };
-    const match = numberStr.match(/(\d+(?:\.\d+)?)/);
-    if (match && match[1]) return { numericValue: parseFloat(match[1]), hasNumber: true };
-    return { numericValue: Infinity, hasNumber: false };
-  };
-
-  // Post-process to find the true first issue using numeric sorting
-  // We use a separate variable to avoid TypeScript issues with the narrowed type
-  const processedRecords = seriesRecords.map((series) => {
-    if (!series.issues || series.issues.length === 0) return series;
-
-    // Sort issues by numeric issue number, then by filename
-    const sortedIssues = [...series.issues].sort((a, b) => {
-      const aNum = parseIssueNumber(a.metadata?.number);
-      const bNum = parseIssueNumber(b.metadata?.number);
-
-      // Both have numbers - sort numerically
-      if (aNum.hasNumber && bNum.hasNumber) {
-        return aNum.numericValue - bNum.numericValue;
-      }
-      // One has number, one doesn't - numbered issues come first
-      if (aNum.hasNumber !== bNum.hasNumber) {
-        return aNum.hasNumber ? -1 : 1;
-      }
-      // Neither has number - sort alphabetically by filename
-      return a.filename.localeCompare(b.filename, undefined, { numeric: true, sensitivity: 'base' });
-    });
-
-    // Keep only the first issue (for cover fallback)
-    const firstIssue = sortedIssues[0];
-    return {
-      ...series,
-      issues: firstIssue ? [{ id: firstIssue.id }] : [],
-    };
-  });
-
-  // Reassign with proper typing - the frontend only needs { id: string }[] for issues
-  seriesRecords = processedRecords as typeof seriesRecords;
 
   // Helper to get progress stats (handles array or single object)
   const getProgressStats = (progress: SeriesProgress[] | SeriesProgress | null | undefined) => {
@@ -430,11 +386,10 @@ export async function getSeriesCover(
     include: {
       issues: {
         take: 1,
-        orderBy: {
-          metadata: {
-            number: 'asc',
-          },
-        },
+        orderBy: [
+          { metadata: { issueNumberSort: 'asc' } },
+          { filename: 'asc' },
+        ],
         include: {
           metadata: true,
         },

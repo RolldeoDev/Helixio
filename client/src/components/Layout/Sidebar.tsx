@@ -169,13 +169,19 @@ export function Sidebar() {
         {/* Icon Rail - The Spine */}
         <nav className="icon-rail" aria-label="Main navigation">
         {/* Logo */}
-        <div className="rail-logo" title="Helixio">
+        <button
+          className="rail-logo"
+          title="Helixio - Go to Home"
+          onClick={() => navigate('/')}
+          type="button"
+          aria-label="Go to home page"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             <path d="M8 7h8M8 11h8M8 15h5" />
           </svg>
-        </div>
+        </button>
 
         <div className="rail-divider" />
 

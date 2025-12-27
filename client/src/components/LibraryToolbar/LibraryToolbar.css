@@ -242,11 +242,12 @@
 }
 
 .sort-dropdown {
+  /* CSS fallback positioning - JavaScript will override with fixed positioning */
   position: absolute;
   top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  min-width: 280px;
+  width: 280px;
   background: var(--color-bg-elevated, rgba(22, 22, 28, 0.98));
   border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
   border-radius: var(--radius-lg, 10px);
@@ -256,19 +257,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   overflow: hidden;
-  animation: dropdownSlide 0.15s ease;
   z-index: 100;
-}
-
-@keyframes dropdownSlide {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
 }
 
 .dropdown-section {
@@ -563,8 +552,53 @@
   }
 
   .sort-dropdown {
-    left: 0;
-    transform: none;
-    min-width: calc(100vw - 32px);
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+  }
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Ensure minimum 44px touch targets for buttons */
+  .view-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .toolbar-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .page-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .selection-clear {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .selection-action {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* Larger dropdown items for touch */
+  .dropdown-item {
+    min-height: 44px;
+    padding: 12px 14px;
+  }
+
+  /* Add active states for touch feedback */
+  .view-btn:active,
+  .toolbar-btn:active,
+  .page-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
   }
 }

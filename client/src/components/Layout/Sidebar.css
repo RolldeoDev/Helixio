@@ -42,6 +42,21 @@
   justify-content: center;
   color: var(--color-primary);
   margin-bottom: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.rail-logo:hover {
+  background-color: var(--color-surface-hover);
+  transform: scale(1.05);
+}
+
+.rail-logo:active {
+  transform: scale(0.95);
 }
 
 .rail-logo svg {

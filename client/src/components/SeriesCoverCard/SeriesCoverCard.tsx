@@ -7,9 +7,11 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
-import { UnifiedMenu, buildMenuItems, MENU_PRESETS } from '../UnifiedMenu';
+import { UnifiedMenu, buildMenuItems, MENU_PRESETS, MENU_ITEM_DEFINITIONS } from '../UnifiedMenu';
 import type { MenuState, MenuContext, MenuItem } from '../UnifiedMenu/types';
 import { ProgressRing, CompletedBadge } from '../Progress';
+import { RelationshipTypeBadge } from '../RelationshipTypeBadge';
+import type { RelationshipType } from '../../services/api/series';
 import './SeriesCoverCard.css';
 
 // =============================================================================
@@ -70,6 +72,30 @@ export interface SeriesCoverCardProps {
 
   /** Tab index for keyboard navigation */
   tabIndex?: number;
+
+  /** Relationship type for this series (when shown as a related series) */
+  relationshipType?: RelationshipType;
+
+  /** Show relationship type badge on the card */
+  showRelationshipBadge?: boolean;
+
+  /** Whether this series is a parent of the viewing series (for contextual badge labels) */
+  isParentRelationship?: boolean;
+
+  /** Show remove button on hover */
+  showRemoveButton?: boolean;
+
+  /** Handler for remove button click */
+  onRemove?: () => void;
+
+  /** Show relationship context menu (unlink, change type) instead of standard series menu */
+  showRelationshipContextMenu?: boolean;
+
+  /** Handler for unlink action (when showRelationshipContextMenu is true) */
+  onUnlink?: () => void;
+
+  /** Handler for change type action (when showRelationshipContextMenu is true) */
+  onChangeType?: (newType: RelationshipType) => void;
 }
 
 
@@ -91,6 +117,14 @@ export function SeriesCoverCard({
   className = '',
   animationIndex,
   tabIndex = 0,
+  relationshipType,
+  showRelationshipBadge = false,
+  isParentRelationship = false,
+  showRemoveButton = false,
+  onRemove,
+  showRelationshipContextMenu = false,
+  onUnlink,
+  onChangeType,
 }: SeriesCoverCardProps) {
   // Memoize the cover URL to prevent recalculation
   const coverUrl = useMemo(() => {
@@ -98,7 +132,8 @@ export function SeriesCoverCard({
     // - 'api': Use API cover (coverHash) if available
     // - 'user': Use coverFileId if available
     // - 'auto': Use automatic fallback (API > User > First Issue)
-    const firstIssueId = series.issues?.[0]?.id;
+    // Support both issues array (full Series) and firstIssueId (RelatedSeriesInfo)
+    const firstIssueId = series.issues?.[0]?.id || (series as { firstIssueId?: string }).firstIssueId;
 
     if (series.coverSource === 'api') {
       // Explicit API cover mode - only use coverHash
@@ -122,7 +157,7 @@ export function SeriesCoverCard({
     if (series.coverFileId) return getCoverUrl(series.coverFileId);
     if (firstIssueId) return getCoverUrl(firstIssueId);
     return null;
-  }, [series.coverSource, series.coverFileId, series.coverHash, series.issues]);
+  }, [series.coverSource, series.coverFileId, series.coverHash, series.issues, (series as { firstIssueId?: string }).firstIssueId]);
 
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
     coverUrl ? 'loading' : 'error'
@@ -138,7 +173,13 @@ export function SeriesCoverCard({
 
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // Build menu items based on hidden state
+  // Long-press handling for touch devices
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const LONG_PRESS_DURATION = 500; // ms
+  const TOUCH_MOVE_THRESHOLD = 10; // px - cancel long-press if finger moves more than this
+
+  // Build menu items based on hidden state or relationship context
   const menuItems: MenuItem[] = useMemo(() => {
     const context: MenuContext = {
       entityType: 'series',
@@ -149,8 +190,38 @@ export function SeriesCoverCard({
         isHidden: series.isHidden,
       },
     };
+
+    // When showing relationship context menu, build custom menu with unlink and change type options
+    if (showRelationshipContextMenu && relationshipType) {
+      const items: MenuItem[] = [
+        // View series option
+        { id: 'viewSeries', ...MENU_ITEM_DEFINITIONS.viewSeries },
+        // Unlink option
+        { id: 'unlinkSeries', ...MENU_ITEM_DEFINITIONS.unlinkSeries },
+        // Change type submenu options
+        { id: 'changeTypeSpinoff', ...MENU_ITEM_DEFINITIONS.changeTypeSpinoff },
+        { id: 'changeTypePrequel', ...MENU_ITEM_DEFINITIONS.changeTypePrequel },
+        { id: 'changeTypeSequel', ...MENU_ITEM_DEFINITIONS.changeTypeSequel },
+        { id: 'changeTypeBonus', ...MENU_ITEM_DEFINITIONS.changeTypeBonus },
+        { id: 'changeTypeRelated', ...MENU_ITEM_DEFINITIONS.changeTypeRelated },
+      ];
+
+      // Disable the current type option
+      const typeMap: Record<RelationshipType, string> = {
+        spinoff: 'changeTypeSpinoff',
+        prequel: 'changeTypePrequel',
+        sequel: 'changeTypeSequel',
+        bonus: 'changeTypeBonus',
+        related: 'changeTypeRelated',
+      };
+      const currentTypeId = typeMap[relationshipType];
+      return items.map((item) =>
+        item.id === currentTypeId ? { ...item, disabled: true } : item
+      );
+    }
+
     return buildMenuItems(MENU_PRESETS.seriesCard, context);
-  }, [series.id, series.isHidden]);
+  }, [series.id, series.isHidden, showRelationshipContextMenu, relationshipType]);
 
   // Handle cached images that load before React attaches handlers
   useEffect(() => {
@@ -215,6 +286,16 @@ export function SeriesCoverCard({
     e.stopPropagation();
   }, []);
 
+  // Handle remove button click
+  const handleRemoveClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onRemove?.();
+    },
+    [onRemove]
+  );
+
   // Handle keyboard
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -256,6 +337,100 @@ export function SeriesCoverCard({
     [contextMenuEnabled, onMenuAction, series.id, series.isHidden, isSelected, onSelectionChange]
   );
 
+  // Open context menu at position (shared logic for right-click and long-press)
+  const openContextMenuAt = useCallback(
+    (x: number, y: number) => {
+      if (!contextMenuEnabled || !onMenuAction) return;
+
+      // Ensure series is selected when opening context menu
+      if (!isSelected && onSelectionChange) {
+        onSelectionChange(series.id, true);
+      }
+
+      setMenuState({
+        isOpen: true,
+        position: { x, y },
+        triggerType: 'context',
+        context: {
+          entityType: 'series',
+          entityId: series.id,
+          selectedIds: [series.id],
+          selectedCount: 1,
+          entityData: {
+            isHidden: series.isHidden,
+          },
+        },
+      });
+    },
+    [contextMenuEnabled, onMenuAction, series.id, series.isHidden, isSelected, onSelectionChange]
+  );
+
+  // Cancel any pending long-press
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    touchStartPosRef.current = null;
+  }, []);
+
+  // Handle touch start - begin long-press timer
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (!contextMenuEnabled || !onMenuAction) return;
+
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+      longPressTimerRef.current = setTimeout(() => {
+        const pos = touchStartPosRef.current;
+        if (pos) {
+          // Trigger haptic feedback if available
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+          openContextMenuAt(pos.x, pos.y);
+        }
+        cancelLongPress();
+      }, LONG_PRESS_DURATION);
+    },
+    [contextMenuEnabled, onMenuAction, openContextMenuAt, cancelLongPress, LONG_PRESS_DURATION]
+  );
+
+  // Handle touch move - cancel if finger moved too far
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStartPosRef.current) return;
+
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      const deltaX = Math.abs(touch.clientX - touchStartPosRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartPosRef.current.y);
+
+      if (deltaX > TOUCH_MOVE_THRESHOLD || deltaY > TOUCH_MOVE_THRESHOLD) {
+        cancelLongPress();
+      }
+    },
+    [cancelLongPress, TOUCH_MOVE_THRESHOLD]
+  );
+
+  // Handle touch end - cancel long-press timer
+  const handleTouchEnd = useCallback(() => {
+    cancelLongPress();
+  }, [cancelLongPress]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
   // Close menu
   const closeMenu = useCallback(() => {
     setMenuState({
@@ -270,6 +445,28 @@ export function SeriesCoverCard({
   const handleMenuAction = useCallback(
     (actionId: string) => {
       closeMenu();
+
+      // Handle relationship-specific actions
+      if (actionId === 'unlinkSeries') {
+        onUnlink?.();
+        return;
+      }
+
+      if (actionId.startsWith('changeType')) {
+        const typeMap: Record<string, RelationshipType> = {
+          changeTypeSpinoff: 'spinoff',
+          changeTypePrequel: 'prequel',
+          changeTypeSequel: 'sequel',
+          changeTypeBonus: 'bonus',
+          changeTypeRelated: 'related',
+        };
+        const newType = typeMap[actionId];
+        if (newType) {
+          onChangeType?.(newType);
+          return;
+        }
+      }
+
       // Map UnifiedMenu action IDs to legacy SeriesMenuItemPreset IDs
       const actionMap: Record<string, string> = {
         viewSeries: 'view',
@@ -280,7 +477,7 @@ export function SeriesCoverCard({
       const legacyAction = actionMap[actionId] || actionId;
       onMenuAction?.(legacyAction as SeriesMenuItemPreset, series.id);
     },
-    [closeMenu, onMenuAction, series.id]
+    [closeMenu, onMenuAction, series.id, onUnlink, onChangeType]
   );
 
   // Animation style
@@ -302,6 +499,10 @@ export function SeriesCoverCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
       tabIndex={tabIndex}
       role="button"
       aria-label={`${series.name}${series.startYear ? ` (${series.startYear})` : ''}`}
@@ -374,6 +575,31 @@ export function SeriesCoverCard({
               aria-label={`Select ${series.name}`}
             />
           </div>
+        )}
+
+        {/* Relationship type badge */}
+        {showRelationshipBadge && relationshipType && (
+          <RelationshipTypeBadge
+            type={relationshipType}
+            size="small"
+            className="series-cover-card__relationship-badge"
+            isParent={isParentRelationship}
+          />
+        )}
+
+        {/* Remove button */}
+        {showRemoveButton && onRemove && (
+          <button
+            className="series-cover-card__remove-btn"
+            onClick={handleRemoveClick}
+            aria-label="Remove relationship"
+            title="Remove relationship"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         )}
       </div>
 

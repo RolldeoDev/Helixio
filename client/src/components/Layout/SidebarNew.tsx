@@ -8,19 +8,18 @@
  * Optimized for both desktop and iPad/touch devices.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
-import { CommandPalette } from '../CommandPalette';
+import { useDeviceDetection } from '../../hooks';
 import './SidebarNew.css';
 
 interface NavItem {
   id: string;
   icon: React.ReactNode;
   label: string;
-  route?: string;
-  action?: 'command-palette';
+  route: string;
   badge?: number;
 }
 
@@ -29,36 +28,21 @@ export function SidebarNew() {
   const navigate = useNavigate();
   const { selectedLibrary, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
   const { activeJobs } = useMetadataJob();
+  const { isTouchDevice, isPortrait, isTablet } = useDeviceDetection();
 
-  // Command palette state
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-
-  // Keyboard shortcut for command palette
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsCommandPaletteOpen(true);
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Determine if sidebar should be in drawer mode
+  // Drawer mode: touch device in portrait orientation, or mobile width
+  const isDrawerMode = isTouchDevice && (isPortrait || isTablet);
 
   const handleNavClick = useCallback(
     (item: NavItem) => {
-      if (item.action === 'command-palette') {
-        setIsCommandPaletteOpen(true);
-      } else if (item.route) {
-        // Handle library route with selected library
-        if (item.id === 'library' && selectedLibrary) {
-          navigate(`/library/${selectedLibrary.id}`);
-        } else if (item.id === 'library') {
-          navigate('/library');
-        } else {
-          navigate(item.route);
-        }
+      // Handle library route with selected library
+      if (item.id === 'library' && selectedLibrary) {
+        navigate(`/library/${selectedLibrary.id}`);
+      } else if (item.id === 'library') {
+        navigate('/library');
+      } else {
+        navigate(item.route);
       }
     },
     [navigate, selectedLibrary]
@@ -112,17 +96,6 @@ export function SidebarNew() {
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'search',
-      label: 'Search',
-      action: 'command-palette',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
       ),
     },
@@ -196,8 +169,8 @@ export function SidebarNew() {
 
   return (
     <>
-      {/* Mobile backdrop */}
-      {mobileSidebarOpen && (
+      {/* Backdrop for drawer mode */}
+      {isDrawerMode && mobileSidebarOpen && (
         <div
           className="sidebar-backdrop"
           onClick={() => setMobileSidebarOpen(false)}
@@ -205,7 +178,7 @@ export function SidebarNew() {
         />
       )}
 
-      <div className={`sidebar-new ${mobileSidebarOpen ? 'open' : ''}`}>
+      <div className={`sidebar-new ${isDrawerMode ? 'drawer-mode' : ''} ${mobileSidebarOpen ? 'open' : ''}`}>
         {/* Icon Rail */}
         <nav className="icon-rail" aria-label="Main navigation">
           {/* Logo */}
@@ -222,10 +195,7 @@ export function SidebarNew() {
           {/* Primary Navigation */}
           <div className="rail-section rail-primary">
             {primaryNav.map((item) =>
-              renderNavButton(
-                item,
-                item.route ? isRouteActive(item.route) : false
-              )
+              renderNavButton(item, isRouteActive(item.route))
             )}
           </div>
 
@@ -234,7 +204,7 @@ export function SidebarNew() {
           {/* Secondary Navigation */}
           <div className="rail-section rail-secondary">
             {secondaryNav.map((item) =>
-              renderNavButton(item, item.route ? isRouteActive(item.route) : false)
+              renderNavButton(item, isRouteActive(item.route))
             )}
           </div>
 
@@ -243,17 +213,11 @@ export function SidebarNew() {
           {/* Footer Navigation */}
           <div className="rail-section rail-footer">
             {footerNav.map((item) =>
-              renderNavButton(item, item.route ? isRouteActive(item.route) : false)
+              renderNavButton(item, isRouteActive(item.route))
             )}
           </div>
         </nav>
       </div>
-
-      {/* Command Palette */}
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-      />
     </>
   );
 }

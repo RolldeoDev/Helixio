@@ -545,22 +545,6 @@ export async function getLibraryReadingStats(userId: string, libraryId: string):
 // =============================================================================
 
 /**
- * Parse issue number from string for sorting
- * Handles formats like "1", "1.5", "Annual 1", "100", etc.
- */
-function parseIssueNumber(number: string | null): number {
-  if (!number) return Infinity;
-
-  // Extract numeric portion
-  const match = number.match(/[\d.]+/);
-  if (match) {
-    return parseFloat(match[0]);
-  }
-
-  return Infinity;
-}
-
-/**
  * Get adjacent files (prev/next) in the same series
  * Uses the Series entity if available, falls back to metadata.series, then folder
  */
@@ -609,18 +593,10 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
           },
         },
       },
-      orderBy: {
-        filename: 'asc',
-      },
-    });
-
-    // Sort by issue number (parsed numerically)
-    seriesFiles.sort((a, b) => {
-      const numA = parseIssueNumber(a.metadata?.number ?? null);
-      const numB = parseIssueNumber(b.metadata?.number ?? null);
-      if (numA !== numB) return numA - numB;
-      // Fall back to filename for same issue numbers
-      return a.filename.localeCompare(b.filename, undefined, { numeric: true });
+      orderBy: [
+        { metadata: { issueNumberSort: 'asc' } },
+        { filename: 'asc' },
+      ],
     });
 
     const currentIndex = seriesFiles.findIndex((f) => f.id === fileId);
@@ -664,18 +640,10 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
           },
         },
       },
-      orderBy: {
-        filename: 'asc',
-      },
-    });
-
-    // Sort by issue number (parsed numerically)
-    seriesFiles.sort((a, b) => {
-      const numA = parseIssueNumber(a.metadata?.number ?? null);
-      const numB = parseIssueNumber(b.metadata?.number ?? null);
-      if (numA !== numB) return numA - numB;
-      // Fall back to filename for same issue numbers
-      return a.filename.localeCompare(b.filename, undefined, { numeric: true });
+      orderBy: [
+        { metadata: { issueNumberSort: 'asc' } },
+        { filename: 'asc' },
+      ],
     });
 
     const currentIndex = seriesFiles.findIndex((f) => f.id === fileId);

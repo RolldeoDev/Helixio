@@ -19,7 +19,8 @@ import type { Series, SeriesRelationship, Prisma } from '@prisma/client';
 
 export type RelationshipType = 'related' | 'spinoff' | 'prequel' | 'sequel' | 'bonus';
 
-export interface SeriesWithCounts {
+/** Basic series info without relationship metadata */
+export interface BasicSeriesInfo {
   id: string;
   name: string;
   publisher: string | null;
@@ -28,14 +29,22 @@ export interface SeriesWithCounts {
   coverUrl: string | null;
   coverFileId: string | null;
   coverSource: string;
+  /** First issue ID for cover fallback (optional - only in relationship queries) */
+  firstIssueId?: string | null;
   _count?: {
     issues: number;
   };
 }
 
+/** Series info with relationship metadata (for getChildSeries/getParentSeries) */
+export interface SeriesWithCounts extends BasicSeriesInfo {
+  relationshipType: RelationshipType;
+  sortOrder: number;
+}
+
 export interface SeriesRelationshipWithSeries extends SeriesRelationship {
-  parentSeries?: SeriesWithCounts;
-  childSeries?: SeriesWithCounts;
+  parentSeries?: BasicSeriesInfo;
+  childSeries?: BasicSeriesInfo;
 }
 
 export interface SeriesRelationshipsResult {
@@ -156,6 +165,15 @@ export async function getChildSeries(
           _count: {
             select: { issues: true },
           },
+          issues: {
+            take: 1,
+            // Order by numeric sort key to get actual Issue #1, not just first file added
+            orderBy: [
+              { metadata: { issueNumberSort: 'asc' } },
+              { filename: 'asc' },
+            ],
+            select: { id: true },
+          },
         },
       },
     },
@@ -170,6 +188,9 @@ export async function getChildSeries(
     coverUrl: r.childSeries.coverUrl,
     coverFileId: r.childSeries.coverFileId,
     coverSource: r.childSeries.coverSource,
+    firstIssueId: r.childSeries.issues[0]?.id ?? null,
+    relationshipType: r.relationshipType as RelationshipType,
+    sortOrder: r.sortOrder,
     _count: r.childSeries._count,
   }));
 }
@@ -193,6 +214,15 @@ export async function getParentSeries(
           _count: {
             select: { issues: true },
           },
+          issues: {
+            take: 1,
+            // Order by numeric sort key to get actual Issue #1, not just first file added
+            orderBy: [
+              { metadata: { issueNumberSort: 'asc' } },
+              { filename: 'asc' },
+            ],
+            select: { id: true },
+          },
         },
       },
     },
@@ -207,6 +237,9 @@ export async function getParentSeries(
     coverUrl: r.parentSeries.coverUrl,
     coverFileId: r.parentSeries.coverFileId,
     coverSource: r.parentSeries.coverSource,
+    firstIssueId: r.parentSeries.issues[0]?.id ?? null,
+    relationshipType: r.relationshipType as RelationshipType,
+    sortOrder: r.sortOrder,
     _count: r.parentSeries._count,
   }));
 }

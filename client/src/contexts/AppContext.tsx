@@ -72,6 +72,7 @@ interface AppState {
 
   // Display preferences
   preferFilenameOverMetadata: boolean;
+  relatedSeriesPosition: 'above' | 'below';
 
   // Mobile sidebar
   mobileSidebarOpen: boolean;
@@ -114,6 +115,7 @@ interface AppContextValue extends AppState {
 
   // Display preference actions
   setPreferFilenameOverMetadata: (prefer: boolean) => void;
+  setRelatedSeriesPosition: (position: 'above' | 'below') => void;
 
   // Mobile sidebar actions
   setMobileSidebarOpen: (open: boolean) => void;
@@ -127,6 +129,7 @@ interface AppContextValue extends AppState {
 const LAST_LIBRARY_KEY = 'helixio-last-library';
 const PREFER_FILENAME_KEY = 'helixio-prefer-filename';
 const GROUP_FIELD_KEY = 'helixio-group-field';
+const RELATED_SERIES_POSITION_KEY = 'helixio-related-series-position';
 
 // =============================================================================
 // Context
@@ -196,6 +199,11 @@ export function AppProvider({ children }: AppProviderProps) {
     return stored === 'true';
   });
 
+  const [relatedSeriesPosition, setRelatedSeriesPositionState] = useState<'above' | 'below'>(() => {
+    const stored = localStorage.getItem(RELATED_SERIES_POSITION_KEY);
+    return stored === 'above' ? 'above' : 'below';
+  });
+
   // Mobile sidebar
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -244,6 +252,7 @@ export function AppProvider({ children }: AppProviderProps) {
   const loadingFolders = isAllLibraries ? loadingAllFolders : loadingSingleFolders;
 
   // Files query params
+  // Note: folder filtering is handled locally by FoldersPage, not globally
   const filesParams = useMemo(() => ({
     libraryId: isAllLibraries ? null : selectedLibrary?.id,
     all: true, // Fetch all files for infinite scroll with navigation sidebar
@@ -251,8 +260,7 @@ export function AppProvider({ children }: AppProviderProps) {
     order: sortOrder,
     groupBy: groupField !== 'none' ? groupField : undefined,
     status: statusFilter ?? undefined,
-    folder: selectedFolder ?? undefined,
-  }), [isAllLibraries, selectedLibrary?.id, sortField, sortOrder, groupField, statusFilter, selectedFolder]);
+  }), [isAllLibraries, selectedLibrary?.id, sortField, sortOrder, groupField, statusFilter]);
 
   // Files
   const {
@@ -286,6 +294,14 @@ export function AppProvider({ children }: AppProviderProps) {
     setMobileSidebarOpen(false);
   }, [location.pathname]);
 
+  // Clear selections on route change
+  useEffect(() => {
+    setSelectedFiles(new Set());
+    setLastSelectedFileId(null);
+    setSelectedSeries(new Set());
+    setLastSelectedSeriesId(null);
+  }, [location.pathname]);
+
   // ---------------------------------------------------------------------------
   // Display Preference Actions
   // ---------------------------------------------------------------------------
@@ -293,6 +309,11 @@ export function AppProvider({ children }: AppProviderProps) {
   const setPreferFilenameOverMetadata = useCallback((prefer: boolean) => {
     setPreferFilenameOverMetadataState(prefer);
     localStorage.setItem(PREFER_FILENAME_KEY, String(prefer));
+  }, []);
+
+  const setRelatedSeriesPosition = useCallback((position: 'above' | 'below') => {
+    setRelatedSeriesPositionState(position);
+    localStorage.setItem(RELATED_SERIES_POSITION_KEY, position);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -527,6 +548,7 @@ export function AppProvider({ children }: AppProviderProps) {
     operationInProgress,
     operationMessage,
     preferFilenameOverMetadata,
+    relatedSeriesPosition,
     mobileSidebarOpen,
 
     // Actions
@@ -554,6 +576,7 @@ export function AppProvider({ children }: AppProviderProps) {
     setPageSize,
     setOperation,
     setPreferFilenameOverMetadata,
+    setRelatedSeriesPosition,
     setMobileSidebarOpen,
     toggleMobileSidebar,
   };

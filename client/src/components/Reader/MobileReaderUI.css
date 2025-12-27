@@ -171,12 +171,12 @@
 
 .page-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   background: var(--color-accent, #3b82f6);
   border-radius: 50%;
   border: 2px solid white;
-  margin-top: -8px;
+  margin-top: -12px;
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
@@ -188,8 +188,8 @@
 }
 
 .page-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   background: var(--color-accent, #3b82f6);
   border-radius: 50%;
   border: 2px solid white;

@@ -10,6 +10,7 @@
 import { PrismaClient } from '@prisma/client';
 import { getDatabaseUrl, ensureAppDirectories } from '../services/app-paths.service.js';
 import { readComicInfo } from '../services/comicinfo.service.js';
+import { computeIssueNumberSort } from '../services/issue-number-utils.js';
 
 // Initialize database
 ensureAppDirectories();
@@ -154,11 +155,13 @@ async function main() {
 
         if (result.success && result.comicInfo) {
           const ci = result.comicInfo;
+          const issueNumber = ci.Number || null;
           await prisma.fileMetadata.create({
             data: {
               comicId: file.id,
               series: ci.Series || null,
-              number: ci.Number || null,
+              number: issueNumber,
+              issueNumberSort: computeIssueNumberSort(issueNumber),
               title: ci.Title || null,
               volume: ci.Volume || null,
               publisher: ci.Publisher || null,

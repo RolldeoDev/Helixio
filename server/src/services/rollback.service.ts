@@ -19,6 +19,7 @@ import { rename, mkdir, access } from 'fs/promises';
 import { dirname, basename, relative } from 'path';
 import { getDatabase } from './database.service.js';
 import { loadConfig } from './config.service.js';
+import { computeIssueNumberSort } from './issue-number-utils.js';
 
 // =============================================================================
 // Types
@@ -613,11 +614,13 @@ async function rollbackMetadataUpdate(op: OperationLogEntry): Promise<void> {
   });
 
   if (file) {
+    const issueNumber = originalMetadata.Number as string | undefined;
     await db.fileMetadata.update({
       where: { comicId: file.id },
       data: {
         series: originalMetadata.Series as string | undefined,
-        number: originalMetadata.Number as string | undefined,
+        number: issueNumber,
+        issueNumberSort: computeIssueNumberSort(issueNumber),
         title: originalMetadata.Title as string | undefined,
         writer: originalMetadata.Writer as string | undefined,
         publisher: originalMetadata.Publisher as string | undefined,
