@@ -1041,3 +1041,68 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* =============================================================================
+   User Data Section Fields
+   ============================================================================= */
+
+.user-rating-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.user-rating-field .field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+}
+
+.field-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.field-group .field-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.visibility-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.visibility-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary, #d4a574);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.visibility-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}

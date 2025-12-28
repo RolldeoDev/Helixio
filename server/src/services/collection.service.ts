@@ -396,6 +396,32 @@ export async function regenerateCollectionMosaic(collectionId: string): Promise<
 }
 
 /**
+ * Regenerate mosaic cover synchronously (waits for completion).
+ * Use this when the caller needs the updated coverHash immediately.
+ * Cancels any pending debounced regeneration.
+ */
+export async function regenerateMosaicSync(collectionId: string): Promise<string | null> {
+  // Cancel any pending debounced regeneration
+  const pending = pendingMosaicJobs.get(collectionId);
+  if (pending) {
+    clearTimeout(pending);
+    pendingMosaicJobs.delete(collectionId);
+  }
+
+  // Regenerate immediately
+  await regenerateCollectionMosaic(collectionId);
+
+  // Fetch and return the new coverHash
+  const db = getDatabase();
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    select: { coverHash: true },
+  });
+
+  return collection?.coverHash ?? null;
+}
+
+/**
  * Get the first 4 series IDs in a collection (for mosaic comparison).
  */
 async function getFirst4SeriesIds(collectionId: string): Promise<string[]> {

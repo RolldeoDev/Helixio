@@ -277,6 +277,31 @@
 }
 
 /* =============================================================================
+   Sidebar: User Rating
+   ============================================================================= */
+
+.issue-rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.issue-rating-section .issue-section-title {
+  margin-bottom: 0;
+}
+
+/* =============================================================================
+   User Data Panel Section
+   ============================================================================= */
+
+.issue-user-data-section {
+  padding: 0 var(--page-padding-x, var(--spacing-lg));
+  margin-bottom: var(--spacing-lg);
+}
+
+/* =============================================================================
    Collapsible Sections
    ============================================================================= */
 

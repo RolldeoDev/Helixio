@@ -40,6 +40,9 @@ import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredit
 import { type ActionMenuItem } from '../components/ActionMenu';
 import { LocalSeriesSearchModal } from '../components/LocalSeriesSearchModal';
 import { formatFileSize } from '../utils/format';
+import { RatingStars } from '../components/RatingStars';
+import { IssueUserDataPanel } from '../components/UserDataPanel';
+import { useIssueUserData, useUpdateIssueUserData } from '../hooks/queries';
 import './IssueDetailPage.css';
 
 // =============================================================================
@@ -139,6 +142,10 @@ export function IssueDetailPage() {
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryNeedsTruncation, setSummaryNeedsTruncation] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  // User ratings and reviews
+  const { data: userData } = useIssueUserData(fileId);
+  const updateUserDataMutation = useUpdateIssueUserData();
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -521,6 +528,18 @@ export function IssueDetailPage() {
 
           {/* Sidebar column (25%): Metadata */}
           <aside className="issue-hero-sidebar">
+            {/* User Rating */}
+            <div className="issue-rating-section">
+              <span className="rating-label">Your Rating</span>
+              <RatingStars
+                value={userData?.data?.rating ?? null}
+                onChange={(rating) => fileId && updateUserDataMutation.mutate({ fileId, input: { rating } })}
+                size="large"
+                showEmpty
+                allowClear
+              />
+            </div>
+
             {/* Release Date */}
             {hasFullDate && (
               <div className="issue-release-date">
@@ -591,6 +610,13 @@ export function IssueDetailPage() {
           </aside>
         </div>
       </DetailHeroSection>
+
+      {/* User Rating & Notes Panel */}
+      {fileId && (
+        <div className="issue-user-data-section">
+          <IssueUserDataPanel fileId={fileId} defaultExpanded={false} />
+        </div>
+      )}
 
       {/* Collapsible Reading History */}
       {history.length > 0 && (

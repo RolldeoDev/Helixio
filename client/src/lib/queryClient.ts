@@ -169,4 +169,13 @@ export const queryKeys = {
     list: () => [...queryKeys.themes.all, 'list'] as const,
     active: () => [...queryKeys.themes.all, 'active'] as const,
   },
+
+  // User Data (ratings, reviews, notes)
+  userData: {
+    all: ['userData'] as const,
+    series: (seriesId: string) => [...queryKeys.userData.all, 'series', seriesId] as const,
+    issue: (fileId: string) => [...queryKeys.userData.all, 'issue', fileId] as const,
+    seriesBatch: (seriesIds: string[]) => [...queryKeys.userData.all, 'seriesBatch', seriesIds.sort().join(',')] as const,
+    issuesBatch: (fileIds: string[]) => [...queryKeys.userData.all, 'issuesBatch', fileIds.sort().join(',')] as const,
+  },
 } as const;

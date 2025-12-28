@@ -1,0 +1,43 @@
+/* =============================================================================
+   Series User Data Panel - Additional Styles
+   ============================================================================= */
+
+.series-rating-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stats-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stats-value {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.stats-value.stats-empty {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+  font-style: italic;
+}
+
+.stats-stars {
+  color: var(--rating-star-color, #fbbf24);
+  font-size: 1rem;
+}
+
+.stats-number {
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.stats-count {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+  font-size: 0.75rem;
+}

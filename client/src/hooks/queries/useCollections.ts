@@ -314,13 +314,22 @@ export function useInvalidateCollections() {
 
 /**
  * Refresh a smart collection
+ * Uses returned collection data to update cache immediately
  */
 export function useRefreshSmartCollection() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (collectionId: string) => refreshSmartCollection(collectionId),
-    onSuccess: (_, collectionId) => {
+    onSuccess: (response, collectionId) => {
+      // Update cache directly with returned data if available
+      if (response.collection) {
+        queryClient.setQueryData(
+          queryKeys.collections.expanded(collectionId),
+          response.collection
+        );
+      }
+      // Still invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.list() });
@@ -392,6 +401,7 @@ export function useConvertToRegularCollection() {
 
 /**
  * Toggle whitelist for an item in a smart collection
+ * Uses returned collection data to update cache immediately
  */
 export function useToggleSmartWhitelist() {
   const queryClient = useQueryClient();
@@ -406,7 +416,15 @@ export function useToggleSmartWhitelist() {
       seriesId?: string;
       fileId?: string;
     }) => toggleSmartWhitelist(collectionId, seriesId, fileId),
-    onSuccess: (_, { collectionId }) => {
+    onSuccess: (response, { collectionId }) => {
+      // Update cache directly with returned data if available
+      if (response.collection) {
+        queryClient.setQueryData(
+          queryKeys.collections.expanded(collectionId),
+          response.collection
+        );
+      }
+      // Still invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
     },
@@ -415,6 +433,7 @@ export function useToggleSmartWhitelist() {
 
 /**
  * Toggle blacklist for an item in a smart collection
+ * Uses returned collection data to update cache immediately
  */
 export function useToggleSmartBlacklist() {
   const queryClient = useQueryClient();
@@ -429,7 +448,15 @@ export function useToggleSmartBlacklist() {
       seriesId?: string;
       fileId?: string;
     }) => toggleSmartBlacklist(collectionId, seriesId, fileId),
-    onSuccess: (_, { collectionId }) => {
+    onSuccess: (response, { collectionId }) => {
+      // Update cache directly with returned data if available
+      if (response.collection) {
+        queryClient.setQueryData(
+          queryKeys.collections.expanded(collectionId),
+          response.collection
+        );
+      }
+      // Still invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
     },

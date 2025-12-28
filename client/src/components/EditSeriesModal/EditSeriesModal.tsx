@@ -38,6 +38,8 @@ import { SeriesCoverEditorModal } from './SeriesCoverEditorModal';
 import { MetadataPreviewModal } from '../MetadataPreviewModal';
 import { SeriesMetadataSearchModal } from '../SeriesMetadataSearchModal';
 import { MetadataGenerator } from '../MetadataGenerator';
+import { RatingStars } from '../RatingStars';
+import { useSeriesUserData, useUpdateSeriesUserData } from '../../hooks/queries';
 import './EditSeriesModal.css';
 
 // =============================================================================
@@ -319,6 +321,11 @@ const SECTION_FIELDS = {
 export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSeriesModalProps) {
   const [state, dispatch] = useReducer(editSeriesReducer, initialState);
   const [showCoverModal, setShowCoverModal] = useState(false);
+
+  // User data hooks for per-user rating and notes
+  const { data: userDataResponse } = useSeriesUserData(isOpen ? seriesId : undefined);
+  const updateUserData = useUpdateSeriesUserData();
+  const userData = userDataResponse?.data;
 
   // =============================================================================
   // Data Loading
@@ -1428,22 +1435,68 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* User Data Section */}
-              <CollapsibleSection title="User Data" changeCount={countSectionChanges('userData')} defaultExpanded={false}>
+              <CollapsibleSection title="Your Data" changeCount={countSectionChanges('userData')} defaultExpanded={false}>
                 <div className="section-fields">
-                  <FieldWithLock
-                    fieldName="userNotes"
-                    label="Personal Notes"
-                    type="textarea"
-                    value={series.userNotes}
-                    onChange={handleFieldChange('userNotes')}
-                    isLocked={isLocked('userNotes')}
-                    onToggleLock={() => handleToggleLock('userNotes')}
-                    fieldSource={getFieldSource('userNotes')}
-                    isModified={state.modifiedFields.has('userNotes')}
-                    rows={3}
-                    placeholder="Your personal notes about this series..."
-                    fullWidth
-                  />
+                  {/* Per-user rating */}
+                  <div className="field-group user-rating-field">
+                    <label className="field-label">Your Rating</label>
+                    <RatingStars
+                      value={userData?.rating ?? null}
+                      onChange={(rating) => updateUserData.mutate({ seriesId, input: { rating } })}
+                      size="large"
+                      showValue
+                      allowClear
+                    />
+                  </div>
+
+                  {/* Per-user private notes */}
+                  <div className="field-group full-width">
+                    <label className="field-label">Private Notes</label>
+                    <textarea
+                      className="field-input"
+                      value={userData?.privateNotes ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        updateUserData.mutate({ seriesId, input: { privateNotes: value } });
+                      }}
+                      rows={3}
+                      placeholder="Your personal notes (only visible to you)..."
+                    />
+                  </div>
+
+                  {/* Per-user public review */}
+                  <div className="field-group full-width">
+                    <div className="field-label-row">
+                      <label className="field-label">Review</label>
+                      <label className="visibility-toggle">
+                        <input
+                          type="checkbox"
+                          checked={userData?.reviewVisibility === 'public'}
+                          onChange={(e) => {
+                            updateUserData.mutate({
+                              seriesId,
+                              input: { reviewVisibility: e.target.checked ? 'public' : 'private' }
+                            });
+                          }}
+                        />
+                        <span className="visibility-label">Public</span>
+                      </label>
+                    </div>
+                    <textarea
+                      className="field-input"
+                      value={userData?.publicReview ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        updateUserData.mutate({ seriesId, input: { publicReview: value } });
+                      }}
+                      rows={4}
+                      placeholder={userData?.reviewVisibility === 'public'
+                        ? "Write a review (visible to others)..."
+                        : "Write a review (currently private)..."}
+                    />
+                  </div>
+
+                  {/* Series aliases - for matching purposes */}
                   <TagInput
                     fieldName="aliases"
                     label="Aliases"

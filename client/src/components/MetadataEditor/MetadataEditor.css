@@ -583,3 +583,91 @@
     gap: 2px;
   }
 }
+
+/* =============================================================================
+   User Data Section
+   ============================================================================= */
+
+.user-data-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md, 16px);
+}
+
+.user-data-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 4px);
+}
+
+.user-data-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.user-data-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.user-data-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-data-textarea {
+  width: 100%;
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 12px);
+  background: var(--color-bg, #0a0e13);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text, #e8e4df);
+  font-size: 0.9rem;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  resize: vertical;
+  min-height: 60px;
+  transition: border-color var(--transition-fast, 0.15s) ease,
+              box-shadow var(--transition-fast, 0.15s) ease;
+}
+
+.user-data-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #d4a574);
+  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.2);
+}
+
+.user-data-textarea::placeholder {
+  color: var(--color-text-subtle, rgba(232, 228, 223, 0.3));
+}
+
+.user-rating-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 8px);
+}
+
+.visibility-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  cursor: pointer;
+  user-select: none;
+}
+
+.visibility-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary, #d4a574);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.visibility-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}

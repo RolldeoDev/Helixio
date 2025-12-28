@@ -2393,11 +2393,12 @@ export type SmartScope = 'series' | 'files';
 
 /**
  * Refresh a smart collection (full re-evaluation)
+ * Returns updated collection data with new coverHash
  */
 export async function refreshSmartCollection(
   collectionId: string
-): Promise<{ success: boolean; added: number; removed: number }> {
-  return post<{ success: boolean; added: number; removed: number }>(
+): Promise<{ success: boolean; added: number; removed: number; collection: CollectionExpandedData | null }> {
+  return post<{ success: boolean; added: number; removed: number; collection: CollectionExpandedData | null }>(
     `/collections/${collectionId}/smart/refresh`,
     {}
   );
@@ -2442,13 +2443,14 @@ export async function convertToRegularCollection(
 
 /**
  * Toggle whitelist status for an item in a smart collection
+ * Returns updated collection data
  */
 export async function toggleSmartWhitelist(
   collectionId: string,
   seriesId?: string,
   fileId?: string
-): Promise<{ success: boolean; isWhitelisted: boolean }> {
-  return post<{ success: boolean; isWhitelisted: boolean }>(
+): Promise<{ success: boolean; isWhitelisted: boolean; collection: CollectionExpandedData | null }> {
+  return post<{ success: boolean; isWhitelisted: boolean; collection: CollectionExpandedData | null }>(
     `/collections/${collectionId}/smart/whitelist`,
     { seriesId, fileId }
   );
@@ -2456,13 +2458,14 @@ export async function toggleSmartWhitelist(
 
 /**
  * Toggle blacklist status for an item in a smart collection
+ * Returns updated collection data
  */
 export async function toggleSmartBlacklist(
   collectionId: string,
   seriesId?: string,
   fileId?: string
-): Promise<{ success: boolean; isBlacklisted: boolean }> {
-  return post<{ success: boolean; isBlacklisted: boolean }>(
+): Promise<{ success: boolean; isBlacklisted: boolean; collection: CollectionExpandedData | null }> {
+  return post<{ success: boolean; isBlacklisted: boolean; collection: CollectionExpandedData | null }>(
     `/collections/${collectionId}/smart/blacklist`,
     { seriesId, fileId }
   );

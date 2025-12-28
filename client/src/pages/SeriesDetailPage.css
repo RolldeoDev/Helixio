@@ -105,6 +105,35 @@
   }
 }
 
+/* Rating Section in Sidebar */
+.series-rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 0;
+}
+
+.series-rating-section .rating-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.series-rating-section .rating-avg {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* User Data Section */
+.series-user-data-section {
+  padding: 0 var(--page-padding-x);
+  margin-bottom: var(--spacing-lg);
+}
+
 /* =============================================================================
    Section Titles
    ============================================================================= */

@@ -35,7 +35,8 @@ export type FilterField =
   | 'locations'
   | 'storyArc'
   | 'status'
-  | 'path';
+  | 'path'
+  | 'rating';
 
 export type FilterComparison =
   | 'contains'
@@ -82,6 +83,7 @@ export interface FilterableFile {
   filename: string;
   relativePath: string;
   status: string;
+  rating?: number | null;
   metadata?: {
     series?: string | null;
     title?: string | null;
@@ -163,6 +165,7 @@ export const FILTER_FIELDS: { value: FilterField; label: string; type: 'string' 
   { value: 'storyArc', label: 'Story Arc', type: 'string' },
   { value: 'status', label: 'File Status', type: 'string' },
   { value: 'path', label: 'File Path', type: 'string' },
+  { value: 'rating', label: 'Your Rating', type: 'number' },
 ];
 
 export const STRING_COMPARISONS: { value: FilterComparison; label: string }[] = [
@@ -232,6 +235,8 @@ function getFieldValue(file: FilterableFile, field: FilterField): string | numbe
       return file.relativePath;
     case 'status':
       return file.status;
+    case 'rating':
+      return file.rating ?? null;
     case 'series':
       return (file.metadata?.series as string) ?? null;
     case 'title':

@@ -603,6 +603,7 @@ export function CollectionsPage() {
           onSave={handleSettingsSave}
           onRemoveItems={handleRemoveItems}
           onReorderItems={handleReorderItems}
+          onRefresh={refreshCollections}
         />
       )}
     </div>

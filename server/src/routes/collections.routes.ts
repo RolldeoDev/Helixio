@@ -37,6 +37,7 @@ import {
   setCollectionCoverHash,
   updateCollectionMetadata,
   getCollectionReadingProgress,
+  regenerateMosaicSync,
 } from '../services/collection.service.js';
 import {
   refreshSmartCollection,
@@ -942,6 +943,7 @@ router.put('/:id/metadata', async (req: Request, res: Response) => {
 /**
  * POST /api/collections/:id/smart/refresh
  * Manually refresh a smart collection (full re-evaluation)
+ * Waits for cover regeneration and returns full collection data
  */
 router.post('/:id/smart/refresh', async (req: Request, res: Response) => {
   try {
@@ -953,10 +955,20 @@ router.post('/:id/smart/refresh', async (req: Request, res: Response) => {
     }
 
     const result = await refreshSmartCollection(collectionId, userId);
+
+    // Wait for cover regeneration if items changed
+    if (result.added > 0 || result.removed > 0) {
+      await regenerateMosaicSync(collectionId);
+    }
+
+    // Return full collection data with updated coverHash
+    const collection = await getCollectionExpanded(userId, collectionId);
+
     return res.json({
       success: true,
       added: result.added,
       removed: result.removed,
+      collection,
     });
   } catch (error) {
     logError('collections', error, { action: 'smart-refresh' });
@@ -1072,6 +1084,7 @@ router.delete('/:id/smart', async (req: Request, res: Response) => {
 /**
  * POST /api/collections/:id/smart/whitelist
  * Toggle whitelist status for an item in a smart collection
+ * Returns updated collection data
  */
 router.post('/:id/smart/whitelist', async (req: Request, res: Response) => {
   try {
@@ -1088,7 +1101,11 @@ router.post('/:id/smart/whitelist', async (req: Request, res: Response) => {
     }
 
     const isWhitelisted = await toggleWhitelist(collectionId, userId, seriesId, fileId);
-    return res.json({ success: true, isWhitelisted });
+
+    // Return full collection data with updated items
+    const collection = await getCollectionExpanded(userId, collectionId);
+
+    return res.json({ success: true, isWhitelisted, collection });
   } catch (error) {
     logError('collections', error, { action: 'toggle-whitelist' });
     if (error instanceof Error && error.message.includes('not found')) {
@@ -1104,6 +1121,7 @@ router.post('/:id/smart/whitelist', async (req: Request, res: Response) => {
 /**
  * POST /api/collections/:id/smart/blacklist
  * Toggle blacklist status for an item in a smart collection
+ * Returns updated collection data
  */
 router.post('/:id/smart/blacklist', async (req: Request, res: Response) => {
   try {
@@ -1120,7 +1138,11 @@ router.post('/:id/smart/blacklist', async (req: Request, res: Response) => {
     }
 
     const isBlacklisted = await toggleBlacklist(collectionId, userId, seriesId, fileId);
-    return res.json({ success: true, isBlacklisted });
+
+    // Return full collection data with updated items
+    const collection = await getCollectionExpanded(userId, collectionId);
+
+    return res.json({ success: true, isBlacklisted, collection });
   } catch (error) {
     logError('collections', error, { action: 'toggle-blacklist' });
     if (error instanceof Error && error.message.includes('not found')) {

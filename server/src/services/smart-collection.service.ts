@@ -386,11 +386,15 @@ export async function refreshSmartCollection(
   let matchingIds: Set<string>;
 
   if (scope === 'series') {
-    // Get all series with reading progress for this user
+    // Get all series with reading progress and user data for this user
     const series = await db.series.findMany({
       where: { deletedAt: null, isHidden: false },
       include: {
         progress: {
+          where: { userId },
+          take: 1,
+        },
+        userData: {
           where: { userId },
           take: 1,
         },
@@ -401,8 +405,9 @@ export async function refreshSmartCollection(
     matchingIds = new Set(
       series
         .filter((s) => {
-          // Augment series with progress data
+          // Augment series with progress data and user data
           const progress = s.progress[0];
+          const userData = s.userData[0];
           const augmentedSeries = {
             ...s,
             readStatus: progress
@@ -413,6 +418,7 @@ export async function refreshSmartCollection(
                   : 'unread'
               : 'unread',
             lastReadAt: progress?.lastReadAt,
+            rating: userData?.rating,
           };
           return evaluateFilter(filter, augmentedSeries as unknown as Record<string, unknown>, scope);
         })
@@ -551,11 +557,15 @@ export async function evaluateChangedItems(
     const seriesCollections = smartCollections.filter((c) => c.smartScope === 'series');
 
     if (seriesCollections.length > 0) {
-      // Get the changed series with progress
+      // Get the changed series with progress and user data
       const changedSeries = await db.series.findMany({
         where: { id: { in: changedSeriesIds } },
         include: {
           progress: {
+            where: { userId },
+            take: 1,
+          },
+          userData: {
             where: { userId },
             take: 1,
           },
@@ -600,6 +610,7 @@ async function evaluateSeriesAgainstCollection(
   series: Array<{
     id: string;
     progress: Array<{ totalRead: number; totalOwned: number; lastReadAt: Date | null }>;
+    userData: Array<{ rating: number | null }>;
     [key: string]: unknown;
   }>,
   userId: string
@@ -619,8 +630,9 @@ async function evaluateSeriesAgainstCollection(
   for (const s of series) {
     const existing = existingMap.get(s.id);
     const progress = s.progress[0];
+    const userData = s.userData[0];
 
-    // Augment series with read status
+    // Augment series with read status and user data
     const augmentedSeries = {
       ...s,
       readStatus: progress
@@ -631,6 +643,7 @@ async function evaluateSeriesAgainstCollection(
             : 'unread'
         : 'unread',
       lastReadAt: progress?.lastReadAt,
+      rating: userData?.rating,
     };
 
     const matches = evaluateFilter(

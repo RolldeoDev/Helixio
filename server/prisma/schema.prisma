@@ -126,6 +126,7 @@ model Series {
   issues        ComicFile[]
   progress      SeriesProgress[]
   readerSettings SeriesReaderSettingsNew?
+  userData      UserSeriesData[]
 
   // Parent/Child relationships (many-to-many)
   parentRelationships  SeriesRelationship[] @relation("ChildSeries")   // Series where this is the child
@@ -140,6 +141,37 @@ model Series {
   @@index([metronId])
   @@index([anilistId])
   @@index([malId])
+}
+
+// =============================================================================
+// User Series Data (Per-User Ratings & Reviews for Series)
+// =============================================================================
+
+model UserSeriesData {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seriesId         String
+  series           Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  // User's explicit rating (1-5 stars)
+  rating           Int?
+
+  // User's review/notes
+  privateNotes     String?                     // Private notes only visible to user
+  publicReview     String?                     // Public review visible to others
+  reviewVisibility String   @default("private") // "private" | "public"
+
+  // Timestamps
+  ratedAt          DateTime?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([userId, seriesId])
+  @@index([userId])
+  @@index([seriesId])
+  @@index([rating])
 }
 
 // =============================================================================
@@ -896,6 +928,7 @@ model User {
   libraryAccess   UserLibraryAccess[]
   readingProgress UserReadingProgress[]
   seriesProgress  SeriesProgress[]
+  seriesData      UserSeriesData[]
   collections     Collection[]
   sharedLists     SharedReadingList[]
   trackerTokens   TrackerToken[]
@@ -957,11 +990,19 @@ model UserReadingProgress {
   lastReadAt  DateTime  @updatedAt
   createdAt   DateTime  @default(now())
 
+  // User review/notes fields
+  privateNotes     String?                     // Private notes only visible to user
+  publicReview     String?                     // Public review visible to others
+  reviewVisibility String   @default("private") // "private" | "public"
+  ratedAt          DateTime?                   // When rating was set
+  reviewedAt       DateTime?                   // When review was last updated
+
   @@unique([userId, fileId])
   @@index([userId])
   @@index([fileId])
   @@index([lastReadAt])
   @@index([completed])
+  @@index([rating])
 }
 
 // =============================================================================

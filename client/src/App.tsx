@@ -62,6 +62,7 @@ import { UserManagement } from './components/Admin';
 import { HelixioLoader } from './components/HelixioLoader';
 import { NavigationSidebar } from './components/NavigationSidebar';
 import { GlobalHeader } from './components/GlobalHeader';
+import { NotesMigrationBanner } from './components/NotesMigrationBanner';
 import { groupFiles } from './utils/file-grouping';
 import type { ComicFile } from './services/api.service';
 
@@ -446,6 +447,8 @@ function App() {
                                 {/* Download notifications */}
                                 <DownloadNotificationBar />
                                 <DownloadConfirmationModal />
+                                {/* Notes migration banner */}
+                                <NotesMigrationBanner />
                               </ConfirmModalProvider>
                             </ToastProvider>
                           </DownloadProvider>

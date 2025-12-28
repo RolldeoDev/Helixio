@@ -62,6 +62,9 @@ import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
 import { RelationshipTypeBadge } from '../components/RelationshipTypeBadge';
 import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
+import { RatingStars } from '../components/RatingStars';
+import { SeriesUserDataPanel } from '../components/UserDataPanel';
+import { useSeriesUserData, useUpdateSeriesUserData } from '../hooks/queries';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -188,6 +191,10 @@ export function SeriesDetailPage() {
   // Fetch collections containing this series (or its files)
   const { data: seriesCollections = [] } = useSeriesCollections(seriesId);
   const removeFromCollectionMutation = useRemoveFromCollection();
+
+  // User ratings and reviews
+  const { data: userData } = useSeriesUserData(seriesId);
+  const updateUserDataMutation = useUpdateSeriesUserData();
 
   // Combined related series for the unified row with isParent flag
   const allRelatedSeries = useMemo(() => {
@@ -831,6 +838,23 @@ export function SeriesDetailPage() {
 
           {/* Sidebar column (25%): All metadata */}
           <aside className="series-hero-sidebar">
+            {/* User Rating */}
+            <div className="series-rating-section">
+              <span className="rating-label">Your Rating</span>
+              <RatingStars
+                value={userData?.data?.rating ?? null}
+                onChange={(rating) => seriesId && updateUserDataMutation.mutate({ seriesId, input: { rating } })}
+                size="large"
+                showEmpty
+                allowClear
+              />
+              {userData?.ratingStats && userData.ratingStats.count > 0 && (
+                <span className="rating-avg">
+                  Avg: {userData.ratingStats.average?.toFixed(1)} ({userData.ratingStats.count} issues rated)
+                </span>
+              )}
+            </div>
+
             {/* Genres */}
             {genreList.length > 0 && (
               <ExpandablePillSection
@@ -894,10 +918,10 @@ export function SeriesDetailPage() {
         </div>
       </DetailHeroSection>
 
-      {/* User notes - separate if exists */}
-      {series.userNotes && (
-        <div className="series-user-notes">
-          <p className="user-notes">{series.userNotes}</p>
+      {/* User Rating & Notes Panel */}
+      {seriesId && (
+        <div className="series-user-data-section">
+          <SeriesUserDataPanel seriesId={seriesId} defaultExpanded={false} />
         </div>
       )}
 

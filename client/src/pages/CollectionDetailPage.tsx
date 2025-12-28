@@ -1187,6 +1187,7 @@ export function CollectionDetailPage() {
           onSave={handleSettingsSave}
           onRemoveItems={handleRemoveItems}
           onReorderItems={handleReorderItems}
+          onRefresh={fetchCollectionData}
         />
       )}
     </div>

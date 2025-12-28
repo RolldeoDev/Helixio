@@ -1,0 +1,113 @@
+/* =============================================================================
+   Rating Stars Component
+   ============================================================================= */
+
+.rating-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+}
+
+.rating-stars-container {
+  display: inline-flex;
+  gap: 0.125rem;
+}
+
+/* Star Base Styles */
+.rating-star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.rating-star-empty {
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.3));
+}
+
+.rating-star-filled {
+  color: var(--rating-star-color, #fbbf24);
+}
+
+/* Interactive States */
+.rating-stars-interactive {
+  cursor: pointer;
+}
+
+.rating-star-interactive:hover {
+  transform: scale(1.15);
+}
+
+.rating-star-hovered {
+  color: var(--rating-star-hover-color, #f59e0b);
+}
+
+/* Focus State */
+.rating-stars-focused {
+  outline: 2px solid var(--accent-color, #2563eb);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.rating-stars:focus {
+  outline: none;
+}
+
+/* Size Variants */
+.rating-stars-small .rating-star {
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.rating-stars-default .rating-star {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.rating-stars-large .rating-star {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+/* Rating Value Display */
+.rating-value {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  margin-left: 0.25rem;
+}
+
+.rating-stars-small .rating-value {
+  font-size: 0.75rem;
+}
+
+.rating-stars-large .rating-value {
+  font-size: 1rem;
+}
+
+/* Readonly styles */
+.rating-stars-readonly {
+  pointer-events: none;
+}
+
+/* Animations */
+@keyframes star-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+.rating-star-filled.rating-star-interactive:active {
+  animation: star-pulse 0.2s ease;
+}
+
+/* Dark theme adjustments */
+@media (prefers-color-scheme: dark) {
+  .rating-star-empty {
+    color: rgba(255, 255, 255, 0.25);
+  }
+}

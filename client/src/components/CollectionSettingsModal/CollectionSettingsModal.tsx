@@ -48,6 +48,8 @@ interface CollectionSettingsModalProps {
   onSave: (updates: CollectionUpdates) => Promise<void>;
   onRemoveItems: (itemIds: string[]) => Promise<void>;
   onReorderItems: (orderedItemIds: string[]) => Promise<void>;
+  /** Called after smart collection operations (refresh, convert) to notify parent to refetch */
+  onRefresh?: () => void;
 }
 
 export interface CollectionUpdates {
@@ -96,6 +98,7 @@ export function CollectionSettingsModal({
   onSave,
   onRemoveItems,
   onReorderItems,
+  onRefresh,
 }: CollectionSettingsModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<TabId>('general');
@@ -1846,6 +1849,8 @@ export function CollectionSettingsModal({
                             const result = await refreshSmartMutation.mutateAsync(collection.id);
                             setSmartError(`Refreshed: ${result.added} added, ${result.removed} removed`);
                             setTimeout(() => setSmartError(null), 3000);
+                            // Notify parent to refetch data (cover, items, etc.)
+                            onRefresh?.();
                           } catch (err) {
                             setSmartError(err instanceof Error ? err.message : 'Failed to refresh');
                           }
@@ -1883,6 +1888,8 @@ export function CollectionSettingsModal({
                             });
                             setSmartError(`Smart collection created: ${result.added} items added`);
                             setTimeout(() => setSmartError(null), 3000);
+                            // Notify parent to refetch data
+                            onRefresh?.();
                           } catch (err) {
                             setSmartError(err instanceof Error ? err.message : 'Failed to convert');
                           }
@@ -2040,6 +2047,8 @@ export function CollectionSettingsModal({
                       setIsSmartEnabled(false);
                       setSmartError('Smart collection disabled');
                       setTimeout(() => setSmartError(null), 3000);
+                      // Notify parent to refetch data
+                      onRefresh?.();
                     } catch (err) {
                       setSmartError(err instanceof Error ? err.message : 'Failed to disable');
                     }

@@ -25,6 +25,8 @@ import { LocalSeriesSearchModal } from '../LocalSeriesSearchModal';
 import { SimpleTagInput } from './SimpleTagInput';
 import { BatchMetadataEditor } from './BatchMetadataEditor';
 import { CoverEditorModal } from './CoverEditorModal';
+import { RatingStars } from '../RatingStars';
+import { useIssueUserData, useUpdateIssueUserData } from '../../hooks/queries';
 import './MetadataEditor.css';
 
 interface MetadataEditorProps {
@@ -153,6 +155,11 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
   // Get the file ID - use first element for single file editing
   const fileId = fileIds[0];
+
+  // User data hooks for per-user rating and notes
+  const { data: userDataResponse } = useIssueUserData(fileId);
+  const updateUserData = useUpdateIssueUserData();
+  const userData = userDataResponse?.data;
 
   // Load metadata and cover info
   useEffect(() => {
@@ -530,6 +537,98 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
               </div>
             );
           })}
+
+          {/* Your Data Section - User rating and notes */}
+          <div className={`metadata-field-section ${expandedSections.has('userData') ? 'expanded' : ''}`}>
+            <button
+              type="button"
+              className="metadata-field-section-header"
+              onClick={() => toggleSection('userData')}
+              aria-expanded={expandedSections.has('userData')}
+            >
+              <span className="section-title">Your Data</span>
+              {(userData?.rating || userData?.privateNotes || userData?.publicReview) && (
+                <span className="section-badge">✓</span>
+              )}
+              <span className="section-chevron">▼</span>
+            </button>
+            <div className="metadata-field-section-content">
+              <div className="content-inner">
+                <div className="fields-wrapper">
+                  <div className="user-data-fields">
+                    {/* Rating */}
+                    <div className="user-data-field user-rating-field">
+                      <label className="user-data-label">Your Rating</label>
+                      <RatingStars
+                        value={userData?.rating ?? null}
+                        onChange={(rating) => {
+                          if (fileId) {
+                            updateUserData.mutate({ fileId, input: { rating } });
+                          }
+                        }}
+                        size="large"
+                        showValue
+                        allowClear
+                      />
+                    </div>
+
+                    {/* Private Notes */}
+                    <div className="user-data-field full-width">
+                      <label className="user-data-label">Private Notes</label>
+                      <textarea
+                        className="user-data-textarea"
+                        value={userData?.privateNotes ?? ''}
+                        onChange={(e) => {
+                          if (fileId) {
+                            const value = e.target.value || null;
+                            updateUserData.mutate({ fileId, input: { privateNotes: value } });
+                          }
+                        }}
+                        rows={3}
+                        placeholder="Your personal notes (only visible to you)..."
+                      />
+                    </div>
+
+                    {/* Public Review */}
+                    <div className="user-data-field full-width">
+                      <div className="user-data-label-row">
+                        <label className="user-data-label">Review</label>
+                        <label className="visibility-toggle">
+                          <input
+                            type="checkbox"
+                            checked={userData?.reviewVisibility === 'public'}
+                            onChange={(e) => {
+                              if (fileId) {
+                                updateUserData.mutate({
+                                  fileId,
+                                  input: { reviewVisibility: e.target.checked ? 'public' : 'private' }
+                                });
+                              }
+                            }}
+                          />
+                          <span className="visibility-label">Public</span>
+                        </label>
+                      </div>
+                      <textarea
+                        className="user-data-textarea"
+                        value={userData?.publicReview ?? ''}
+                        onChange={(e) => {
+                          if (fileId) {
+                            const value = e.target.value || null;
+                            updateUserData.mutate({ fileId, input: { publicReview: value } });
+                          }
+                        }}
+                        rows={4}
+                        placeholder={userData?.reviewVisibility === 'public'
+                          ? "Write a review (visible to others)..."
+                          : "Write a review (currently private)..."}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

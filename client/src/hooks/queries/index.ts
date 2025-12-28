@@ -128,3 +128,21 @@ export type {
   FileCoverInfo,
   UseFilesOptions,
 } from './useFiles';
+
+// User Data (ratings, reviews, notes)
+export {
+  useSeriesUserData,
+  useUpdateSeriesUserData,
+  useDeleteSeriesUserData,
+  useSeriesAverageRating,
+  useSeriesPublicReviews,
+  useIssueUserData,
+  useUpdateIssueUserData,
+  useDeleteIssueUserData,
+  useIssuePublicReviews,
+  useSeriesUserDataBatch,
+  useIssuesUserDataBatch,
+  useMigrateNotes,
+  useInvalidateUserData,
+} from './useUserData';
+export type { UpdateUserDataInput, LocalStorageNote } from './useUserData';
