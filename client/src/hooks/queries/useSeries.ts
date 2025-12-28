@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
+import { invalidateAfterCoverUpdate } from '../../lib/cacheInvalidation';
 import {
   getSeriesList,
   getUnifiedGridItems,
@@ -18,6 +19,8 @@ import {
   updateSeries,
   searchSeries,
   getPotentialDuplicates,
+  setSeriesCover,
+  uploadSeriesCover,
 } from '../../services/api/series';
 import type {
   Series,
@@ -185,6 +188,37 @@ export function useUpdateSeries() {
       queryClient.invalidateQueries({ queryKey: queryKeys.series.detail(seriesId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.series.list() });
       queryClient.invalidateQueries({ queryKey: queryKeys.series.grid() });
+    },
+  });
+}
+
+/**
+ * Set series cover
+ */
+export function useSetSeriesCover() {
+  return useMutation({
+    mutationFn: ({
+      seriesId,
+      options,
+    }: {
+      seriesId: string;
+      options: { source?: 'api' | 'user' | 'auto'; fileId?: string; url?: string };
+    }) => setSeriesCover(seriesId, options),
+    onSuccess: (_, { seriesId }) => {
+      invalidateAfterCoverUpdate({ seriesId });
+    },
+  });
+}
+
+/**
+ * Upload custom cover for a series
+ */
+export function useUploadSeriesCover() {
+  return useMutation({
+    mutationFn: ({ seriesId, file }: { seriesId: string; file: File }) =>
+      uploadSeriesCover(seriesId, file),
+    onSuccess: (_, { seriesId }) => {
+      invalidateAfterCoverUpdate({ seriesId });
     },
   });
 }

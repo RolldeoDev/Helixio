@@ -179,6 +179,7 @@ export function invalidateAfterLibraryScan(libraryId?: string) {
 /**
  * Invalidate caches after cover updates.
  * Used when series or file covers are changed.
+ * This ensures covers are refreshed everywhere they are displayed.
  */
 export function invalidateAfterCoverUpdate(options: {
   seriesId?: string;
@@ -190,11 +191,25 @@ export function invalidateAfterCoverUpdate(options: {
     // Also invalidate series list to refresh thumbnails
     queryClient.invalidateQueries({ queryKey: queryKeys.series.list() });
     queryClient.invalidateQueries({ queryKey: queryKeys.series.grid() });
+    // Invalidate issues for this series (in case any issue is displayed with series cover)
+    queryClient.invalidateQueries({ queryKey: queryKeys.series.issues(options.seriesId) });
+    // Invalidate collections that might display this series
+    queryClient.invalidateQueries({ queryKey: queryKeys.collections.all });
   }
 
   if (options.fileId) {
     queryClient.invalidateQueries({ queryKey: queryKeys.files.coverInfo(options.fileId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.files.detail(options.fileId) });
+    // Invalidate all series lists and grids since this file's cover might be used as series cover
+    queryClient.invalidateQueries({ queryKey: queryKeys.series.list() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.series.grid() });
+    // Invalidate series issues queries to refresh the cover in issue listings
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === 'series' && query.queryKey[1] === 'issues',
+    });
+    // Invalidate collections that might display this file
+    queryClient.invalidateQueries({ queryKey: queryKeys.collections.all });
   }
 }
 

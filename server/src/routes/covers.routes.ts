@@ -162,10 +162,17 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
     const { fileId } = req.params;
     const prisma = getDatabase();
 
-    // Get file info
+    // Get file info including cover settings
     const file = await prisma.comicFile.findUnique({
       where: { id: fileId },
-      select: { id: true, hash: true, libraryId: true, path: true },
+      select: {
+        id: true,
+        hash: true,
+        libraryId: true,
+        path: true,
+        coverSource: true,
+        coverHash: true,
+      },
     });
 
     if (!file) {
@@ -179,35 +186,57 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
     const acceptHeader = req.get('Accept') || '';
     const acceptWebP = acceptHeader.includes('image/webp');
 
-    // Try to get cover data (from memory cache or disk)
-    let coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
+    let coverData;
 
-    // If not cached, extract and optimize
+    // If a custom cover (page or custom URL) is set, use coverHash from series covers cache
+    if ((file.coverSource === 'page' || file.coverSource === 'custom') && file.coverHash) {
+      coverData = await getSeriesCoverData(file.coverHash, acceptWebP);
+    }
+
+    // If no custom cover or not found, try default file cover
     if (!coverData) {
-      const result = await getCoverForFile(fileId!);
-
-      if (!result.success) {
-        res.status(404).json({
-          error: 'Cover not found',
-          message: result.error || 'Failed to extract cover',
-        });
-        return;
-      }
-
-      // Get the newly extracted cover
       coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
 
+      // If not cached, extract and optimize
       if (!coverData) {
-        res.status(500).json({ error: 'Failed to load extracted cover' });
-        return;
+        const result = await getCoverForFile(fileId!);
+
+        if (!result.success) {
+          res.status(404).json({
+            error: 'Cover not found',
+            message: result.error || 'Failed to extract cover',
+          });
+          return;
+        }
+
+        // Get the newly extracted cover
+        coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
+
+        if (!coverData) {
+          res.status(500).json({ error: 'Failed to load extracted cover' });
+          return;
+        }
       }
     }
 
+    // Use coverHash for ETag when custom cover exists, otherwise use fileHash
+    const etagBase = file.coverHash || fileHash;
+    const etag = `"${etagBase}-${acceptWebP ? 'webp' : 'jpeg'}"`;
+
+    // Check If-None-Match for conditional requests
+    const ifNoneMatch = req.get('If-None-Match');
+    if (ifNoneMatch === etag) {
+      res.status(304).end();
+      return;
+    }
+
     // Set response headers
+    // Use must-revalidate since the same URL can serve different covers
     res.set({
       'Content-Type': coverData.contentType,
       'Content-Length': coverData.data.length.toString(),
-      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Cache-Control': 'public, max-age=86400, must-revalidate',
+      'ETag': etag,
       'Vary': 'Accept',
     });
 

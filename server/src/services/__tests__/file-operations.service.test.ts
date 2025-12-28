@@ -1,0 +1,1479 @@
+/**
+ * File Operations Service Tests
+ *
+ * Tests for file system operations with database synchronization:
+ * - Move, rename, delete operations
+ * - Quarantine and restore functionality
+ * - Folder rename operations
+ * - File verification
+ * - Orphaned record cleanup
+ * - Operation logging for rollback support
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createMockPrismaClient,
+  createMockComicFile,
+  createMockLibrary,
+  createMockOperationLog,
+} from './__mocks__/prisma.mock.js';
+
+// Create mock prisma client
+const mockPrisma = createMockPrismaClient();
+
+// Mock database service
+vi.mock('../database.service.js', () => ({
+  getDatabase: vi.fn(() => mockPrisma),
+}));
+
+// Mock logger service
+vi.mock('../logger.service.js', () => ({
+  logError: vi.fn(),
+  logInfo: vi.fn(),
+  createServiceLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  })),
+}));
+
+// Mock fs/promises
+const mockRename = vi.fn().mockResolvedValue(undefined);
+const mockUnlink = vi.fn().mockResolvedValue(undefined);
+const mockCopyFile = vi.fn().mockResolvedValue(undefined);
+const mockMkdir = vi.fn().mockResolvedValue(undefined);
+const mockAccess = vi.fn().mockResolvedValue(undefined);
+const mockStat = vi.fn().mockResolvedValue({ size: 50000000 });
+vi.mock('fs/promises', () => ({
+  rename: mockRename,
+  unlink: mockUnlink,
+  copyFile: mockCopyFile,
+  mkdir: mockMkdir,
+  access: mockAccess,
+  stat: mockStat,
+}));
+
+// Mock hash service
+const mockGeneratePartialHash = vi.fn().mockResolvedValue('abc123');
+vi.mock('../hash.service.js', () => ({
+  generatePartialHash: mockGeneratePartialHash,
+}));
+
+// Mock series service
+const mockCheckAndSoftDeleteEmptySeries = vi.fn().mockResolvedValue(false);
+vi.mock('../series/index.js', () => ({
+  checkAndSoftDeleteEmptySeries: mockCheckAndSoftDeleteEmptySeries,
+}));
+
+// Mock collection service
+const mockMarkFileItemsUnavailable = vi.fn().mockResolvedValue(undefined);
+vi.mock('../collection.service.js', () => ({
+  markFileItemsUnavailable: mockMarkFileItemsUnavailable,
+}));
+
+// Import service after mocking
+const {
+  moveFile,
+  renameFile,
+  deleteFile,
+  quarantineFile,
+  restoreFromQuarantine,
+  removeOrphanedRecords,
+  renameFolder,
+  verifyFile,
+  trackOriginalFilename,
+  addRenameToHistory,
+  getOriginalFilename,
+  restoreOriginalFilename,
+  renameFileWithTracking,
+  moveFileWithTracking,
+} = await import('../file-operations.service.js');
+
+describe('File Operations Service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // =============================================================================
+  // moveFile
+  // =============================================================================
+
+  describe('moveFile', () => {
+    it('should move a file successfully', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman/Batman 001.cbz',
+        relativePath: 'Batman/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      // Source exists, destination doesn't
+      mockAccess
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce(new Error('ENOENT')); // destination doesn't exist
+
+      const result = await moveFile('file-1', '/comics/DC/Batman 001.cbz');
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('move');
+      expect(result.source).toBe('/comics/Batman/Batman 001.cbz');
+      expect(result.destination).toBe('/comics/DC/Batman 001.cbz');
+      expect(result.logId).toBe('log-1');
+      expect(mockRename).toHaveBeenCalledWith(
+        '/comics/Batman/Batman 001.cbz',
+        '/comics/DC/Batman 001.cbz'
+      );
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await moveFile('nonexistent', '/comics/dest.cbz');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should return error when source does not exist', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/missing.cbz',
+        library: createMockLibrary(),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await moveFile('file-1', '/comics/dest.cbz');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Source file does not exist');
+    });
+
+    it('should return error when destination exists without overwrite', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/source.cbz',
+        library: createMockLibrary(),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      // Both source and destination exist
+      mockAccess.mockResolvedValue(undefined);
+
+      const result = await moveFile('file-1', '/comics/existing.cbz');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Destination file already exists');
+    });
+
+    it('should overwrite destination when overwrite option is set', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/source.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      const result = await moveFile('file-1', '/comics/existing.cbz', { overwrite: true });
+
+      expect(result.success).toBe(true);
+      expect(mockRename).toHaveBeenCalled();
+    });
+
+    it('should create directories when createDirs option is set', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/source.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      // Source exists, destination doesn't
+      mockAccess
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce(new Error('ENOENT')); // destination doesn't exist
+
+      const result = await moveFile('file-1', '/comics/new/folder/file.cbz', { createDirs: true });
+
+      expect(result.success).toBe(true);
+      expect(mockMkdir).toHaveBeenCalledWith('/comics/new/folder', { recursive: true });
+    });
+
+    it('should update database with new path and filename', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await moveFile('file-1', '/comics/subdir/new.cbz');
+
+      expect(mockPrisma.comicFile.update).toHaveBeenCalledWith({
+        where: { id: 'file-1' },
+        data: {
+          path: '/comics/subdir/new.cbz',
+          relativePath: 'subdir/new.cbz',
+          filename: 'new.cbz',
+        },
+      });
+    });
+
+    it('should log operation with metadata', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old.cbz',
+        filename: 'old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await moveFile('file-1', '/comics/new.cbz', { batchId: 'batch-1' });
+
+      expect(mockPrisma.operationLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          operation: 'move',
+          source: '/comics/old.cbz',
+          destination: '/comics/new.cbz',
+          status: 'success',
+          reversible: true,
+          batchId: 'batch-1',
+        }),
+      });
+    });
+
+    it('should handle rename error and log failure', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/source.cbz',
+        library: createMockLibrary(),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+      mockRename.mockRejectedValueOnce(new Error('Permission denied'));
+
+      const result = await moveFile('file-1', '/comics/dest.cbz');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Permission denied');
+      expect(mockPrisma.operationLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          status: 'failed',
+          reversible: false,
+        }),
+      });
+    });
+  });
+
+  // =============================================================================
+  // renameFile
+  // =============================================================================
+
+  describe('renameFile', () => {
+    it('should rename a file within the same directory', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman/Batman 001.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await renameFile('file-1', 'Batman Issue 1.cbz');
+
+      expect(result.success).toBe(true);
+      expect(mockRename).toHaveBeenCalledWith(
+        '/comics/Batman/Batman 001.cbz',
+        '/comics/Batman/Batman Issue 1.cbz'
+      );
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await renameFile('nonexistent', 'new.cbz');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should pass batchId to moveFile', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await renameFile('file-1', 'new.cbz', { batchId: 'batch-1' });
+
+      expect(mockPrisma.operationLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ batchId: 'batch-1' }),
+      });
+    });
+  });
+
+  // =============================================================================
+  // deleteFile
+  // =============================================================================
+
+  describe('deleteFile', () => {
+    it('should delete a file and remove from database', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+        size: 50000,
+        hash: 'abc123',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      const result = await deleteFile('file-1');
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('delete');
+      expect(mockUnlink).toHaveBeenCalledWith('/comics/Batman 001.cbz');
+      expect(mockPrisma.comicFile.delete).toHaveBeenCalledWith({ where: { id: 'file-1' } });
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await deleteFile('nonexistent');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should still delete from database if file does not exist on disk', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/missing.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await deleteFile('file-1');
+
+      expect(result.success).toBe(true);
+      expect(mockUnlink).not.toHaveBeenCalled();
+      expect(mockPrisma.comicFile.delete).toHaveBeenCalled();
+    });
+
+    it('should log operation as not reversible', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      await deleteFile('file-1', { batchId: 'batch-1' });
+
+      expect(mockPrisma.operationLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          operation: 'delete',
+          reversible: false,
+          batchId: 'batch-1',
+        }),
+      });
+    });
+
+    it('should handle deletion error', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/protected.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockUnlink.mockRejectedValueOnce(new Error('Permission denied'));
+
+      const result = await deleteFile('file-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Permission denied');
+    });
+  });
+
+  // =============================================================================
+  // quarantineFile
+  // =============================================================================
+
+  describe('quarantineFile', () => {
+    it('should move file to quarantine directory', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman/Batman 001.cbz',
+        relativePath: 'Batman/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      const result = await quarantineFile('file-1', 'Corrupted archive');
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('quarantine');
+      expect(result.destination).toBe('/comics/CorruptedData/Batman/Batman 001.cbz');
+      expect(mockMkdir).toHaveBeenCalledWith('/comics/CorruptedData/Batman', { recursive: true });
+      expect(mockRename).toHaveBeenCalled();
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await quarantineFile('nonexistent', 'reason');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should update file status to quarantined', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman/test.cbz',
+        relativePath: 'Batman/test.cbz',
+        filename: 'test.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      await quarantineFile('file-1', 'reason');
+
+      expect(mockPrisma.comicFile.update).toHaveBeenCalledWith({
+        where: { id: 'file-1' },
+        data: {
+          status: 'quarantined',
+          path: '/comics/CorruptedData/Batman/test.cbz',
+          relativePath: 'CorruptedData/Batman/test.cbz',
+        },
+      });
+    });
+
+    it('should handle already missing source file gracefully', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/missing.cbz',
+        relativePath: 'missing.cbz',
+        filename: 'missing.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await quarantineFile('file-1', 'Already gone');
+
+      expect(result.success).toBe(true);
+      expect(mockRename).not.toHaveBeenCalled();
+    });
+
+    it('should log quarantine reason in metadata', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        relativePath: 'test.cbz',
+        filename: 'test.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+
+      await quarantineFile('file-1', 'Invalid format');
+
+      expect(mockPrisma.operationLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          operation: 'quarantine',
+          metadata: expect.stringContaining('Invalid format'),
+        }),
+      });
+    });
+
+    it('should handle quarantine error', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        relativePath: 'test.cbz',
+        filename: 'test.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockRename.mockRejectedValueOnce(new Error('Disk full'));
+
+      const result = await quarantineFile('file-1', 'reason');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Disk full');
+    });
+  });
+
+  // =============================================================================
+  // restoreFromQuarantine
+  // =============================================================================
+
+  describe('restoreFromQuarantine', () => {
+    it('should restore file to original location', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/CorruptedData/Batman/test.cbz',
+        status: 'quarantined',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      const log = {
+        ...createMockOperationLog(),
+        source: '/comics/Batman/test.cbz',
+        destination: '/comics/CorruptedData/Batman/test.cbz',
+        operation: 'quarantine',
+        status: 'success',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.findMany.mockResolvedValue([log]);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-2' });
+
+      const result = await restoreFromQuarantine('file-1');
+
+      expect(result.success).toBe(true);
+      expect(result.operation).toBe('restore');
+      expect(mockRename).toHaveBeenCalledWith(
+        '/comics/CorruptedData/Batman/test.cbz',
+        '/comics/Batman/test.cbz'
+      );
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await restoreFromQuarantine('nonexistent');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should return error when file is not quarantined', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        status: 'indexed',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+
+      const result = await restoreFromQuarantine('file-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('File is not quarantined');
+    });
+
+    it('should return error when original location not found in logs', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/CorruptedData/test.cbz',
+        status: 'quarantined',
+        library: createMockLibrary(),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.findMany.mockResolvedValue([]);
+
+      const result = await restoreFromQuarantine('file-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Could not find original location in operation logs');
+    });
+
+    it('should return error when quarantined file is missing', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/CorruptedData/missing.cbz',
+        status: 'quarantined',
+        library: createMockLibrary(),
+      };
+      const log = {
+        ...createMockOperationLog(),
+        source: '/comics/test.cbz',
+        destination: '/comics/CorruptedData/missing.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.findMany.mockResolvedValue([log]);
+      mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await restoreFromQuarantine('file-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Quarantined file not found');
+    });
+
+    it('should update file status to pending after restore', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/CorruptedData/test.cbz',
+        status: 'quarantined',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      const log = {
+        ...createMockOperationLog(),
+        source: '/comics/original.cbz',
+        destination: '/comics/CorruptedData/test.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.operationLog.findMany.mockResolvedValue([log]);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-2' });
+
+      await restoreFromQuarantine('file-1');
+
+      expect(mockPrisma.comicFile.update).toHaveBeenCalledWith({
+        where: { id: 'file-1' },
+        data: expect.objectContaining({
+          status: 'pending',
+          path: '/comics/original.cbz',
+        }),
+      });
+    });
+  });
+
+  // =============================================================================
+  // removeOrphanedRecords
+  // =============================================================================
+
+  describe('removeOrphanedRecords', () => {
+    it('should delete orphaned file records', async () => {
+      const orphanedFiles = [
+        { id: 'file-1', seriesId: 'series-1' },
+        { id: 'file-2', seriesId: 'series-1' },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(orphanedFiles);
+      mockPrisma.comicFile.deleteMany.mockResolvedValue({ count: 2 });
+
+      const result = await removeOrphanedRecords('lib-1');
+
+      expect(result).toBe(2);
+      expect(mockPrisma.comicFile.deleteMany).toHaveBeenCalledWith({
+        where: { libraryId: 'lib-1', status: 'orphaned' },
+      });
+    });
+
+    it('should return 0 when no orphaned files exist', async () => {
+      mockPrisma.comicFile.findMany.mockResolvedValue([]);
+
+      const result = await removeOrphanedRecords('lib-1');
+
+      expect(result).toBe(0);
+      expect(mockPrisma.comicFile.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('should mark collection items as unavailable', async () => {
+      const orphanedFiles = [
+        { id: 'file-1', seriesId: null },
+        { id: 'file-2', seriesId: null },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(orphanedFiles);
+      mockPrisma.comicFile.deleteMany.mockResolvedValue({ count: 2 });
+
+      await removeOrphanedRecords('lib-1');
+
+      expect(mockMarkFileItemsUnavailable).toHaveBeenCalledWith('file-1');
+      expect(mockMarkFileItemsUnavailable).toHaveBeenCalledWith('file-2');
+    });
+
+    it('should check for empty series after deletion', async () => {
+      const orphanedFiles = [
+        { id: 'file-1', seriesId: 'series-1' },
+        { id: 'file-2', seriesId: 'series-2' },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(orphanedFiles);
+      mockPrisma.comicFile.deleteMany.mockResolvedValue({ count: 2 });
+
+      await removeOrphanedRecords('lib-1');
+
+      expect(mockCheckAndSoftDeleteEmptySeries).toHaveBeenCalledWith('series-1');
+      expect(mockCheckAndSoftDeleteEmptySeries).toHaveBeenCalledWith('series-2');
+    });
+  });
+
+  // =============================================================================
+  // renameFolder
+  // =============================================================================
+
+  describe('renameFolder', () => {
+    it('should rename a folder and update file paths', async () => {
+      const library = createMockLibrary({ id: 'lib-1', rootPath: '/comics' });
+      const files = [
+        { id: 'file-1', relativePath: 'Marvel/Spider-Man 001.cbz', filename: 'Spider-Man 001.cbz' },
+        { id: 'file-2', relativePath: 'Marvel/Spider-Man 002.cbz', filename: 'Spider-Man 002.cbz' },
+      ];
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce(new Error('ENOENT')); // destination doesn't exist
+
+      const result = await renameFolder('lib-1', 'Marvel', 'Marvel Comics');
+
+      expect(result.success).toBe(true);
+      expect(result.filesUpdated).toBe(2);
+      expect(mockRename).toHaveBeenCalledWith('/comics/Marvel', '/comics/Marvel Comics');
+    });
+
+    it('should return error when library not found', async () => {
+      mockPrisma.library.findUnique.mockResolvedValue(null);
+
+      const result = await renameFolder('nonexistent', 'folder', 'new');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Library not found');
+    });
+
+    it('should reject folder names with path separators', async () => {
+      const library = createMockLibrary({ id: 'lib-1' });
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+
+      const result = await renameFolder('lib-1', 'Marvel', 'Marvel/Comics');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('New folder name cannot contain path separators');
+    });
+
+    it('should return error when source folder does not exist', async () => {
+      const library = createMockLibrary({ id: 'lib-1', rootPath: '/comics' });
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+      mockAccess.mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await renameFolder('lib-1', 'Missing', 'NewName');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Source folder does not exist');
+    });
+
+    it('should return error when destination folder exists', async () => {
+      const library = createMockLibrary({ id: 'lib-1', rootPath: '/comics' });
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+      // Both exist
+      mockAccess.mockResolvedValue(undefined);
+
+      const result = await renameFolder('lib-1', 'Marvel', 'DC');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('A folder with that name already exists');
+    });
+
+    it('should handle nested folder paths', async () => {
+      const library = createMockLibrary({ id: 'lib-1', rootPath: '/comics' });
+      const files = [
+        { id: 'file-1', relativePath: 'Publisher/Marvel/Spider-Man 001.cbz', filename: 'Spider-Man 001.cbz' },
+      ];
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await renameFolder('lib-1', 'Publisher/Marvel', 'Marvel Comics');
+
+      expect(result.success).toBe(true);
+      expect(result.newPath).toBe('Publisher/Marvel Comics');
+    });
+
+    it('should rollback on database error', async () => {
+      const library = createMockLibrary({ id: 'lib-1', rootPath: '/comics' });
+      const files = [
+        { id: 'file-1', relativePath: 'Marvel/test.cbz', filename: 'test.cbz' },
+      ];
+      mockPrisma.library.findUnique.mockResolvedValue(library);
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.comicFile.update.mockRejectedValue(new Error('DB error'));
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'))
+        .mockResolvedValueOnce(undefined); // new folder exists for rollback
+
+      const result = await renameFolder('lib-1', 'Marvel', 'NewName');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('DB error');
+      // Should attempt rollback
+      expect(mockRename).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // =============================================================================
+  // verifyFile
+  // =============================================================================
+
+  describe('verifyFile', () => {
+    it('should verify file exists with matching size and hash', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        size: 50000000,
+        hash: 'abc123',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockStat.mockResolvedValue({ size: 50000000 });
+      mockGeneratePartialHash.mockResolvedValue('abc123');
+
+      const result = await verifyFile('file-1');
+
+      expect(result.exists).toBe(true);
+      expect(result.sizeMatch).toBe(true);
+      expect(result.hashMatch).toBe(true);
+    });
+
+    it('should return exists false when file not in database', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await verifyFile('nonexistent');
+
+      expect(result.exists).toBe(false);
+      expect(result.hashMatch).toBeNull();
+      expect(result.sizeMatch).toBeNull();
+    });
+
+    it('should return exists false when file not on disk', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/missing.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockStat.mockRejectedValue(new Error('ENOENT'));
+
+      const result = await verifyFile('file-1');
+
+      expect(result.exists).toBe(false);
+    });
+
+    it('should detect size mismatch', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        size: 50000000,
+        hash: null,
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockStat.mockResolvedValue({ size: 40000000 });
+
+      const result = await verifyFile('file-1');
+
+      expect(result.exists).toBe(true);
+      expect(result.sizeMatch).toBe(false);
+      expect(result.hashMatch).toBeNull(); // No hash to compare
+    });
+
+    it('should detect hash mismatch', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        size: 50000000,
+        hash: 'abc123',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockStat.mockResolvedValue({ size: 50000000 });
+      mockGeneratePartialHash.mockResolvedValue('different_hash');
+
+      const result = await verifyFile('file-1');
+
+      expect(result.exists).toBe(true);
+      expect(result.sizeMatch).toBe(true);
+      expect(result.hashMatch).toBe(false);
+    });
+
+    it('should skip hash comparison when file has no hash', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+        size: 50000000,
+        hash: null,
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockStat.mockResolvedValue({ size: 50000000 });
+
+      const result = await verifyFile('file-1');
+
+      expect(result.hashMatch).toBeNull();
+      expect(mockGeneratePartialHash).not.toHaveBeenCalled();
+    });
+  });
+
+  // =============================================================================
+  // trackOriginalFilename
+  // =============================================================================
+
+  describe('trackOriginalFilename', () => {
+    it('should create tracking record on first rename', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'Batman 001.cbz',
+        originalPath: '/comics/Batman 001.cbz',
+        renameHistory: '[]',
+        firstRenamedAt: new Date(),
+        lastRenamedAt: new Date(),
+      });
+
+      await trackOriginalFilename('file-1', 'template-1');
+
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          fileId: 'file-1',
+          originalFilename: 'Batman 001.cbz',
+          originalPath: '/comics/Batman 001.cbz',
+        }),
+      });
+    });
+
+    it('should not create duplicate tracking if already tracked', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman - Issue 001.cbz',
+        filename: 'Batman - Issue 001.cbz',
+      };
+      const existingTracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'Batman 001.cbz',
+        originalPath: '/comics/Batman 001.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(existingTracking);
+
+      await trackOriginalFilename('file-1');
+
+      expect(mockPrisma.originalFilename.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      await expect(trackOriginalFilename('nonexistent')).rejects.toThrow('File not found');
+    });
+  });
+
+  // =============================================================================
+  // addRenameToHistory
+  // =============================================================================
+
+  describe('addRenameToHistory', () => {
+    it('should append rename entry to history', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/new-name.cbz',
+        filename: 'new-name.cbz',
+      };
+      const existingTracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(existingTracking);
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+
+      await addRenameToHistory('file-1', '/comics/old.cbz', '/comics/new-name.cbz');
+
+      expect(mockPrisma.originalFilename.update).toHaveBeenCalledWith({
+        where: { fileId: 'file-1' },
+        data: expect.objectContaining({
+          renameHistory: expect.any(String),
+          lastRenamedAt: expect.any(Date),
+        }),
+      });
+    });
+
+    it('should create tracking if not exists when adding history', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/renamed.cbz',
+        filename: 'renamed.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({});
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+
+      await addRenameToHistory('file-1', '/comics/original.cbz', '/comics/renamed.cbz');
+
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalled();
+    });
+
+    it('should preserve existing history entries', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/third-name.cbz',
+        filename: 'third-name.cbz',
+      };
+      const existingHistory = JSON.stringify([
+        { timestamp: '2024-01-01', oldPath: '/comics/original.cbz', newPath: '/comics/first.cbz' },
+      ]);
+      const existingTracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: existingHistory,
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(existingTracking);
+      mockPrisma.originalFilename.update.mockImplementation((args) => {
+        const history = JSON.parse(args.data.renameHistory);
+        expect(history.length).toBe(2);
+        expect(history[0].oldPath).toBe('/comics/original.cbz');
+        return Promise.resolve({});
+      });
+
+      await addRenameToHistory('file-1', '/comics/first.cbz', '/comics/third-name.cbz');
+    });
+  });
+
+  // =============================================================================
+  // getOriginalFilename
+  // =============================================================================
+
+  describe('getOriginalFilename', () => {
+    it('should return original filename and history', async () => {
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'Batman 001.cbz',
+        originalPath: '/comics/Batman 001.cbz',
+        renameHistory: JSON.stringify([
+          { timestamp: '2024-01-01T00:00:00Z', oldPath: '/comics/Batman 001.cbz', newPath: '/comics/Batman - Issue 001.cbz' },
+        ]),
+      };
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+
+      const result = await getOriginalFilename('file-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.originalFilename).toBe('Batman 001.cbz');
+      expect(result?.originalPath).toBe('/comics/Batman 001.cbz');
+      expect(result?.history).toHaveLength(1);
+    });
+
+    it('should return null when no tracking exists', async () => {
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+
+      const result = await getOriginalFilename('file-1');
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle empty history', async () => {
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+
+      const result = await getOriginalFilename('file-1');
+
+      expect(result?.history).toEqual([]);
+    });
+
+    it('should handle malformed history JSON gracefully', async () => {
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: 'not valid json',
+      };
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+
+      const result = await getOriginalFilename('file-1');
+
+      expect(result?.history).toEqual([]);
+    });
+  });
+
+  // =============================================================================
+  // restoreOriginalFilename
+  // =============================================================================
+
+  describe('restoreOriginalFilename', () => {
+    it('should restore file to original filename', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman - Issue 001.cbz',
+        filename: 'Batman - Issue 001.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'Batman 001.cbz',
+        originalPath: '/comics/Batman 001.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockRejectedValueOnce(new Error('ENOENT')); // destination doesn't exist
+
+      const result = await restoreOriginalFilename('file-1');
+
+      expect(result.success).toBe(true);
+      expect(mockRename).toHaveBeenCalledWith(
+        '/comics/Batman - Issue 001.cbz',
+        '/comics/Batman 001.cbz'
+      );
+      expect(mockPrisma.originalFilename.delete).toHaveBeenCalled();
+    });
+
+    it('should return error when no tracking exists', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/test.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+
+      const result = await restoreOriginalFilename('file-1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('No original filename');
+    });
+
+    it('should return error when file not found', async () => {
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await restoreOriginalFilename('nonexistent');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File not found');
+    });
+
+    it('should skip restore if already at original filename', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/original.cbz',
+        filename: 'original.cbz',
+      };
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+      mockPrisma.originalFilename.delete.mockResolvedValue({});
+
+      const result = await restoreOriginalFilename('file-1');
+
+      expect(result.success).toBe(true);
+      expect(mockRename).not.toHaveBeenCalled();
+      expect(mockPrisma.originalFilename.delete).toHaveBeenCalled();
+    });
+
+    it('should handle destination conflict with suffix', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/renamed.cbz',
+        filename: 'renamed.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      // Source exists, destination exists (conflict)
+      mockAccess
+        .mockResolvedValueOnce(undefined) // source exists
+        .mockResolvedValueOnce(undefined) // destination exists - conflict
+        .mockRejectedValueOnce(new Error('ENOENT')); // (2) version doesn't exist
+
+      const result = await restoreOriginalFilename('file-1');
+
+      expect(result.success).toBe(true);
+      // Should have renamed to original (2).cbz or similar
+      expect(mockRename).toHaveBeenCalled();
+    });
+
+    it('should restore to original path when keepCurrentDirectory is false', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/subdir/renamed.cbz',
+        filename: 'renamed.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      const tracking = {
+        id: 'orig-1',
+        fileId: 'file-1',
+        originalFilename: 'original.cbz',
+        originalPath: '/comics/original.cbz',
+        renameHistory: '[]',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(tracking);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await restoreOriginalFilename('file-1', { keepCurrentDirectory: false });
+
+      expect(result.success).toBe(true);
+      expect(mockRename).toHaveBeenCalledWith(
+        '/comics/subdir/renamed.cbz',
+        '/comics/original.cbz'
+      );
+    });
+  });
+
+  // =============================================================================
+  // renameFileWithTracking
+  // =============================================================================
+
+  describe('renameFileWithTracking', () => {
+    it('should rename file and track original', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({});
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await renameFileWithTracking('file-1', 'Batman - Issue 001.cbz');
+
+      expect(result.success).toBe(true);
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalled();
+      expect(mockRename).toHaveBeenCalled();
+    });
+
+    it('should skip tracking when trackOriginal is false', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old.cbz',
+        filename: 'old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await renameFileWithTracking('file-1', 'new.cbz', { trackOriginal: false });
+
+      expect(result.success).toBe(true);
+      expect(mockPrisma.originalFilename.create).not.toHaveBeenCalled();
+      expect(mockPrisma.originalFilename.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should not track if filename is unchanged', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/same.cbz',
+        filename: 'same.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await renameFileWithTracking('file-1', 'same.cbz');
+
+      expect(mockPrisma.originalFilename.create).not.toHaveBeenCalled();
+    });
+
+    it('should include templateId in tracking', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old.cbz',
+        filename: 'old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({});
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await renameFileWithTracking('file-1', 'new.cbz', { templateId: 'template-1' });
+
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          fileId: 'file-1',
+        }),
+      });
+    });
+  });
+
+  // =============================================================================
+  // moveFileWithTracking
+  // =============================================================================
+
+  describe('moveFileWithTracking', () => {
+    it('should move file and track original', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old-dir/file.cbz',
+        filename: 'file.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({});
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await moveFileWithTracking('file-1', '/comics/new-dir/file.cbz');
+
+      expect(result.success).toBe(true);
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalled();
+    });
+
+    it('should skip tracking when trackOriginal is false', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/old/file.cbz',
+        filename: 'file.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      const result = await moveFileWithTracking('file-1', '/comics/new/file.cbz', { trackOriginal: false });
+
+      expect(result.success).toBe(true);
+      expect(mockPrisma.originalFilename.create).not.toHaveBeenCalled();
+    });
+
+    it('should not track if path is unchanged', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/same/file.cbz',
+        filename: 'file.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await moveFileWithTracking('file-1', '/comics/same/file.cbz');
+
+      expect(mockPrisma.originalFilename.create).not.toHaveBeenCalled();
+    });
+
+    it('should track when filename changes during move', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        path: '/comics/dir/old.cbz',
+        filename: 'old.cbz',
+        library: createMockLibrary({ rootPath: '/comics' }),
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.update.mockResolvedValue({});
+      mockPrisma.originalFilename.findUnique.mockResolvedValue(null);
+      mockPrisma.originalFilename.create.mockResolvedValue({});
+      mockPrisma.originalFilename.update.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockAccess
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('ENOENT'));
+
+      await moveFileWithTracking('file-1', '/comics/dir/new.cbz');
+
+      expect(mockPrisma.originalFilename.create).toHaveBeenCalled();
+    });
+  });
+});

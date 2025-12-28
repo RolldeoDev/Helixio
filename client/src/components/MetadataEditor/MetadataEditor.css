@@ -1,0 +1,585 @@
+/* =============================================================================
+   MetadataEditor - Compact Accordion Layout
+   850px modal with combined cover + issue info row
+   ============================================================================= */
+
+/* =============================================================================
+   Modal Container Override
+   ============================================================================= */
+
+.modal-content:has(.metadata-editor) {
+  width: 850px;
+  max-width: 95vw;
+}
+
+/* =============================================================================
+   Base Container
+   ============================================================================= */
+
+.metadata-editor {
+  position: relative;
+  width: 100%;
+  min-width: auto !important;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.metadata-editor-header {
+  padding: 6px 12px !important;
+}
+
+.metadata-editor-header h2 {
+  font-size: 1rem;
+}
+
+.metadata-editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.metadata-editor-header-actions .btn-ghost,
+.metadata-editor-header-actions .btn-sm {
+  padding: 3px 8px;
+  font-size: 0.6875rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.metadata-editor-header-actions .btn-ghost:hover,
+.metadata-editor-header-actions .btn-sm:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border-color: var(--color-border-hover);
+}
+
+.metadata-editor-header-actions .btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metadata-editor-header-actions .btn-icon:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Warning Banner (CBR files)
+   ============================================================================= */
+
+.metadata-editor-warning {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: linear-gradient(
+    90deg,
+    rgba(251, 191, 36, 0.08) 0%,
+    rgba(251, 191, 36, 0.04) 100%
+  );
+  border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.metadata-editor-warning .warning-icon {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+}
+
+.metadata-editor-warning .warning-text {
+  flex: 1;
+  font-size: 0.6875rem;
+  color: var(--color-warning);
+  line-height: 1.3;
+}
+
+.metadata-editor-warning .btn-warning-action {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.metadata-editor-warning .btn-warning-action:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.25);
+  border-color: var(--color-warning);
+}
+
+.metadata-editor-warning .btn-warning-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Converting Overlay
+   ============================================================================= */
+
+.metadata-editor-converting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(15, 20, 25, 0.9);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+  animation: metadata-fadeIn 0.2s ease;
+}
+
+@keyframes metadata-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.metadata-editor-converting .converting-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-warning);
+  border-radius: 50%;
+  animation: metadata-spin 0.8s linear infinite;
+}
+
+@keyframes metadata-spin {
+  to { transform: rotate(360deg); }
+}
+
+.metadata-editor-converting .converting-text {
+  font-size: 0.8125rem;
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Content Layout
+   ============================================================================= */
+
+.metadata-editor-content.accordion-layout {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow-y: auto;
+}
+
+/* =============================================================================
+   Combined Cover + Issue Info Row
+   ============================================================================= */
+
+.metadata-cover-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-tertiary);
+}
+
+.metadata-cover-row .metadata-cover-preview {
+  width: 100px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metadata-cover-row .metadata-cover-preview img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Filename - now in issue-info section above fields */
+.metadata-issue-info .filename {
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  word-break: break-all;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, monospace);
+}
+
+.metadata-cover-row .btn-edit-cover {
+  width: 100%;
+  margin-top: auto;
+  padding: 3px 6px;
+  font-size: 0.625rem;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.metadata-cover-row .btn-edit-cover:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  border-color: var(--color-border-hover);
+}
+
+/* Issue Info Fields - Right side of cover row */
+.metadata-issue-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.issue-info-row {
+  display: flex;
+  gap: 8px;
+}
+
+.issue-info-row .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Series and Title fields - wide */
+.issue-field-series,
+.issue-field-title {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Issue # and Volume fields - narrow */
+.issue-field-number,
+.issue-field-volume {
+  width: 70px;
+  flex-shrink: 0;
+}
+
+.metadata-issue-info .form-field label {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.metadata-issue-info .form-field input {
+  padding: 4px 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
+}
+
+.metadata-issue-info .form-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-muted);
+}
+
+.metadata-issue-info .form-field .field-hint {
+  font-size: 0.5rem;
+  color: var(--color-text-subtle);
+}
+
+/* =============================================================================
+   Form Container (Accordion Sections)
+   ============================================================================= */
+
+.metadata-editor-content.accordion-layout .metadata-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px;
+  padding: 8px 12px;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: unset !important;
+}
+
+/* =============================================================================
+   Accordion Sections
+   ============================================================================= */
+
+.metadata-field-section {
+  flex: 0 0 auto;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.metadata-field-section:hover {
+  border-color: var(--color-border-hover, var(--color-border));
+}
+
+.metadata-field-section.expanded {
+  border-color: var(--color-primary-muted, rgba(34, 211, 238, 0.4));
+  box-shadow: 0 0 0 1px var(--color-primary-muted, rgba(34, 211, 238, 0.2));
+}
+
+/* Section Header */
+.metadata-field-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.metadata-field-section-header:hover {
+  background: var(--color-hover);
+}
+
+.metadata-field-section-header:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.metadata-field-section-header .section-title {
+  flex: 1;
+}
+
+.metadata-field-section-header .section-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  border-radius: 8px;
+}
+
+.metadata-field-section-header .section-chevron {
+  color: var(--color-text-muted);
+  font-size: 0.5rem;
+  transition: transform var(--transition-fast);
+}
+
+.metadata-field-section.expanded .section-chevron {
+  transform: rotate(180deg);
+}
+
+/* Section Content Animation */
+.metadata-field-section-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease;
+}
+
+.metadata-field-section.expanded .metadata-field-section-content {
+  grid-template-rows: 1fr;
+}
+
+.metadata-field-section-content .content-inner {
+  overflow: hidden;
+}
+
+.metadata-field-section-content .fields-wrapper {
+  padding: 0 10px 8px;
+}
+
+/* =============================================================================
+   Fields Grid
+   ============================================================================= */
+
+.metadata-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 8px;
+}
+
+.metadata-fields-grid .form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.metadata-fields-grid .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metadata-fields-grid .form-field label {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.metadata-fields-grid .form-field input,
+.metadata-fields-grid .form-field textarea {
+  padding: 4px 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  transition: all var(--transition-fast);
+}
+
+.metadata-fields-grid .form-field input:focus,
+.metadata-fields-grid .form-field textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-muted);
+}
+
+.metadata-fields-grid .form-field input:disabled,
+.metadata-fields-grid .form-field textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--color-surface);
+}
+
+.metadata-fields-grid .form-field textarea {
+  resize: vertical;
+  min-height: 40px;
+}
+
+/* Summary/Description textarea - larger for longer content */
+.metadata-fields-grid .form-field textarea#field-Summary {
+  min-height: 100px;
+  max-height: 200px;
+}
+
+/* Notes textarea - medium size */
+.metadata-fields-grid .form-field textarea#field-Notes {
+  min-height: 60px;
+}
+
+.metadata-fields-grid .form-field .field-hint {
+  font-size: 0.5rem;
+  color: var(--color-text-subtle);
+}
+
+.metadata-fields-grid .form-field .field-locked-indicator {
+  font-size: 0.5625rem;
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* =============================================================================
+   Footer
+   ============================================================================= */
+
+.metadata-editor-footer {
+  padding: 6px 12px !important;
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 700px) {
+  .modal-content:has(.metadata-editor) {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .metadata-editor {
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .metadata-cover-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 8px;
+  }
+
+  .metadata-cover-row .metadata-cover-preview {
+    width: 80px;
+  }
+
+  .metadata-issue-info .filename {
+    text-align: left;
+  }
+
+  .metadata-issue-info {
+    width: 100%;
+  }
+
+  .issue-info-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .issue-field-number,
+  .issue-field-volume {
+    width: 100%;
+  }
+
+  .metadata-editor-content.accordion-layout .metadata-form {
+    padding: 6px 8px;
+  }
+
+  .metadata-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metadata-editor-warning {
+    flex-wrap: wrap;
+    padding: 4px 8px;
+  }
+
+  .metadata-editor-warning .warning-text {
+    flex: 1 1 100%;
+    margin-bottom: 4px;
+  }
+
+  .metadata-editor-header-actions {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+}

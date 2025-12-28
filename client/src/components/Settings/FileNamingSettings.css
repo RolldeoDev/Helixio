@@ -1,0 +1,420 @@
+/**
+ * File Naming Settings - Redesigned
+ * Clean, space-efficient layout with horizontal template tabs
+ */
+
+.file-naming-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  max-width: 100%;
+}
+
+/* ============================================
+   Header
+   ============================================ */
+
+.fns-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.fns-header__title h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.fns-header__subtitle {
+  margin: var(--spacing-xs) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.fns-header__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+.fns-header__scope label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fns-header__scope select {
+  padding: var(--spacing-xs) var(--spacing-md);
+  padding-right: calc(var(--spacing-md) + 16px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-sm) center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fns-header__scope select:hover {
+  border-color: var(--accent-color);
+}
+
+.fns-header__scope select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.15);
+}
+
+/* ============================================
+   Template Bar (Horizontal Tabs)
+   ============================================ */
+
+.fns-template-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.fns-template-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.fns-template-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.fns-template-loading {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.fns-template-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.fns-template-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.fns-template-tab.active {
+  background: var(--bg-primary);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.fns-template-tab.is-active .fns-template-tab__name {
+  color: var(--accent-color);
+}
+
+.fns-template-tab.new {
+  border-style: dashed;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.fns-template-tab__name {
+  transition: color 0.15s ease;
+}
+
+.fns-template-tab__badge {
+  padding: 2px 6px;
+  background: rgba(var(--success-color-rgb), 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fns-template-tab__badge--library {
+  background: rgba(var(--info-color-rgb), 0.15);
+  color: var(--info-color);
+}
+
+.fns-add-template {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--accent-color);
+  border: none;
+  border-radius: var(--radius-md);
+  color: white;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.fns-add-template:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.fns-add-template:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   Main Content Area
+   ============================================ */
+
+.fns-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+}
+
+/* Template Meta (Name + Description inline) */
+.fns-meta {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--spacing-md);
+}
+
+@media (max-width: 800px) {
+  .fns-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fns-meta__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.fns-meta__field label {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fns-meta__field input {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fns-meta__field input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.15);
+}
+
+.fns-meta__field input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ============================================
+   Actions Bar
+   ============================================ */
+
+.fns-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.fns-actions__left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.fns-actions__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.fns-scope-badge {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(var(--info-color-rgb), 0.1);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--info-color);
+}
+
+/* Buttons */
+.fns-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.fns-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fns-btn--primary {
+  background: var(--accent-color);
+  border: none;
+  color: white;
+}
+
+.fns-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.fns-btn--secondary {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.fns-btn--secondary:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.fns-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-tertiary);
+}
+
+.fns-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.fns-btn--danger {
+  background: transparent;
+  border: 1px solid var(--error-color);
+  color: var(--error-color);
+}
+
+.fns-btn--danger:hover:not(:disabled) {
+  background: rgba(var(--error-color-rgb), 0.1);
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+
+.fns-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-3xl) var(--spacing-lg);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.fns-empty__icon {
+  color: var(--text-tertiary);
+  opacity: 0.5;
+}
+
+.fns-empty p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+/* ============================================
+   Responsive
+   ============================================ */
+
+@media (max-width: 600px) {
+  .fns-header {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .fns-header__scope {
+    width: 100%;
+  }
+
+  .fns-header__scope select {
+    flex: 1;
+  }
+
+  .fns-template-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .fns-template-tabs {
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .fns-add-template {
+    justify-content: center;
+  }
+
+  .fns-actions {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .fns-actions__left,
+  .fns-actions__right {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}

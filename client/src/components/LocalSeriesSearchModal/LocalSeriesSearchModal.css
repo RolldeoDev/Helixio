@@ -1,0 +1,575 @@
+/**
+ * LocalSeriesSearchModal Styles
+ *
+ * Rich search UI for finding local series with cover images,
+ * styled similar to SeriesMetadataSearchModal.
+ */
+
+/* ==========================================================================
+   Modal Overlay and Container
+   ========================================================================== */
+
+.local-series-search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-lg);
+}
+
+.local-series-search-modal {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   Header
+   ========================================================================== */
+
+.lss-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.lss-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.lss-close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.lss-close-btn:hover:not(:disabled) {
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.lss-close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Current Series Banner
+   ========================================================================== */
+
+.lss-current-series {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  font-size: 0.9rem;
+}
+
+.lss-current-label {
+  color: var(--color-text-muted);
+}
+
+.lss-current-name {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Search Form
+   ========================================================================== */
+
+.lss-search-form {
+  padding: var(--spacing-lg);
+  flex-shrink: 0;
+}
+
+.lss-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lss-search-input {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  padding-right: 40px;
+  font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  transition: border-color 0.15s ease;
+}
+
+.lss-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.lss-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.lss-search-spinner {
+  position: absolute;
+  right: 12px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: lss-spin 0.8s linear infinite;
+}
+
+@keyframes lss-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ==========================================================================
+   Error Message
+   ========================================================================== */
+
+.lss-error {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   Results List
+   ========================================================================== */
+
+.lss-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
+}
+
+.lss-result-item {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+  margin-bottom: var(--spacing-sm);
+}
+
+.lss-result-item:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.lss-result-item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* ==========================================================================
+   Result Cover
+   ========================================================================== */
+
+.lss-result-cover {
+  width: 60px;
+  height: 90px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  flex-shrink: 0;
+}
+
+.lss-result-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lss-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+/* ==========================================================================
+   Result Info
+   ========================================================================== */
+
+.lss-result-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.lss-result-name {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lss-result-details {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.lss-detail-item {
+  display: inline-block;
+}
+
+.lss-detail-item:not(:last-child)::after {
+  content: '\2022';
+  margin-left: var(--spacing-sm);
+  opacity: 0.5;
+}
+
+.lss-issue-count {
+  background: var(--color-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+/* ==========================================================================
+   Load More Button
+   ========================================================================== */
+
+.lss-load-more {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lss-load-more:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.lss-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Empty States
+   ========================================================================== */
+
+.lss-no-results,
+.lss-hint {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+/* ==========================================================================
+   Batch Progress Overlay
+   ========================================================================== */
+
+.lss-progress-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.lss-progress-content {
+  text-align: center;
+  color: var(--color-text);
+}
+
+.lss-progress-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: lss-spin 0.8s linear infinite;
+  margin: 0 auto var(--spacing-md);
+}
+
+.lss-progress-text {
+  font-size: 1rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.lss-progress-failed {
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .local-series-search-overlay {
+    padding: var(--spacing-md);
+  }
+
+  .local-series-search-modal {
+    max-height: 90vh;
+  }
+
+  .lss-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .lss-result-item {
+    grid-template-columns: 50px 1fr;
+  }
+
+  .lss-result-cover {
+    width: 50px;
+    height: 75px;
+  }
+
+  .lss-result-name {
+    font-size: 0.95rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .lss-header {
+    padding: var(--spacing-md);
+  }
+
+  .lss-search-form {
+    padding: var(--spacing-md);
+  }
+
+  .lss-results {
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+
+  .lss-current-series {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+  }
+
+  .lss-mode-toggle {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .lss-source-selector {
+    padding: 0 var(--spacing-md) var(--spacing-sm);
+  }
+}
+
+/* ==========================================================================
+   Search Mode Toggle
+   ========================================================================== */
+
+.lss-mode-toggle {
+  display: flex;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lss-mode-btn {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.lss-mode-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.lss-mode-btn:last-child {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+}
+
+.lss-mode-btn:hover:not(:disabled):not(.active) {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+}
+
+.lss-mode-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.lss-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Source Selector (API Mode)
+   ========================================================================== */
+
+.lss-source-selector {
+  padding: 0 var(--spacing-lg) var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.lss-source-selector select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.lss-source-selector select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.lss-source-selector select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   API Result Styling
+   ========================================================================== */
+
+.lss-result-api {
+  border-left: 3px solid var(--color-primary);
+}
+
+.lss-result-source {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.lss-source-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  color: white;
+}
+
+.lss-source-comicvine {
+  background: #e62429;
+}
+
+.lss-source-metron {
+  background: #4a90d9;
+}
+
+.lss-source-gcd {
+  background: #2e7d32;
+}
+
+.lss-source-anilist {
+  background: #02a9ff;
+}
+
+.lss-source-mal {
+  background: #2e51a2;
+}
+
+.lss-confidence {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* ==========================================================================
+   Try API Button (No Results State)
+   ========================================================================== */
+
+.lss-no-results {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.lss-try-api-btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lss-try-api-btn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
