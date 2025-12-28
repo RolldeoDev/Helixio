@@ -569,12 +569,15 @@ export async function getTopEntitiesSummary(libraryId?: string): Promise<{
   topGenres: EntityStatResult[];
   topCharacters: EntityStatResult[];
   topPublishers: EntityStatResult[];
+  topTeams: EntityStatResult[];
 }> {
-  const [creators, genres, characters, publishers] = await Promise.all([
-    getEntityStats({ entityType: 'creator', libraryId, sortBy: 'read', limit: 5 }),
+  // Sort all entities by 'owned' to match what's displayed in the UI (ownedComics count)
+  const [creators, genres, characters, publishers, teams] = await Promise.all([
+    getEntityStats({ entityType: 'creator', libraryId, sortBy: 'owned', limit: 5 }),
     getEntityStats({ entityType: 'genre', libraryId, sortBy: 'owned', limit: 5 }),
-    getEntityStats({ entityType: 'character', libraryId, sortBy: 'read', limit: 5 }),
+    getEntityStats({ entityType: 'character', libraryId, sortBy: 'owned', limit: 5 }),
     getEntityStats({ entityType: 'publisher', libraryId, sortBy: 'owned', limit: 5 }),
+    getEntityStats({ entityType: 'team', libraryId, sortBy: 'owned', limit: 5 }),
   ]);
 
   return {
@@ -582,5 +585,295 @@ export async function getTopEntitiesSummary(libraryId?: string): Promise<{
     topGenres: genres.items,
     topCharacters: characters.items,
     topPublishers: publishers.items,
+    topTeams: teams.items,
   };
+}
+
+// =============================================================================
+// Extended Stats for Fun Facts
+// =============================================================================
+
+export interface ExtendedStats {
+  // Format breakdown
+  formatCounts: Record<string, number>;
+
+  // Decade breakdown
+  decadeCounts: Record<string, number>;
+
+  // Unique entity counts
+  uniqueCreatorCount: number;
+  uniqueCharacterCount: number;
+  uniqueTeamCount: number;
+  uniqueGenreCount: number;
+  uniquePublisherCount: number;
+
+  // Series stats
+  seriesCompleted: number;
+  seriesInProgress: number;
+  largestSeriesName: string | null;
+  largestSeriesCount: number;
+
+  // Reading queue and bookmarks
+  queueCount: number;
+  totalBookmarks: number;
+
+  // Temporal stats
+  oldestYear: number | null;
+  newestYear: number | null;
+
+  // Story arcs
+  storyArcCount: number;
+}
+
+/**
+ * Get extended stats for fun facts feature
+ */
+export async function getExtendedStats(libraryId?: string): Promise<ExtendedStats> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { libraryId, status: 'indexed' as const }
+    : { status: 'indexed' as const };
+
+  // Get format counts
+  const formatCounts = await getFormatCounts(libraryId);
+
+  // Get decade counts
+  const decadeCounts = await getDecadeCounts(libraryId);
+
+  // Get unique entity counts
+  const [
+    uniqueCreatorCount,
+    uniqueCharacterCount,
+    uniqueTeamCount,
+    uniqueGenreCount,
+    uniquePublisherCount,
+  ] = await Promise.all([
+    db.entityStat.count({ where: { entityType: 'creator', libraryId: libraryId ?? null } }),
+    db.entityStat.count({ where: { entityType: 'character', libraryId: libraryId ?? null } }),
+    db.entityStat.count({ where: { entityType: 'team', libraryId: libraryId ?? null } }),
+    db.entityStat.count({ where: { entityType: 'genre', libraryId: libraryId ?? null } }),
+    db.entityStat.count({ where: { entityType: 'publisher', libraryId: libraryId ?? null } }),
+  ]);
+
+  // Get series completion stats
+  const seriesStats = await getSeriesCompletionStats(libraryId);
+
+  // Get largest series
+  const largestSeries = await getLargestSeries(libraryId);
+
+  // Get queue count
+  const queueCount = await db.readingQueue.count();
+
+  // Get total bookmarks
+  const bookmarkResult = await db.readingProgress.findMany({
+    where: libraryId ? { file: { libraryId } } : {},
+    select: { bookmarks: true },
+  });
+  const totalBookmarks = bookmarkResult.reduce((sum, rp) => {
+    // bookmarks is stored as JSON string
+    if (!rp.bookmarks) return sum;
+    try {
+      const parsed = typeof rp.bookmarks === 'string'
+        ? JSON.parse(rp.bookmarks) as number[]
+        : rp.bookmarks as unknown as number[];
+      return sum + (Array.isArray(parsed) ? parsed.length : 0);
+    } catch {
+      return sum;
+    }
+  }, 0);
+
+  // Get year range
+  const yearRange = await getYearRange(libraryId);
+
+  // Get story arc count
+  const storyArcCount = await getStoryArcCount(libraryId);
+
+  return {
+    formatCounts,
+    decadeCounts,
+    uniqueCreatorCount,
+    uniqueCharacterCount,
+    uniqueTeamCount,
+    uniqueGenreCount,
+    uniquePublisherCount,
+    seriesCompleted: seriesStats.completed,
+    seriesInProgress: seriesStats.inProgress,
+    largestSeriesName: largestSeries?.name ?? null,
+    largestSeriesCount: largestSeries?.count ?? 0,
+    queueCount,
+    totalBookmarks,
+    oldestYear: yearRange.oldest,
+    newestYear: yearRange.newest,
+    storyArcCount,
+  };
+}
+
+/**
+ * Get format breakdown (Issue, TPB, Omnibus, etc.)
+ */
+async function getFormatCounts(libraryId?: string): Promise<Record<string, number>> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { comic: { libraryId, status: 'indexed' as const } }
+    : { comic: { status: 'indexed' as const } };
+
+  const results = await db.fileMetadata.groupBy({
+    by: ['format'],
+    where: whereClause,
+    _count: { format: true },
+  });
+
+  const counts: Record<string, number> = {};
+  for (const r of results) {
+    if (r.format) {
+      counts[r.format] = r._count.format;
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Get decade breakdown of collection
+ */
+async function getDecadeCounts(libraryId?: string): Promise<Record<string, number>> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { comic: { libraryId, status: 'indexed' as const }, year: { not: null } }
+    : { comic: { status: 'indexed' as const }, year: { not: null } };
+
+  const results = await db.fileMetadata.findMany({
+    where: whereClause,
+    select: { year: true },
+  });
+
+  const counts: Record<string, number> = {};
+  for (const r of results) {
+    if (r.year) {
+      const decade = `${Math.floor(r.year / 10) * 10}s`;
+      counts[decade] = (counts[decade] || 0) + 1;
+    }
+  }
+
+  return counts;
+}
+
+/**
+ * Get series completion statistics
+ */
+async function getSeriesCompletionStats(libraryId?: string): Promise<{ completed: number; inProgress: number }> {
+  const db = getDatabase();
+
+  // Get all series with their issues and reading progress
+  const series = await db.series.findMany({
+    where: libraryId
+      ? { issues: { some: { libraryId } } }
+      : {},
+    include: {
+      _count: { select: { issues: true } },
+      issues: {
+        where: libraryId ? { libraryId } : {},
+        include: { readingProgress: true },
+      },
+    },
+  });
+
+  let completed = 0;
+  let inProgress = 0;
+
+  for (const s of series) {
+    const totalIssues = s.issues.length;
+    if (totalIssues === 0) continue;
+
+    const issuesRead = s.issues.filter(f => f.readingProgress?.completed).length;
+    const issuesInProgress = s.issues.filter(f =>
+      f.readingProgress && !f.readingProgress.completed && f.readingProgress.currentPage > 0
+    ).length;
+
+    if (issuesRead === totalIssues) {
+      completed++;
+    } else if (issuesRead > 0 || issuesInProgress > 0) {
+      inProgress++;
+    }
+  }
+
+  return { completed, inProgress };
+}
+
+/**
+ * Get the largest series in the collection
+ */
+async function getLargestSeries(libraryId?: string): Promise<{ name: string; count: number } | null> {
+  const db = getDatabase();
+
+  // Count issues per series manually since issueCount may not be accurate
+  const series = await db.series.findMany({
+    where: libraryId
+      ? { issues: { some: { libraryId } } }
+      : {},
+    select: {
+      name: true,
+      _count: { select: { issues: true } },
+    },
+  });
+
+  if (series.length === 0) return null;
+
+  // Find the series with the most issues
+  const largest = series.reduce((max, s) =>
+    s._count.issues > max._count.issues ? s : max,
+    series[0]!
+  );
+
+  return { name: largest.name, count: largest._count.issues };
+}
+
+/**
+ * Get year range of collection
+ */
+async function getYearRange(libraryId?: string): Promise<{ oldest: number | null; newest: number | null }> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { comic: { libraryId, status: 'indexed' as const }, year: { not: null } }
+    : { comic: { status: 'indexed' as const }, year: { not: null } };
+
+  const oldest = await db.fileMetadata.findFirst({
+    where: whereClause,
+    orderBy: { year: 'asc' },
+    select: { year: true },
+  });
+
+  const newest = await db.fileMetadata.findFirst({
+    where: whereClause,
+    orderBy: { year: 'desc' },
+    select: { year: true },
+  });
+
+  return {
+    oldest: oldest?.year ?? null,
+    newest: newest?.year ?? null,
+  };
+}
+
+/**
+ * Get count of unique story arcs
+ */
+async function getStoryArcCount(libraryId?: string): Promise<number> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { comic: { libraryId, status: 'indexed' as const }, storyArc: { not: null } }
+    : { comic: { status: 'indexed' as const }, storyArc: { not: null } };
+
+  const results = await db.fileMetadata.findMany({
+    where: whereClause,
+    select: { storyArc: true },
+    distinct: ['storyArc'],
+  });
+
+  return results.length;
 }

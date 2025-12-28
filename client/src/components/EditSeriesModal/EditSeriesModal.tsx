@@ -34,7 +34,7 @@ import {
 import { CollapsibleSection } from './CollapsibleSection';
 import { FieldWithLock, FieldSource } from './FieldWithLock';
 import { TagInput } from './TagInput';
-import { CoverPicker } from './CoverPicker';
+import { SeriesCoverEditorModal } from './SeriesCoverEditorModal';
 import { MetadataPreviewModal } from '../MetadataPreviewModal';
 import { SeriesMetadataSearchModal } from '../SeriesMetadataSearchModal';
 import { MetadataGenerator } from '../MetadataGenerator';
@@ -318,6 +318,7 @@ const SECTION_FIELDS = {
 
 export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSeriesModalProps) {
   const [state, dispatch] = useReducer(editSeriesReducer, initialState);
+  const [showCoverModal, setShowCoverModal] = useState(false);
 
   // =============================================================================
   // Data Loading
@@ -847,6 +848,31 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
     [state.modifiedFields]
   );
 
+  // Get current cover preview URL
+  const getCoverPreviewUrl = useCallback((): string | null => {
+    // Priority: uploaded cover hash > custom URL > API cover hash > file cover
+    if (uploadedCoverHash) {
+      return getApiCoverUrl(uploadedCoverHash);
+    }
+    if (series.coverUrl) {
+      return series.coverUrl;
+    }
+    if (series.coverHash) {
+      return getApiCoverUrl(series.coverHash);
+    }
+    // For file-based covers, we'd need the file's cover URL
+    // This is handled by the CoverPicker component
+    return null;
+  }, [uploadedCoverHash, series.coverUrl, series.coverHash]);
+
+  const handleEditCoverClick = useCallback(() => {
+    setShowCoverModal(true);
+  }, []);
+
+  const handleCloseCoverModal = useCallback(() => {
+    setShowCoverModal(false);
+  }, []);
+
   // =============================================================================
   // Render
   // =============================================================================
@@ -933,8 +959,69 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                 </div>
               )}
 
+              {/* Cover Row - Top of modal */}
+              <div className="series-cover-row">
+                <div className="series-cover-preview">
+                  {getCoverPreviewUrl() ? (
+                    <img src={getCoverPreviewUrl()!} alt={series.name || 'Series cover'} />
+                  ) : (
+                    <div className="cover-placeholder">No Cover</div>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-edit-cover"
+                    onClick={handleEditCoverClick}
+                  >
+                    Edit Cover
+                  </button>
+                </div>
+                <div className="series-info-fields">
+                  <div className="series-info-row">
+                    <FieldWithLock
+                      fieldName="name"
+                      label="Series Name"
+                      value={series.name}
+                      onChange={handleFieldChange('name')}
+                      isLocked={isLocked('name')}
+                      onToggleLock={() => handleToggleLock('name')}
+                      fieldSource={getFieldSource('name')}
+                      isModified={state.modifiedFields.has('name')}
+                      required
+                      error={state.validationErrors.name}
+                    />
+                  </div>
+                  <div className="series-info-row">
+                    <FieldWithLock
+                      fieldName="publisher"
+                      label="Publisher"
+                      value={series.publisher}
+                      onChange={handleFieldChange('publisher')}
+                      isLocked={isLocked('publisher')}
+                      onToggleLock={() => handleToggleLock('publisher')}
+                      fieldSource={getFieldSource('publisher')}
+                      isModified={state.modifiedFields.has('publisher')}
+                    />
+                    <FieldWithLock
+                      fieldName="startYear"
+                      label="Year"
+                      type="number"
+                      value={series.startYear}
+                      onChange={handleFieldChange('startYear')}
+                      isLocked={isLocked('startYear')}
+                      onToggleLock={() => handleToggleLock('startYear')}
+                      fieldSource={getFieldSource('startYear')}
+                      isModified={state.modifiedFields.has('startYear')}
+                      min={1900}
+                      max={2100}
+                      placeholder="YYYY"
+                      error={state.validationErrors.startYear}
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Identity Section */}
-              <CollapsibleSection title="Identity" icon="📖" changeCount={countSectionChanges('identity')} defaultExpanded={true}>
+              <CollapsibleSection title="Identity" changeCount={countSectionChanges('identity')} defaultExpanded={true}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="name"
@@ -1007,7 +1094,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Description Section */}
-              <CollapsibleSection title="Description" icon="📝" changeCount={countSectionChanges('description')} defaultExpanded={false}>
+              <CollapsibleSection title="Description" changeCount={countSectionChanges('description')} defaultExpanded={false}>
                 <div className="section-fields">
                   <FieldWithLock
                     fieldName="summary"
@@ -1053,7 +1140,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Classification Section */}
-              <CollapsibleSection title="Classification" icon="🏷️" changeCount={countSectionChanges('classification')} defaultExpanded={false}>
+              <CollapsibleSection title="Classification" changeCount={countSectionChanges('classification')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="type"
@@ -1119,7 +1206,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Content Entities Section */}
-              <CollapsibleSection title="Content Entities" icon="🦸" changeCount={countSectionChanges('contentEntities')} defaultExpanded={false}>
+              <CollapsibleSection title="Content Entities" changeCount={countSectionChanges('contentEntities')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <TagInput
                     fieldName="characters"
@@ -1173,7 +1260,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Creators Section */}
-              <CollapsibleSection title="Creators" icon="✏️" changeCount={countSectionChanges('creators')} defaultExpanded={false}>
+              <CollapsibleSection title="Creators" changeCount={countSectionChanges('creators')} defaultExpanded={false}>
                 {/* Creator Source Selector and Fetch Button */}
                 <div className="section-action-row creator-source-row">
                   <div className="creator-source-selector">
@@ -1312,22 +1399,8 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                 </div>
               </CollapsibleSection>
 
-              {/* Cover Section */}
-              <CollapsibleSection title="Cover" icon="🖼️" changeCount={countSectionChanges('cover')} defaultExpanded={false} fullWidth>
-                <CoverPicker
-                  currentCoverSource={series.coverSource || 'auto'}
-                  currentCoverUrl={series.coverUrl || null}
-                  currentCoverHash={uploadedCoverHash || series.coverHash || null}
-                  currentCoverFileId={series.coverFileId || null}
-                  issues={state.issues}
-                  onCoverChange={handleCoverChange}
-                  onUpload={handleCoverUpload}
-                  uploadedPreviewUrl={uploadedPreviewUrl}
-                />
-              </CollapsibleSection>
-
               {/* External IDs Section */}
-              <CollapsibleSection title="External IDs" icon="🔗" changeCount={countSectionChanges('externalIds')} defaultExpanded={false}>
+              <CollapsibleSection title="External IDs" changeCount={countSectionChanges('externalIds')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="comicVineId"
@@ -1355,7 +1428,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* User Data Section */}
-              <CollapsibleSection title="User Data" icon="📌" changeCount={countSectionChanges('userData')} defaultExpanded={false}>
+              <CollapsibleSection title="User Data" changeCount={countSectionChanges('userData')} defaultExpanded={false}>
                 <div className="section-fields">
                   <FieldWithLock
                     fieldName="userNotes"
@@ -1475,6 +1548,20 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
           </div>
         </div>
       )}
+
+      {/* Series Cover Editor Modal */}
+      <SeriesCoverEditorModal
+        isOpen={showCoverModal}
+        currentCoverSource={series.coverSource || 'auto'}
+        currentCoverUrl={series.coverUrl || null}
+        currentCoverHash={uploadedCoverHash || series.coverHash || null}
+        currentCoverFileId={series.coverFileId || null}
+        issues={state.issues}
+        onClose={handleCloseCoverModal}
+        onCoverChange={handleCoverChange}
+        onUpload={handleCoverUpload}
+        uploadedPreviewUrl={uploadedPreviewUrl}
+      />
     </div>
   );
 }

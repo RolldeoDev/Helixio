@@ -339,15 +339,14 @@ function AppContent() {
   const { hasActiveJob, isModalOpen } = useMetadataJob();
   const { isAuthenticated, isLoading: authLoading, setupRequired } = useAuth();
 
-  // Show login page if setup required or not authenticated
-  // Note: We allow unauthenticated access to library browsing for now
-  // Auth is required for trackers, sync, lists, and admin
+  // Require authentication for all routes except /login
+  // Unauthenticated users are always redirected to login page
   if (authLoading) {
     return <HelixioLoader fullPage message="Loading..." />;
   }
 
   // Show setup/login page if required
-  if (setupRequired || (!isAuthenticated && ['/settings', '/lists', '/admin'].some(p => location.pathname.startsWith(p)))) {
+  if (setupRequired || (!isAuthenticated && location.pathname !== '/login')) {
     return <LoginPage />;
   }
 

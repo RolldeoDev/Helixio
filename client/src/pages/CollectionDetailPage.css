@@ -167,11 +167,26 @@
 
 /* Hero Info */
 .collection-hero-info {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  isolation: isolate;
+}
+
+/* Semi-transparent background card */
+.collection-hero-info::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  z-index: -1;
 }
 
 .collection-title {
@@ -442,8 +457,33 @@
   gap: var(--spacing-xs);
 }
 
-.collection-series-link {
-  display: block;
+.collection-series-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.collection-series-go-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.collection-series-go-link:hover {
+  background: var(--color-hover);
+  color: var(--color-primary);
+}
+
+.collection-series-filter-btn {
+  flex: 1;
+  min-width: 0;
   padding: var(--spacing-xs) var(--spacing-sm);
   background: transparent;
   border: none;
@@ -453,14 +493,16 @@
   text-align: left;
   cursor: pointer;
   transition: all var(--transition-fast);
-  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.collection-series-link:hover {
+.collection-series-filter-btn:hover {
   background: var(--color-hover);
 }
 
-.collection-series-link.active {
+.collection-series-filter-btn.active {
   background: var(--color-primary-muted);
   color: var(--color-primary);
 }
@@ -469,6 +511,7 @@
   font-size: 0.75rem;
   color: var(--color-text-muted);
   padding: var(--spacing-xs) var(--spacing-sm);
+  padding-left: calc(24px + var(--spacing-xs) + var(--spacing-sm));
 }
 
 /* =============================================================================
@@ -644,7 +687,73 @@
 }
 
 /* =============================================================================
-   Grouped View
+   Flat Grouped Grid View (Grid with series headers, no accordion)
+   ============================================================================= */
+
+.collection-flat-grouped-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.collection-flat-series-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.collection-flat-series-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.collection-flat-series-name {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.collection-flat-series-name:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.collection-flat-series-count {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.collection-flat-series-issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+}
+
+@media (min-width: 768px) {
+  .collection-flat-series-issues {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+.collection-flat-issue-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.collection-flat-issue-item > * {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+/* =============================================================================
+   Accordion Grouped View (with expand/collapse)
    ============================================================================= */
 
 .collection-grouped-grid {
@@ -682,16 +791,24 @@
 
 .collection-series-chevron {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
   transition: transform var(--transition-fast);
 }
 
-.collection-series-name {
+.collection-series-name-link {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+  cursor: pointer;
+}
+
+.collection-series-name-link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
 }
 
 .collection-series-count {

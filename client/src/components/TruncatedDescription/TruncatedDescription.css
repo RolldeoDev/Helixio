@@ -1,0 +1,68 @@
+/**
+ * TruncatedDescription Styles
+ *
+ * Expandable text component with line clamping.
+ */
+
+.truncated-description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.truncated-description__text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.truncated-description__text--expanded {
+  display: block;
+  overflow: visible;
+}
+
+.truncated-description__toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.truncated-description__toggle:hover {
+  color: var(--color-primary-hover, var(--color-primary));
+  text-decoration: underline;
+}
+
+.truncated-description__toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.truncated-description__placeholder {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.9375rem;
+  font-style: italic;
+}
+
+.truncated-description--empty {
+  opacity: 0.7;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .truncated-description__text {
+    transition: none;
+  }
+}

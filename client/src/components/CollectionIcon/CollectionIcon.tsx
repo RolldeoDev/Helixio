@@ -7,7 +7,7 @@
 
 import './CollectionIcon.css';
 
-// Icon path definitions - matches the options in CollectionSettingsDrawer
+// Icon path definitions - matches the options in CollectionSettingsModal
 const ICON_PATHS: Record<string, string> = {
   folder: 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
   heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',

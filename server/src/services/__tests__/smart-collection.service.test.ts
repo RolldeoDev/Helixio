@@ -35,6 +35,9 @@ vi.mock('../logger.service.js', () => ({
   })),
 }));
 
+// Import types
+import type { FilterField, FilterComparison, SmartFilter } from '../smart-collection.service.js';
+
 // Import service after mocking
 const {
   getSmartCollections,
@@ -49,33 +52,35 @@ const {
 } = await import('../smart-collection.service.js');
 
 // Helper to create a smart collection mock
-function createSmartCollection(overrides = {}) {
-  return createMockCollection({
-    id: 'smart-col-1',
-    userId: 'user-1',
-    isSmart: true,
-    smartScope: 'series',
-    filterDefinition: JSON.stringify({
-      id: 'root',
-      rootOperator: 'AND',
-      groups: [],
+function createSmartCollection(overrides: Record<string, unknown> = {}) {
+  return {
+    ...createMockCollection({
+      id: 'smart-col-1',
+      userId: 'user-1',
+      isSmart: true,
+      smartScope: 'series',
+      filterDefinition: JSON.stringify({
+        id: 'root',
+        rootOperator: 'AND',
+        groups: [],
+      }),
+      lastEvaluatedAt: new Date(),
     }),
-    lastEvaluatedAt: new Date(),
     items: [],
     ...overrides,
-  });
+  };
 }
 
 // Helper to create test filter
 function createFilter(groups: Array<{
   operator: 'AND' | 'OR';
   conditions: Array<{
-    field: string;
-    comparison: string;
+    field: FilterField;
+    comparison: FilterComparison;
     value: string;
     value2?: string;
   }>;
-}>, rootOperator: 'AND' | 'OR' = 'AND') {
+}>, rootOperator: 'AND' | 'OR' = 'AND'): SmartFilter {
   return {
     id: 'test-filter',
     rootOperator,

@@ -577,7 +577,7 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(0.85);
   width: 64px;
   height: 64px;
   background: var(--color-primary);
@@ -585,14 +585,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.95;
-  transition: all 0.3s ease;
+  opacity: 0;
   box-shadow: 0 4px 24px rgba(212, 165, 116, 0.5);
+  transition-property: opacity, transform, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: ease-out;
 }
 
-.welcome-featured-card:hover .welcome-featured-play {
+.welcome-featured-cover:hover .welcome-featured-play {
   opacity: 1;
-  transform: translate(-50%, -50%) scale(1.12);
+  transform: translate(-50%, -50%) scale(1);
   box-shadow: 0 8px 32px rgba(212, 165, 116, 0.6);
 }
 
@@ -600,7 +602,6 @@
   width: 28px;
   height: 28px;
   color: var(--color-bg);
-  margin-left: 3px;
 }
 
 .welcome-featured-info {

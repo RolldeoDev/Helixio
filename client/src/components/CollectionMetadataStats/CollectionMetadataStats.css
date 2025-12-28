@@ -1,0 +1,87 @@
+/**
+ * CollectionMetadataStats Styles
+ *
+ * Stat pills display for collection metadata.
+ */
+
+.collection-metadata-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.collection-metadata-stats__stat {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-subtle);
+  font-size: 0.8125rem;
+}
+
+.collection-metadata-stats__icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.collection-metadata-stats__value {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.collection-metadata-stats__label {
+  color: var(--color-text-muted);
+}
+
+/* Smart indicator styling */
+.collection-metadata-stats__stat--smart {
+  background: rgba(var(--color-warning-rgb, 250, 204, 21), 0.1);
+  border-color: rgba(var(--color-warning-rgb, 250, 204, 21), 0.3);
+}
+
+.collection-metadata-stats__stat--smart .collection-metadata-stats__icon {
+  color: var(--color-warning, #facc15);
+}
+
+.collection-metadata-stats__stat--smart .collection-metadata-stats__label {
+  color: var(--color-warning, #facc15);
+  font-weight: 500;
+}
+
+/* Date styling */
+.collection-metadata-stats__stat--date {
+  background: transparent;
+  border: none;
+  padding-left: 0;
+}
+
+.collection-metadata-stats__stat--date .collection-metadata-stats__icon {
+  color: var(--color-text-subtle);
+}
+
+.collection-metadata-stats__stat--date .collection-metadata-stats__label {
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .collection-metadata-stats {
+    gap: var(--spacing-xs);
+  }
+
+  .collection-metadata-stats__stat {
+    padding: 4px var(--spacing-sm);
+    font-size: 0.75rem;
+  }
+
+  .collection-metadata-stats__icon {
+    width: 12px;
+    height: 12px;
+  }
+}

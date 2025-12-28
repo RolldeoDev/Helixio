@@ -1,0 +1,62 @@
+/**
+ * SmartFilterSummary Styles
+ *
+ * Display for smart collection filter criteria.
+ */
+
+.smart-filter-summary {
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.smart-filter-summary__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.smart-filter-summary__icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.smart-filter-summary__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.smart-filter-summary__criteria {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  font-family: var(--font-mono, monospace);
+  word-break: break-word;
+}
+
+.smart-filter-summary--empty {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  opacity: 0.6;
+}
+
+.smart-filter-summary--empty .smart-filter-summary__icon {
+  color: var(--color-text-subtle);
+}
+
+.smart-filter-summary--empty .smart-filter-summary__label {
+  font-size: 0.875rem;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-style: italic;
+}

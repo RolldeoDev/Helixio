@@ -279,6 +279,74 @@ model ComicFile {
 }
 
 // =============================================================================
+// Original Filename Tracking (for templated rename undo support)
+// =============================================================================
+
+model OriginalFilename {
+  id               String    @id @default(cuid())
+  fileId           String    @unique
+  originalFilename String               // Original filename before rename
+  originalPath     String               // Original full path before rename
+  renameHistory    String    @default("[]")  // JSON array of RenameHistoryEntry
+  lastRenamedAt    DateTime?            // When the file was last renamed
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([fileId])
+}
+
+// =============================================================================
+// API Keys (for programmatic access)
+// =============================================================================
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String                   // User-friendly name for the key
+  description   String?                  // Optional description
+  keyPrefix     String                   // First 12 chars for identification (hlx_xxxxxxxx)
+  keyHash       String    @unique        // HMAC-SHA256 hash of the full key
+  scopes        String                   // JSON array of allowed scopes
+  libraryIds    String?                  // JSON array of allowed library IDs (null = all)
+  ipWhitelist   String?                  // JSON array of allowed IPs/CIDRs (null = no restriction)
+  rateLimitTier String    @default("standard")  // "standard" | "elevated" | "unlimited"
+  expiresAt     DateTime?                // Null = never expires
+  isActive      Boolean   @default(true)
+  lastUsedAt    DateTime?
+  lastUsedIp    String?
+  usageCount    Int       @default(0)
+  revokedAt     DateTime?
+  revokedReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  usageLogs     ApiKeyUsageLog[]
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([isActive])
+}
+
+model ApiKeyUsageLog {
+  id         String   @id @default(cuid())
+  apiKeyId   String
+  apiKey     ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  endpoint   String                    // API endpoint called
+  method     String                    // HTTP method
+  statusCode Int                       // HTTP response status
+  ipAddress  String                    // Client IP address
+  userAgent  String?                   // Client user agent
+  durationMs Int?                      // Request duration in milliseconds
+  timestamp  DateTime @default(now())
+
+  @@index([apiKeyId])
+  @@index([apiKeyId, timestamp])
+  @@index([timestamp])
+}
+
+// =============================================================================
 // Cached Metadata (from ComicInfo.xml)
 // =============================================================================
 
@@ -833,6 +901,7 @@ model User {
   trackerTokens   TrackerToken[]
   syncTokens      SyncToken[]
   readerPresets   ReaderPreset[]
+  apiKeys         ApiKey[]
 
   @@index([username])
   @@index([email])
@@ -1259,6 +1328,14 @@ model Collection {
   // Most recent updatedAt from any contained series (for "Recently Updated" sort)
   contentUpdatedAt   DateTime?
 
+  // ===========================================
+  // Smart Collections
+  // ===========================================
+  isSmart           Boolean   @default(false)  // Whether this is a smart/dynamic collection
+  smartScope        String?                     // "series" | "files" - what entities the filter applies to
+  filterDefinition  String?                     // JSON string containing the SmartFilter definition
+  lastEvaluatedAt   DateTime?                   // When the smart collection was last refreshed
+
   // Timestamps
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1273,6 +1350,7 @@ model Collection {
   @@index([isPromoted])
   @@index([promotedOrder])
   @@index([userId, isPromoted])  // Efficient query for promoted collections per user
+  @@index([isSmart])             // Efficient query for smart collections
 }
 
 model CollectionItem {
@@ -1293,6 +1371,10 @@ model CollectionItem {
 
   // Availability tracking (false if referenced file/series is deleted)
   isAvailable  Boolean    @default(true)
+
+  // Smart collection membership overrides
+  isWhitelisted Boolean   @default(false)  // Manually included in smart collection even if filter doesn't match
+  isBlacklisted Boolean   @default(false)  // Manually excluded from smart collection even if filter matches
 
   @@unique([collectionId, seriesId])
   @@unique([collectionId, fileId])

@@ -46,3 +46,17 @@
   transform: rotate(90deg);
   transform-origin: center;
 }
+
+/* Completed state */
+.progress-ring--completed {
+  transform: none; /* Remove the -90deg rotation for checkmark */
+}
+
+.progress-ring__bg--completed {
+  fill: var(--color-success, #22c55e);
+  stroke: var(--color-success, #22c55e);
+}
+
+.progress-ring__checkmark {
+  stroke: white;
+}

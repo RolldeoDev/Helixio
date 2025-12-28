@@ -80,7 +80,7 @@
   transition: opacity 0.3s ease;
 }
 
-/* Play button */
+/* Read button */
 .hero-featured-play {
   position: absolute;
   top: 50%;
@@ -95,16 +95,17 @@
   justify-content: center;
   box-shadow: 0 4px 20px rgba(212, 165, 116, 0.4);
   transition: all 0.3s ease;
+  opacity: 0;
 }
 
 .hero-featured-play svg {
   width: 28px;
   height: 28px;
   color: var(--color-bg);
-  margin-left: 3px; /* Visual centering for play icon */
 }
 
 .hero-featured-cover:hover .hero-featured-play {
+  opacity: 1;
   transform: translate(-50%, -50%) scale(1.15);
   box-shadow: 0 6px 30px rgba(212, 165, 116, 0.5);
 }

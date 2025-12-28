@@ -12,6 +12,7 @@ interface CollapsibleSectionProps {
   defaultExpanded?: boolean;
   fullWidth?: boolean;
   className?: string;
+  /** @deprecated Icon is no longer displayed */
   icon?: string;
   changeCount?: number;
 }
@@ -22,7 +23,8 @@ export function CollapsibleSection({
   defaultExpanded = false,
   fullWidth = false,
   className = '',
-  icon,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  icon: _icon,
   changeCount,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -53,12 +55,9 @@ export function CollapsibleSection({
         tabIndex={0}
         aria-expanded={expanded}
       >
-        {icon && <span className="collapsible-section-icon">{icon}</span>}
         <h3 className="collapsible-section-title">{title}</h3>
         {changeCount !== undefined && changeCount > 0 && (
-          <span className="collapsible-section-badge">
-            {changeCount} {changeCount === 1 ? 'change' : 'changes'}
-          </span>
+          <span className="collapsible-section-badge">{changeCount}</span>
         )}
         <svg
           className="collapsible-section-chevron"

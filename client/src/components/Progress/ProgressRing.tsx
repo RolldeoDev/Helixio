@@ -7,20 +7,23 @@ export interface ProgressRingProps {
   size?: 'sm' | 'md' | 'lg';
   /** Show percentage text inside ring */
   showLabel?: boolean;
+  /** Explicitly mark as completed (shows checkmark) */
+  completed?: boolean;
   /** Additional CSS class */
   className?: string;
 }
 
 const sizeConfig = {
-  sm: { diameter: 24, strokeWidth: 2, radius: 9, fontSize: 8 },
-  md: { diameter: 32, strokeWidth: 3, radius: 12, fontSize: 10 },
-  lg: { diameter: 40, strokeWidth: 3, radius: 14, fontSize: 11 },
+  sm: { diameter: 24, strokeWidth: 2, radius: 9, fontSize: 8, checkScale: 0.45 },
+  md: { diameter: 32, strokeWidth: 3, radius: 12, fontSize: 10, checkScale: 0.5 },
+  lg: { diameter: 40, strokeWidth: 3, radius: 14, fontSize: 11, checkScale: 0.55 },
 };
 
 export function ProgressRing({
   progress,
   size = 'md',
   showLabel = false,
+  completed = false,
   className = '',
 }: ProgressRingProps) {
   const config = sizeConfig[size];
@@ -30,6 +33,38 @@ export function ProgressRing({
   const center = config.diameter / 2;
   // Background circle radius (fills the ring background)
   const bgRadius = center - 1;
+
+  // Show completed state when explicitly completed or at 100%
+  const isCompleted = completed || progress >= 100;
+
+  if (isCompleted) {
+    return (
+      <svg
+        className={`progress-ring progress-ring--${size} progress-ring--completed ${className}`}
+        viewBox={viewBox}
+        aria-label="Completed"
+      >
+        {/* Background fill circle */}
+        <circle
+          className="progress-ring__bg progress-ring__bg--completed"
+          cx={center}
+          cy={center}
+          r={bgRadius}
+        />
+        {/* Checkmark */}
+        <g transform={`translate(${center}, ${center}) scale(${config.checkScale})`}>
+          <polyline
+            className="progress-ring__checkmark"
+            points="-8,0 -3,5 8,-6"
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+      </svg>
+    );
+  }
 
   return (
     <svg

@@ -53,6 +53,14 @@ export interface AllTimeStats {
   longestSession: number;
   currentStreak: number;
   longestStreak: number;
+  // Extended stats for fun facts
+  totalActiveDays: number;
+  maxPagesDay: number;
+  maxComicsDay: number;
+  maxTimeDay: number;
+  sessionsTotal: number;
+  bingeDaysCount: number; // Days with 10+ comics read
+  daysSinceLastRead: number;
 }
 
 // =============================================================================
@@ -313,20 +321,45 @@ export async function getAllTimeStats(): Promise<AllTimeStats> {
     select: { duration: true },
   });
 
-  // Calculate streaks
-  const stats = await db.readingStats.findMany({
+  // Get all daily stats for extended calculations
+  const allDailyStats = await db.readingStats.findMany({
     orderBy: { date: 'desc' },
-    select: { date: true, sessionsCount: true },
   });
 
+  // Calculate streaks and extended stats
   let currentStreak = 0;
   let longestStreak = 0;
   let tempStreak = 0;
   let lastDate: Date | null = null;
+  let lastActivityDate: Date | null = null;
   const today = getTodayStart();
 
-  for (const stat of stats) {
+  // Extended stats tracking
+  let totalActiveDays = 0;
+  let maxPagesDay = 0;
+  let maxComicsDay = 0;
+  let maxTimeDay = 0;
+  let bingeDaysCount = 0; // Days with 10+ comics completed
+
+  for (const stat of allDailyStats) {
     if (stat.sessionsCount > 0) {
+      // Track active days
+      totalActiveDays++;
+
+      // Track max values
+      if (stat.pagesRead > maxPagesDay) maxPagesDay = stat.pagesRead;
+      if (stat.comicsCompleted > maxComicsDay) maxComicsDay = stat.comicsCompleted;
+      if (stat.totalDuration > maxTimeDay) maxTimeDay = stat.totalDuration;
+
+      // Count binge days (10+ comics completed in a day)
+      if (stat.comicsCompleted >= 10) bingeDaysCount++;
+
+      // Track last activity date (first in sorted order)
+      if (!lastActivityDate) {
+        lastActivityDate = stat.date;
+      }
+
+      // Streak calculation
       if (lastDate === null) {
         // First day with activity - check if it's today or yesterday
         const daysSinceActivity = Math.floor(
@@ -362,6 +395,14 @@ export async function getAllTimeStats(): Promise<AllTimeStats> {
 
   if (tempStreak > longestStreak) longestStreak = tempStreak;
 
+  // Calculate days since last read
+  let daysSinceLastRead = 0;
+  if (lastActivityDate) {
+    daysSinceLastRead = Math.floor(
+      (today.getTime() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+  }
+
   const totalSessions = aggregated._sum.sessionsCount || 0;
   const totalDuration = aggregated._sum.totalDuration || 0;
 
@@ -373,6 +414,14 @@ export async function getAllTimeStats(): Promise<AllTimeStats> {
     longestSession: longestSession?.duration || 0,
     currentStreak,
     longestStreak,
+    // Extended stats
+    totalActiveDays,
+    maxPagesDay,
+    maxComicsDay,
+    maxTimeDay,
+    sessionsTotal: totalSessions,
+    bingeDaysCount,
+    daysSinceLastRead,
   };
 }
 

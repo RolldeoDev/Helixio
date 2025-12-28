@@ -41,6 +41,7 @@ export interface ContinueReadingItem {
   filename: string;
   relativePath: string;
   libraryId: string;
+  coverHash: string | null;
   currentPage: number;
   totalPages: number;
   progress: number; // 0-100 percentage
@@ -433,6 +434,7 @@ export async function getContinueReading(
           filename: true,
           relativePath: true,
           libraryId: true,
+          coverHash: true,
           metadata: {
             select: {
               series: true,
@@ -455,6 +457,7 @@ export async function getContinueReading(
     filename: p.file.filename,
     relativePath: p.file.relativePath,
     libraryId: p.file.libraryId,
+    coverHash: p.file.coverHash ?? null,
     currentPage: p.currentPage,
     totalPages: p.totalPages,
     progress: p.totalPages > 0 ? Math.round((p.currentPage / p.totalPages) * 100) : 0,

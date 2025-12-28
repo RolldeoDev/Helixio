@@ -646,6 +646,24 @@ export interface StatsSummary extends AggregatedStats {
   topGenres: EntityStatResult[];
   topCharacters: EntityStatResult[];
   topPublishers: EntityStatResult[];
+  topTeams: EntityStatResult[];
+  // Extended stats for fun facts
+  formatCounts: Record<string, number>;
+  decadeCounts: Record<string, number>;
+  uniqueCreatorCount: number;
+  uniqueCharacterCount: number;
+  uniqueTeamCount: number;
+  uniqueGenreCount: number;
+  uniquePublisherCount: number;
+  seriesCompleted: number;
+  seriesInProgress: number;
+  largestSeriesName: string | null;
+  largestSeriesCount: number;
+  queueCount: number;
+  totalBookmarks: number;
+  oldestYear: number | null;
+  newestYear: number | null;
+  storyArcCount: number;
 }
 
 export interface SchedulerStatus {

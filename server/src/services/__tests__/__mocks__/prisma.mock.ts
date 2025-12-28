@@ -566,6 +566,11 @@ export function createMockCollection(overrides: Partial<{
   coverHash: string | null;
   isPromoted: boolean;
   promotedOrder: number | null;
+  // Smart collection fields
+  isSmart: boolean;
+  smartScope: string | null;
+  filterDefinition: string | null;
+  lastEvaluatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   _count?: { items: number };
@@ -597,6 +602,11 @@ export function createMockCollection(overrides: Partial<{
     coverHash: null,
     isPromoted: false,
     promotedOrder: null,
+    // Smart collection defaults
+    isSmart: false,
+    smartScope: null,
+    filterDefinition: null,
+    lastEvaluatedAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,
@@ -615,6 +625,9 @@ export function createMockCollectionItem(overrides: Partial<{
   addedAt: Date;
   notes: string | null;
   isAvailable: boolean;
+  // Smart collection override flags
+  isWhitelisted: boolean;
+  isBlacklisted: boolean;
 }> = {}) {
   return {
     id: 'col-item-1',
@@ -625,6 +638,9 @@ export function createMockCollectionItem(overrides: Partial<{
     addedAt: new Date('2024-01-01'),
     notes: null,
     isAvailable: true,
+    // Smart collection override defaults
+    isWhitelisted: false,
+    isBlacklisted: false,
     ...overrides,
   };
 }

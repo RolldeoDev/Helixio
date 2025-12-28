@@ -21,7 +21,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   getCollectionExpanded,
   getCoverUrl,
@@ -31,14 +31,20 @@ import {
   markAsIncomplete,
   CollectionExpandedData,
   CollectionExpandedIssue,
+  CollectionItem,
+  removeFromCollection,
+  reorderCollectionItems,
+  updateCollection,
+  updateCollectionCover,
 } from '../services/api.service';
+import { useCollections, Collection } from '../contexts/CollectionsContext';
+import { CollectionSettingsModal, CollectionUpdates } from '../components/CollectionSettingsModal';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
 import { DetailHeroSection } from '../components/DetailHeroSection';
 import { CoverCard, SERIES_ISSUE_MENU_ITEMS, type MenuItemPreset } from '../components/CoverCard';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
-import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useMenuActions, useApiToast } from '../hooks';
 import type { MenuContext } from '../components/UnifiedMenu/types';
@@ -110,87 +116,7 @@ function issueToFileShape(issue: CollectionExpandedIssue) {
 }
 
 // =============================================================================
-// VirtualizedIssuesGrid - Flat view with virtualization
-// =============================================================================
-
-interface VirtualizedIssuesGridProps {
-  issues: CollectionExpandedIssue[];
-  selectedFiles: Set<string>;
-  onIssueClick: (fileId: string, event: React.MouseEvent) => void;
-  onReadIssue: (fileId: string) => void;
-  onSelectionChange: (fileId: string, selected: boolean) => void;
-  onMenuAction: (action: MenuItemPreset | string, fileId: string) => void;
-}
-
-function VirtualizedIssuesGrid({
-  issues,
-  selectedFiles,
-  onIssueClick,
-  onReadIssue,
-  onSelectionChange,
-  onMenuAction,
-}: VirtualizedIssuesGridProps) {
-  const { virtualItems, totalHeight, containerRef, isScrolling } = useWindowVirtualGrid(issues, {
-    sliderValue: 5,
-    gap: 16,
-    overscan: 5,
-    aspectRatio: 1.5,
-    infoHeight: 60,
-    minCoverWidth: 80,
-    maxCoverWidth: 350,
-  });
-
-  if (issues.length === 0) {
-    return (
-      <div className="collection-issues-empty">
-        <p>No issues in this collection.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className={`collection-issues-grid-container ${isScrolling ? 'scrolling' : ''}`}
-    >
-      <div
-        className="collection-issues-virtual"
-        style={{ height: totalHeight, position: 'relative' }}
-      >
-        {virtualItems.map(({ item: issue, style }) => (
-          <div key={issue.id} style={style} className="collection-issue-item">
-            <CoverCard
-              file={issueToFileShape(issue)}
-              progress={issue.readingProgress ? {
-                currentPage: issue.readingProgress.currentPage,
-                totalPages: issue.readingProgress.totalPages,
-                completed: issue.readingProgress.completed,
-              } : undefined}
-              variant="grid"
-              size="medium"
-              selectable={true}
-              isSelected={selectedFiles.has(issue.id)}
-              contextMenuEnabled={true}
-              menuItems={SERIES_ISSUE_MENU_ITEMS}
-              selectedCount={selectedFiles.size || 1}
-              showInfo={true}
-              showSeries={true}
-              showIssueNumber={true}
-              onClick={onIssueClick}
-              onDoubleClick={onReadIssue}
-              onRead={onReadIssue}
-              onSelectionChange={onSelectionChange}
-              onMenuAction={onMenuAction}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// GroupedGrid - Issues organized by series
+// Types for Series Grouping
 // =============================================================================
 
 interface SeriesGroup {
@@ -200,6 +126,92 @@ interface SeriesGroup {
   readCount: number;
   totalCount: number;
 }
+
+// =============================================================================
+// FlatGroupedGrid - Grid view with series headers (no expand/collapse)
+// =============================================================================
+
+interface FlatGroupedGridProps {
+  groups: SeriesGroup[];
+  selectedFiles: Set<string>;
+  isScrolling: boolean;
+  onIssueClick: (fileId: string, event: React.MouseEvent) => void;
+  onReadIssue: (fileId: string) => void;
+  onSelectionChange: (fileId: string, selected: boolean) => void;
+  onMenuAction: (action: MenuItemPreset | string, fileId: string) => void;
+}
+
+function FlatGroupedGrid({
+  groups,
+  selectedFiles,
+  isScrolling,
+  onIssueClick,
+  onReadIssue,
+  onSelectionChange,
+  onMenuAction,
+}: FlatGroupedGridProps) {
+  if (groups.length === 0) {
+    return (
+      <div className="collection-issues-empty">
+        <p>No issues in this collection.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`collection-flat-grouped-grid ${isScrolling ? 'scrolling' : ''}`}>
+      {groups.map((group) => (
+        <div key={group.seriesId} className="collection-flat-series-group">
+          <div className="collection-flat-series-header">
+            <Link
+              to={`/series/${group.seriesId}`}
+              className="collection-flat-series-name"
+              title={`Go to ${group.seriesName}`}
+            >
+              {group.seriesName}
+            </Link>
+            <span className="collection-flat-series-count">
+              {group.readCount}/{group.totalCount} read
+            </span>
+          </div>
+          <div className="collection-flat-series-issues">
+            {group.issues.map((issue) => (
+              <div key={issue.id} className="collection-flat-issue-item">
+                <CoverCard
+                  file={issueToFileShape(issue)}
+                  progress={issue.readingProgress ? {
+                    currentPage: issue.readingProgress.currentPage,
+                    totalPages: issue.readingProgress.totalPages,
+                    completed: issue.readingProgress.completed,
+                  } : undefined}
+                  variant="grid"
+                  size="medium"
+                  selectable={true}
+                  isSelected={selectedFiles.has(issue.id)}
+                  contextMenuEnabled={true}
+                  menuItems={SERIES_ISSUE_MENU_ITEMS}
+                  selectedCount={selectedFiles.size || 1}
+                  showInfo={true}
+                  showSeries={false}
+                  showIssueNumber={true}
+                  onClick={onIssueClick}
+                  onDoubleClick={onReadIssue}
+                  onRead={onReadIssue}
+                  onSelectionChange={onSelectionChange}
+                  onMenuAction={onMenuAction}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// =============================================================================
+// GroupedGrid - Accordion view with collapsible series
+// =============================================================================
 
 interface GroupedGridProps {
   groups: SeriesGroup[];
@@ -247,7 +259,14 @@ function GroupedGrid({
               <span className="collection-series-chevron">
                 {isExpanded ? '▼' : '▶'}
               </span>
-              <span className="collection-series-name">{group.seriesName}</span>
+              <Link
+                to={`/series/${group.seriesId}`}
+                className="collection-series-name-link"
+                title={`Go to ${group.seriesName}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {group.seriesName}
+              </Link>
               <span className="collection-series-count">
                 {group.readCount}/{group.totalCount} read
               </span>
@@ -301,6 +320,7 @@ export function CollectionDetailPage() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const { lastCompletedJobAt } = useMetadataJob();
   const { addToast } = useApiToast();
+  const { getCollectionWithItems, refreshCollections } = useCollections();
 
   // Data state - now using the optimized API
   const [data, setData] = useState<CollectionExpandedData | null>(null);
@@ -314,6 +334,11 @@ export function CollectionDetailPage() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [isScrolling, setIsScrolling] = useState(false);
+
+  // Edit modal state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [collectionForModal, setCollectionForModal] = useState<Collection | null>(null);
+  const [collectionItems, setCollectionItems] = useState<CollectionItem[]>([]);
 
   // Description expand/collapse state
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -629,6 +654,118 @@ export function CollectionDetailPage() {
     setExpandedGroups(new Set());
   }, []);
 
+  // Handle opening the edit modal
+  const handleOpenSettings = useCallback(async () => {
+    if (!collectionId || !data?.collection) return;
+
+    try {
+      const collectionData = await getCollectionWithItems(collectionId);
+      if (collectionData) {
+        const { items, ...collectionOnly } = collectionData;
+        setCollectionForModal(collectionOnly as Collection);
+        setCollectionItems(items ?? []);
+        setIsSettingsOpen(true);
+      }
+    } catch (err) {
+      addToast('error', 'Failed to load collection details');
+    }
+  }, [collectionId, data?.collection, getCollectionWithItems, addToast]);
+
+  // Handle saving collection settings
+  const handleSettingsSave = useCallback(async (updates: CollectionUpdates) => {
+    if (!collectionForModal || !collectionId) return;
+
+    try {
+      const basicUpdates: Record<string, unknown> = {};
+      if (updates.name !== undefined) basicUpdates.name = updates.name;
+      if (updates.deck !== undefined) basicUpdates.deck = updates.deck;
+      if (updates.description !== undefined) basicUpdates.description = updates.description;
+      if (updates.lockName !== undefined) basicUpdates.lockName = updates.lockName;
+      if (updates.lockDeck !== undefined) basicUpdates.lockDeck = updates.lockDeck;
+      if (updates.lockDescription !== undefined) basicUpdates.lockDescription = updates.lockDescription;
+      if (updates.lockPublisher !== undefined) basicUpdates.lockPublisher = updates.lockPublisher;
+      if (updates.lockStartYear !== undefined) basicUpdates.lockStartYear = updates.lockStartYear;
+      if (updates.lockEndYear !== undefined) basicUpdates.lockEndYear = updates.lockEndYear;
+      if (updates.lockGenres !== undefined) basicUpdates.lockGenres = updates.lockGenres;
+      if (updates.overridePublisher !== undefined) basicUpdates.overridePublisher = updates.overridePublisher;
+      if (updates.overrideStartYear !== undefined) basicUpdates.overrideStartYear = updates.overrideStartYear;
+      if (updates.overrideEndYear !== undefined) basicUpdates.overrideEndYear = updates.overrideEndYear;
+      if (updates.overrideGenres !== undefined) basicUpdates.overrideGenres = updates.overrideGenres;
+      if (updates.rating !== undefined) basicUpdates.rating = updates.rating;
+      if (updates.notes !== undefined) basicUpdates.notes = updates.notes;
+      if (updates.visibility !== undefined) basicUpdates.visibility = updates.visibility;
+      if (updates.readingMode !== undefined) basicUpdates.readingMode = updates.readingMode;
+
+      if (Object.keys(basicUpdates).length > 0) {
+        await updateCollection(collectionForModal.id, basicUpdates);
+      }
+
+      // Handle cover changes
+      if (updates.coverType !== undefined) {
+        let sourceId: string | undefined;
+        if (updates.coverType === 'series') {
+          sourceId = updates.coverSeriesId ?? undefined;
+        } else if (updates.coverType === 'issue') {
+          sourceId = updates.coverFileId ?? undefined;
+        }
+        await updateCollectionCover(collectionForModal.id, updates.coverType, sourceId);
+      }
+
+      // Refresh data after save
+      await refreshCollections();
+      await fetchCollectionData();
+      addToast('success', 'Collection updated');
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to update collection');
+      throw err;
+    }
+  }, [collectionForModal, collectionId, refreshCollections, fetchCollectionData, addToast]);
+
+  // Handle removing items from collection
+  const handleRemoveItems = useCallback(async (itemIds: string[]) => {
+    if (!collectionForModal || !collectionId) return;
+
+    try {
+      const itemsToRemove = collectionItems
+        .filter(item => itemIds.includes(item.id))
+        .map(item => ({
+          seriesId: item.seriesId || undefined,
+          fileId: item.fileId || undefined,
+        }));
+
+      await removeFromCollection(collectionForModal.id, itemsToRemove);
+
+      const collectionData = await getCollectionWithItems(collectionId);
+      if (collectionData) {
+        const { items, ...collectionOnly } = collectionData;
+        setCollectionForModal(collectionOnly as Collection);
+        setCollectionItems(items ?? []);
+      }
+
+      // Also refresh the main page data
+      await fetchCollectionData();
+    } catch (err) {
+      addToast('error', 'Failed to remove items');
+      throw err;
+    }
+  }, [collectionForModal, collectionId, collectionItems, getCollectionWithItems, fetchCollectionData, addToast]);
+
+  // Handle reordering items
+  const handleReorderItems = useCallback(async (itemIds: string[]) => {
+    if (!collectionForModal || !collectionId) return;
+
+    try {
+      await reorderCollectionItems(collectionForModal.id, itemIds);
+      const collectionData = await getCollectionWithItems(collectionId);
+      if (collectionData) {
+        setCollectionItems(collectionData.items ?? []);
+      }
+    } catch (err) {
+      addToast('error', 'Failed to reorder items');
+      throw err;
+    }
+  }, [collectionForModal, collectionId, getCollectionWithItems, addToast]);
+
   // Handle collection-level actions
   const handleCollectionAction = useCallback(
     async (actionId: string) => {
@@ -636,7 +773,7 @@ export function CollectionDetailPage() {
 
       switch (actionId) {
         case 'editCollection':
-          navigate(`/collections/${collectionId}`);
+          handleOpenSettings();
           break;
 
         case 'markAllRead':
@@ -662,7 +799,7 @@ export function CollectionDetailPage() {
           break;
       }
     },
-    [data, collectionId, navigate, fetchCollectionData, addToast]
+    [data, handleOpenSettings, fetchCollectionData, addToast]
   );
 
   const handleSeriesFilterToggle = useCallback((seriesId: string) => {
@@ -895,10 +1032,22 @@ export function CollectionDetailPage() {
                 </h3>
                 <ul className="collection-series-list">
                   {availableSeries.slice(0, 10).map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} className="collection-series-list-item">
+                      <Link
+                        to={`/series/${s.id}`}
+                        className="collection-series-go-link"
+                        title={`Go to ${s.name}`}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                          <polyline points="15 3 21 3 21 9" />
+                          <line x1="10" y1="14" x2="21" y2="3" />
+                        </svg>
+                      </Link>
                       <button
-                        className={`collection-series-link ${seriesFilter.has(s.id) ? 'active' : ''}`}
+                        className={`collection-series-filter-btn ${seriesFilter.has(s.id) ? 'active' : ''}`}
                         onClick={() => handleSeriesFilterToggle(s.id)}
+                        title={seriesFilter.has(s.id) ? 'Remove filter' : 'Filter to this series'}
                       >
                         {s.name}
                       </button>
@@ -988,9 +1137,10 @@ export function CollectionDetailPage() {
 
         {/* Issues grid */}
         {viewMode === 'flat' ? (
-          <VirtualizedIssuesGrid
-            issues={filteredIssues}
+          <FlatGroupedGrid
+            groups={seriesGroups}
             selectedFiles={selectedFiles}
+            isScrolling={isScrolling}
             onIssueClick={handleIssueClick}
             onReadIssue={handleReadIssue}
             onSelectionChange={handleSelectionChange}
@@ -1026,6 +1176,19 @@ export function CollectionDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Collection Settings Modal */}
+      {collectionForModal && (
+        <CollectionSettingsModal
+          collection={collectionForModal}
+          collectionItems={collectionItems}
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onSave={handleSettingsSave}
+          onRemoveItems={handleRemoveItems}
+          onReorderItems={handleReorderItems}
+        />
+      )}
     </div>
   );
 }

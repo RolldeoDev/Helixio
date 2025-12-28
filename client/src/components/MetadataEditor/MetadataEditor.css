@@ -8,7 +8,7 @@
    ============================================================================= */
 
 .modal-content:has(.metadata-editor) {
-  width: 850px;
+  width: 900px;
   max-width: 95vw;
 }
 
@@ -27,7 +27,7 @@
    ============================================================================= */
 
 .metadata-editor-header {
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
 }
 
 .metadata-editor-header h2 {
@@ -42,8 +42,8 @@
 
 .metadata-editor-header-actions .btn-ghost,
 .metadata-editor-header-actions .btn-sm {
-  padding: 3px 8px;
-  font-size: 0.6875rem;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -64,8 +64,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   background: transparent;
   border: none;
@@ -100,24 +100,24 @@
 
 .metadata-editor-warning .warning-icon {
   flex: 0 0 auto;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
 }
 
 .metadata-editor-warning .warning-text {
   flex: 1;
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   color: var(--color-warning);
   line-height: 1.3;
 }
 
 .metadata-editor-warning .btn-warning-action {
   flex: 0 0 auto;
-  padding: 3px 8px;
+  padding: 4px 10px;
   background: rgba(251, 191, 36, 0.15);
   border: 1px solid rgba(251, 191, 36, 0.3);
   border-radius: var(--radius-sm);
   color: var(--color-warning);
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -197,18 +197,18 @@
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--color-border-subtle);
   background: var(--color-bg-tertiary);
 }
 
 .metadata-cover-row .metadata-cover-preview {
-  width: 100px;
+  width: 105px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .metadata-cover-row .metadata-cover-preview img {
@@ -221,12 +221,12 @@
 
 /* Filename - now in issue-info section above fields */
 .metadata-issue-info .filename {
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   color: var(--color-text-muted);
   word-break: break-all;
   line-height: 1.3;
-  margin-bottom: 4px;
-  padding: 4px 6px;
+  margin-bottom: 6px;
+  padding: 5px 8px;
   background: var(--color-bg);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono, monospace);
@@ -235,8 +235,8 @@
 .metadata-cover-row .btn-edit-cover {
   width: 100%;
   margin-top: auto;
-  padding: 3px 6px;
-  font-size: 0.625rem;
+  padding: 5px 8px;
+  font-size: 0.75rem;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -256,13 +256,13 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 
 .issue-info-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 
 .issue-info-row .form-field {
@@ -281,12 +281,12 @@
 /* Issue # and Volume fields - narrow */
 .issue-field-number,
 .issue-field-volume {
-  width: 70px;
+  width: 80px;
   flex-shrink: 0;
 }
 
 .metadata-issue-info .form-field label {
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
@@ -294,13 +294,13 @@
 }
 
 .metadata-issue-info .form-field input {
-  padding: 4px 6px;
+  padding: 6px 8px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   transition: all var(--transition-fast);
 }
 
@@ -311,7 +311,7 @@
 }
 
 .metadata-issue-info .form-field .field-hint {
-  font-size: 0.5rem;
+  font-size: 0.6875rem;
   color: var(--color-text-subtle);
 }
 
@@ -322,8 +322,8 @@
 .metadata-editor-content.accordion-layout .metadata-form {
   display: flex !important;
   flex-direction: column !important;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: 8px;
+  padding: 10px 14px;
   flex: 1;
   min-height: 0;
   grid-template-columns: unset !important;
@@ -356,13 +356,13 @@
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 8px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   text-align: left;
@@ -386,19 +386,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   background: var(--color-primary);
   color: var(--color-bg);
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 9px;
 }
 
 .metadata-field-section-header .section-chevron {
   color: var(--color-text-muted);
-  font-size: 0.5rem;
+  font-size: 0.625rem;
   transition: transform var(--transition-fast);
 }
 
@@ -422,7 +422,7 @@
 }
 
 .metadata-field-section-content .fields-wrapper {
-  padding: 0 10px 8px;
+  padding: 0 12px 10px;
 }
 
 /* =============================================================================
@@ -432,7 +432,7 @@
 .metadata-fields-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 4px 8px;
+  gap: 6px 10px;
 }
 
 .metadata-fields-grid .form-field.full-width {
@@ -442,11 +442,11 @@
 .metadata-fields-grid .form-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .metadata-fields-grid .form-field label {
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
@@ -455,13 +455,13 @@
 
 .metadata-fields-grid .form-field input,
 .metadata-fields-grid .form-field textarea {
-  padding: 4px 6px;
+  padding: 6px 8px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   transition: all var(--transition-fast);
 }
 
@@ -496,14 +496,14 @@
 }
 
 .metadata-fields-grid .form-field .field-hint {
-  font-size: 0.5rem;
+  font-size: 0.6875rem;
   color: var(--color-text-subtle);
 }
 
 .metadata-fields-grid .form-field .field-locked-indicator {
-  font-size: 0.5625rem;
+  font-size: 0.6875rem;
   opacity: 0.7;
-  margin-left: 2px;
+  margin-left: 3px;
 }
 
 /* =============================================================================
@@ -511,7 +511,7 @@
    ============================================================================= */
 
 .metadata-editor-footer {
-  padding: 6px 12px !important;
+  padding: 8px 12px !important;
 }
 
 /* =============================================================================

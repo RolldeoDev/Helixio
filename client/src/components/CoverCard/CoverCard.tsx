@@ -201,7 +201,7 @@ export function CoverCard({
           {/* Issue number badge */}
           {showIssueNumber && file.metadata?.number && (
             <div
-              className="cover-card__issue-badge"
+              className={`cover-card__issue-badge${progress?.completed ? ' cover-card__issue-badge--completed' : ''}`}
               aria-label={`Issue ${file.metadata.number}${progress?.completed ? ', completed' : ''}`}
             >
               <span className="cover-card__issue-badge-hash">#</span>
@@ -233,10 +233,12 @@ export function CoverCard({
                 <svg
                   className="cover-card__read-icon"
                   viewBox="0 0 24 24"
-                  fill="currentColor"
-                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
                 >
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 14H7v-2h8v2zm2-4H7v-2h10v2zm0-4H7V7h10v2z" />
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                 </svg>
               </button>
             </div>

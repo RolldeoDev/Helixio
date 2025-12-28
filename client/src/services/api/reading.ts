@@ -83,6 +83,7 @@ export interface ContinueReadingItem {
   filename: string;
   relativePath: string;
   libraryId: string;
+  coverHash: string | null;
   currentPage: number;
   totalPages: number;
   progress: number;
@@ -330,6 +331,14 @@ export interface AllTimeStats {
   longestSession: number;
   currentStreak: number;
   longestStreak: number;
+  // Extended stats for fun facts
+  totalActiveDays: number;
+  maxPagesDay: number;
+  maxComicsDay: number;
+  maxTimeDay: number;
+  sessionsTotal: number;
+  bingeDaysCount: number;
+  daysSinceLastRead: number;
 }
 
 // =============================================================================

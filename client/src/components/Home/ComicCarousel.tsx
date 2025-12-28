@@ -20,6 +20,7 @@ import { markAsCompleted, markAsIncomplete } from '../../services/api.service';
 export interface ComicCarouselItem {
   fileId: string;
   filename: string;
+  coverHash?: string | null;
   progress?: number;
   completed?: boolean;
   badge?: string;
@@ -146,6 +147,7 @@ export function ComicCarousel({
           const file: CoverCardFile = {
             id: item.fileId,
             filename: item.filename,
+            coverHash: item.coverHash,
             metadata: {
               series: item.series,
               number: item.number,

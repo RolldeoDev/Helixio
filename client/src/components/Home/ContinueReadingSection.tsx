@@ -38,8 +38,12 @@ export function ContinueReadingSection({
   const cardItems: ComicCarouselItem[] = items.map((item) => ({
     fileId: item.fileId,
     filename: item.filename,
+    coverHash: item.coverHash,
     progress: item.progress,
     completed: false,
+    series: item.series,
+    number: item.number,
+    title: item.title,
   }));
 
   // Loading state

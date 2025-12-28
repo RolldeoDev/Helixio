@@ -1,0 +1,221 @@
+/**
+ * CollectionListCard Styles
+ *
+ * Rich card component for collection list items.
+ */
+
+.collection-list-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.collection-list-card:hover {
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  transform: translateY(-2px);
+}
+
+.collection-list-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.collection-list-card:active {
+  transform: translateY(0);
+}
+
+/* Selected state */
+.collection-list-card--selected {
+  border-color: var(--color-primary);
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+}
+
+/* System collection variants */
+.collection-list-card--system {
+  border-left-width: 3px;
+}
+
+.collection-list-card--favorites {
+  border-left-color: #ef4444;
+}
+
+.collection-list-card--want-to-read {
+  border-left-color: #3b82f6;
+}
+
+/* Cover section */
+.collection-list-card__cover {
+  width: 60px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--color-bg-secondary);
+}
+
+.collection-list-card__cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.collection-list-card__cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-secondary);
+}
+
+.collection-list-card__placeholder-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--color-text-subtle);
+  opacity: 0.5;
+}
+
+/* System icon overlay on cover (alternative display) */
+.collection-list-card__icon-overlay {
+  display: none; /* Hidden by default, shown via inline icon instead */
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.7);
+  padding: 3px;
+}
+
+/* Info section */
+.collection-list-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collection-list-card__name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.collection-list-card__inline-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.collection-list-card__name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--color-text);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-list-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.collection-list-card__smart-badge {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-warning, #facc15);
+}
+
+.collection-list-card__smart-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* System icons */
+.collection-list-card__system-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.collection-list-card__system-icon--favorites {
+  color: #ef4444;
+}
+
+.collection-list-card__system-icon--want-to-read {
+  color: #3b82f6;
+}
+
+/* Selected indicator (chevron) */
+.collection-list-card__selected-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.collection-list-card__selected-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Hide chevron when not selected */
+.collection-list-card:not(.collection-list-card--selected) .collection-list-card__selected-indicator {
+  display: none;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .collection-list-card__cover {
+    width: 50px;
+  }
+
+  .collection-list-card__name {
+    font-size: 0.875rem;
+  }
+
+  .collection-list-card__meta {
+    font-size: 0.75rem;
+  }
+}
+
+/* Touch devices */
+@media (hover: none) {
+  .collection-list-card {
+    min-height: 64px;
+  }
+
+  .collection-list-card:hover {
+    transform: none;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .collection-list-card {
+    transition: none;
+  }
+
+  .collection-list-card:hover {
+    transform: none;
+  }
+}

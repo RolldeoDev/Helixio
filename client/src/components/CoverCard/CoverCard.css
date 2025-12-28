@@ -437,6 +437,12 @@
   display: none;
 }
 
+/* Completed state - uses theme color for completed issues */
+.cover-card__issue-badge--completed {
+  background: var(--color-issue-badge-completed, var(--color-success, #22c55e));
+  color: var(--color-issue-badge-text-completed, #1a1a1a);
+}
+
 /* =============================================================================
    Progress Indicators (using shared Progress components)
    ============================================================================= */

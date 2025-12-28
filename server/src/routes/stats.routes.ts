@@ -12,6 +12,7 @@ import {
   getEntityStat,
   getEntityDetails,
   getTopEntitiesSummary,
+  getExtendedStats,
 } from '../services/stats-query.service.js';
 import {
   triggerDirtyStatsProcessing,
@@ -50,14 +51,16 @@ router.get('/', cachePresets.shortTerm, async (req, res) => {
 router.get('/summary', cachePresets.shortTerm, async (req, res) => {
   try {
     const { libraryId } = req.query;
-    const [stats, topEntities] = await Promise.all([
+    const [stats, topEntities, extendedStats] = await Promise.all([
       getAggregatedStats(libraryId as string | undefined),
       getTopEntitiesSummary(libraryId as string | undefined),
+      getExtendedStats(libraryId as string | undefined),
     ]);
 
     res.json({
       ...stats,
       ...topEntities,
+      ...extendedStats,
     });
   } catch (error) {
     logError('stats', error, { action: 'get-stats-summary' });

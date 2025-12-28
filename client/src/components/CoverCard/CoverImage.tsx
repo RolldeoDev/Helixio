@@ -83,11 +83,12 @@ export function CoverImage({ fileId, filename, progress, eager, coverVersion }: 
         />
       )}
 
-      {/* Reading progress ring - shows percentage when in progress, 100% when completed */}
+      {/* Reading progress ring - shows percentage when in progress, checkmark when completed */}
       {showProgressRing && (
         <ProgressRing
           progress={displayProgress}
           size="sm"
+          completed={progress?.completed}
           className="cover-card__progress-ring"
         />
       )}

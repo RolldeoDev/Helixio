@@ -56,7 +56,7 @@ export const SAMPLE_TEMPLATES = {
 // Sample Resolver Contexts
 // =============================================================================
 
-export const SAMPLE_CONTEXTS: Record<string, ResolverContext> = {
+export const SAMPLE_CONTEXTS = {
   /** Complete context with all common fields */
   complete: {
     comicInfo: {
@@ -192,13 +192,13 @@ export const SAMPLE_CONTEXTS: Record<string, ResolverContext> = {
       extension: '.cbz',
     },
   },
-};
+} satisfies Record<string, ResolverContext>;
 
 // =============================================================================
 // Sample Character Rules
 // =============================================================================
 
-export const SAMPLE_CHAR_RULES: Record<string, CharacterReplacementRules> = {
+export const SAMPLE_CHAR_RULES = {
   /** Remove all illegal characters */
   removeAll: {
     colon: 'remove',
@@ -253,7 +253,7 @@ export const SAMPLE_CHAR_RULES: Record<string, CharacterReplacementRules> = {
     colon: 'dash',
     question: 'remove',
   },
-};
+} satisfies Record<string, CharacterReplacementRules>;
 
 // =============================================================================
 // Mock FilenameTemplate Records
@@ -416,10 +416,10 @@ export function createTestContext(base: keyof typeof SAMPLE_CONTEXTS, overrides:
     },
     series: overrides.series !== undefined
       ? overrides.series
-      : baseContext.series,
+      : ('series' in baseContext ? baseContext.series : undefined),
     fileMetadata: overrides.fileMetadata !== undefined
       ? overrides.fileMetadata
-      : baseContext.fileMetadata,
+      : ('fileMetadata' in baseContext ? baseContext.fileMetadata : undefined),
     file: {
       ...baseContext.file,
       ...overrides.file,

@@ -1,16 +1,17 @@
 /**
- * CollectionSettingsDrawer Component
+ * CollectionSettingsModal Component
  *
- * A slide-out drawer for managing collection settings including:
- * - General: Name, description, icon, color
- * - Appearance: Cover source selection
- * - Display: Promotion toggle, metadata overrides
- * - Items: Manage, remove, reorder collection items
+ * A spacious centered modal for managing collection settings including:
+ * - General: Name, description, rating, notes
+ * - Appearance: Cover source selection with live preview
+ * - Display: Visibility, reading mode, metadata overrides
+ * - Items: Grid view with covers for managing collection items
+ * - Smart: Filter-based automatic collection management
  *
  * Uses React Portal to render at document body level.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Collection } from '../../contexts/CollectionsContext';
 import {
@@ -35,11 +36,11 @@ import {
   useConvertToRegularCollection,
   useSmartCollectionOverrides,
 } from '../../hooks/queries/useCollections';
-import './CollectionSettingsDrawer.css';
+import './CollectionSettingsModal.css';
 
 type TabId = 'general' | 'appearance' | 'display' | 'items' | 'smart';
 
-interface CollectionSettingsDrawerProps {
+interface CollectionSettingsModalProps {
   collection: Collection | null;
   collectionItems: CollectionItem[];
   isOpen: boolean;
@@ -61,7 +62,6 @@ export interface CollectionUpdates {
   overrideEndYear?: number | null;
   overrideGenres?: string | null;
   isPromoted?: boolean;
-  // Lock flags
   lockName?: boolean;
   lockDeck?: boolean;
   lockDescription?: boolean;
@@ -69,21 +69,18 @@ export interface CollectionUpdates {
   lockStartYear?: boolean;
   lockEndYear?: boolean;
   lockGenres?: boolean;
-  // New fields
   rating?: number | null;
   notes?: string | null;
   visibility?: 'public' | 'private' | 'unlisted';
   readingMode?: 'single' | 'double' | 'webtoon' | null;
 }
 
-// Visibility options
 const VISIBILITY_OPTIONS = [
   { value: 'private', label: 'Private', description: 'Only you can see this collection' },
   { value: 'unlisted', label: 'Unlisted', description: 'Anyone with the link can view' },
   { value: 'public', label: 'Public', description: 'Visible to all users' },
 ] as const;
 
-// Reading mode options
 const READING_MODE_OPTIONS = [
   { value: null, label: 'Default', description: 'Use reader default settings' },
   { value: 'single', label: 'Single Page', description: 'One page at a time' },
@@ -91,7 +88,7 @@ const READING_MODE_OPTIONS = [
   { value: 'webtoon', label: 'Webtoon', description: 'Continuous vertical scroll' },
 ] as const;
 
-export function CollectionSettingsDrawer({
+export function CollectionSettingsModal({
   collection,
   collectionItems,
   isOpen,
@@ -99,8 +96,8 @@ export function CollectionSettingsDrawer({
   onSave,
   onRemoveItems,
   onReorderItems,
-}: CollectionSettingsDrawerProps) {
-  const drawerRef = useRef<HTMLDivElement>(null);
+}: CollectionSettingsModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -166,7 +163,6 @@ export function CollectionSettingsDrawer({
   const convertToSmartMutation = useConvertToSmartCollection();
   const convertToRegularMutation = useConvertToRegularCollection();
 
-  // Fetch smart collection overrides when viewing a smart collection
   const { data: smartOverrides } = useSmartCollectionOverrides(
     collection?.isSmart ? collection.id : undefined
   );
@@ -188,7 +184,6 @@ export function CollectionSettingsDrawer({
       setOverrideEndYear(collection.overrideEndYear?.toString() || '');
       setOverrideGenres(collection.overrideGenres || '');
       setIsPromoted(collection.isPromoted || false);
-      // Lock states
       setLockName(collection.lockName || false);
       setLockDeck(collection.lockDeck || false);
       setLockDescription(collection.lockDescription || false);
@@ -196,12 +191,10 @@ export function CollectionSettingsDrawer({
       setLockStartYear(collection.lockStartYear || false);
       setLockEndYear(collection.lockEndYear || false);
       setLockGenres(collection.lockGenres || false);
-      // New fields
       setRating(collection.rating ?? null);
       setNotes(collection.notes || '');
       setVisibility(collection.visibility || 'private');
       setReadingMode(collection.readingMode || null);
-      // Smart collection state
       setIsSmartEnabled(collection.isSmart || false);
       setSmartScope((collection.smartScope as SmartScope) || 'series');
       if (collection.filterDefinition) {
@@ -218,96 +211,56 @@ export function CollectionSettingsDrawer({
     }
   }, [collection]);
 
-  // Sync local items with prop
   useEffect(() => {
     setLocalItems(collectionItems);
   }, [collectionItems]);
 
-  // Check LLM availability on mount
   useEffect(() => {
     let mounted = true;
-
     const checkLLMAvailability = async () => {
       try {
         const status = await getCollectionDescriptionGenerationStatus();
-        if (mounted) {
-          setIsLLMAvailable(status.available);
-        }
+        if (mounted) setIsLLMAvailable(status.available);
       } catch {
-        if (mounted) {
-          setIsLLMAvailable(false);
-        }
+        if (mounted) setIsLLMAvailable(false);
       }
     };
-
     checkLLMAvailability();
-
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  // Handle escape key to close
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
+      if (e.key === 'Escape' && isOpen) onClose();
     };
-
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Handle click outside to close
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (drawerRef.current && !drawerRef.current.contains(e.target as Node) && isOpen) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose]);
-
-  // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
+    return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  // Mark changes when form values change - simplified with explicit call
-  const markChanged = useCallback(() => {
-    setHasChanges(true);
-  }, []);
+  const markChanged = useCallback(() => setHasChanges(true), []);
 
-  // Handle file upload for custom cover
   const handleFileUpload = useCallback(async (file: File) => {
     if (!collection) return;
-
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!validTypes.includes(file.type)) {
       setUploadError('Invalid file type. Please use JPEG, PNG, WebP, or GIF.');
       return;
     }
-
-    // Validate file size (10MB max)
     if (file.size > 10 * 1024 * 1024) {
       setUploadError('File too large. Maximum size is 10MB.');
       return;
     }
-
     setIsUploadingCover(true);
     setUploadError(null);
-
     try {
       const result = await uploadCollectionCover(collection.id, file);
       setCustomCoverHash(result.coverHash);
@@ -320,21 +273,16 @@ export function CollectionSettingsDrawer({
     }
   }, [collection, markChanged]);
 
-  // Handle URL submission for custom cover
   const handleUrlSubmit = useCallback(async () => {
     if (!collection || !customCoverUrl.trim()) return;
-
-    // Validate URL format
     try {
       new URL(customCoverUrl);
     } catch {
       setUploadError('Please enter a valid URL');
       return;
     }
-
     setIsUploadingCover(true);
     setUploadError(null);
-
     try {
       const result = await setCollectionCoverFromUrl(collection.id, customCoverUrl);
       setCustomCoverHash(result.coverHash);
@@ -348,7 +296,6 @@ export function CollectionSettingsDrawer({
     }
   }, [collection, customCoverUrl, markChanged]);
 
-  // Handle file drag and drop
   const handleFileDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -365,35 +312,27 @@ export function CollectionSettingsDrawer({
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingFile(false);
-
     const files = e.dataTransfer.files;
     if (files && files.length > 0 && files[0]) {
       handleFileUpload(files[0]);
     }
   }, [handleFileUpload]);
 
-  // Handle file input change
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0 && files[0]) {
       handleFileUpload(files[0]);
     }
-    // Reset input so same file can be selected again
     e.target.value = '';
   }, [handleFileUpload]);
 
-  // Perform the actual generation
   const performGenerateDescription = useCallback(async () => {
     if (!collection) return;
-
     setShowGenerateConfirmDialog(false);
     setIsGeneratingDescription(true);
     setGenerateError(null);
-
     try {
       const result = await generateCollectionDescription(collection.id);
-
-      // Update form state with generated content - only for unlocked fields
       let appliedCount = 0;
       if (result.deck && !lockDeck) {
         setDeck(result.deck);
@@ -403,23 +342,19 @@ export function CollectionSettingsDrawer({
         setDescription(result.description);
         appliedCount++;
       }
-
       if (appliedCount > 0) {
         markChanged();
       } else {
         setGenerateError('All target fields are locked. Unlock them first.');
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to generate description';
-      setGenerateError(errorMsg);
+      setGenerateError(err instanceof Error ? err.message : 'Failed to generate description');
     } finally {
       setIsGeneratingDescription(false);
     }
   }, [collection, markChanged, lockDeck, lockDescription]);
 
-  // Handle generate description button click
   const handleGenerateDescriptionClick = useCallback(() => {
-    // Check if there's existing unlocked content to overwrite
     const hasUnlockedDeckContent = deck && !lockDeck;
     const hasUnlockedDescriptionContent = description && !lockDescription;
     if (hasUnlockedDeckContent || hasUnlockedDescriptionContent) {
@@ -429,15 +364,8 @@ export function CollectionSettingsDrawer({
     }
   }, [deck, description, lockDeck, lockDescription, performGenerateDescription]);
 
-  // Cancel generation confirmation
-  const handleGenerateConfirmCancel = useCallback(() => {
-    setShowGenerateConfirmDialog(false);
-  }, []);
-
-  // Save handler
   const handleSave = async () => {
     if (!collection) return;
-
     setIsSaving(true);
     try {
       const updates: CollectionUpdates = {
@@ -456,7 +384,6 @@ export function CollectionSettingsDrawer({
           : undefined,
         overrideGenres: overrideGenres !== (collection.overrideGenres || '') ? (overrideGenres || null) : undefined,
         isPromoted: isPromoted !== (collection.isPromoted || false) ? isPromoted : undefined,
-        // Lock flags
         lockName: lockName !== (collection.lockName || false) ? lockName : undefined,
         lockDeck: lockDeck !== (collection.lockDeck || false) ? lockDeck : undefined,
         lockDescription: lockDescription !== (collection.lockDescription || false) ? lockDescription : undefined,
@@ -464,22 +391,17 @@ export function CollectionSettingsDrawer({
         lockStartYear: lockStartYear !== (collection.lockStartYear || false) ? lockStartYear : undefined,
         lockEndYear: lockEndYear !== (collection.lockEndYear || false) ? lockEndYear : undefined,
         lockGenres: lockGenres !== (collection.lockGenres || false) ? lockGenres : undefined,
-        // New fields
         rating: rating !== (collection.rating ?? null) ? rating : undefined,
         notes: notes !== (collection.notes || '') ? (notes || null) : undefined,
         visibility: visibility !== (collection.visibility || 'private') ? visibility : undefined,
         readingMode: readingMode !== (collection.readingMode || null) ? readingMode : undefined,
       };
-
-      // Remove undefined values
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([, v]) => v !== undefined)
       ) as CollectionUpdates;
-
       if (Object.keys(cleanUpdates).length > 0) {
         await onSave(cleanUpdates);
       }
-
       setHasChanges(false);
     } catch (err) {
       console.error('Failed to save collection settings:', err);
@@ -488,13 +410,10 @@ export function CollectionSettingsDrawer({
     }
   };
 
-  // Item removal
   const handleRemoveSelected = async () => {
     if (selectedItems.size === 0) return;
-
     const confirmed = confirm(`Remove ${selectedItems.size} item${selectedItems.size > 1 ? 's' : ''} from this collection?`);
     if (!confirmed) return;
-
     await onRemoveItems(Array.from(selectedItems));
     setSelectedItems(new Set());
   };
@@ -502,7 +421,6 @@ export function CollectionSettingsDrawer({
   const handleRemoveItem = async (itemId: string) => {
     const confirmed = confirm('Remove this item from the collection?');
     if (!confirmed) return;
-
     await onRemoveItems([itemId]);
     setSelectedItems((prev) => {
       const next = new Set(prev);
@@ -511,7 +429,6 @@ export function CollectionSettingsDrawer({
     });
   };
 
-  // Drag and drop handlers
   const handleDragStart = (e: React.DragEvent, itemId: string) => {
     setDraggedItem(itemId);
     e.dataTransfer.effectAllowed = 'move';
@@ -525,21 +442,16 @@ export function CollectionSettingsDrawer({
 
   const handleDrop = async (e: React.DragEvent, targetItemId: string) => {
     e.preventDefault();
-
     if (!draggedItem || draggedItem === targetItemId) {
       setDraggedItem(null);
       return;
     }
-
     const draggedIndex = localItems.findIndex((item) => item.id === draggedItem);
     const targetIndex = localItems.findIndex((item) => item.id === targetItemId);
-
     if (draggedIndex === -1 || targetIndex === -1) {
       setDraggedItem(null);
       return;
     }
-
-    // Reorder locally first for immediate feedback
     const newItems = [...localItems];
     const removed = newItems.splice(draggedIndex, 1)[0];
     if (!removed) {
@@ -548,15 +460,11 @@ export function CollectionSettingsDrawer({
     }
     newItems.splice(targetIndex, 0, removed);
     setLocalItems(newItems);
-
-    // Save to backend
     await onReorderItems(newItems.map((item) => item.id));
     setDraggedItem(null);
   };
 
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-  };
+  const handleDragEnd = () => setDraggedItem(null);
 
   const toggleSelectAll = () => {
     if (selectedItems.size === localItems.length) {
@@ -569,52 +477,42 @@ export function CollectionSettingsDrawer({
   const toggleItemSelection = (itemId: string) => {
     setSelectedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
       return next;
     });
   };
 
-  // Get unique series from items for cover selection
-  const seriesInCollection = localItems
+  const seriesInCollection = useMemo(() => localItems
     .filter((item) => item.seriesId && item.series)
     .map((item) => item.series!)
     .filter((series, index, self) =>
       self.findIndex((s) => s.id === series.id) === index
-    );
+    ), [localItems]);
 
-  // Get cover preview URL
-  const getCoverPreviewUrl = (): string | null => {
-    if (coverType === 'series' && coverSeriesId) {
-      return getSeriesCoverUrl(coverSeriesId);
-    }
-    if (coverType === 'issue' && coverFileId) {
-      return getCoverUrl(coverFileId);
-    }
-    if (coverType === 'custom' && customCoverHash) {
-      return getApiCoverUrl(customCoverHash);
-    }
+  const getCoverPreviewUrl = useCallback((): string | null => {
+    if (coverType === 'series' && coverSeriesId) return getSeriesCoverUrl(coverSeriesId);
+    if (coverType === 'issue' && coverFileId) return getCoverUrl(coverFileId);
+    if (coverType === 'custom' && customCoverHash) return getApiCoverUrl(customCoverHash);
     return null;
+  }, [coverType, coverSeriesId, coverFileId, customCoverHash]);
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onClose();
   };
 
   if (!collection) return null;
 
-  const portalTarget = document.body;
-
-  const tabs: { id: TabId; label: string; icon?: React.ReactNode }[] = [
+  const tabs: { id: TabId; label: string; count?: number; icon?: React.ReactNode }[] = [
     { id: 'general', label: 'General' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'display', label: 'Display' },
-    { id: 'items', label: `Items (${localItems.length})` },
-    // Smart tab only for non-system collections
+    { id: 'items', label: 'Items', count: localItems.length },
     ...(!collection.isSystem ? [{
       id: 'smart' as TabId,
-      label: collection.isSmart ? 'Smart' : 'Smart',
+      label: 'Smart',
       icon: collection.isSmart ? (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
         </svg>
       ) : null,
@@ -622,494 +520,517 @@ export function CollectionSettingsDrawer({
   ];
 
   return createPortal(
-    <div className={`drawer-overlay collection-settings-overlay ${isOpen ? 'open' : ''}`}>
-      <div ref={drawerRef} className={`collection-settings-drawer ${isOpen ? 'open' : ''}`}>
+    <div
+      className={`csm-overlay ${isOpen ? 'csm-overlay--open' : ''}`}
+      onClick={handleOverlayClick}
+    >
+      <div
+        ref={modalRef}
+        className={`csm-modal ${isOpen ? 'csm-modal--open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="csm-title"
+      >
         {/* Header */}
-        <div className="drawer-header">
-          <div className="drawer-title-section">
-            <h2 className="drawer-title">Collection Settings</h2>
-            <span className="drawer-subtitle">{collection.name}</span>
-          </div>
-          <button className="drawer-close" onClick={onClose} title="Close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="drawer-tabs">
-          {tabs.map((tab) => (
+        <header className="csm-header">
+          <div className="csm-header__content">
+            <div className="csm-header__title-group">
+              <h2 id="csm-title" className="csm-header__title">Collection Settings</h2>
+              <span className="csm-header__subtitle">{collection.name}</span>
+            </div>
             <button
-              key={tab.id}
-              className={`drawer-tab ${activeTab === tab.id ? 'active' : ''} ${tab.icon ? 'has-icon' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              className="csm-header__close"
+              onClick={onClose}
+              title="Close"
+              aria-label="Close modal"
             >
-              {tab.icon && <span className="tab-icon">{tab.icon}</span>}
-              {tab.label}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
             </button>
-          ))}
-        </div>
+          </div>
+
+          {/* Tab Bar */}
+          <nav className="csm-tabs" role="tablist">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                className={`csm-tab ${activeTab === tab.id ? 'csm-tab--active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.icon && <span className="csm-tab__icon">{tab.icon}</span>}
+                <span className="csm-tab__label">{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className="csm-tab__count">{tab.count}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </header>
 
         {/* Content */}
-        <div className="drawer-content">
+        <main className="csm-content">
           {/* General Tab */}
           {activeTab === 'general' && (
-            <div className="tab-content">
-              {/* Name with lock */}
-              <div className="form-group">
-                <div className="label-with-lock">
-                  <label htmlFor="collection-name">Name</label>
-                  {!collection.isSystem && (
+            <div className="csm-tab-content csm-tab-content--general">
+              <div className="csm-form-section">
+                {/* Name */}
+                <div className="csm-field">
+                  <div className="csm-field__header">
+                    <label htmlFor="csm-name" className="csm-field__label">Name</label>
+                    {!collection.isSystem && (
+                      <button
+                        type="button"
+                        className={`csm-lock ${lockName ? 'csm-lock--locked' : ''}`}
+                        onClick={() => { setLockName(!lockName); markChanged(); }}
+                        title={lockName ? 'Unlock field' : 'Lock field'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          {lockName ? (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                          ) : (
+                            <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                          )}
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    id="csm-name"
+                    type="text"
+                    className="csm-input"
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); markChanged(); }}
+                    disabled={collection.isSystem || lockName}
+                  />
+                  {collection.isSystem && (
+                    <span className="csm-field__hint">System collections cannot be renamed</span>
+                  )}
+                </div>
+
+                {/* Tagline */}
+                <div className="csm-field">
+                  <div className="csm-field__header">
+                    <label htmlFor="csm-deck" className="csm-field__label">Tagline</label>
                     <button
                       type="button"
-                      className={`lock-toggle ${lockName ? 'locked' : ''}`}
-                      onClick={() => { setLockName(!lockName); markChanged(); }}
-                      title={lockName ? 'Unlock field' : 'Lock field'}
+                      className={`csm-lock ${lockDeck ? 'csm-lock--locked' : ''}`}
+                      onClick={() => { setLockDeck(!lockDeck); markChanged(); }}
+                      title={lockDeck ? 'Unlock field' : 'Lock field'}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        {lockName ? (
+                        {lockDeck ? (
                           <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
                         ) : (
                           <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
                         )}
                       </svg>
                     </button>
-                  )}
+                  </div>
+                  <input
+                    id="csm-deck"
+                    type="text"
+                    className="csm-input"
+                    value={deck}
+                    onChange={(e) => { setDeck(e.target.value); markChanged(); }}
+                    placeholder="A short tagline for this collection..."
+                    disabled={lockDeck}
+                  />
+                  <span className="csm-field__hint">A brief summary shown under the collection title</span>
                 </div>
-                <input
-                  id="collection-name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => { setName(e.target.value); markChanged(); }}
-                  disabled={collection.isSystem || lockName}
-                />
-                {collection.isSystem && (
-                  <span className="form-hint">System collections cannot be renamed</span>
-                )}
-                {lockName && !collection.isSystem && (
-                  <span className="form-hint">Field is locked. Click the lock icon to edit.</span>
-                )}
-              </div>
 
-              {/* Tagline with lock */}
-              <div className="form-group">
-                <div className="label-with-lock">
-                  <label htmlFor="collection-deck">Tagline</label>
-                  <button
-                    type="button"
-                    className={`lock-toggle ${lockDeck ? 'locked' : ''}`}
-                    onClick={() => { setLockDeck(!lockDeck); markChanged(); }}
-                    title={lockDeck ? 'Unlock field' : 'Lock field'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      {lockDeck ? (
-                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
-                      ) : (
-                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
-                      )}
-                    </svg>
-                  </button>
-                </div>
-                <input
-                  id="collection-deck"
-                  type="text"
-                  value={deck}
-                  onChange={(e) => { setDeck(e.target.value); markChanged(); }}
-                  placeholder="A short tagline for this collection..."
-                  disabled={lockDeck}
-                />
-                <span className="form-hint">A brief summary shown under the collection title</span>
-              </div>
-
-              {/* Description with lock */}
-              <div className="form-group">
-                <div className="label-with-lock">
-                  <label htmlFor="collection-description">Description</label>
-                  <button
-                    type="button"
-                    className={`lock-toggle ${lockDescription ? 'locked' : ''}`}
-                    onClick={() => { setLockDescription(!lockDescription); markChanged(); }}
-                    title={lockDescription ? 'Unlock field' : 'Lock field'}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      {lockDescription ? (
-                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
-                      ) : (
-                        <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
-                      )}
-                    </svg>
-                  </button>
-                </div>
-                <textarea
-                  id="collection-description"
-                  value={description}
-                  onChange={(e) => { setDescription(e.target.value); markChanged(); }}
-                  rows={3}
-                  placeholder="Add a description..."
-                  disabled={lockDescription}
-                />
-              </div>
-
-              {/* LLM Description Generator */}
-              {isLLMAvailable && (
-                <div className="form-group generate-description-section">
-                  <button
-                    type="button"
-                    className="generate-description-btn"
-                    onClick={handleGenerateDescriptionClick}
-                    disabled={isGeneratingDescription || localItems.length === 0 || (lockDeck && lockDescription)}
-                  >
-                    {isGeneratingDescription ? (
-                      <>
-                        <span className="spinner-small" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                          <path d="M2 17l10 5 10-5" />
-                          <path d="M2 12l10 5 10-5" />
-                        </svg>
-                        Generate Description
-                      </>
-                    )}
-                  </button>
-                  {localItems.length === 0 && (
-                    <span className="form-hint">Add items to the collection first</span>
-                  )}
-                  {(lockDeck && lockDescription) && (
-                    <span className="form-hint">Unlock tagline or description to generate</span>
-                  )}
-                  {generateError && (
-                    <div className="generation-error">
+                {/* Description */}
+                <div className="csm-field">
+                  <div className="csm-field__header">
+                    <label htmlFor="csm-description" className="csm-field__label">Description</label>
+                    <button
+                      type="button"
+                      className={`csm-lock ${lockDescription ? 'csm-lock--locked' : ''}`}
+                      onClick={() => { setLockDescription(!lockDescription); markChanged(); }}
+                      title={lockDescription ? 'Unlock field' : 'Lock field'}
+                    >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                        {lockDescription ? (
+                          <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 10 0v4" />
+                        ) : (
+                          <path d="M19 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2zM7 11V7a5 5 0 0 1 9.9-1" />
+                        )}
                       </svg>
-                      <span>{generateError}</span>
-                    </div>
-                  )}
+                    </button>
+                  </div>
+                  <textarea
+                    id="csm-description"
+                    className="csm-textarea"
+                    value={description}
+                    onChange={(e) => { setDescription(e.target.value); markChanged(); }}
+                    rows={4}
+                    placeholder="Add a description..."
+                    disabled={lockDescription}
+                  />
                 </div>
-              )}
 
-              {/* Rating */}
-              <div className="form-group">
-                <label>Rating</label>
-                <div className="star-rating">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      className={`star-btn ${rating && rating >= star ? 'filled' : ''}`}
-                      onClick={() => { setRating(rating === star ? null : star); markChanged(); }}
-                      title={rating === star ? 'Clear rating' : `Rate ${star} star${star > 1 ? 's' : ''}`}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill={rating && rating >= star ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                      </svg>
-                    </button>
-                  ))}
-                  {rating && (
+                {/* AI Description Generator */}
+                {isLLMAvailable && (
+                  <div className="csm-ai-generate">
                     <button
                       type="button"
-                      className="clear-rating-btn"
-                      onClick={() => { setRating(null); markChanged(); }}
-                      title="Clear rating"
+                      className="csm-btn csm-btn--secondary csm-btn--ai"
+                      onClick={handleGenerateDescriptionClick}
+                      disabled={isGeneratingDescription || localItems.length === 0 || (lockDeck && lockDescription)}
                     >
-                      Clear
+                      {isGeneratingDescription ? (
+                        <>
+                          <span className="csm-spinner" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                            <path d="M2 17l10 5 10-5" />
+                            <path d="M2 12l10 5 10-5" />
+                          </svg>
+                          Generate Description
+                        </>
+                      )}
                     </button>
-                  )}
-                </div>
+                    {localItems.length === 0 && (
+                      <span className="csm-field__hint">Add items to the collection first</span>
+                    )}
+                    {generateError && (
+                      <div className="csm-error">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>{generateError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Notes */}
-              <div className="form-group">
-                <label htmlFor="collection-notes">Private Notes</label>
-                <textarea
-                  id="collection-notes"
-                  value={notes}
-                  onChange={(e) => { setNotes(e.target.value); markChanged(); }}
-                  rows={2}
-                  placeholder="Personal notes about this collection..."
-                />
-                <span className="form-hint">Only visible to you</span>
+              <div className="csm-form-section">
+                {/* Rating */}
+                <div className="csm-field">
+                  <label className="csm-field__label">Rating</label>
+                  <div className="csm-rating">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        className={`csm-rating__star ${rating && rating >= star ? 'csm-rating__star--filled' : ''}`}
+                        onClick={() => { setRating(rating === star ? null : star); markChanged(); }}
+                        title={rating === star ? 'Clear rating' : `Rate ${star} star${star > 1 ? 's' : ''}`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill={rating && rating >= star ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                      </button>
+                    ))}
+                    {rating && (
+                      <button
+                        type="button"
+                        className="csm-btn csm-btn--ghost csm-btn--small"
+                        onClick={() => { setRating(null); markChanged(); }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="csm-field">
+                  <label htmlFor="csm-notes" className="csm-field__label">Private Notes</label>
+                  <textarea
+                    id="csm-notes"
+                    className="csm-textarea csm-textarea--small"
+                    value={notes}
+                    onChange={(e) => { setNotes(e.target.value); markChanged(); }}
+                    rows={3}
+                    placeholder="Personal notes about this collection..."
+                  />
+                  <span className="csm-field__hint">Only visible to you</span>
+                </div>
               </div>
             </div>
           )}
 
           {/* Appearance Tab */}
           {activeTab === 'appearance' && (
-            <div className="tab-content">
-              <div className="form-group">
-                <label>Cover Source</label>
-                <div className="cover-type-options">
-                  {(['auto', 'series', 'issue', 'custom'] as const).map((type) => (
-                    <label key={type} className="radio-option">
-                      <input
-                        type="radio"
-                        name="coverType"
-                        value={type}
-                        checked={coverType === type}
-                        onChange={() => { setCoverType(type); markChanged(); }}
-                      />
-                      <span className="radio-label">
-                        {type === 'auto' && 'Auto (Mosaic)'}
-                        {type === 'series' && 'Series Cover'}
-                        {type === 'issue' && 'Issue Cover'}
-                        {type === 'custom' && 'Custom'}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+            <div className="csm-tab-content csm-tab-content--appearance">
+              <div className="csm-appearance-layout">
+                <div className="csm-appearance-controls">
+                  <div className="csm-field">
+                    <label className="csm-field__label">Cover Source</label>
+                    <div className="csm-radio-group">
+                      {(['auto', 'series', 'issue', 'custom'] as const).map((type) => (
+                        <label key={type} className="csm-radio">
+                          <input
+                            type="radio"
+                            name="coverType"
+                            value={type}
+                            checked={coverType === type}
+                            onChange={() => { setCoverType(type); markChanged(); }}
+                          />
+                          <span className="csm-radio__indicator" />
+                          <span className="csm-radio__label">
+                            {type === 'auto' && 'Auto (Mosaic)'}
+                            {type === 'series' && 'Series Cover'}
+                            {type === 'issue' && 'Issue Cover'}
+                            {type === 'custom' && 'Custom'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="cover-preview-section">
-                <label>Preview</label>
-                <div className="cover-preview">
-                  {coverType === 'auto' ? (
-                    /* Use server-generated mosaic preview */
-                    <div className="cover-preview-image">
-                      {seriesInCollection.length > 0 ? (
+                  {coverType === 'series' && seriesInCollection.length > 0 && (
+                    <div className="csm-field">
+                      <label htmlFor="csm-cover-series" className="csm-field__label">Select Series</label>
+                      <select
+                        id="csm-cover-series"
+                        className="csm-select"
+                        value={coverSeriesId || ''}
+                        onChange={(e) => { setCoverSeriesId(e.target.value || null); markChanged(); }}
+                      >
+                        <option value="">Choose a series...</option>
+                        {seriesInCollection.map((series) => (
+                          <option key={series.id} value={series.id}>{series.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {coverType === 'issue' && localItems.filter((i) => i.fileId).length > 0 && (
+                    <div className="csm-field">
+                      <label htmlFor="csm-cover-issue" className="csm-field__label">Select Issue</label>
+                      <select
+                        id="csm-cover-issue"
+                        className="csm-select"
+                        value={coverFileId || ''}
+                        onChange={(e) => { setCoverFileId(e.target.value || null); markChanged(); }}
+                      >
+                        <option value="">Choose an issue...</option>
+                        {localItems
+                          .filter((item) => item.fileId && item.file)
+                          .map((item) => (
+                            <option key={item.fileId} value={item.fileId!}>
+                              {item.file!.filename}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {coverType === 'custom' && (
+                    <div className="csm-custom-cover">
+                      <div className="csm-field">
+                        <label className="csm-field__label">Upload Image</label>
+                        <div
+                          className={`csm-dropzone ${isDraggingFile ? 'csm-dropzone--dragging' : ''} ${isUploadingCover ? 'csm-dropzone--uploading' : ''}`}
+                          onDragOver={handleFileDragOver}
+                          onDragLeave={handleFileDragLeave}
+                          onDrop={handleFileDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            onChange={handleFileInputChange}
+                            style={{ display: 'none' }}
+                          />
+                          {isUploadingCover ? (
+                            <div className="csm-dropzone__loading">
+                              <span className="csm-spinner csm-spinner--large" />
+                              <span>Uploading...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                              </svg>
+                              <span>Drop an image here or click to browse</span>
+                              <span className="csm-dropzone__hint">JPEG, PNG, WebP, GIF (max 10MB)</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="csm-field">
+                        <label htmlFor="csm-cover-url" className="csm-field__label">Or enter image URL</label>
+                        <div className="csm-url-input">
+                          <input
+                            id="csm-cover-url"
+                            type="url"
+                            className="csm-input"
+                            value={customCoverUrl}
+                            onChange={(e) => setCustomCoverUrl(e.target.value)}
+                            placeholder="https://example.com/cover.jpg"
+                            disabled={isUploadingCover}
+                          />
+                          <button
+                            type="button"
+                            className="csm-btn csm-btn--secondary"
+                            onClick={handleUrlSubmit}
+                            disabled={!customCoverUrl.trim() || isUploadingCover}
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+
+                      {uploadError && (
+                        <div className="csm-error">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="12" />
+                            <line x1="12" y1="16" x2="12.01" y2="16" />
+                          </svg>
+                          <span>{uploadError}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="csm-appearance-preview">
+                  <label className="csm-field__label">Preview</label>
+                  <div className="csm-cover-preview">
+                    {coverType === 'auto' ? (
+                      seriesInCollection.length > 0 ? (
                         <img
                           src={getCollectionCoverPreviewUrl(collection.id)}
                           alt={`${collection.name} mosaic preview`}
                         />
                       ) : (
-                        <div className="no-cover-placeholder">
+                        <div className="csm-cover-preview__placeholder">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <rect x="3" y="3" width="7" height="7" rx="1" />
+                            <rect x="14" y="3" width="7" height="7" rx="1" />
+                            <rect x="3" y="14" width="7" height="7" rx="1" />
+                            <rect x="14" y="14" width="7" height="7" rx="1" />
+                          </svg>
                           <span>Add series for mosaic</span>
                         </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="cover-preview-image">
-                      {getCoverPreviewUrl() ? (
+                      )
+                    ) : (
+                      getCoverPreviewUrl() ? (
                         <img src={getCoverPreviewUrl()!} alt="Cover preview" />
                       ) : (
-                        <div className="no-cover-placeholder">
+                        <div className="csm-cover-preview__placeholder">
+                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <path d="M21 15l-5-5L5 21" />
+                          </svg>
                           <span>
                             {coverType === 'series' && 'Select a series'}
                             {coverType === 'issue' && 'Select an issue'}
                             {coverType === 'custom' && 'Upload or enter URL'}
                           </span>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
-
-              {coverType === 'series' && seriesInCollection.length > 0 && (
-                <div className="form-group">
-                  <label htmlFor="cover-series">Select Series</label>
-                  <select
-                    id="cover-series"
-                    value={coverSeriesId || ''}
-                    onChange={(e) => { setCoverSeriesId(e.target.value || null); markChanged(); }}
-                  >
-                    <option value="">Choose a series...</option>
-                    {seriesInCollection.map((series) => (
-                      <option key={series.id} value={series.id}>
-                        {series.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {coverType === 'issue' && localItems.filter((i) => i.fileId).length > 0 && (
-                <div className="form-group">
-                  <label htmlFor="cover-issue">Select Issue</label>
-                  <select
-                    id="cover-issue"
-                    value={coverFileId || ''}
-                    onChange={(e) => { setCoverFileId(e.target.value || null); markChanged(); }}
-                  >
-                    <option value="">Choose an issue...</option>
-                    {localItems
-                      .filter((item) => item.fileId && item.file)
-                      .map((item) => (
-                        <option key={item.fileId} value={item.fileId!}>
-                          {item.file!.filename}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              )}
-
-              {coverType === 'custom' && (
-                <div className="custom-cover-section">
-                  {/* File Upload Zone */}
-                  <div className="form-group">
-                    <label>Upload Image</label>
-                    <div
-                      className={`upload-dropzone ${isDraggingFile ? 'dragging' : ''} ${isUploadingCover ? 'uploading' : ''}`}
-                      onDragOver={handleFileDragOver}
-                      onDragLeave={handleFileDragLeave}
-                      onDrop={handleFileDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/gif"
-                        onChange={handleFileInputChange}
-                        style={{ display: 'none' }}
-                      />
-                      {isUploadingCover ? (
-                        <div className="upload-loading">
-                          <svg className="spinner" viewBox="0 0 24 24" width="24" height="24">
-                            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeLinecap="round" />
-                          </svg>
-                          <span>Uploading...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="17 8 12 3 7 8" />
-                            <line x1="12" y1="3" x2="12" y2="15" />
-                          </svg>
-                          <span>Drop an image here or click to browse</span>
-                          <span className="upload-hint">JPEG, PNG, WebP, GIF (max 10MB)</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* URL Input */}
-                  <div className="form-group">
-                    <label htmlFor="cover-url">Or enter image URL</label>
-                    <div className="url-input-group">
-                      <input
-                        id="cover-url"
-                        type="url"
-                        value={customCoverUrl}
-                        onChange={(e) => setCustomCoverUrl(e.target.value)}
-                        placeholder="https://example.com/cover.jpg"
-                        disabled={isUploadingCover}
-                      />
-                      <button
-                        type="button"
-                        className="url-submit-btn"
-                        onClick={handleUrlSubmit}
-                        disabled={!customCoverUrl.trim() || isUploadingCover}
-                      >
-                        {isUploadingCover ? 'Loading...' : 'Apply'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Error Message */}
-                  {uploadError && (
-                    <div className="upload-error">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      <span>{uploadError}</span>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
           {/* Display Tab */}
           {activeTab === 'display' && (
-            <div className="tab-content">
-              {/* Visibility */}
-              <div className="form-group">
-                <label htmlFor="collection-visibility">Visibility</label>
-                <select
-                  id="collection-visibility"
-                  value={visibility}
-                  onChange={(e) => { setVisibility(e.target.value as 'public' | 'private' | 'unlisted'); markChanged(); }}
-                >
-                  {VISIBILITY_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="form-hint">
-                  {VISIBILITY_OPTIONS.find(o => o.value === visibility)?.description}
-                </span>
-              </div>
-
-              {/* Reading Mode */}
-              <div className="form-group">
-                <label htmlFor="collection-reading-mode">Preferred Reading Mode</label>
-                <select
-                  id="collection-reading-mode"
-                  value={readingMode || ''}
-                  onChange={(e) => { setReadingMode(e.target.value as 'single' | 'double' | 'webtoon' | null || null); markChanged(); }}
-                >
-                  {READING_MODE_OPTIONS.map((opt) => (
-                    <option key={opt.value || 'default'} value={opt.value || ''}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="form-hint">
-                  {READING_MODE_OPTIONS.find(o => o.value === readingMode)?.description || READING_MODE_OPTIONS[0].description}
-                </span>
-              </div>
-
-              {/* Tags (inherited from child series) */}
-              <div className="form-group">
-                <label>Tags</label>
-                {collection.derivedTags ? (
-                  <div className="derived-tags-display">
-                    {collection.derivedTags.split(',').map((tag, idx) => (
-                      <span key={idx} className="derived-tag-pill">
-                        {tag.trim()}
-                      </span>
-                    ))}
+            <div className="csm-tab-content csm-tab-content--display">
+              <div className="csm-form-section">
+                <div className="csm-field-row">
+                  <div className="csm-field">
+                    <label htmlFor="csm-visibility" className="csm-field__label">Visibility</label>
+                    <select
+                      id="csm-visibility"
+                      className="csm-select"
+                      value={visibility}
+                      onChange={(e) => { setVisibility(e.target.value as 'public' | 'private' | 'unlisted'); markChanged(); }}
+                    >
+                      {VISIBILITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <span className="csm-field__hint">
+                      {VISIBILITY_OPTIONS.find(o => o.value === visibility)?.description}
+                    </span>
                   </div>
-                ) : (
-                  <div className="no-tags-message">No tags from child series</div>
-                )}
-                <span className="form-hint">
-                  Tags are automatically inherited from series in this collection
-                </span>
-              </div>
 
-              <div className="form-group">
-                <div className="toggle-row">
-                  <div className="toggle-info">
-                    <label>Show on Series Page</label>
-                    <span className="form-hint">
+                  <div className="csm-field">
+                    <label htmlFor="csm-reading-mode" className="csm-field__label">Preferred Reading Mode</label>
+                    <select
+                      id="csm-reading-mode"
+                      className="csm-select"
+                      value={readingMode || ''}
+                      onChange={(e) => { setReadingMode(e.target.value as 'single' | 'double' | 'webtoon' | null || null); markChanged(); }}
+                    >
+                      {READING_MODE_OPTIONS.map((opt) => (
+                        <option key={opt.value || 'default'} value={opt.value || ''}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <span className="csm-field__hint">
+                      {READING_MODE_OPTIONS.find(o => o.value === readingMode)?.description || READING_MODE_OPTIONS[0].description}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="csm-field">
+                  <label className="csm-field__label">Tags</label>
+                  {collection.derivedTags ? (
+                    <div className="csm-tags">
+                      {collection.derivedTags.split(',').map((tag, idx) => (
+                        <span key={idx} className="csm-tag">{tag.trim()}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="csm-empty-state csm-empty-state--small">No tags from child series</div>
+                  )}
+                  <span className="csm-field__hint">Tags are automatically inherited from series in this collection</span>
+                </div>
+
+                <div className="csm-toggle-field">
+                  <div className="csm-toggle-field__info">
+                    <label className="csm-field__label">Show on Series Page</label>
+                    <span className="csm-field__hint">
                       When enabled, this collection appears alongside series on the main browse page.
                     </span>
                   </div>
                   <button
-                    className={`toggle-switch ${isPromoted ? 'active' : ''}`}
-                    onClick={() => { setIsPromoted(!isPromoted); markChanged(); }}
                     type="button"
+                    className={`csm-toggle ${isPromoted ? 'csm-toggle--active' : ''}`}
+                    onClick={() => { setIsPromoted(!isPromoted); markChanged(); }}
+                    role="switch"
+                    aria-checked={isPromoted}
                   >
-                    <span className="toggle-slider" />
+                    <span className="csm-toggle__slider" />
                   </button>
                 </div>
               </div>
 
-              <div className="form-section">
-                <div className="section-header">
-                  <h4>Metadata Overrides</h4>
-                  <span className="form-hint">Override auto-derived values when promoted</span>
+              <div className="csm-form-section">
+                <div className="csm-section-header">
+                  <h3 className="csm-section-title">Metadata Overrides</h3>
+                  <span className="csm-field__hint">Override auto-derived values when promoted</span>
                 </div>
 
-                {/* Publisher with lock */}
-                <div className="form-group">
-                  <div className="input-with-reset">
-                    <div className="label-with-lock">
-                      <label htmlFor="override-publisher">Publisher</label>
+                <div className="csm-field">
+                  <div className="csm-field__header csm-field__header--with-reset">
+                    <div className="csm-field__header">
+                      <label htmlFor="csm-publisher" className="csm-field__label">Publisher</label>
                       <button
                         type="button"
-                        className={`lock-toggle ${lockPublisher ? 'locked' : ''}`}
+                        className={`csm-lock ${lockPublisher ? 'csm-lock--locked' : ''}`}
                         onClick={() => { setLockPublisher(!lockPublisher); markChanged(); }}
                         title={lockPublisher ? 'Unlock field' : 'Lock field'}
                       >
@@ -1123,17 +1044,18 @@ export function CollectionSettingsDrawer({
                       </button>
                     </div>
                     <button
-                      className="reset-btn"
+                      type="button"
+                      className="csm-btn csm-btn--ghost csm-btn--small"
                       onClick={() => { setOverridePublisher(''); markChanged(); }}
                       disabled={!overridePublisher || lockPublisher}
-                      title="Reset to auto"
                     >
                       Reset
                     </button>
                   </div>
                   <input
-                    id="override-publisher"
+                    id="csm-publisher"
                     type="text"
+                    className="csm-input"
                     value={overridePublisher}
                     onChange={(e) => { setOverridePublisher(e.target.value); markChanged(); }}
                     placeholder={collection.derivedPublisher || 'Auto-derived'}
@@ -1141,15 +1063,14 @@ export function CollectionSettingsDrawer({
                   />
                 </div>
 
-                <div className="form-row">
-                  {/* Start Year with lock */}
-                  <div className="form-group">
-                    <div className="input-with-reset">
-                      <div className="label-with-lock">
-                        <label htmlFor="override-start-year">Start Year</label>
+                <div className="csm-field-row">
+                  <div className="csm-field">
+                    <div className="csm-field__header csm-field__header--with-reset">
+                      <div className="csm-field__header">
+                        <label htmlFor="csm-start-year" className="csm-field__label">Start Year</label>
                         <button
                           type="button"
-                          className={`lock-toggle ${lockStartYear ? 'locked' : ''}`}
+                          className={`csm-lock ${lockStartYear ? 'csm-lock--locked' : ''}`}
                           onClick={() => { setLockStartYear(!lockStartYear); markChanged(); }}
                           title={lockStartYear ? 'Unlock field' : 'Lock field'}
                         >
@@ -1163,17 +1084,18 @@ export function CollectionSettingsDrawer({
                         </button>
                       </div>
                       <button
-                        className="reset-btn"
+                        type="button"
+                        className="csm-btn csm-btn--ghost csm-btn--small"
                         onClick={() => { setOverrideStartYear(''); markChanged(); }}
                         disabled={!overrideStartYear || lockStartYear}
-                        title="Reset to auto"
                       >
                         Reset
                       </button>
                     </div>
                     <input
-                      id="override-start-year"
+                      id="csm-start-year"
                       type="number"
+                      className="csm-input"
                       value={overrideStartYear}
                       onChange={(e) => { setOverrideStartYear(e.target.value); markChanged(); }}
                       placeholder={collection.derivedStartYear?.toString() || 'Auto'}
@@ -1183,14 +1105,13 @@ export function CollectionSettingsDrawer({
                     />
                   </div>
 
-                  {/* End Year with lock */}
-                  <div className="form-group">
-                    <div className="input-with-reset">
-                      <div className="label-with-lock">
-                        <label htmlFor="override-end-year">End Year</label>
+                  <div className="csm-field">
+                    <div className="csm-field__header csm-field__header--with-reset">
+                      <div className="csm-field__header">
+                        <label htmlFor="csm-end-year" className="csm-field__label">End Year</label>
                         <button
                           type="button"
-                          className={`lock-toggle ${lockEndYear ? 'locked' : ''}`}
+                          className={`csm-lock ${lockEndYear ? 'csm-lock--locked' : ''}`}
                           onClick={() => { setLockEndYear(!lockEndYear); markChanged(); }}
                           title={lockEndYear ? 'Unlock field' : 'Lock field'}
                         >
@@ -1204,17 +1125,18 @@ export function CollectionSettingsDrawer({
                         </button>
                       </div>
                       <button
-                        className="reset-btn"
+                        type="button"
+                        className="csm-btn csm-btn--ghost csm-btn--small"
                         onClick={() => { setOverrideEndYear(''); markChanged(); }}
                         disabled={!overrideEndYear || lockEndYear}
-                        title="Reset to auto"
                       >
                         Reset
                       </button>
                     </div>
                     <input
-                      id="override-end-year"
+                      id="csm-end-year"
                       type="number"
+                      className="csm-input"
                       value={overrideEndYear}
                       onChange={(e) => { setOverrideEndYear(e.target.value); markChanged(); }}
                       placeholder={collection.derivedEndYear?.toString() || 'Auto'}
@@ -1225,14 +1147,13 @@ export function CollectionSettingsDrawer({
                   </div>
                 </div>
 
-                {/* Genres with lock */}
-                <div className="form-group">
-                  <div className="input-with-reset">
-                    <div className="label-with-lock">
-                      <label htmlFor="override-genres">Genres</label>
+                <div className="csm-field">
+                  <div className="csm-field__header csm-field__header--with-reset">
+                    <div className="csm-field__header">
+                      <label htmlFor="csm-genres" className="csm-field__label">Genres</label>
                       <button
                         type="button"
-                        className={`lock-toggle ${lockGenres ? 'locked' : ''}`}
+                        className={`csm-lock ${lockGenres ? 'csm-lock--locked' : ''}`}
                         onClick={() => { setLockGenres(!lockGenres); markChanged(); }}
                         title={lockGenres ? 'Unlock field' : 'Lock field'}
                       >
@@ -1246,23 +1167,24 @@ export function CollectionSettingsDrawer({
                       </button>
                     </div>
                     <button
-                      className="reset-btn"
+                      type="button"
+                      className="csm-btn csm-btn--ghost csm-btn--small"
                       onClick={() => { setOverrideGenres(''); markChanged(); }}
                       disabled={!overrideGenres || lockGenres}
-                      title="Reset to auto"
                     >
                       Reset
                     </button>
                   </div>
                   <input
-                    id="override-genres"
+                    id="csm-genres"
                     type="text"
+                    className="csm-input"
                     value={overrideGenres}
                     onChange={(e) => { setOverrideGenres(e.target.value); markChanged(); }}
                     placeholder={collection.derivedGenres || 'Comma-separated genres'}
                     disabled={lockGenres}
                   />
-                  <span className="form-hint">Separate genres with commas</span>
+                  <span className="csm-field__hint">Separate genres with commas</span>
                 </div>
               </div>
             </div>
@@ -1270,33 +1192,49 @@ export function CollectionSettingsDrawer({
 
           {/* Items Tab */}
           {activeTab === 'items' && (
-            <div className="tab-content items-tab">
-              <div className="items-toolbar">
-                <label className="select-all">
+            <div className="csm-tab-content csm-tab-content--items">
+              <div className="csm-items-toolbar">
+                <label className="csm-checkbox">
                   <input
                     type="checkbox"
                     checked={selectedItems.size === localItems.length && localItems.length > 0}
                     onChange={toggleSelectAll}
                   />
-                  <span>Select All</span>
+                  <span className="csm-checkbox__indicator" />
+                  <span className="csm-checkbox__label">Select All</span>
                 </label>
-                <button
-                  className="remove-selected-btn"
-                  onClick={handleRemoveSelected}
-                  disabled={selectedItems.size === 0}
-                >
-                  Remove Selected ({selectedItems.size})
-                </button>
+                <div className="csm-items-toolbar__actions">
+                  {selectedItems.size > 0 && (
+                    <span className="csm-items-toolbar__count">{selectedItems.size} selected</span>
+                  )}
+                  <button
+                    type="button"
+                    className="csm-btn csm-btn--danger csm-btn--small"
+                    onClick={handleRemoveSelected}
+                    disabled={selectedItems.size === 0}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    Remove Selected
+                  </button>
+                </div>
               </div>
 
-              <div className="items-list">
-                {localItems.length === 0 ? (
-                  <div className="items-empty">
-                    <p>This collection is empty.</p>
-                    <span className="form-hint">Add items from series or issue detail pages.</span>
-                  </div>
-                ) : (
-                  localItems.map((item) => {
+              {localItems.length === 0 ? (
+                <div className="csm-empty-state">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M3 9h18" />
+                    <path d="M9 21V9" />
+                  </svg>
+                  <h3>This collection is empty</h3>
+                  <p>Add items from series or issue detail pages.</p>
+                </div>
+              ) : (
+                <div className="csm-items-grid">
+                  {localItems.map((item) => {
                     const isSeries = !!item.seriesId && item.series;
                     const isFile = !!item.fileId && item.file;
                     const title = isSeries
@@ -1320,144 +1258,146 @@ export function CollectionSettingsDrawer({
                     return (
                       <div
                         key={item.id}
-                        className={`item-row ${draggedItem === item.id ? 'dragging' : ''} ${selectedItems.has(item.id) ? 'selected' : ''}`}
+                        className={`csm-item-card ${draggedItem === item.id ? 'csm-item-card--dragging' : ''} ${selectedItems.has(item.id) ? 'csm-item-card--selected' : ''}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, item.id)}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, item.id)}
                         onDragEnd={handleDragEnd}
                       >
-                        <div className="drag-handle" title="Drag to reorder">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="9" cy="6" r="1.5" />
-                            <circle cx="15" cy="6" r="1.5" />
-                            <circle cx="9" cy="12" r="1.5" />
-                            <circle cx="15" cy="12" r="1.5" />
-                            <circle cx="9" cy="18" r="1.5" />
-                            <circle cx="15" cy="18" r="1.5" />
-                          </svg>
-                        </div>
-
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.has(item.id)}
-                          onChange={() => toggleItemSelection(item.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-
-                        <div className="item-cover-thumb">
+                        <div className="csm-item-card__cover">
                           {coverUrl ? (
-                            <img src={coverUrl} alt={title} />
+                            <img src={coverUrl} alt={title} loading="lazy" />
                           ) : (
-                            <div className="no-cover">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <div className="csm-item-card__placeholder">
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                                 <rect x="3" y="3" width="18" height="18" rx="2" />
                               </svg>
                             </div>
                           )}
-                        </div>
-
-                        <div className="item-info">
-                          <span className="item-title">{title}</span>
-                          <span className={`item-type ${isSeries ? 'series' : 'issue'}`}>
+                          <span className={`csm-item-card__type ${isSeries ? 'csm-item-card__type--series' : 'csm-item-card__type--issue'}`}>
                             {isSeries ? 'Series' : 'Issue'}
                           </span>
+                          <label className="csm-item-card__checkbox" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.has(item.id)}
+                              onChange={() => toggleItemSelection(item.id)}
+                            />
+                            <span className="csm-checkbox__indicator" />
+                          </label>
+                          <div className="csm-item-card__actions">
+                            <button
+                              className="csm-item-card__drag"
+                              title="Drag to reorder"
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="9" cy="6" r="1.5" />
+                                <circle cx="15" cy="6" r="1.5" />
+                                <circle cx="9" cy="12" r="1.5" />
+                                <circle cx="15" cy="12" r="1.5" />
+                                <circle cx="9" cy="18" r="1.5" />
+                                <circle cx="15" cy="18" r="1.5" />
+                              </svg>
+                            </button>
+                            <button
+                              className="csm-item-card__remove"
+                              onClick={() => handleRemoveItem(item.id)}
+                              title="Remove from collection"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M18 6L6 18M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
-
-                        <button
-                          className="item-remove-btn"
-                          onClick={() => handleRemoveItem(item.id)}
-                          title="Remove from collection"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                          </svg>
-                        </button>
+                        <div className="csm-item-card__info">
+                          <span className="csm-item-card__title" title={title}>{title}</span>
+                        </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* Smart Tab */}
           {activeTab === 'smart' && !collection.isSystem && (
-            <div className="tab-content smart-tab">
-              {/* Smart Collection Toggle */}
-              <div className="form-group">
-                <div className="toggle-row">
-                  <div className="toggle-info">
-                    <label>Smart Collection</label>
-                    <span className="form-hint">
-                      Automatically populate this collection based on filter criteria.
-                      {collection.isSmart && collection.lastEvaluatedAt && (
-                        <span className="last-evaluated">
-                          {' '}Last updated: {new Date(collection.lastEvaluatedAt).toLocaleString()}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  <button
-                    className={`toggle-switch ${isSmartEnabled ? 'active' : ''}`}
-                    onClick={() => {
-                      if (isSmartEnabled && collection.isSmart) {
-                        // Show confirmation when disabling
-                        setShowDisableSmartConfirm(true);
-                      } else {
-                        setIsSmartEnabled(!isSmartEnabled);
-                        markChanged();
-                      }
-                    }}
-                    type="button"
-                    disabled={convertToSmartMutation.isPending || convertToRegularMutation.isPending}
-                  >
-                    <span className="toggle-slider" />
-                  </button>
+            <div className="csm-tab-content csm-tab-content--smart">
+              <div className="csm-toggle-field csm-toggle-field--featured">
+                <div className="csm-toggle-field__info">
+                  <label className="csm-field__label">Smart Collection</label>
+                  <span className="csm-field__hint">
+                    Automatically populate this collection based on filter criteria.
+                    {collection.isSmart && collection.lastEvaluatedAt && (
+                      <span className="csm-smart-timestamp">
+                        Last updated: {new Date(collection.lastEvaluatedAt).toLocaleString()}
+                      </span>
+                    )}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  className={`csm-toggle ${isSmartEnabled ? 'csm-toggle--active' : ''}`}
+                  onClick={() => {
+                    if (isSmartEnabled && collection.isSmart) {
+                      setShowDisableSmartConfirm(true);
+                    } else {
+                      setIsSmartEnabled(!isSmartEnabled);
+                      markChanged();
+                    }
+                  }}
+                  role="switch"
+                  aria-checked={isSmartEnabled}
+                  disabled={convertToSmartMutation.isPending || convertToRegularMutation.isPending}
+                >
+                  <span className="csm-toggle__slider" />
+                </button>
               </div>
 
-              {/* Smart Collection Settings (only show when enabled) */}
               {isSmartEnabled && (
                 <>
-                  {/* Scope Selector */}
-                  <div className="form-group">
-                    <label>Match Scope</label>
-                    <div className="scope-options">
-                      <label className="radio-option">
-                        <input
-                          type="radio"
-                          name="smartScope"
-                          value="series"
-                          checked={smartScope === 'series'}
-                          onChange={() => { setSmartScope('series'); markChanged(); }}
-                        />
-                        <span className="radio-label">
-                          <strong>Series</strong>
-                          <span className="radio-description">Match criteria against series metadata</span>
-                        </span>
-                      </label>
-                      <label className="radio-option">
-                        <input
-                          type="radio"
-                          name="smartScope"
-                          value="files"
-                          checked={smartScope === 'files'}
-                          onChange={() => { setSmartScope('files'); markChanged(); }}
-                        />
-                        <span className="radio-label">
-                          <strong>Issues</strong>
-                          <span className="radio-description">Match criteria against individual issue metadata</span>
-                        </span>
-                      </label>
+                  <div className="csm-form-section">
+                    <div className="csm-field">
+                      <label className="csm-field__label">Match Scope</label>
+                      <div className="csm-radio-group csm-radio-group--horizontal">
+                        <label className="csm-radio csm-radio--card">
+                          <input
+                            type="radio"
+                            name="smartScope"
+                            value="series"
+                            checked={smartScope === 'series'}
+                            onChange={() => { setSmartScope('series'); markChanged(); }}
+                          />
+                          <span className="csm-radio__indicator" />
+                          <div className="csm-radio__content">
+                            <strong>Series</strong>
+                            <span>Match criteria against series metadata</span>
+                          </div>
+                        </label>
+                        <label className="csm-radio csm-radio--card">
+                          <input
+                            type="radio"
+                            name="smartScope"
+                            value="files"
+                            checked={smartScope === 'files'}
+                            onChange={() => { setSmartScope('files'); markChanged(); }}
+                          />
+                          <span className="csm-radio__indicator" />
+                          <div className="csm-radio__content">
+                            <strong>Issues</strong>
+                            <span>Match criteria against individual issue metadata</span>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Filter Builder */}
-                  <div className="form-group filter-builder-section">
-                    <div className="section-header">
-                      <label>Filter Criteria</label>
-                      <div className="filter-actions">
+                  <div className="csm-form-section csm-filter-builder">
+                    <div className="csm-section-header">
+                      <h3 className="csm-section-title">Filter Criteria</h3>
+                      <div className="csm-filter-builder__actions">
                         <select
                           value={smartFilter.rootOperator}
                           onChange={(e) => {
@@ -1467,14 +1407,14 @@ export function CollectionSettingsDrawer({
                             }));
                             markChanged();
                           }}
-                          className="operator-select"
+                          className="csm-select csm-select--small"
                         >
                           <option value="AND">Match ALL groups</option>
                           <option value="OR">Match ANY group</option>
                         </select>
                         <button
                           type="button"
-                          className="btn-small add-group-btn"
+                          className="csm-btn csm-btn--secondary csm-btn--small"
                           onClick={() => {
                             const newGroup: SmartFilterGroup = {
                               id: `group-${Date.now()}`,
@@ -1493,31 +1433,35 @@ export function CollectionSettingsDrawer({
                             markChanged();
                           }}
                         >
-                          + Add Group
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          Add Group
                         </button>
                       </div>
                     </div>
 
                     {smartFilter.groups.length === 0 ? (
-                      <div className="no-filters-message">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <div className="csm-empty-state csm-empty-state--compact">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
                         </svg>
                         <p>No filter criteria defined.</p>
-                        <span>Add a filter group to define which items should be included in this collection.</span>
+                        <span>Add a filter group to define which items should be included.</span>
                       </div>
                     ) : (
-                      <div className="filter-groups">
+                      <div className="csm-filter-groups">
                         {smartFilter.groups.map((group, groupIndex) => (
-                          <div key={group.id} className="filter-group">
-                            <div className="group-header">
-                              <span className="group-label">
+                          <div key={group.id} className="csm-filter-group">
+                            <div className="csm-filter-group__header">
+                              <span className="csm-filter-group__label">
                                 {groupIndex > 0 && (
-                                  <span className="connector">{smartFilter.rootOperator}</span>
+                                  <span className="csm-filter-group__connector">{smartFilter.rootOperator}</span>
                                 )}
                                 Group {groupIndex + 1}
                               </span>
-                              <div className="group-controls">
+                              <div className="csm-filter-group__controls">
                                 <select
                                   value={group.operator}
                                   onChange={(e) => {
@@ -1529,14 +1473,14 @@ export function CollectionSettingsDrawer({
                                     }));
                                     markChanged();
                                   }}
-                                  className="operator-select-small"
+                                  className="csm-select csm-select--tiny"
                                 >
                                   <option value="AND">ALL</option>
                                   <option value="OR">ANY</option>
                                 </select>
                                 <button
                                   type="button"
-                                  className="remove-group-btn"
+                                  className="csm-btn csm-btn--ghost csm-btn--icon"
                                   onClick={() => {
                                     setSmartFilter(prev => ({
                                       ...prev,
@@ -1553,11 +1497,11 @@ export function CollectionSettingsDrawer({
                               </div>
                             </div>
 
-                            <div className="group-conditions">
+                            <div className="csm-filter-group__conditions">
                               {group.conditions.map((condition, condIndex) => (
-                                <div key={condition.id} className="condition-row">
+                                <div key={condition.id} className="csm-condition">
                                   {condIndex > 0 && (
-                                    <span className="condition-connector">{group.operator}</span>
+                                    <span className="csm-condition__connector">{group.operator}</span>
                                   )}
                                   <select
                                     value={condition.field}
@@ -1575,7 +1519,7 @@ export function CollectionSettingsDrawer({
                                       }));
                                       markChanged();
                                     }}
-                                    className="field-select"
+                                    className="csm-select csm-condition__field"
                                   >
                                     <optgroup label="Text Fields">
                                       <option value="name">Name</option>
@@ -1619,7 +1563,7 @@ export function CollectionSettingsDrawer({
                                       }));
                                       markChanged();
                                     }}
-                                    className="comparison-select"
+                                    className="csm-select csm-condition__comparison"
                                   >
                                     {['name', 'publisher', 'writer', 'penciller', 'genres', 'tags', 'summary'].includes(condition.field) && (
                                       <>
@@ -1668,7 +1612,6 @@ export function CollectionSettingsDrawer({
                                     )}
                                   </select>
 
-                                  {/* Value input - varies by field type */}
                                   {!['isEmpty', 'isNotEmpty'].includes(condition.comparison) && (
                                     <>
                                       {condition.field === 'readStatus' ? (
@@ -1688,7 +1631,7 @@ export function CollectionSettingsDrawer({
                                             }));
                                             markChanged();
                                           }}
-                                          className="value-select"
+                                          className="csm-select csm-condition__value"
                                         >
                                           <option value="">Select...</option>
                                           <option value="unread">Unread</option>
@@ -1712,14 +1655,14 @@ export function CollectionSettingsDrawer({
                                             }));
                                             markChanged();
                                           }}
-                                          className="value-select"
+                                          className="csm-select csm-condition__value"
                                         >
                                           <option value="">Select...</option>
                                           <option value="western">Western</option>
                                           <option value="manga">Manga</option>
                                         </select>
                                       ) : ['inLast', 'notInLast'].includes(condition.comparison) ? (
-                                        <div className="date-relative-input">
+                                        <div className="csm-condition__date-relative">
                                           <input
                                             type="number"
                                             value={condition.value}
@@ -1739,7 +1682,7 @@ export function CollectionSettingsDrawer({
                                             }}
                                             placeholder="7"
                                             min="1"
-                                            className="value-input-small"
+                                            className="csm-input csm-input--small"
                                           />
                                           <select
                                             value={condition.value2 || 'days'}
@@ -1757,7 +1700,7 @@ export function CollectionSettingsDrawer({
                                               }));
                                               markChanged();
                                             }}
-                                            className="unit-select"
+                                            className="csm-select csm-select--small"
                                           >
                                             <option value="days">days</option>
                                             <option value="weeks">weeks</option>
@@ -1766,7 +1709,7 @@ export function CollectionSettingsDrawer({
                                           </select>
                                         </div>
                                       ) : condition.comparison === 'between' ? (
-                                        <div className="between-inputs">
+                                        <div className="csm-condition__between">
                                           <input
                                             type={['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) ? 'number' : 'date'}
                                             value={condition.value}
@@ -1785,9 +1728,9 @@ export function CollectionSettingsDrawer({
                                               markChanged();
                                             }}
                                             placeholder="From"
-                                            className="value-input-small"
+                                            className="csm-input csm-input--small"
                                           />
-                                          <span className="between-separator">and</span>
+                                          <span className="csm-condition__separator">and</span>
                                           <input
                                             type={['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) ? 'number' : 'date'}
                                             value={condition.value2 || ''}
@@ -1806,7 +1749,7 @@ export function CollectionSettingsDrawer({
                                               markChanged();
                                             }}
                                             placeholder="To"
-                                            className="value-input-small"
+                                            className="csm-input csm-input--small"
                                           />
                                         </div>
                                       ) : (
@@ -1828,7 +1771,7 @@ export function CollectionSettingsDrawer({
                                             markChanged();
                                           }}
                                           placeholder="Value..."
-                                          className="value-input"
+                                          className="csm-input csm-condition__value"
                                         />
                                       )}
                                     </>
@@ -1836,7 +1779,7 @@ export function CollectionSettingsDrawer({
 
                                   <button
                                     type="button"
-                                    className="remove-condition-btn"
+                                    className="csm-btn csm-btn--ghost csm-btn--icon"
                                     onClick={() => {
                                       setSmartFilter(prev => ({
                                         ...prev,
@@ -1860,7 +1803,7 @@ export function CollectionSettingsDrawer({
 
                               <button
                                 type="button"
-                                className="add-condition-btn"
+                                className="csm-btn csm-btn--ghost csm-btn--small csm-filter-group__add-condition"
                                 onClick={() => {
                                   setSmartFilter(prev => ({
                                     ...prev,
@@ -1879,7 +1822,11 @@ export function CollectionSettingsDrawer({
                                   markChanged();
                                 }}
                               >
-                                + Add Condition
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <line x1="12" y1="5" x2="12" y2="19" />
+                                  <line x1="5" y1="12" x2="19" y2="12" />
+                                </svg>
+                                Add Condition
                               </button>
                             </div>
                           </div>
@@ -1888,17 +1835,15 @@ export function CollectionSettingsDrawer({
                     )}
                   </div>
 
-                  {/* Action Buttons */}
-                  <div className="smart-actions">
+                  <div className="csm-smart-actions">
                     {collection.isSmart && (
                       <button
                         type="button"
-                        className="refresh-smart-btn"
+                        className="csm-btn csm-btn--secondary"
                         onClick={async () => {
                           try {
                             setSmartError(null);
                             const result = await refreshSmartMutation.mutateAsync(collection.id);
-                            // Show success feedback
                             setSmartError(`Refreshed: ${result.added} added, ${result.removed} removed`);
                             setTimeout(() => setSmartError(null), 3000);
                           } catch (err) {
@@ -1909,7 +1854,7 @@ export function CollectionSettingsDrawer({
                       >
                         {refreshSmartMutation.isPending ? (
                           <>
-                            <span className="spinner-small" />
+                            <span className="csm-spinner" />
                             Refreshing...
                           </>
                         ) : (
@@ -1927,7 +1872,7 @@ export function CollectionSettingsDrawer({
                     {!collection.isSmart && smartFilter.groups.length > 0 && (
                       <button
                         type="button"
-                        className="btn-primary apply-smart-btn"
+                        className="csm-btn csm-btn--primary"
                         onClick={async () => {
                           try {
                             setSmartError(null);
@@ -1950,23 +1895,21 @@ export function CollectionSettingsDrawer({
                   </div>
 
                   {smartError && (
-                    <div className={`smart-feedback ${smartError.startsWith('Refreshed') || smartError.startsWith('Smart collection created') ? 'success' : 'error'}`}>
+                    <div className={`csm-feedback ${smartError.startsWith('Refreshed') || smartError.startsWith('Smart collection created') ? 'csm-feedback--success' : 'csm-feedback--error'}`}>
                       {smartError}
                     </div>
                   )}
 
-                  {/* Whitelist/Blacklist Section */}
                   {collection.isSmart && smartOverrides && (
-                    <div className="overrides-section">
-                      <div className="form-section">
-                        <div className="section-header">
-                          <h4>Manual Overrides</h4>
-                          <span className="form-hint">Items manually included or excluded from automatic filtering</span>
-                        </div>
+                    <div className="csm-form-section csm-overrides">
+                      <div className="csm-section-header">
+                        <h3 className="csm-section-title">Manual Overrides</h3>
+                        <span className="csm-field__hint">Items manually included or excluded from automatic filtering</span>
+                      </div>
 
-                        {/* Whitelist */}
-                        <div className="override-list">
-                          <label className="override-label">
+                      <div className="csm-overrides__list">
+                        <div className="csm-override-group">
+                          <label className="csm-override-group__label">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                               <polyline points="22 4 12 14.01 9 11.01" />
@@ -1974,24 +1917,23 @@ export function CollectionSettingsDrawer({
                             Always Include ({smartOverrides.whitelist.length})
                           </label>
                           {smartOverrides.whitelist.length === 0 ? (
-                            <span className="empty-override">No items manually included</span>
+                            <span className="csm-override-group__empty">No items manually included</span>
                           ) : (
-                            <div className="override-items">
+                            <div className="csm-override-group__items">
                               {smartOverrides.whitelist.slice(0, 5).map((item, idx) => (
-                                <span key={idx} className="override-item whitelist">
+                                <span key={idx} className="csm-override-item csm-override-item--whitelist">
                                   {item.seriesId ? 'Series' : 'Issue'} #{idx + 1}
                                 </span>
                               ))}
                               {smartOverrides.whitelist.length > 5 && (
-                                <span className="override-more">+{smartOverrides.whitelist.length - 5} more</span>
+                                <span className="csm-override-more">+{smartOverrides.whitelist.length - 5} more</span>
                               )}
                             </div>
                           )}
                         </div>
 
-                        {/* Blacklist */}
-                        <div className="override-list">
-                          <label className="override-label">
+                        <div className="csm-override-group">
+                          <label className="csm-override-group__label">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                               <circle cx="12" cy="12" r="10" />
                               <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
@@ -1999,16 +1941,16 @@ export function CollectionSettingsDrawer({
                             Always Exclude ({smartOverrides.blacklist.length})
                           </label>
                           {smartOverrides.blacklist.length === 0 ? (
-                            <span className="empty-override">No items manually excluded</span>
+                            <span className="csm-override-group__empty">No items manually excluded</span>
                           ) : (
-                            <div className="override-items">
+                            <div className="csm-override-group__items">
                               {smartOverrides.blacklist.slice(0, 5).map((item, idx) => (
-                                <span key={idx} className="override-item blacklist">
+                                <span key={idx} className="csm-override-item csm-override-item--blacklist">
                                   {item.seriesId ? 'Series' : 'Issue'} #{idx + 1}
                                 </span>
                               ))}
                               {smartOverrides.blacklist.length > 5 && (
-                                <span className="override-more">+{smartOverrides.blacklist.length - 5} more</span>
+                                <span className="csm-override-more">+{smartOverrides.blacklist.length - 5} more</span>
                               )}
                             </div>
                           )}
@@ -2020,41 +1962,49 @@ export function CollectionSettingsDrawer({
               )}
             </div>
           )}
-        </div>
+        </main>
 
         {/* Footer */}
-        <div className="drawer-footer">
-          <button className="btn-secondary" onClick={onClose}>
+        <footer className="csm-footer">
+          <button type="button" className="csm-btn csm-btn--secondary" onClick={onClose}>
             Cancel
           </button>
           <button
-            className="btn-primary"
+            type="button"
+            className="csm-btn csm-btn--primary"
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
           >
-            {isSaving ? 'Saving...' : 'Save Changes'}
+            {isSaving ? (
+              <>
+                <span className="csm-spinner" />
+                Saving...
+              </>
+            ) : (
+              'Save Changes'
+            )}
           </button>
-        </div>
+        </footer>
 
-        {/* Generate Description Confirmation Dialog */}
+        {/* Confirmation Dialogs */}
         {showGenerateConfirmDialog && (
-          <div className="confirm-dialog-overlay" onClick={handleGenerateConfirmCancel}>
-            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-              <h3>Replace Existing Content?</h3>
-              <p>
+          <div className="csm-dialog-overlay" onClick={() => setShowGenerateConfirmDialog(false)}>
+            <div className="csm-dialog" onClick={(e) => e.stopPropagation()}>
+              <h3 className="csm-dialog__title">Replace Existing Content?</h3>
+              <p className="csm-dialog__message">
                 This collection already has a description or tagline. Generating a new one will replace the existing content.
               </p>
-              <div className="confirm-dialog-actions">
+              <div className="csm-dialog__actions">
                 <button
                   type="button"
-                  className="btn-secondary"
-                  onClick={handleGenerateConfirmCancel}
+                  className="csm-btn csm-btn--secondary"
+                  onClick={() => setShowGenerateConfirmDialog(false)}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="csm-btn csm-btn--primary"
                   onClick={performGenerateDescription}
                 >
                   Replace
@@ -2064,27 +2014,24 @@ export function CollectionSettingsDrawer({
           </div>
         )}
 
-        {/* Disable Smart Collection Confirmation Dialog */}
         {showDisableSmartConfirm && (
-          <div className="confirm-dialog-overlay" onClick={() => setShowDisableSmartConfirm(false)}>
-            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-              <h3>Disable Smart Collection?</h3>
-              <p>
-                This will convert the collection back to a regular collection. The current items will remain,
-                but automatic updates based on filter criteria will stop. Manual overrides (whitelist/blacklist)
-                will be preserved but inactive.
+          <div className="csm-dialog-overlay" onClick={() => setShowDisableSmartConfirm(false)}>
+            <div className="csm-dialog" onClick={(e) => e.stopPropagation()}>
+              <h3 className="csm-dialog__title">Disable Smart Collection?</h3>
+              <p className="csm-dialog__message">
+                This will convert the collection back to a regular collection. The current items will remain, but automatic updates based on filter criteria will stop.
               </p>
-              <div className="confirm-dialog-actions">
+              <div className="csm-dialog__actions">
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="csm-btn csm-btn--secondary"
                   onClick={() => setShowDisableSmartConfirm(false)}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="btn-danger"
+                  className="csm-btn csm-btn--danger"
                   onClick={async () => {
                     setShowDisableSmartConfirm(false);
                     try {
@@ -2107,6 +2054,6 @@ export function CollectionSettingsDrawer({
         )}
       </div>
     </div>,
-    portalTarget
+    document.body
   );
 }
