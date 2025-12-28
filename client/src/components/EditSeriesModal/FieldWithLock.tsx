@@ -35,6 +35,7 @@ interface FieldWithLockProps {
   min?: number;
   max?: number;
   rows?: number;
+  isModified?: boolean;
 }
 
 export function FieldWithLock({
@@ -55,6 +56,7 @@ export function FieldWithLock({
   min,
   max,
   rows = 3,
+  isModified = false,
 }: FieldWithLockProps) {
   const inputId = useId();
 
@@ -90,7 +92,7 @@ export function FieldWithLock({
   const displayValue = value ?? '';
 
   return (
-    <div className={`field-with-lock ${fullWidth ? 'full-width' : ''} ${error ? 'has-error' : ''}`}>
+    <div className={`field-with-lock ${fullWidth ? 'full-width' : ''} ${error ? 'has-error' : ''} ${isModified ? 'has-change' : ''}`}>
       <div className="field-with-lock-header">
         <label htmlFor={inputId} className="field-with-lock-label">
           {label}

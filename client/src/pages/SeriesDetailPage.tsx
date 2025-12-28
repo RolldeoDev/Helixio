@@ -724,25 +724,28 @@ export function SeriesDetailPage() {
   const totalOwned = progress?.totalOwned ?? series._count?.issues ?? issues.length;
 
   // Cover URL respecting coverSource setting
-  const firstIssueId = issues[0]?.id;
+  const firstIssue = issues[0];
+  const firstIssueId = firstIssue?.id;
+  // Get first issue's coverHash for cache-busting when its cover changes
+  const firstIssueCoverHash = firstIssue?.coverHash;
   const coverUrl = (() => {
     if (series.coverSource === 'api') {
       // Explicit API cover mode - only use coverHash
       if (series.coverHash) return getApiCoverUrl(series.coverHash);
-      if (firstIssueId) return getCoverUrl(firstIssueId);
+      if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
       return null;
     }
     if (series.coverSource === 'user') {
       // Explicit user selection mode - use coverFileId
       if (series.coverFileId) return getCoverUrl(series.coverFileId);
-      if (firstIssueId) return getCoverUrl(firstIssueId);
+      if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
       return null;
     }
     // 'auto' or unset: Priority fallback chain
     // API cover (local cache) > User-set file > First issue in series
     if (series.coverHash) return getApiCoverUrl(series.coverHash);
     if (series.coverFileId) return getCoverUrl(series.coverFileId);
-    if (firstIssueId) return getCoverUrl(firstIssueId);
+    if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
     return null;
   })();
 
@@ -978,7 +981,7 @@ export function SeriesDetailPage() {
                     : related.coverFileId
                       ? getCoverUrl(related.coverFileId)
                       : related.firstIssueId
-                        ? getCoverUrl(related.firstIssueId)
+                        ? getCoverUrl(related.firstIssueId, related.firstIssueCoverHash)
                         : null;
 
                   return (

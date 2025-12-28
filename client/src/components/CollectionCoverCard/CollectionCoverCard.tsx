@@ -23,6 +23,8 @@ export interface SeriesCoverInfo {
   coverHash?: string | null;
   coverFileId?: string | null;
   firstIssueId?: string | null;
+  /** First issue's coverHash for cache-busting when issue cover changes */
+  firstIssueCoverHash?: string | null;
 }
 
 export interface PromotedCollectionData {
@@ -116,7 +118,7 @@ export function CollectionCoverCard({
       if (series) {
         if (series.coverHash) return getApiCoverUrl(series.coverHash);
         if (series.coverFileId) return getCoverUrl(series.coverFileId);
-        if (series.firstIssueId) return getCoverUrl(series.firstIssueId);
+        if (series.firstIssueId) return getCoverUrl(series.firstIssueId, series.firstIssueCoverHash);
       }
     }
     return null;

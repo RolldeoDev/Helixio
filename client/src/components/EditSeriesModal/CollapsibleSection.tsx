@@ -12,6 +12,8 @@ interface CollapsibleSectionProps {
   defaultExpanded?: boolean;
   fullWidth?: boolean;
   className?: string;
+  icon?: string;
+  changeCount?: number;
 }
 
 export function CollapsibleSection({
@@ -20,6 +22,8 @@ export function CollapsibleSection({
   defaultExpanded = false,
   fullWidth = false,
   className = '',
+  icon,
+  changeCount,
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -49,7 +53,13 @@ export function CollapsibleSection({
         tabIndex={0}
         aria-expanded={expanded}
       >
+        {icon && <span className="collapsible-section-icon">{icon}</span>}
         <h3 className="collapsible-section-title">{title}</h3>
+        {changeCount !== undefined && changeCount > 0 && (
+          <span className="collapsible-section-badge">
+            {changeCount} {changeCount === 1 ? 'change' : 'changes'}
+          </span>
+        )}
         <svg
           className="collapsible-section-chevron"
           width="16"

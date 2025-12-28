@@ -156,14 +156,14 @@ export async function getSeries(
         select: { issues: true },
       },
       progress: progressInclude,
-      // Include first issue for cover fallback
+      // Include first issue for cover fallback (with coverHash for cache-busting)
       issues: {
         take: 1,
         orderBy: [
           { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
           { filename: 'asc' },
         ],
-        select: { id: true },
+        select: { id: true, coverHash: true },
       },
     },
   });
@@ -261,14 +261,14 @@ export async function getSeriesList(
         select: { issues: true },
       },
       progress: progressWhere ? { where: progressWhere } : true,
-      // Include first issue for cover fallback using numeric sort
+      // Include first issue for cover fallback using numeric sort (with coverHash for cache-busting)
       issues: {
         take: 1,
         orderBy: [
           { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
           { filename: 'asc' },
         ],
-        select: { id: true },
+        select: { id: true, coverHash: true },
       },
     },
   });

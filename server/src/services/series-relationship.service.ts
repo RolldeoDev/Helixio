@@ -31,6 +31,8 @@ export interface BasicSeriesInfo {
   coverSource: string;
   /** First issue ID for cover fallback (optional - only in relationship queries) */
   firstIssueId?: string | null;
+  /** First issue coverHash for cache-busting when issue cover changes */
+  firstIssueCoverHash?: string | null;
   _count?: {
     issues: number;
   };
@@ -172,7 +174,7 @@ export async function getChildSeries(
               { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
               { filename: 'asc' },
             ],
-            select: { id: true },
+            select: { id: true, coverHash: true },
           },
         },
       },
@@ -189,6 +191,7 @@ export async function getChildSeries(
     coverFileId: r.childSeries.coverFileId,
     coverSource: r.childSeries.coverSource,
     firstIssueId: r.childSeries.issues[0]?.id ?? null,
+    firstIssueCoverHash: r.childSeries.issues[0]?.coverHash ?? null,
     relationshipType: r.relationshipType as RelationshipType,
     sortOrder: r.sortOrder,
     _count: r.childSeries._count,
@@ -221,7 +224,7 @@ export async function getParentSeries(
               { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
               { filename: 'asc' },
             ],
-            select: { id: true },
+            select: { id: true, coverHash: true },
           },
         },
       },
@@ -238,6 +241,7 @@ export async function getParentSeries(
     coverFileId: r.parentSeries.coverFileId,
     coverSource: r.parentSeries.coverSource,
     firstIssueId: r.parentSeries.issues[0]?.id ?? null,
+    firstIssueCoverHash: r.parentSeries.issues[0]?.coverHash ?? null,
     relationshipType: r.relationshipType as RelationshipType,
     sortOrder: r.sortOrder,
     _count: r.parentSeries._count,

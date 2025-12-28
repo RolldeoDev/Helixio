@@ -131,7 +131,7 @@ async function searchSeries(
       issues: {
         take: 1,
         orderBy: { filename: 'asc' },
-        select: { id: true },
+        select: { id: true, coverHash: true },
       },
     },
     take: limit * 2, // Fetch more to account for filtering

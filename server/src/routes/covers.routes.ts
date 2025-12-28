@@ -196,9 +196,11 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
       coverData = await getSeriesCoverData(file.coverHash, acceptWebP);
     }
 
+    // Compute fileHash for fallback and ETag
+    const fileHash = file.hash || file.id;
+
     // If no custom cover or custom cover not found, fall back to default file cover
     if (!coverData) {
-      const fileHash = file.hash || file.id;
       coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
 
       // If not cached, extract and optimize

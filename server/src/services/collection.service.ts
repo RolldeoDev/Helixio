@@ -101,6 +101,8 @@ export interface CollectionItem {
     coverHash: string | null;
     coverFileId: string | null;
     firstIssueId: string | null;
+    /** First issue's coverHash for cache-busting when issue cover changes */
+    firstIssueCoverHash?: string | null;
     startYear: number | null;
     publisher: string | null;
   };
@@ -576,14 +578,14 @@ export async function getCollection(userId: string, id: string): Promise<Collect
             coverFileId: true,
             startYear: true,
             publisher: true,
-            // Include first issue for cover fallback
+            // Include first issue for cover fallback (with coverHash for cache-busting)
             issues: {
               take: 1,
               orderBy: [
                 { metadata: { number: 'asc' } },
                 { filename: 'asc' },
               ],
-              select: { id: true },
+              select: { id: true, coverHash: true },
             },
           },
         })
@@ -614,14 +616,16 @@ export async function getCollection(userId: string, id: string): Promise<Collect
 
   const items: CollectionItem[] = collection.items.map((item) => {
     const seriesRaw = item.seriesId ? seriesMap.get(item.seriesId) : undefined;
-    // Transform series data to include firstIssueId from the issues array
+    // Transform series data to include firstIssueId and firstIssueCoverHash from the issues array
+    const firstIssue = seriesRaw?.issues[0];
     const series = seriesRaw
       ? {
           id: seriesRaw.id,
           name: seriesRaw.name,
           coverHash: seriesRaw.coverHash,
           coverFileId: seriesRaw.coverFileId,
-          firstIssueId: seriesRaw.issues[0]?.id ?? null,
+          firstIssueId: firstIssue?.id ?? null,
+          firstIssueCoverHash: firstIssue?.coverHash ?? null,
           startYear: seriesRaw.startYear,
           publisher: seriesRaw.publisher,
         }
@@ -1370,11 +1374,13 @@ export interface PromotedCollectionWithMeta {
   readIssues: number;
   // Series info for mosaic cover
   seriesCovers: Array<{
-    seriesId: string;
+    id: string;
     coverHash: string | null;
     coverUrl: string | null;
     coverFileId: string | null;
     name: string;
+    firstIssueId: string | null;
+    firstIssueCoverHash: string | null;
   }>;
   seriesCount: number;
   createdAt: Date;
@@ -1418,7 +1424,7 @@ export async function getPromotedCollections(
         .map((item) => item.seriesId)
         .filter((id): id is string => id !== null);
 
-      // Fetch full series data for these IDs
+      // Fetch full series data for these IDs (with first issue for cover fallback)
       const seriesRecords = seriesIds.length > 0
         ? await db.series.findMany({
             where: { id: { in: seriesIds } },
@@ -1434,6 +1440,15 @@ export async function getPromotedCollections(
               genres: true,
               _count: {
                 select: { issues: true },
+              },
+              // Include first issue for cover fallback (with coverHash for cache-busting)
+              issues: {
+                take: 1,
+                orderBy: [
+                  { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+                  { filename: 'asc' },
+                ],
+                select: { id: true, coverHash: true },
               },
             },
           })
@@ -1495,11 +1510,13 @@ export async function getPromotedCollections(
 
       // Get cover series info for mosaic
       const seriesCovers = seriesItems.slice(0, 6).map((s) => ({
-        seriesId: s.id,
+        id: s.id,
         coverHash: s.coverHash,
         coverUrl: s.coverUrl,
         coverFileId: s.coverFileId,
         name: s.name,
+        firstIssueId: s.issues[0]?.id ?? null,
+        firstIssueCoverHash: s.issues[0]?.coverHash ?? null,
       }));
 
       return {
@@ -1567,11 +1584,13 @@ export interface PromotedCollectionForGrid {
   seriesCount: number;
   // For mosaic cover
   seriesCovers: Array<{
-    seriesId: string;
+    id: string;
     coverHash: string | null;
     coverUrl: string | null;
     coverFileId: string | null;
     name: string;
+    firstIssueId: string | null;
+    firstIssueCoverHash: string | null;
   }>;
   // For library filtering
   libraryIds: string[];
@@ -1636,9 +1655,14 @@ export async function getPromotedCollectionsForGrid(
             coverFileId: true,
             updatedAt: true,
             _count: { select: { issues: true } },
+            // Include first issue for library filtering and cover fallback
             issues: {
-              select: { libraryId: true },
+              select: { id: true, libraryId: true, coverHash: true },
               take: 1,
+              orderBy: [
+                { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+                { filename: 'asc' },
+              ],
             },
           },
         })
@@ -1798,11 +1822,13 @@ export async function getPromotedCollectionsForGrid(
 
     // Get cover series info for mosaic
     const seriesCovers = seriesItems.slice(0, 6).map(s => ({
-      seriesId: s.id,
+      id: s.id,
       coverHash: s.coverHash,
       coverUrl: s.coverUrl,
       coverFileId: s.coverFileId,
       name: s.name,
+      firstIssueId: s.issues[0]?.id ?? null,
+      firstIssueCoverHash: s.issues[0]?.coverHash ?? null,
     }));
 
     result.push({

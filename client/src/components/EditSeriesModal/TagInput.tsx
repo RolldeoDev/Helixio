@@ -32,6 +32,8 @@ interface TagInputProps {
   suggestions?: string[];
   /** Maximum number of suggestions to show (default 10) */
   maxSuggestions?: number;
+  /** Whether this field has been modified in the current session */
+  isModified?: boolean;
 }
 
 export function TagInput({
@@ -48,6 +50,7 @@ export function TagInput({
   autocompleteField,
   suggestions = [],
   maxSuggestions = 10,
+  isModified = false,
 }: TagInputProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -349,7 +352,7 @@ export function TagInput({
 
   return (
     <div
-      className={`field-with-lock tag-input-field ${fullWidth ? 'full-width' : ''} ${error ? 'has-error' : ''}`}
+      className={`field-with-lock tag-input-field ${fullWidth ? 'full-width' : ''} ${error ? 'has-error' : ''} ${isModified ? 'has-change' : ''}`}
     >
       <div className="field-with-lock-header">
         <label htmlFor={inputId} className="field-with-lock-label">

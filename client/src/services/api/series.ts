@@ -67,7 +67,8 @@ export interface Series {
   _count?: { issues: number };
   progress?: SeriesProgress | null;
   // First issue for cover fallback (User > API > First Issue)
-  issues?: Array<{ id: string }>;
+  // Includes coverHash for cache-busting when issue cover changes
+  issues?: Array<{ id: string; coverHash: string | null }>;
 }
 
 export interface SeriesProgress {
@@ -878,6 +879,8 @@ export interface CollectionItem {
     coverHash: string | null;
     coverFileId: string | null;
     firstIssueId: string | null;
+    /** First issue's coverHash for cache-busting when issue cover changes */
+    firstIssueCoverHash?: string | null;
     startYear: number | null;
     publisher: string | null;
   };
@@ -1081,6 +1084,8 @@ export interface RelatedSeriesInfo {
   coverSource: string;
   /** First issue ID for cover fallback */
   firstIssueId?: string | null;
+  /** First issue coverHash for cache-busting when issue cover changes */
+  firstIssueCoverHash?: string | null;
   relationshipType: RelationshipType;
   sortOrder: number;
   _count?: { issues: number };

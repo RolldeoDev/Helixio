@@ -133,13 +133,16 @@ export function SeriesCoverCard({
     // - 'user': Use coverFileId if available
     // - 'auto': Use automatic fallback (API > User > First Issue)
     // Support both issues array (full Series) and firstIssueId (RelatedSeriesInfo)
-    const firstIssueId = series.issues?.[0]?.id || (series as { firstIssueId?: string }).firstIssueId;
+    const firstIssue = series.issues?.[0];
+    const firstIssueId = firstIssue?.id || (series as { firstIssueId?: string }).firstIssueId;
+    // Get first issue's coverHash for cache-busting (from issues array or RelatedSeriesInfo)
+    const firstIssueCoverHash = firstIssue?.coverHash || (series as { firstIssueCoverHash?: string | null }).firstIssueCoverHash;
 
     if (series.coverSource === 'api') {
       // Explicit API cover mode - only use coverHash
       if (series.coverHash) return getApiCoverUrl(series.coverHash);
       // Fall through to first issue if no API cover available
-      if (firstIssueId) return getCoverUrl(firstIssueId);
+      if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
       return null;
     }
 
@@ -147,7 +150,7 @@ export function SeriesCoverCard({
       // Explicit user selection mode - use coverFileId
       if (series.coverFileId) return getCoverUrl(series.coverFileId);
       // Fall through to first issue if selection is invalid
-      if (firstIssueId) return getCoverUrl(firstIssueId);
+      if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
       return null;
     }
 
@@ -155,9 +158,9 @@ export function SeriesCoverCard({
     // API cover (local cache) > User-set file > First issue in series
     if (series.coverHash) return getApiCoverUrl(series.coverHash);
     if (series.coverFileId) return getCoverUrl(series.coverFileId);
-    if (firstIssueId) return getCoverUrl(firstIssueId);
+    if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
     return null;
-  }, [series.coverSource, series.coverFileId, series.coverHash, series.issues, (series as { firstIssueId?: string }).firstIssueId]);
+  }, [series.coverSource, series.coverFileId, series.coverHash, series.issues, (series as { firstIssueId?: string }).firstIssueId, (series as { firstIssueCoverHash?: string | null }).firstIssueCoverHash]);
 
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>(
     coverUrl ? 'loading' : 'error'

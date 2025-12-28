@@ -495,7 +495,7 @@ export function CollectionsPage() {
                           : item.series!.coverFileId
                             ? getCoverUrl(item.series!.coverFileId)
                             : item.series!.firstIssueId
-                              ? getCoverUrl(item.series!.firstIssueId)
+                              ? getCoverUrl(item.series!.firstIssueId, item.series!.firstIssueCoverHash)
                               : null)
                       : isFile
                       ? getCoverUrl(item.fileId!)

@@ -314,8 +314,10 @@ export interface SeriesCoverData {
   coverHash?: string | null;
   coverFileId?: string | null;
   coverSource?: string | null;  // Allow any string to support various series types
-  issues?: Array<{ id: string }>;
+  issues?: Array<{ id: string; coverHash?: string | null }>;
   firstIssueId?: string | null;
+  /** First issue's coverHash for cache-busting when issue cover changes */
+  firstIssueCoverHash?: string | null;
 }
 
 /**
@@ -347,9 +349,11 @@ export function resolveSeriesCoverUrl(series: SeriesCoverData): string | null {
   if (series.coverHash) return getApiCoverUrl(series.coverHash);
   if (series.coverFileId) return getCoverUrl(series.coverFileId);
 
-  // Fallback to first issue cover
-  const firstIssueId = series.issues?.[0]?.id || series.firstIssueId;
-  if (firstIssueId) return getCoverUrl(firstIssueId);
+  // Fallback to first issue cover (with coverHash for cache-busting)
+  const firstIssue = series.issues?.[0];
+  const firstIssueId = firstIssue?.id || series.firstIssueId;
+  const firstIssueCoverHash = firstIssue?.coverHash || series.firstIssueCoverHash;
+  if (firstIssueId) return getCoverUrl(firstIssueId, firstIssueCoverHash);
 
   return null;
 }

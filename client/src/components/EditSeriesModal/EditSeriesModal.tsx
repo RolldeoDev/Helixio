@@ -301,6 +301,17 @@ const TYPE_OPTIONS = [
   { value: 'manga', label: 'Manga' },
 ];
 
+const SECTION_FIELDS = {
+  identity: ['name', 'publisher', 'startYear', 'endYear', 'volume'],
+  description: ['summary', 'deck', 'issueCount'],
+  classification: ['type', 'ageRating', 'genres', 'tags', 'languageISO'],
+  contentEntities: ['characters', 'teams', 'locations', 'storyArcs'],
+  creators: ['creators', 'writer', 'penciller', 'inker', 'colorist', 'letterer', 'coverArtist', 'editor'],
+  cover: ['coverSource', 'coverFileId', 'coverUrl', 'coverHash'],
+  externalIds: ['comicVineId', 'metronId'],
+  userData: ['userNotes', 'aliases'],
+} as const;
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -828,6 +839,14 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
     [state.fieldSources]
   );
 
+  const countSectionChanges = useCallback(
+    (sectionKey: keyof typeof SECTION_FIELDS): number => {
+      const fields = SECTION_FIELDS[sectionKey];
+      return fields.filter((field) => state.modifiedFields.has(field)).length;
+    },
+    [state.modifiedFields]
+  );
+
   // =============================================================================
   // Render
   // =============================================================================
@@ -915,7 +934,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               )}
 
               {/* Identity Section */}
-              <CollapsibleSection title="Identity" defaultExpanded={true}>
+              <CollapsibleSection title="Identity" icon="📖" changeCount={countSectionChanges('identity')} defaultExpanded={true}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="name"
@@ -925,6 +944,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('name')}
                     onToggleLock={() => handleToggleLock('name')}
                     fieldSource={getFieldSource('name')}
+                    isModified={state.modifiedFields.has('name')}
                     required
                     error={state.validationErrors.name}
                     fullWidth
@@ -937,6 +957,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('publisher')}
                     onToggleLock={() => handleToggleLock('publisher')}
                     fieldSource={getFieldSource('publisher')}
+                    isModified={state.modifiedFields.has('publisher')}
                   />
                   <FieldWithLock
                     fieldName="startYear"
@@ -947,6 +968,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('startYear')}
                     onToggleLock={() => handleToggleLock('startYear')}
                     fieldSource={getFieldSource('startYear')}
+                    isModified={state.modifiedFields.has('startYear')}
                     min={1900}
                     max={2100}
                     placeholder="YYYY"
@@ -961,6 +983,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('endYear')}
                     onToggleLock={() => handleToggleLock('endYear')}
                     fieldSource={getFieldSource('endYear')}
+                    isModified={state.modifiedFields.has('endYear')}
                     min={1900}
                     max={2100}
                     placeholder="YYYY (leave empty if ongoing)"
@@ -975,6 +998,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('volume')}
                     onToggleLock={() => handleToggleLock('volume')}
                     fieldSource={getFieldSource('volume')}
+                    isModified={state.modifiedFields.has('volume')}
                     min={1}
                     placeholder="Volume number"
                     error={state.validationErrors.volume}
@@ -983,7 +1007,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Description Section */}
-              <CollapsibleSection title="Description" defaultExpanded={false}>
+              <CollapsibleSection title="Description" icon="📝" changeCount={countSectionChanges('description')} defaultExpanded={false}>
                 <div className="section-fields">
                   <FieldWithLock
                     fieldName="summary"
@@ -994,6 +1018,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('summary')}
                     onToggleLock={() => handleToggleLock('summary')}
                     fieldSource={getFieldSource('summary')}
+                    isModified={state.modifiedFields.has('summary')}
                     rows={4}
                     placeholder="Full series description..."
                     fullWidth
@@ -1006,6 +1031,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('deck')}
                     onToggleLock={() => handleToggleLock('deck')}
                     fieldSource={getFieldSource('deck')}
+                    isModified={state.modifiedFields.has('deck')}
                     placeholder="Short tagline or description"
                     fullWidth
                   />
@@ -1018,6 +1044,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('issueCount')}
                     onToggleLock={() => handleToggleLock('issueCount')}
                     fieldSource={getFieldSource('issueCount')}
+                    isModified={state.modifiedFields.has('issueCount')}
                     min={1}
                     placeholder="Known total from API"
                     error={state.validationErrors.issueCount}
@@ -1026,7 +1053,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Classification Section */}
-              <CollapsibleSection title="Classification" defaultExpanded={false}>
+              <CollapsibleSection title="Classification" icon="🏷️" changeCount={countSectionChanges('classification')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="type"
@@ -1037,6 +1064,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('type')}
                     onToggleLock={() => handleToggleLock('type')}
                     fieldSource={getFieldSource('type')}
+                    isModified={state.modifiedFields.has('type')}
                     options={TYPE_OPTIONS}
                   />
                   <FieldWithLock
@@ -1048,6 +1076,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('ageRating')}
                     onToggleLock={() => handleToggleLock('ageRating')}
                     fieldSource={getFieldSource('ageRating')}
+                    isModified={state.modifiedFields.has('ageRating')}
                     options={AGE_RATING_OPTIONS}
                     placeholder="Select rating..."
                   />
@@ -1059,6 +1088,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('genres')}
                     onToggleLock={() => handleToggleLock('genres')}
                     fieldSource={getFieldSource('genres')}
+                    isModified={state.modifiedFields.has('genres')}
                     placeholder="Add genres..."
                     autocompleteField="genres"
                   />
@@ -1070,6 +1100,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('tags')}
                     onToggleLock={() => handleToggleLock('tags')}
                     fieldSource={getFieldSource('tags')}
+                    isModified={state.modifiedFields.has('tags')}
                     placeholder="Add tags..."
                     autocompleteField="tags"
                   />
@@ -1081,13 +1112,14 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('languageISO')}
                     onToggleLock={() => handleToggleLock('languageISO')}
                     fieldSource={getFieldSource('languageISO')}
+                    isModified={state.modifiedFields.has('languageISO')}
                     placeholder="ISO code (e.g., en, ja)"
                   />
                 </div>
               </CollapsibleSection>
 
               {/* Content Entities Section */}
-              <CollapsibleSection title="Content Entities" defaultExpanded={false}>
+              <CollapsibleSection title="Content Entities" icon="🦸" changeCount={countSectionChanges('contentEntities')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <TagInput
                     fieldName="characters"
@@ -1097,6 +1129,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('characters')}
                     onToggleLock={() => handleToggleLock('characters')}
                     fieldSource={getFieldSource('characters')}
+                    isModified={state.modifiedFields.has('characters')}
                     placeholder="Add characters..."
                     autocompleteField="characters"
                   />
@@ -1108,6 +1141,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('teams')}
                     onToggleLock={() => handleToggleLock('teams')}
                     fieldSource={getFieldSource('teams')}
+                    isModified={state.modifiedFields.has('teams')}
                     placeholder="Add teams..."
                     autocompleteField="teams"
                   />
@@ -1119,6 +1153,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('locations')}
                     onToggleLock={() => handleToggleLock('locations')}
                     fieldSource={getFieldSource('locations')}
+                    isModified={state.modifiedFields.has('locations')}
                     placeholder="Add locations..."
                     autocompleteField="locations"
                   />
@@ -1130,6 +1165,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('storyArcs')}
                     onToggleLock={() => handleToggleLock('storyArcs')}
                     fieldSource={getFieldSource('storyArcs')}
+                    isModified={state.modifiedFields.has('storyArcs')}
                     placeholder="Add story arcs..."
                     autocompleteField="storyArcs"
                   />
@@ -1137,7 +1173,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Creators Section */}
-              <CollapsibleSection title="Creators" defaultExpanded={false}>
+              <CollapsibleSection title="Creators" icon="✏️" changeCount={countSectionChanges('creators')} defaultExpanded={false}>
                 {/* Creator Source Selector and Fetch Button */}
                 <div className="section-action-row creator-source-row">
                   <div className="creator-source-selector">
@@ -1184,6 +1220,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('creators')}
                     onToggleLock={() => handleToggleLock('creators')}
                     fieldSource={getFieldSource('creators')}
+                    isModified={state.modifiedFields.has('creators')}
                     placeholder="Add creators..."
                     autocompleteField="creators"
                     fullWidth
@@ -1196,6 +1233,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('writer')}
                     onToggleLock={() => handleToggleLock('writer')}
                     fieldSource={getFieldSource('writer')}
+                    isModified={state.modifiedFields.has('writer')}
                     placeholder="Add writers..."
                     autocompleteField="writers"
                   />
@@ -1207,6 +1245,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('penciller')}
                     onToggleLock={() => handleToggleLock('penciller')}
                     fieldSource={getFieldSource('penciller')}
+                    isModified={state.modifiedFields.has('penciller')}
                     placeholder="Add pencillers..."
                     autocompleteField="pencillers"
                   />
@@ -1218,6 +1257,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('inker')}
                     onToggleLock={() => handleToggleLock('inker')}
                     fieldSource={getFieldSource('inker')}
+                    isModified={state.modifiedFields.has('inker')}
                     placeholder="Add inkers..."
                     autocompleteField="inkers"
                   />
@@ -1229,6 +1269,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('colorist')}
                     onToggleLock={() => handleToggleLock('colorist')}
                     fieldSource={getFieldSource('colorist')}
+                    isModified={state.modifiedFields.has('colorist')}
                     placeholder="Add colorists..."
                     autocompleteField="colorists"
                   />
@@ -1240,6 +1281,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('letterer')}
                     onToggleLock={() => handleToggleLock('letterer')}
                     fieldSource={getFieldSource('letterer')}
+                    isModified={state.modifiedFields.has('letterer')}
                     placeholder="Add letterers..."
                     autocompleteField="letterers"
                   />
@@ -1251,6 +1293,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('coverArtist')}
                     onToggleLock={() => handleToggleLock('coverArtist')}
                     fieldSource={getFieldSource('coverArtist')}
+                    isModified={state.modifiedFields.has('coverArtist')}
                     placeholder="Add cover artists..."
                     autocompleteField="coverArtists"
                   />
@@ -1262,6 +1305,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('editor')}
                     onToggleLock={() => handleToggleLock('editor')}
                     fieldSource={getFieldSource('editor')}
+                    isModified={state.modifiedFields.has('editor')}
                     placeholder="Add editors..."
                     autocompleteField="editors"
                   />
@@ -1269,7 +1313,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* Cover Section */}
-              <CollapsibleSection title="Cover" defaultExpanded={false} fullWidth>
+              <CollapsibleSection title="Cover" icon="🖼️" changeCount={countSectionChanges('cover')} defaultExpanded={false} fullWidth>
                 <CoverPicker
                   currentCoverSource={series.coverSource || 'auto'}
                   currentCoverUrl={series.coverUrl || null}
@@ -1283,7 +1327,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               </CollapsibleSection>
 
               {/* External IDs Section */}
-              <CollapsibleSection title="External IDs" defaultExpanded={false}>
+              <CollapsibleSection title="External IDs" icon="🔗" changeCount={countSectionChanges('externalIds')} defaultExpanded={false}>
                 <div className="section-fields two-column">
                   <FieldWithLock
                     fieldName="comicVineId"
@@ -1293,6 +1337,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('comicVineId')}
                     onToggleLock={() => handleToggleLock('comicVineId')}
                     fieldSource={getFieldSource('comicVineId')}
+                    isModified={state.modifiedFields.has('comicVineId')}
                     placeholder="e.g., 4050-12345"
                   />
                   <FieldWithLock
@@ -1303,13 +1348,14 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('metronId')}
                     onToggleLock={() => handleToggleLock('metronId')}
                     fieldSource={getFieldSource('metronId')}
+                    isModified={state.modifiedFields.has('metronId')}
                     placeholder="e.g., 12345"
                   />
                 </div>
               </CollapsibleSection>
 
               {/* User Data Section */}
-              <CollapsibleSection title="User Data" defaultExpanded={false}>
+              <CollapsibleSection title="User Data" icon="📌" changeCount={countSectionChanges('userData')} defaultExpanded={false}>
                 <div className="section-fields">
                   <FieldWithLock
                     fieldName="userNotes"
@@ -1320,6 +1366,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('userNotes')}
                     onToggleLock={() => handleToggleLock('userNotes')}
                     fieldSource={getFieldSource('userNotes')}
+                    isModified={state.modifiedFields.has('userNotes')}
                     rows={3}
                     placeholder="Your personal notes about this series..."
                     fullWidth
@@ -1332,6 +1379,7 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isLocked={isLocked('aliases')}
                     onToggleLock={() => handleToggleLock('aliases')}
                     fieldSource={getFieldSource('aliases')}
+                    isModified={state.modifiedFields.has('aliases')}
                     placeholder="Alternate names for matching..."
                     fullWidth
                   />
