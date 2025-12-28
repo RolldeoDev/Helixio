@@ -21,6 +21,7 @@ import { AdminSettings } from './AdminSettings';
 import { ThemeSettings } from './ThemeSettings';
 import { ReaderPresetSettings } from './ReaderPresetSettings';
 import { SystemSettings } from './SystemSettings';
+import { FileNamingSettings } from './FileNamingSettings';
 import { HelixioLoader } from '../HelixioLoader';
 import { LibraryScanModal } from '../LibraryScanModal';
 import { useLibraryScan } from '../../contexts/LibraryScanContext';
@@ -47,7 +48,7 @@ interface AppConfig {
   };
 }
 
-type SettingsTab = 'appearance' | 'general' | 'libraries' | 'reader' | 'system' | 'account' | 'admin';
+type SettingsTab = 'appearance' | 'general' | 'libraries' | 'file-naming' | 'reader' | 'system' | 'account' | 'admin';
 
 export function Settings() {
   const { libraries, refreshLibraries, selectLibrary, preferFilenameOverMetadata, setPreferFilenameOverMetadata, relatedSeriesPosition, setRelatedSeriesPosition } = useApp();
@@ -321,6 +322,12 @@ export function Settings() {
             onClick={() => setActiveTab('libraries')}
           >
             Libraries
+          </button>
+          <button
+            className={`tab ${activeTab === 'file-naming' ? 'active' : ''}`}
+            onClick={() => setActiveTab('file-naming')}
+          >
+            File Naming
           </button>
           <button
             className={`tab ${activeTab === 'reader' ? 'active' : ''}`}
@@ -751,6 +758,11 @@ export function Settings() {
                 </div>
               </SectionCard>
             </div>
+          )}
+
+          {/* File Naming Settings */}
+          {activeTab === 'file-naming' && (
+            <FileNamingSettings />
           )}
 
           {/* Reader Settings */}

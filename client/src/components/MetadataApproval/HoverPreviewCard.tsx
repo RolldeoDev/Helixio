@@ -15,6 +15,23 @@ import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react
 import { type FileChange, type FieldChange } from '../../services/api.service';
 import './HoverPreviewCard.css';
 
+/**
+ * Check if a value is effectively empty (null, undefined, or empty string)
+ */
+function isEmptyValue(value: unknown): boolean {
+  return value === null || value === undefined || value === '';
+}
+
+/**
+ * Check if a field change is a meaningful change (not empty-to-empty)
+ */
+function hasMeaningfulChange(proposed: unknown, current: unknown): boolean {
+  if (isEmptyValue(proposed) && isEmptyValue(current)) {
+    return false;
+  }
+  return proposed !== current;
+}
+
 interface HoverPreviewCardProps {
   fileChange: FileChange;
   anchorRect: DOMRect | null;
@@ -141,9 +158,9 @@ export function HoverPreviewCard({
       .trim();
   };
 
-  // Get field changes that have actual differences
+  // Get field changes that have actual differences (excluding empty-to-empty)
   const changedFields = Object.entries(fileChange.fields).filter(
-    ([, fc]) => fc.proposed !== fc.current
+    ([, fc]) => hasMeaningfulChange(fc.proposed, fc.current)
   );
 
   const approvedCount = changedFields.filter(([, fc]) => fc.approved).length;

@@ -73,6 +73,9 @@ export interface ComicFile {
   updatedAt: string;
   seriesId?: string | null;
   metadata?: FileMetadata | null;
+  /** Cover settings */
+  coverSource?: 'auto' | 'page' | 'custom';
+  coverHash?: string | null;
 }
 
 export interface FileMetadata {

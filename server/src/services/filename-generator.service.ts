@@ -17,8 +17,17 @@
  */
 
 import type { ComicInfo } from './comicinfo.service.js';
-import { extname, dirname, join } from 'path';
-import { access } from 'fs/promises';
+import { extname, dirname, join, basename } from 'path';
+import { access, mkdir } from 'fs/promises';
+import { getActiveTemplate, type TemplateWithParsedFields } from './template-manager.service.js';
+import {
+  resolveTemplateString,
+  resolvePathSegments,
+  buildFolderPath,
+  type ResolverContext,
+  type CharacterReplacementRules,
+} from './template-resolver.service.js';
+import { parseTemplate } from './template-parser.service.js';
 
 // =============================================================================
 // Types
@@ -461,4 +470,257 @@ export async function generateUniqueFilename(
     finalFilename,
     hadCollision,
   };
+}
+
+// =============================================================================
+// Template-Based Generation
+// =============================================================================
+
+export interface TemplateGeneratorOptions {
+  /** Library ID for template lookup */
+  libraryId?: string;
+  /** Series entity data */
+  series?: {
+    name?: string;
+    publisher?: string;
+    startYear?: number;
+    endYear?: number;
+    volume?: number;
+    issueCount?: number;
+  };
+  /** FileMetadata from database */
+  fileMetadata?: {
+    issueNumberSort?: number;
+    contentType?: string;
+    parsedVolume?: string;
+    parsedChapter?: string;
+  };
+  /** Override template (for preview) */
+  template?: TemplateWithParsedFields;
+}
+
+export interface TemplateGeneratedPath {
+  /** Generated filename */
+  filename: string;
+  /** Generated folder path relative to library root (null if no folder organization) */
+  folderPath: string | null;
+  /** Full path including folder and filename */
+  fullRelativePath: string;
+  /** Detected comic type */
+  type: ComicType;
+  /** Confidence score */
+  confidence: number;
+  /** Warnings generated during resolution */
+  warnings: string[];
+  /** Whether any tokens had missing values */
+  hadMissingValues: boolean;
+  /** Template ID used */
+  templateId: string | null;
+}
+
+/**
+ * Build a resolver context from ComicInfo and options.
+ */
+function buildResolverContext(
+  comicInfo: ComicInfo,
+  file: { filename: string; extension: string; path?: string },
+  options: TemplateGeneratorOptions = {}
+): ResolverContext {
+  return {
+    comicInfo,
+    series: options.series,
+    fileMetadata: options.fileMetadata,
+    file,
+  };
+}
+
+/**
+ * Generate a filename using the active template for the library.
+ * Falls back to hardcoded generation if no template is found.
+ */
+export async function generateFilenameFromTemplate(
+  comicInfo: ComicInfo,
+  originalPath: string,
+  options: TemplateGeneratorOptions = {}
+): Promise<TemplateGeneratedPath> {
+  const warnings: string[] = [];
+  const ext = extname(originalPath) || '.cbz';
+  const originalFilename = basename(originalPath);
+
+  // Get the active template
+  let template = options.template;
+  if (!template) {
+    try {
+      template = await getActiveTemplate(options.libraryId) || undefined;
+    } catch (e) {
+      warnings.push('Failed to load template, using legacy generation');
+    }
+  }
+
+  // If no template, fall back to legacy generation
+  if (!template) {
+    const legacyResult = generateFilenameFromPath(comicInfo, originalPath, {
+      maxIssueNumber: options.series?.issueCount,
+      seriesStartYear: options.series?.startYear,
+      seriesVolume: options.series?.volume,
+    });
+
+    return {
+      filename: legacyResult.filename,
+      folderPath: null,
+      fullRelativePath: legacyResult.filename,
+      type: legacyResult.type,
+      confidence: legacyResult.confidence,
+      warnings: [...legacyResult.warnings, ...warnings],
+      hadMissingValues: legacyResult.warnings.length > 0,
+      templateId: null,
+    };
+  }
+
+  // Build resolver context
+  const context = buildResolverContext(
+    comicInfo,
+    {
+      filename: originalFilename,
+      extension: ext,
+      path: originalPath,
+    },
+    options
+  );
+
+  // Resolve the filename template
+  const filenameResult = resolveTemplateString(
+    template.filePattern,
+    context,
+    { characterRules: template.characterRules }
+  );
+
+  // Ensure extension is included
+  let filename = filenameResult.result;
+  if (!filename.toLowerCase().endsWith(ext.toLowerCase())) {
+    filename = `${filename}${ext.toLowerCase()}`;
+  }
+
+  // Resolve folder segments if configured
+  let folderPath: string | null = null;
+  if (template.folderSegments && template.folderSegments.length > 0) {
+    const segments = resolvePathSegments(
+      template.folderSegments,
+      context,
+      { characterRules: template.characterRules }
+    );
+    if (segments.length > 0) {
+      folderPath = buildFolderPath(segments);
+    }
+  }
+
+  // Build full relative path
+  const fullRelativePath = folderPath
+    ? `${folderPath}/${filename}`
+    : filename;
+
+  // Detect type for response
+  const type = detectComicType(comicInfo);
+
+  // Calculate confidence
+  let confidence = 1.0;
+  if (filenameResult.hadMissingValues) {
+    confidence -= 0.1 * filenameResult.missingTokens.length;
+  }
+  if (!comicInfo.Series) {
+    confidence -= 0.3;
+  }
+
+  return {
+    filename,
+    folderPath,
+    fullRelativePath,
+    type,
+    confidence: Math.max(0, confidence),
+    warnings: [...warnings, ...filenameResult.warnings],
+    hadMissingValues: filenameResult.hadMissingValues,
+    templateId: template.id,
+  };
+}
+
+/**
+ * Generate a unique filename using the template system.
+ * Resolves collisions by adding numeric suffixes.
+ */
+export async function generateUniqueFilenameFromTemplate(
+  comicInfo: ComicInfo,
+  originalPath: string,
+  libraryRootPath: string,
+  options: TemplateGeneratorOptions = {}
+): Promise<{
+  result: TemplateGeneratedPath;
+  finalFilename: string;
+  finalPath: string;
+  hadCollision: boolean;
+  needsFolderCreation: boolean;
+}> {
+  const result = await generateFilenameFromTemplate(comicInfo, originalPath, options);
+  const currentDirectory = dirname(originalPath);
+
+  // Determine target directory
+  let targetDirectory: string;
+  let needsFolderCreation = false;
+
+  if (result.folderPath) {
+    // Template specifies folder organization
+    targetDirectory = join(libraryRootPath, result.folderPath);
+
+    // Check if folder needs to be created
+    try {
+      await access(targetDirectory);
+    } catch {
+      needsFolderCreation = true;
+    }
+  } else {
+    // Keep in current directory
+    targetDirectory = currentDirectory;
+  }
+
+  // Resolve filename collisions
+  const { filename: finalFilename, hadCollision } = await resolveFilenameCollision(
+    targetDirectory,
+    result.filename
+  );
+
+  if (hadCollision) {
+    result.warnings.push(`Filename collision resolved: ${result.filename} -> ${finalFilename}`);
+  }
+
+  // Build final path
+  const finalPath = join(targetDirectory, finalFilename);
+
+  return {
+    result: {
+      ...result,
+      filename: finalFilename,
+      fullRelativePath: result.folderPath
+        ? `${result.folderPath}/${finalFilename}`
+        : finalFilename,
+    },
+    finalFilename,
+    finalPath,
+    hadCollision,
+    needsFolderCreation,
+  };
+}
+
+/**
+ * Preview what a template would generate for a file.
+ * Does not check for collisions or create folders.
+ */
+export async function previewTemplateGeneration(
+  comicInfo: ComicInfo,
+  file: { filename: string; extension: string },
+  options: TemplateGeneratorOptions = {}
+): Promise<TemplateGeneratedPath> {
+  return generateFilenameFromTemplate(
+    comicInfo,
+    join('/preview', file.filename),
+    options
+  );
 }

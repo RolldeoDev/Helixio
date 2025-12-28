@@ -38,6 +38,7 @@ import { IssueHero } from '../components/IssueHero';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
 import { type ActionMenuItem } from '../components/ActionMenu';
+import { LocalSeriesSearchModal } from '../components/LocalSeriesSearchModal';
 import { formatFileSize } from '../utils/format';
 import './IssueDetailPage.css';
 
@@ -49,6 +50,7 @@ const ISSUE_ACTION_ITEMS: ActionMenuItem[] = [
   { id: 'editMetadata', label: 'Edit Metadata' },
   { id: 'grabMetadata', label: 'Grab Metadata', dividerBefore: true },
   { id: 'batchFetch', label: 'Batch Fetch Metadata' },
+  { id: 'changeSeries', label: 'Change Series', dividerBefore: true },
   { id: 'markRead', label: 'Mark as Read', dividerBefore: true },
   { id: 'markUnread', label: 'Mark as Unread' },
   { id: 'download', label: 'Download', dividerBefore: true },
@@ -130,6 +132,7 @@ export function IssueDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
+  const [isChangeSeriesModalOpen, setIsChangeSeriesModalOpen] = useState(false);
   const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
   const { addToast } = useApiToast();
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
@@ -322,6 +325,9 @@ export function IssueDetailPage() {
       case 'batchFetch':
         handleFetchMetadata();
         break;
+      case 'changeSeries':
+        setIsChangeSeriesModalOpen(true);
+        break;
       case 'markRead':
         handleMarkRead();
         break;
@@ -424,9 +430,9 @@ export function IssueDetailPage() {
   // Progress calculations
   const totalPages = progress?.totalPages ?? pageCount ?? 0;
 
-  // Cover URL
-  const coverUrl = coverInfo?.coverSource === 'custom' && coverInfo?.coverHash
-    ? getApiCoverUrl(coverInfo.coverHash)
+  // Cover URL - handle page and custom sources with coverHash
+  const coverUrl = (coverInfo?.coverSource === 'page' || coverInfo?.coverSource === 'custom') && coverInfo?.coverHash
+    ? `${getApiCoverUrl(coverInfo.coverHash)}?v=${coverKey}`
     : `${getCoverUrl(fileId!)}?v=${coverKey}`;
 
   // Get seriesId from file
@@ -722,6 +728,29 @@ export function IssueDetailPage() {
           fileId={fileId}
           onClose={() => setIsGrabbingMetadata(false)}
           onSuccess={handleGrabMetadataSuccess}
+        />
+      )}
+
+      {/* Change Series Modal */}
+      {file && (
+        <LocalSeriesSearchModal
+          isOpen={isChangeSeriesModalOpen}
+          onClose={() => setIsChangeSeriesModalOpen(false)}
+          fileIds={[file.id]}
+          currentSeriesId={file.seriesId ?? null}
+          currentSeriesName={file.metadata?.series || null}
+          onSuccess={(targetSeries) => {
+            addToast('success', 'File moved to new series');
+            // Navigate to refresh the page with updated breadcrumbs showing the new series
+            navigate(`/issue/${fileId}`, {
+              replace: true,
+              state: {
+                from: 'series',
+                seriesId: targetSeries.id,
+                seriesName: targetSeries.name,
+              } as NavigationOrigin,
+            });
+          }}
         />
       )}
     </div>

@@ -114,13 +114,13 @@ describe('Series Issues Sorting', () => {
 
         expect(response.status).toBe(200);
 
-        // Verify the orderBy was called with issueNumberSort
+        // Verify the orderBy was called with issueNumberSort with nulls: 'last'
         expect(mockDb.comicFile.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             orderBy: expect.arrayContaining([
               expect.objectContaining({
                 metadata: expect.objectContaining({
-                  issueNumberSort: 'asc',
+                  issueNumberSort: { sort: 'asc', nulls: 'last' },
                 }),
               }),
             ]),
@@ -148,7 +148,7 @@ describe('Series Issues Sorting', () => {
             orderBy: expect.arrayContaining([
               expect.objectContaining({
                 metadata: expect.objectContaining({
-                  issueNumberSort: 'desc',
+                  issueNumberSort: { sort: 'desc', nulls: 'last' },
                 }),
               }),
             ]),
@@ -172,7 +172,7 @@ describe('Series Issues Sorting', () => {
         expect(mockDb.comicFile.findMany).toHaveBeenCalledWith(
           expect.objectContaining({
             orderBy: expect.arrayContaining([
-              { metadata: { issueNumberSort: 'asc' } },
+              { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
               { filename: 'asc' },
             ]),
           })
@@ -349,13 +349,13 @@ describe('Series Issues Sorting', () => {
 
       expect(response.status).toBe(200);
 
-      // Verify the orderBy includes issueNumberSort
+      // Verify the orderBy includes issueNumberSort with nulls: 'last'
       expect(mockDb.series.findUnique).toHaveBeenCalledWith(
         expect.objectContaining({
           include: expect.objectContaining({
             issues: expect.objectContaining({
               orderBy: expect.arrayContaining([
-                { metadata: { issueNumberSort: 'asc' } },
+                { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
                 { filename: 'asc' },
               ]),
             }),

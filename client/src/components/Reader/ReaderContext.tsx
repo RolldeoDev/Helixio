@@ -100,6 +100,7 @@ export interface ReaderState {
   isFullscreen: boolean;
   isUIVisible: boolean;
   isSettingsOpen: boolean;
+  isInfoOpen: boolean;
   isThumbnailStripOpen: boolean;
   zoom: number;
   panOffset: { x: number; y: number };
@@ -150,6 +151,8 @@ type ReaderAction =
   | { type: 'HIDE_UI' }
   | { type: 'TOGGLE_SETTINGS' }
   | { type: 'CLOSE_SETTINGS' }
+  | { type: 'TOGGLE_INFO' }
+  | { type: 'CLOSE_INFO' }
   | { type: 'TOGGLE_THUMBNAIL_STRIP' }
   | { type: 'SET_ZOOM'; payload: number }
   | { type: 'ZOOM_IN' }
@@ -206,6 +209,7 @@ const createInitialState = (fileId: string, filename: string): ReaderState => ({
   isFullscreen: false,
   isUIVisible: true,
   isSettingsOpen: false,
+  isInfoOpen: false,
   isThumbnailStripOpen: false,
   zoom: 1,
   panOffset: { x: 0, y: 0 },
@@ -326,10 +330,16 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
       return { ...state, isUIVisible: false };
 
     case 'TOGGLE_SETTINGS':
-      return { ...state, isSettingsOpen: !state.isSettingsOpen };
+      return { ...state, isSettingsOpen: !state.isSettingsOpen, isInfoOpen: false };
 
     case 'CLOSE_SETTINGS':
       return { ...state, isSettingsOpen: false };
+
+    case 'TOGGLE_INFO':
+      return { ...state, isInfoOpen: !state.isInfoOpen, isSettingsOpen: false };
+
+    case 'CLOSE_INFO':
+      return { ...state, isInfoOpen: false };
 
     case 'TOGGLE_THUMBNAIL_STRIP':
       return { ...state, isThumbnailStripOpen: !state.isThumbnailStripOpen };
@@ -489,6 +499,8 @@ interface ReaderContextValue {
   hideUI: () => void;
   toggleSettings: () => void;
   closeSettings: () => void;
+  toggleInfo: () => void;
+  closeInfo: () => void;
   toggleThumbnailStrip: () => void;
   // Zoom
   setZoom: (zoom: number) => void;
@@ -838,6 +850,14 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     dispatch({ type: 'CLOSE_SETTINGS' });
   }, []);
 
+  const toggleInfo = useCallback(() => {
+    dispatch({ type: 'TOGGLE_INFO' });
+  }, []);
+
+  const closeInfo = useCallback(() => {
+    dispatch({ type: 'CLOSE_INFO' });
+  }, []);
+
   const toggleThumbnailStrip = useCallback(() => {
     dispatch({ type: 'TOGGLE_THUMBNAIL_STRIP' });
   }, []);
@@ -1050,6 +1070,8 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     hideUI,
     toggleSettings,
     closeSettings,
+    toggleInfo,
+    closeInfo,
     toggleThumbnailStrip,
     setZoom,
     zoomIn,

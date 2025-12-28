@@ -68,10 +68,12 @@ router.get('/series/:coverHash', async (req: Request, res: Response): Promise<vo
     }
 
     // Set response headers
+    // Series covers use hash in URL, so immutable is appropriate
     res.set({
       'Content-Type': coverData.contentType,
       'Content-Length': coverData.data.length.toString(),
       'Cache-Control': 'public, max-age=31536000, immutable',
+      'ETag': `"${coverHash}"`,
       'Vary': 'Accept',
     });
 
@@ -125,10 +127,12 @@ router.get('/collection/:coverHash', async (req: Request, res: Response): Promis
     }
 
     // Set response headers
+    // Collection covers use hash in URL, so immutable is appropriate
     res.set({
       'Content-Type': coverData.contentType,
       'Content-Length': coverData.data.length.toString(),
       'Cache-Control': 'public, max-age=31536000, immutable',
+      'ETag': `"${coverHash}"`,
       'Vary': 'Accept',
     });
 
@@ -180,8 +184,6 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const fileHash = file.hash || file.id;
-
     // Check Accept header for WebP support
     const acceptHeader = req.get('Accept') || '';
     const acceptWebP = acceptHeader.includes('image/webp');
@@ -190,11 +192,13 @@ router.get('/:fileId', async (req: Request, res: Response): Promise<void> => {
 
     // If a custom cover (page or custom URL) is set, use coverHash from series covers cache
     if ((file.coverSource === 'page' || file.coverSource === 'custom') && file.coverHash) {
+      // Custom covers are stored in series covers directory using coverHash
       coverData = await getSeriesCoverData(file.coverHash, acceptWebP);
     }
 
-    // If no custom cover or not found, try default file cover
+    // If no custom cover or custom cover not found, fall back to default file cover
     if (!coverData) {
+      const fileHash = file.hash || file.id;
       coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
 
       // If not cached, extract and optimize

@@ -437,13 +437,6 @@
   display: none;
 }
 
-/* Completed state - uses theme-defined completed color */
-.cover-card__issue-badge--completed {
-  background: var(--color-issue-badge-completed, var(--cover-card-completed-color));
-  color: var(--color-issue-badge-text-completed, white);
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
-}
-
 /* =============================================================================
    Progress Indicators (using shared Progress components)
    ============================================================================= */
@@ -451,13 +444,6 @@
 .cover-card__progress-ring {
   position: absolute;
   bottom: 8px;
-  right: 8px;
-  z-index: 5;
-}
-
-.cover-card__completed-badge {
-  position: absolute;
-  top: 8px;
   right: 8px;
   z-index: 5;
 }

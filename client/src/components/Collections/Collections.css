@@ -320,3 +320,41 @@
   color: var(--text-muted);
   font-size: 0.875rem;
 }
+
+/* =============================================================================
+   Smart Collection Badge
+   ============================================================================= */
+
+.collection-icon {
+  position: relative;
+}
+
+.smart-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  background: var(--accent-color, #d4a574);
+  border-radius: 50%;
+  color: var(--bg-primary, #1a1a1a);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.smart-badge svg {
+  width: 8px;
+  height: 8px;
+}
+
+.smart-collection .collection-name {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.smart-collection.selected .smart-badge {
+  background: var(--accent-color);
+}

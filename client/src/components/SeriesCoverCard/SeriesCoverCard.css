@@ -242,13 +242,6 @@
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
-.series-cover-card__completed-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 5;
-}
-
 .series-cover-card__count-badge {
   position: absolute;
   bottom: 8px;
@@ -465,10 +458,6 @@
 
 /* Hide progress ring when remove button is shown to avoid overlap */
 .series-cover-card:hover .series-cover-card__progress-ring {
-  opacity: 0.3;
-}
-
-.series-cover-card:hover .series-cover-card__completed-badge {
   opacity: 0.3;
 }
 

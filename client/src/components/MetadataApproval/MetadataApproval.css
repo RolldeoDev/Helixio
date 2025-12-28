@@ -941,6 +941,35 @@
   white-space: nowrap;
 }
 
+/* File list preview button - wraps the preview for clickability */
+.file-list-preview-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-list-preview-btn:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+.file-list-preview-btn .view-all-icon {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.file-list-preview-btn:hover .view-all-icon {
+  opacity: 1;
+}
+
 /* Pre-approved Banner (series.json) - Compact inline */
 .pre-approved-banner {
   display: flex;
@@ -3390,7 +3419,7 @@
 }
 
 .log-panel.expanded {
-  max-height: 250px;
+  /* Height is now controlled dynamically via JS */
 }
 
 .log-panel-toggle {
@@ -3422,8 +3451,41 @@
   text-align: left;
 }
 
+/* Resize handle for log panel */
+.log-panel-resize-handle {
+  height: 6px;
+  background: transparent;
+  cursor: ns-resize;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.log-panel-resize-handle::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.log-panel-resize-handle:hover::before,
+.log-panel.dragging .log-panel-resize-handle::before {
+  opacity: 1;
+  background: var(--color-primary);
+}
+
+.log-panel.dragging {
+  user-select: none;
+}
+
 .log-panel-content {
-  max-height: 200px;
+  /* Height is controlled dynamically via style attribute */
   overflow-y: auto;
   padding: var(--spacing-sm) var(--spacing-md);
   font-family: var(--font-mono);
@@ -4128,4 +4190,60 @@
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   Move File to Series Modal Styles
+   ========================================================================== */
+
+.file-info-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-size: 0.9rem;
+}
+
+.file-info-preview .label {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.file-info-preview .filename {
+  color: var(--color-text);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.series-picker-item.current {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: var(--color-border);
+}
+
+.series-picker-item.current:hover {
+  background: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+.current-badge {
+  display: inline-block;
+  margin-left: var(--spacing-sm);
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-text-muted) 20%, transparent);
+  color: var(--color-text-muted);
+  vertical-align: middle;
+}
+
+.series-picker-item-meta .status-pending {
+  color: var(--color-text-muted);
+  font-style: italic;
 }

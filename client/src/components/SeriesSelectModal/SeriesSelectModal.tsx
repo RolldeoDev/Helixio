@@ -9,8 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Series,
   getSeriesList,
-  getCoverUrl,
-  getApiCoverUrl,
+  resolveSeriesCoverUrl,
 } from '../../services/api.service';
 import './SeriesSelectModal.css';
 
@@ -124,19 +123,6 @@ export function SeriesSelectModal({
     fetchSeries(nextPage, search, true);
   };
 
-  const getCover = (s: Series) => {
-    if (s.coverHash) {
-      return getApiCoverUrl(s.coverHash);
-    }
-    if (s.coverFileId) {
-      return getCoverUrl(s.coverFileId);
-    }
-    if (s.issues && s.issues.length > 0 && s.issues[0]) {
-      return getCoverUrl(s.issues[0].id);
-    }
-    return null;
-  };
-
   return (
     <div className="series-select-modal-overlay" onClick={onClose}>
       <div className="series-select-modal" onClick={(e) => e.stopPropagation()}>
@@ -173,7 +159,7 @@ export function SeriesSelectModal({
             <>
               <div className="series-select-grid">
                 {series.map((s) => {
-                  const coverUrl = getCover(s);
+                  const coverUrl = resolveSeriesCoverUrl(s);
                   const isSelected = selectedIds.has(s.id);
 
                   return (

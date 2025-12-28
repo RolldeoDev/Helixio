@@ -79,7 +79,7 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
       metadata: true,
     },
     orderBy: [
-      { metadata: { issueNumberSort: 'asc' } },
+      { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
       { filename: 'asc' },
     ],
   });

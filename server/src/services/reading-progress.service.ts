@@ -594,7 +594,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
         },
       },
       orderBy: [
-        { metadata: { issueNumberSort: 'asc' } },
+        { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
         { filename: 'asc' },
       ],
     });
@@ -641,7 +641,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
         },
       },
       orderBy: [
-        { metadata: { issueNumberSort: 'asc' } },
+        { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
         { filename: 'asc' },
       ],
     });

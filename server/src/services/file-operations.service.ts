@@ -846,3 +846,309 @@ export async function verifyFile(fileId: string): Promise<{
     return { exists: false, hashMatch: null, sizeMatch: null };
   }
 }
+
+// =============================================================================
+// Original Filename Tracking
+// =============================================================================
+
+export interface RenameHistoryEntry {
+  from: string;
+  to: string;
+  timestamp: string;
+  templateId?: string;
+}
+
+/**
+ * Track the original filename before a template-based rename.
+ * Only creates a record if one doesn't exist (first rename).
+ */
+export async function trackOriginalFilename(
+  fileId: string,
+  templateId?: string
+): Promise<void> {
+  const db = getDatabase();
+
+  // Check if already tracked
+  const existing = await db.originalFilename.findUnique({
+    where: { fileId },
+  });
+
+  if (existing) {
+    // Already tracked - don't overwrite
+    return;
+  }
+
+  // Get current file info
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+  });
+
+  if (!file) {
+    return;
+  }
+
+  // Create tracking record
+  await db.originalFilename.create({
+    data: {
+      fileId,
+      originalFilename: file.filename,
+      originalPath: file.path,
+      renameHistory: JSON.stringify([]),
+    },
+  });
+
+  logInfo('file-operations', 'Tracked original filename', {
+    fileId,
+    originalFilename: file.filename,
+  });
+}
+
+/**
+ * Add a rename event to the file's history.
+ */
+export async function addRenameToHistory(
+  fileId: string,
+  fromFilename: string,
+  toFilename: string,
+  templateId?: string
+): Promise<void> {
+  const db = getDatabase();
+
+  const tracking = await db.originalFilename.findUnique({
+    where: { fileId },
+  });
+
+  if (!tracking) {
+    // No tracking record - create one first
+    await trackOriginalFilename(fileId, templateId);
+    return addRenameToHistory(fileId, fromFilename, toFilename, templateId);
+  }
+
+  // Parse existing history
+  let history: RenameHistoryEntry[] = [];
+  try {
+    history = JSON.parse(tracking.renameHistory);
+  } catch {
+    history = [];
+  }
+
+  // Add new entry
+  history.push({
+    from: fromFilename,
+    to: toFilename,
+    timestamp: new Date().toISOString(),
+    templateId,
+  });
+
+  // Update record
+  await db.originalFilename.update({
+    where: { fileId },
+    data: {
+      renameHistory: JSON.stringify(history),
+      lastRenamedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Get the original filename for a file.
+ */
+export async function getOriginalFilename(
+  fileId: string
+): Promise<{ originalFilename: string; originalPath: string; history: RenameHistoryEntry[] } | null> {
+  const db = getDatabase();
+
+  const tracking = await db.originalFilename.findUnique({
+    where: { fileId },
+  });
+
+  if (!tracking) {
+    return null;
+  }
+
+  let history: RenameHistoryEntry[] = [];
+  try {
+    history = JSON.parse(tracking.renameHistory);
+  } catch {
+    history = [];
+  }
+
+  return {
+    originalFilename: tracking.originalFilename,
+    originalPath: tracking.originalPath,
+    history,
+  };
+}
+
+/**
+ * Restore a file to its original filename.
+ */
+export async function restoreOriginalFilename(
+  fileId: string,
+  options: { batchId?: string } = {}
+): Promise<FileOperationResult> {
+  const db = getDatabase();
+
+  // Get original filename tracking
+  const tracking = await db.originalFilename.findUnique({
+    where: { fileId },
+  });
+
+  if (!tracking) {
+    return {
+      success: false,
+      operation: 'restore',
+      source: '',
+      error: 'No original filename tracked for this file',
+    };
+  }
+
+  // Get current file
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    include: { library: true },
+  });
+
+  if (!file) {
+    return {
+      success: false,
+      operation: 'restore',
+      source: '',
+      error: `File not found: ${fileId}`,
+    };
+  }
+
+  // If already at original filename, nothing to do
+  if (file.filename === tracking.originalFilename) {
+    return {
+      success: true,
+      operation: 'restore',
+      source: file.path,
+      destination: file.path,
+    };
+  }
+
+  // Restore to original directory if different
+  const originalDir = dirname(tracking.originalPath);
+  const currentDir = dirname(file.path);
+
+  let destinationPath: string;
+  if (originalDir !== currentDir) {
+    // Restore to original directory
+    destinationPath = join(originalDir, tracking.originalFilename);
+  } else {
+    // Same directory, just rename
+    destinationPath = join(currentDir, tracking.originalFilename);
+  }
+
+  // Perform the move
+  const result = await moveFile(fileId, destinationPath, {
+    createDirs: true,
+    batchId: options.batchId,
+  });
+
+  if (result.success) {
+    // Clear the tracking record since we're back to original
+    await db.originalFilename.delete({
+      where: { fileId },
+    });
+
+    logInfo('file-operations', 'Restored original filename', {
+      fileId,
+      from: file.filename,
+      to: tracking.originalFilename,
+    });
+  }
+
+  return {
+    ...result,
+    operation: 'restore',
+  };
+}
+
+/**
+ * Rename a file using template system with original filename tracking.
+ */
+export async function renameFileWithTracking(
+  fileId: string,
+  newFilename: string,
+  options: {
+    batchId?: string;
+    templateId?: string;
+    trackOriginal?: boolean;
+  } = {}
+): Promise<FileOperationResult> {
+  const db = getDatabase();
+
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+  });
+
+  if (!file) {
+    return {
+      success: false,
+      operation: 'rename',
+      source: '',
+      error: `File not found: ${fileId}`,
+    };
+  }
+
+  // Track original if requested and not already the same name
+  if (options.trackOriginal !== false && file.filename !== newFilename) {
+    await trackOriginalFilename(fileId, options.templateId);
+  }
+
+  // Perform the rename
+  const result = await renameFile(fileId, newFilename, { batchId: options.batchId });
+
+  // Record in history if successful
+  if (result.success && file.filename !== newFilename) {
+    await addRenameToHistory(fileId, file.filename, newFilename, options.templateId);
+  }
+
+  return result;
+}
+
+/**
+ * Move a file to a new location with original filename tracking.
+ */
+export async function moveFileWithTracking(
+  fileId: string,
+  destinationPath: string,
+  options: MoveOptions & {
+    templateId?: string;
+    trackOriginal?: boolean;
+  } = {}
+): Promise<FileOperationResult> {
+  const db = getDatabase();
+
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+  });
+
+  if (!file) {
+    return {
+      success: false,
+      operation: 'move',
+      source: '',
+      error: `File not found: ${fileId}`,
+    };
+  }
+
+  const newFilename = basename(destinationPath);
+
+  // Track original if requested and file is actually changing
+  if (options.trackOriginal !== false && (file.filename !== newFilename || file.path !== destinationPath)) {
+    await trackOriginalFilename(fileId, options.templateId);
+  }
+
+  // Perform the move
+  const result = await moveFile(fileId, destinationPath, options);
+
+  // Record in history if successful
+  if (result.success && file.filename !== newFilename) {
+    await addRenameToHistory(fileId, file.filename, newFilename, options.templateId);
+  }
+
+  return result;
+}

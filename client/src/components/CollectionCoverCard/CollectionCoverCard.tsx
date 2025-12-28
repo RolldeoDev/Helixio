@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getCoverUrl, getApiCoverUrl, getCollectionCoverUrl } from '../../services/api.service';
-import { ProgressRing, CompletedBadge } from '../Progress';
+import { ProgressRing } from '../Progress';
 import './CollectionCoverCard.css';
 
 // =============================================================================
@@ -251,21 +251,12 @@ export function CollectionCoverCard({
           </div>
         )}
 
-        {/* Progress ring */}
-        {totalIssues > 0 && progressPercent > 0 && !isComplete && (
+        {/* Progress ring - shows percentage when in progress, 100% when completed */}
+        {totalIssues > 0 && (progressPercent > 0 || isComplete) && (
           <ProgressRing
-            progress={progressPercent}
+            progress={isComplete ? 100 : progressPercent}
             size="md"
             className="collection-cover-card__progress-ring"
-          />
-        )}
-
-        {/* Completed indicator */}
-        {isComplete && (
-          <CompletedBadge
-            size="md"
-            title="Collection complete"
-            className="collection-cover-card__completed-badge"
           />
         )}
 

@@ -3089,6 +3089,33 @@ body {
   max-width: 1200px;
 }
 
+/* Content-driven modal - sizes to content up to max (good for forms) */
+.modal-content.modal-fit {
+  width: fit-content;
+  min-width: 400px;
+  max-width: min(700px, 95vw);
+}
+
+/* Medium modal - good for editors with 2-column layouts */
+.modal-content.modal-medium {
+  width: fit-content;
+  min-width: 500px;
+  max-width: min(750px, 95vw);
+}
+
+/* Compact spacing utilities for modals */
+.modal-compact .modal-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.modal-compact .modal-body {
+  padding: var(--spacing-md);
+}
+
+.modal-compact .modal-footer {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
 /* =============================================================================
    Global Drawer/Slide Panel Styles
    ============================================================================= */

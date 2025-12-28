@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
 import { UnifiedMenu, buildMenuItems, MENU_PRESETS, MENU_ITEM_DEFINITIONS } from '../UnifiedMenu';
 import type { MenuState, MenuContext, MenuItem } from '../UnifiedMenu/types';
-import { ProgressRing, CompletedBadge } from '../Progress';
+import { ProgressRing } from '../Progress';
 import { RelationshipTypeBadge } from '../RelationshipTypeBadge';
 import type { RelationshipType } from '../../services/api/series';
 import './SeriesCoverCard.css';
@@ -540,22 +540,13 @@ export function SeriesCoverCard({
           />
         )}
 
-        {/* Progress ring */}
-        {totalOwned > 0 && progressPercent > 0 && !isComplete && (
+        {/* Progress ring - shows percentage when in progress, 100% when completed */}
+        {totalOwned > 0 && (progressPercent > 0 || isComplete) && (
           <ProgressRing
-            progress={progressPercent}
+            progress={isComplete ? 100 : progressPercent}
             size="md"
             showLabel
             className="series-cover-card__progress-ring"
-          />
-        )}
-
-        {/* Completed indicator */}
-        {isComplete && (
-          <CompletedBadge
-            size="md"
-            title="Series complete"
-            className="series-cover-card__completed-badge"
           />
         )}
 

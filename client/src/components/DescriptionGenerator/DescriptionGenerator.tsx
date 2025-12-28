@@ -138,7 +138,10 @@ export function DescriptionGenerator({
               Generating...
             </>
           ) : (
-            <>Generate Description</>
+            <>
+              Generate Description
+              <span className="beta-badge">BETA</span>
+            </>
           )}
         </button>
 
@@ -149,7 +152,10 @@ export function DescriptionGenerator({
             onChange={(e) => setUseWebSearch(e.target.checked)}
             disabled={disabled || isGenerating}
           />
-          <span className="toggle-label">Use Web Search</span>
+          <span className="toggle-label">
+            Web Search
+            <span className="beta-badge">BETA</span>
+          </span>
         </label>
       </div>
 

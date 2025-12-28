@@ -170,6 +170,23 @@ const FIELD_SECTIONS = {
   },
 };
 
+/**
+ * Check if a value is effectively empty (null, undefined, or empty string)
+ */
+function isEmptyValue(value: unknown): boolean {
+  return value === null || value === undefined || value === '';
+}
+
+/**
+ * Check if a field change is a meaningful change (not empty-to-empty)
+ */
+function hasMeaningfulChange(proposed: unknown, current: unknown): boolean {
+  if (isEmptyValue(proposed) && isEmptyValue(current)) {
+    return false;
+  }
+  return proposed !== current;
+}
+
 interface IssueEditDrawerProps {
   fileChange: FileChange | null;
   isOpen: boolean;
@@ -181,6 +198,8 @@ interface IssueEditDrawerProps {
   onAcceptAll: (fileId: string) => Promise<void>;
   onSwitchMatch: (fileId: string) => void;
   onReject: (fileId: string) => Promise<void>;
+  /** Callback to move file to a different series group (only shown when provided) */
+  onMoveToSeriesGroup?: (fileId: string) => void;
   disabled?: boolean;
   /** Optional field sources showing which provider each field came from */
   fieldSources?: Record<string, MetadataSource>;
@@ -196,6 +215,7 @@ export function IssueEditDrawer({
   onAcceptAll,
   onSwitchMatch,
   onReject,
+  onMoveToSeriesGroup,
   disabled = false,
   fieldSources,
   showFieldSources = false,
@@ -296,11 +316,11 @@ export function IssueEditDrawer({
     return original;
   };
 
-  // Count changes in a section
+  // Count changes in a section (excluding empty-to-empty)
   const countSectionChanges = (fields: FieldDef[]): number => {
     return fields.reduce((count, field) => {
       const fc = getFieldChange(field.key);
-      if (fc && (fc.proposed !== fc.current || fc.edited)) {
+      if (fc && (hasMeaningfulChange(fc.proposed, fc.current) || fc.edited)) {
         return count + 1;
       }
       return count;
@@ -414,6 +434,8 @@ export function IssueEditDrawer({
       await savePendingUpdates();
     }
     await onAcceptAll(fileChange.fileId);
+    // Close the drawer after accepting all
+    onClose();
   };
 
   const handleReject = async () => {
@@ -422,6 +444,12 @@ export function IssueEditDrawer({
 
   const handleSwitchMatch = () => {
     onSwitchMatch(fileChange.fileId);
+  };
+
+  const handleMoveToSeriesGroup = () => {
+    if (onMoveToSeriesGroup) {
+      onMoveToSeriesGroup(fileChange.fileId);
+    }
   };
 
   return (
@@ -495,6 +523,16 @@ export function IssueEditDrawer({
             >
               Switch Match
             </button>
+            {onMoveToSeriesGroup && (
+              <button
+                className="btn-ghost"
+                onClick={handleMoveToSeriesGroup}
+                disabled={disabled}
+                title="Move this file to a different series group"
+              >
+                Move to Series
+              </button>
+            )}
             <button
               className="btn-danger-ghost"
               onClick={handleReject}

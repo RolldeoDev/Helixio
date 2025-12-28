@@ -37,6 +37,7 @@ export type ShortcutAction =
   | 'toggleFullscreen'
   | 'toggleUI'
   | 'toggleSettings'
+  | 'toggleInfo'
   | 'toggleThumbnails'
   | 'toggleQueue'
   | 'closeReader'
@@ -210,6 +211,12 @@ const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
     label: 'Open Settings',
     category: 'ui',
     bindings: [{ key: ',' }],
+  },
+  {
+    action: 'toggleInfo',
+    label: 'Toggle Issue Info',
+    category: 'ui',
+    bindings: [{ key: 'i' }],
   },
   {
     action: 'toggleThumbnails',

@@ -25,6 +25,10 @@ import {
   cleanupOldBatches,
   hasActiveBatch,
   getActiveBatchId,
+  previewTemplateRename,
+  createTemplateRenameBatch,
+  previewRestoreOriginal,
+  createRestoreOriginalBatch,
   type BatchCreateOptions,
   type BatchProgress,
 } from '../services/batch.service.js';
@@ -189,6 +193,52 @@ router.post('/preview/delete', async (req: Request, res: Response): Promise<void
   }
 });
 
+/**
+ * POST /api/batches/preview/template-rename
+ * Preview template-based renaming for files.
+ */
+router.post('/preview/template-rename', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileIds, templateId, libraryId } = req.body as {
+      fileIds: string[];
+      templateId?: string;
+      libraryId?: string;
+    };
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array required' });
+      return;
+    }
+
+    const preview = await previewTemplateRename(fileIds, { templateId, libraryId });
+    res.json({ preview });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/batches/preview/restore-original
+ * Preview restoration of original filenames.
+ */
+router.post('/preview/restore-original', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileIds } = req.body as { fileIds: string[] };
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array required' });
+      return;
+    }
+
+    const preview = await previewRestoreOriginal(fileIds);
+    res.json({ preview });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 // =============================================================================
 // Batch Creation
 // =============================================================================
@@ -246,6 +296,70 @@ router.post('/conversion/:libraryId', async (req: Request, res: Response): Promi
     }
 
     const result = await createConversionBatch(libraryId);
+    res.status(201).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/batches/template-rename
+ * Create a template-based rename batch.
+ */
+router.post('/template-rename', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileIds, templateId, libraryId } = req.body as {
+      fileIds: string[];
+      templateId?: string;
+      libraryId?: string;
+    };
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array required' });
+      return;
+    }
+
+    // Check if another batch is running
+    if (hasActiveBatch()) {
+      res.status(409).json({
+        error: 'Another batch operation is already running',
+        activeBatchId: getActiveBatchId(),
+      });
+      return;
+    }
+
+    const result = await createTemplateRenameBatch(fileIds, { templateId, libraryId });
+    res.status(201).json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/batches/restore-original
+ * Create a batch to restore original filenames.
+ */
+router.post('/restore-original', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileIds } = req.body as { fileIds: string[] };
+
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      res.status(400).json({ error: 'fileIds array required' });
+      return;
+    }
+
+    // Check if another batch is running
+    if (hasActiveBatch()) {
+      res.status(409).json({
+        error: 'Another batch operation is already running',
+        activeBatchId: getActiveBatchId(),
+      });
+      return;
+    }
+
+    const result = await createRestoreOriginalBatch(fileIds);
     res.status(201).json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

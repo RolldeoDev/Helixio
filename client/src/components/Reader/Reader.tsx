@@ -11,6 +11,7 @@ import { ReaderToolbar } from './ReaderToolbar';
 import { ReaderFooter } from './ReaderFooter';
 import { ReaderPage } from './ReaderPage';
 import { ReaderSettings } from './ReaderSettings';
+import { ReaderInfo } from './ReaderInfo';
 import { ThumbnailStrip } from './ThumbnailStrip';
 import { JumpToPageModal } from './JumpToPageModal';
 import { ReadingQueue } from './ReadingQueue';
@@ -43,6 +44,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     setScaling,
     toggleFullscreen,
     toggleSettings,
+    toggleInfo,
+    closeInfo,
     toggleThumbnailStrip,
     zoomIn,
     zoomOut,
@@ -184,6 +187,9 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         case 'toggleSettings':
           toggleSettings();
           break;
+        case 'toggleInfo':
+          toggleInfo();
+          break;
         case 'toggleThumbnails':
           toggleThumbnailStrip();
           break;
@@ -193,6 +199,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         case 'closeReader':
           if (state.isSettingsOpen) {
             toggleSettings();
+          } else if (state.isInfoOpen) {
+            closeInfo();
           } else if (isQueueOpen) {
             closeQueue();
           } else {
@@ -232,10 +240,11 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     [
       nextPage, prevPage, firstPage, lastPage, goToNextChapter, goToPrevChapter,
       onNavigateToFile, openJumpToPage, setMode, setScaling, setDirection,
-      state.direction, state.isSettingsOpen, state.currentPage, state.transitionScreen,
-      state.adjacentFiles, toggleFullscreen, toggleUI, toggleSettings, toggleThumbnailStrip,
-      toggleQueue, closeQueue, onClose, zoomIn, zoomOut, resetZoom, isBookmarked,
-      removeBookmark, addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen, onNavigateToFile,
+      state.direction, state.isSettingsOpen, state.isInfoOpen, state.currentPage,
+      state.transitionScreen, state.adjacentFiles, toggleFullscreen, toggleUI,
+      toggleSettings, toggleInfo, closeInfo, toggleThumbnailStrip, toggleQueue,
+      closeQueue, onClose, zoomIn, zoomOut, resetZoom, isBookmarked, removeBookmark,
+      addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen,
     ]
   );
 
@@ -544,6 +553,9 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
 
       {/* Settings panel */}
       {state.isSettingsOpen && <ReaderSettings />}
+
+      {/* Info panel */}
+      {state.isInfoOpen && <ReaderInfo />}
 
       {/* Jump to page modal */}
       <JumpToPageModal isOpen={isJumpToPageOpen} onClose={closeJumpToPage} />

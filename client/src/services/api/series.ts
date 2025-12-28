@@ -854,6 +854,11 @@ export interface Collection {
   visibility?: 'public' | 'private' | 'unlisted';
   readingMode?: 'single' | 'double' | 'webtoon' | null;
   tags?: string | null;
+  // Smart collection fields
+  isSmart?: boolean;
+  smartScope?: 'series' | 'files' | null;
+  filterDefinition?: string | null; // JSON string of SmartFilter
+  lastEvaluatedAt?: string | null;
 }
 
 export interface CollectionItem {
@@ -864,6 +869,9 @@ export interface CollectionItem {
   position: number;
   addedAt: string;
   notes: string | null;
+  // Smart collection flags
+  isWhitelisted?: boolean;
+  isBlacklisted?: boolean;
   series?: {
     id: string;
     name: string;
@@ -2239,14 +2247,19 @@ export async function reorderCollectionItems(
 
 /**
  * Get all collections containing a specific series or file
+ *
+ * @param options.includeSeriesFiles - When true and seriesId is provided, also finds
+ *   collections containing individual files from that series
  */
 export async function getCollectionsForItem(
   seriesId?: string,
-  fileId?: string
+  fileId?: string,
+  options?: { includeSeriesFiles?: boolean }
 ): Promise<{ collections: Collection[] }> {
   const params = new URLSearchParams();
   if (seriesId) params.set('seriesId', seriesId);
   if (fileId) params.set('fileId', fileId);
+  if (options?.includeSeriesFiles) params.set('includeSeriesFiles', 'true');
   return get<{ collections: Collection[] }>(`/collections/for-item?${params}`);
 }
 
@@ -2326,6 +2339,125 @@ export async function bulkToggleWantToRead(
     updated: number;
     results: Array<{ seriesId: string; success: boolean; error?: string }>;
   }>('/collections/bulk-toggle-want-to-read', { seriesIds, action });
+}
+
+// =============================================================================
+// Smart Collections
+// =============================================================================
+
+export interface SmartFilter {
+  id: string;
+  name?: string;
+  rootOperator: 'AND' | 'OR';
+  groups: SmartFilterGroup[];
+}
+
+export interface SmartFilterGroup {
+  id: string;
+  operator: 'AND' | 'OR';
+  conditions: SmartFilterCondition[];
+}
+
+export interface SmartFilterCondition {
+  id: string;
+  field: string;
+  comparison: string;
+  value: string;
+  value2?: string;
+}
+
+export type SmartScope = 'series' | 'files';
+
+/**
+ * Refresh a smart collection (full re-evaluation)
+ */
+export async function refreshSmartCollection(
+  collectionId: string
+): Promise<{ success: boolean; added: number; removed: number }> {
+  return post<{ success: boolean; added: number; removed: number }>(
+    `/collections/${collectionId}/smart/refresh`,
+    {}
+  );
+}
+
+/**
+ * Update the smart filter for a collection
+ */
+export async function updateSmartFilter(
+  collectionId: string,
+  filter: SmartFilter,
+  scope: SmartScope
+): Promise<{ success: boolean }> {
+  return put<{ success: boolean }>(
+    `/collections/${collectionId}/smart/filter`,
+    { filter, scope }
+  );
+}
+
+/**
+ * Convert a regular collection to a smart collection
+ */
+export async function convertToSmartCollection(
+  collectionId: string,
+  filter: SmartFilter,
+  scope: SmartScope
+): Promise<{ success: boolean; added: number; removed: number }> {
+  return post<{ success: boolean; added: number; removed: number }>(
+    `/collections/${collectionId}/smart/convert`,
+    { filter, scope }
+  );
+}
+
+/**
+ * Convert a smart collection back to a regular collection
+ */
+export async function convertToRegularCollection(
+  collectionId: string
+): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/collections/${collectionId}/smart`);
+}
+
+/**
+ * Toggle whitelist status for an item in a smart collection
+ */
+export async function toggleSmartWhitelist(
+  collectionId: string,
+  seriesId?: string,
+  fileId?: string
+): Promise<{ success: boolean; isWhitelisted: boolean }> {
+  return post<{ success: boolean; isWhitelisted: boolean }>(
+    `/collections/${collectionId}/smart/whitelist`,
+    { seriesId, fileId }
+  );
+}
+
+/**
+ * Toggle blacklist status for an item in a smart collection
+ */
+export async function toggleSmartBlacklist(
+  collectionId: string,
+  seriesId?: string,
+  fileId?: string
+): Promise<{ success: boolean; isBlacklisted: boolean }> {
+  return post<{ success: boolean; isBlacklisted: boolean }>(
+    `/collections/${collectionId}/smart/blacklist`,
+    { seriesId, fileId }
+  );
+}
+
+/**
+ * Get whitelist and blacklist overrides for a smart collection
+ */
+export async function getSmartCollectionOverrides(
+  collectionId: string
+): Promise<{
+  whitelist: Array<{ seriesId?: string; fileId?: string }>;
+  blacklist: Array<{ seriesId?: string; fileId?: string }>;
+}> {
+  return get<{
+    whitelist: Array<{ seriesId?: string; fileId?: string }>;
+    blacklist: Array<{ seriesId?: string; fileId?: string }>;
+  }>(`/collections/${collectionId}/smart/overrides`);
 }
 
 /**
@@ -2537,6 +2669,24 @@ export async function addChildSeries(
   return post<SeriesRelationship>(`/series/${parentSeriesId}/children`, {
     childSeriesId,
     relationshipType,
+  });
+}
+
+/**
+ * Bulk link multiple series as children to a single parent series
+ */
+export interface BulkLinkChild {
+  seriesId: string;
+  relationshipType: RelationshipType;
+}
+
+export async function bulkLinkSeries(
+  targetSeriesId: string,
+  children: BulkLinkChild[]
+): Promise<BulkOperationResult> {
+  return post<BulkOperationResult>('/series/bulk-link', {
+    targetSeriesId,
+    children,
   });
 }
 

@@ -21,6 +21,16 @@ import {
   toggleWantToRead,
   bulkToggleFavorite,
   bulkToggleWantToRead,
+  // Smart collection functions
+  refreshSmartCollection,
+  updateSmartFilter,
+  convertToSmartCollection,
+  convertToRegularCollection,
+  toggleSmartWhitelist,
+  toggleSmartBlacklist,
+  getSmartCollectionOverrides,
+  type SmartFilter,
+  type SmartScope,
 } from '../../services/api/series';
 import type { Collection, CollectionWithItems } from '../../services/api/series';
 
@@ -81,6 +91,21 @@ export function useCollectionsForItem(seriesId?: string, fileId?: string) {
     queryKey: queryKeys.collections.forItem(seriesId, fileId),
     queryFn: () => getCollectionsForItem(seriesId, fileId),
     enabled: !!(seriesId || fileId),
+  });
+}
+
+/**
+ * Get collections containing a series OR files from that series
+ *
+ * This is useful for showing all collections a series belongs to,
+ * including collections that contain individual issues from the series.
+ */
+export function useSeriesCollections(seriesId?: string) {
+  return useQuery({
+    queryKey: [...queryKeys.collections.all, 'forSeries', seriesId] as const,
+    queryFn: () => getCollectionsForItem(seriesId, undefined, { includeSeriesFiles: true }),
+    enabled: !!seriesId,
+    select: (data) => data.collections,
   });
 }
 
@@ -283,5 +308,144 @@ export function useInvalidateCollections() {
   };
 }
 
+// =============================================================================
+// Smart Collection Hooks
+// =============================================================================
+
+/**
+ * Refresh a smart collection
+ */
+export function useRefreshSmartCollection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (collectionId: string) => refreshSmartCollection(collectionId),
+    onSuccess: (_, collectionId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.list() });
+    },
+  });
+}
+
+/**
+ * Update smart filter for a collection
+ */
+export function useUpdateSmartFilter() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      filter,
+      scope,
+    }: {
+      collectionId: string;
+      filter: SmartFilter;
+      scope: SmartScope;
+    }) => updateSmartFilter(collectionId, filter, scope),
+    onSuccess: (_, { collectionId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.list() });
+    },
+  });
+}
+
+/**
+ * Convert a regular collection to a smart collection
+ */
+export function useConvertToSmartCollection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      filter,
+      scope,
+    }: {
+      collectionId: string;
+      filter: SmartFilter;
+      scope: SmartScope;
+    }) => convertToSmartCollection(collectionId, filter, scope),
+    onSuccess: (_, { collectionId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.list() });
+    },
+  });
+}
+
+/**
+ * Convert a smart collection back to a regular collection
+ */
+export function useConvertToRegularCollection() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (collectionId: string) => convertToRegularCollection(collectionId),
+    onSuccess: (_, collectionId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.list() });
+    },
+  });
+}
+
+/**
+ * Toggle whitelist for an item in a smart collection
+ */
+export function useToggleSmartWhitelist() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      seriesId,
+      fileId,
+    }: {
+      collectionId: string;
+      seriesId?: string;
+      fileId?: string;
+    }) => toggleSmartWhitelist(collectionId, seriesId, fileId),
+    onSuccess: (_, { collectionId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
+    },
+  });
+}
+
+/**
+ * Toggle blacklist for an item in a smart collection
+ */
+export function useToggleSmartBlacklist() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      collectionId,
+      seriesId,
+      fileId,
+    }: {
+      collectionId: string;
+      seriesId?: string;
+      fileId?: string;
+    }) => toggleSmartBlacklist(collectionId, seriesId, fileId),
+    onSuccess: (_, { collectionId }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.detail(collectionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.expanded(collectionId) });
+    },
+  });
+}
+
+/**
+ * Get smart collection overrides (whitelist/blacklist)
+ */
+export function useSmartCollectionOverrides(collectionId: string | null | undefined) {
+  return useQuery({
+    queryKey: [...queryKeys.collections.detail(collectionId!), 'overrides'] as const,
+    queryFn: () => getSmartCollectionOverrides(collectionId!),
+    enabled: !!collectionId,
+  });
+}
+
 // Re-export types for convenience
-export type { Collection, CollectionWithItems };
+export type { Collection, CollectionWithItems, SmartFilter, SmartScope };

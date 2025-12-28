@@ -16,7 +16,7 @@ import {
   type RelationshipType,
   type RelatedSeriesInfo,
 } from '../../services/api/series';
-import { getCoverUrl, getApiCoverUrl } from '../../services/api.service';
+import { resolveSeriesCoverUrl } from '../../services/api.service';
 import { useToast } from '../../contexts/ToastContext';
 import './ManageRelationshipsModal.css';
 
@@ -84,12 +84,6 @@ export function ManageRelationshipsModal({
   }, [isOpen, children.length, parents.length]);
 
   if (!isOpen) return null;
-
-  const getCover = (s: RelatedSeriesInfo) => {
-    if (s.coverHash) return getApiCoverUrl(s.coverHash);
-    if (s.coverFileId) return getCoverUrl(s.coverFileId);
-    return null;
-  };
 
   // =============================================================================
   // Handlers
@@ -249,7 +243,7 @@ export function ManageRelationshipsModal({
     index: number,
     isParent: boolean
   ) => {
-    const coverUrl = getCover(item);
+    const coverUrl = resolveSeriesCoverUrl(item);
     const isDragging = draggedIndex === index && !isParent;
     const isDragOver = dragOverIndex === index && !isParent;
 

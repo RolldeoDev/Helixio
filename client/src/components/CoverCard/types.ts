@@ -21,6 +21,8 @@ export interface CoverCardFile {
   path?: string;
   libraryId?: string;
   metadata?: Partial<FileMetadata> | null;
+  /** Cover hash for cache-busting when cover changes */
+  coverHash?: string | null;
 }
 
 // =============================================================================

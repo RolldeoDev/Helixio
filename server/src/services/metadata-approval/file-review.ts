@@ -768,3 +768,190 @@ export function rejectAllFiles(sessionId: string): void {
   session.updatedAt = new Date();
   setSession(session);
 }
+
+/**
+ * Move a file from one series group to another
+ *
+ * This allows users to correct grouping mistakes during the approval workflow.
+ * The file will be re-matched against the target series' issues.
+ */
+export async function moveFileToSeriesGroup(
+  sessionId: string,
+  fileId: string,
+  targetSeriesGroupIndex: number
+): Promise<FileChange> {
+  const session = getSession(sessionId);
+  if (!session) throw new Error('Session not found');
+
+  // Find the source series group
+  const sourceGroupIndex = session.seriesGroups.findIndex((g) => g.fileIds.includes(fileId));
+  if (sourceGroupIndex === -1) throw new Error('File not found in any series group');
+
+  // Validate target group
+  if (targetSeriesGroupIndex < 0 || targetSeriesGroupIndex >= session.seriesGroups.length) {
+    throw new Error('Invalid target series group index');
+  }
+  if (targetSeriesGroupIndex === sourceGroupIndex) {
+    throw new Error('File is already in this series group');
+  }
+
+  const sourceGroup = session.seriesGroups[sourceGroupIndex]!;
+  const targetGroup = session.seriesGroups[targetSeriesGroupIndex]!;
+
+  // Get the file's index in the source group
+  const fileIndex = sourceGroup.fileIds.indexOf(fileId);
+  const filename = sourceGroup.filenames[fileIndex]!;
+  const parsedData = sourceGroup.parsedFiles[fileId];
+
+  // Remove from source group
+  sourceGroup.fileIds.splice(fileIndex, 1);
+  sourceGroup.filenames.splice(fileIndex, 1);
+  delete sourceGroup.parsedFiles[fileId];
+
+  // Add to target group
+  targetGroup.fileIds.push(fileId);
+  targetGroup.filenames.push(filename);
+  if (parsedData) {
+    targetGroup.parsedFiles[fileId] = parsedData;
+  }
+
+  // Find and update the file change
+  const fileChangeIndex = session.fileChanges.findIndex((fc) => fc.fileId === fileId);
+
+  // If target group has a selected series, re-match the file
+  if (targetGroup.status === 'approved' && targetGroup.selectedSeries) {
+    const issueSource = targetGroup.issueMatchingSeries || targetGroup.selectedSeries;
+    const metadataSource = targetGroup.selectedSeries;
+
+    // Check if this is a manga source
+    if (isMangaSource(metadataSource.source)) {
+      // Manga handling - use chapter number from filename
+      const chapterNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
+
+      if (chapterNumber) {
+        const fields = await mangaChapterToFieldChanges(fileId, chapterNumber, metadataSource, {
+          filename,
+          pageCount: 0,
+        });
+
+        const newFileChange: FileChange = {
+          fileId,
+          filename,
+          matchedIssue: {
+            source: metadataSource.source,
+            sourceId: `chapter-${chapterNumber}`,
+            number: chapterNumber,
+            title: undefined,
+            coverDate: undefined,
+          },
+          matchConfidence: 0.9,
+          fields,
+          status: 'matched',
+        };
+
+        if (fileChangeIndex !== -1) {
+          session.fileChanges[fileChangeIndex] = newFileChange;
+        } else {
+          session.fileChanges.push(newFileChange);
+        }
+
+        session.updatedAt = new Date();
+        setSession(session);
+        return newFileChange;
+      }
+    } else {
+      // Western comics - match against cached issues
+      const cachedIssues = await SeriesCache.getOrFetchIssues(issueSource.source, issueSource.sourceId);
+
+      if (cachedIssues && cachedIssues.issues.length > 0) {
+        const { issue, confidence } = matchFileToIssue(filename, cachedIssues.issues, parsedData);
+
+        if (issue && confidence >= 0.5) {
+          // Get full issue details for ComicVine
+          let fullIssue = issue;
+          if (issueSource.source === 'comicvine') {
+            try {
+              const fetchedIssue = await comicVine.getIssue(issue.id);
+              if (fetchedIssue) fullIssue = fetchedIssue as typeof issue;
+            } catch {
+              // Use cached issue if fetch fails
+            }
+          }
+
+          const fields = issueSource.source === 'comicvine'
+            ? await issueToFieldChanges(fileId, fullIssue as comicVine.ComicVineIssue, metadataSource)
+            : await metronIssueToFieldChanges(
+                fileId,
+                fullIssue as Parameters<typeof metronIssueToFieldChanges>[1],
+                metadataSource
+              );
+
+          const newFileChange: FileChange = {
+            fileId,
+            filename,
+            matchedIssue: {
+              source: issueSource.source,
+              sourceId: String(issue.id),
+              number: getIssueNumber(issue),
+              title: getIssueTitle(issue),
+              coverDate: issue.cover_date,
+            },
+            matchConfidence: confidence,
+            fields,
+            status: 'matched',
+          };
+
+          if (fileChangeIndex !== -1) {
+            session.fileChanges[fileChangeIndex] = newFileChange;
+          } else {
+            session.fileChanges.push(newFileChange);
+          }
+
+          session.updatedAt = new Date();
+          setSession(session);
+          return newFileChange;
+        }
+      }
+    }
+
+    // No match found - mark as unmatched in new group
+    const newFileChange: FileChange = {
+      fileId,
+      filename,
+      matchedIssue: null,
+      matchConfidence: 0,
+      fields: {},
+      status: 'unmatched',
+    };
+
+    if (fileChangeIndex !== -1) {
+      session.fileChanges[fileChangeIndex] = newFileChange;
+    } else {
+      session.fileChanges.push(newFileChange);
+    }
+
+    session.updatedAt = new Date();
+    setSession(session);
+    return newFileChange;
+  }
+
+  // Target group not approved yet - mark file as pending (will be matched when group is approved)
+  const pendingFileChange: FileChange = {
+    fileId,
+    filename,
+    matchedIssue: null,
+    matchConfidence: 0,
+    fields: {},
+    status: 'unmatched',
+  };
+
+  if (fileChangeIndex !== -1) {
+    session.fileChanges[fileChangeIndex] = pendingFileChange;
+  } else {
+    session.fileChanges.push(pendingFileChange);
+  }
+
+  session.updatedAt = new Date();
+  setSession(session);
+  return pendingFileChange;
+}

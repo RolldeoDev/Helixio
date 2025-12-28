@@ -78,6 +78,7 @@ import {
   getSeriesRelationships,
   reorderChildSeries,
   updateRelationshipType,
+  bulkAddChildSeries,
   type RelationshipType,
 } from '../services/series-relationship.service.js';
 import {
@@ -547,7 +548,7 @@ router.get('/:id/issues', optionalAuth, asyncHandler(async (req: Request, res: R
         ...(fetchAll ? {} : { skip: (page - 1) * limit!, take: limit! }),
         orderBy: [
           // Primary: numeric sort key (nulls sort to end)
-          { metadata: { issueNumberSort: sortOrder } },
+          { metadata: { issueNumberSort: { sort: sortOrder, nulls: 'last' } } },
           // Secondary: filename for ties and null values
           { filename: sortOrder },
         ],
@@ -1125,7 +1126,7 @@ router.get('/:id/reading-order', asyncHandler(async (req: Request, res: Response
     include: {
       issues: {
         orderBy: [
-          { metadata: { issueNumberSort: 'asc' } },
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
           { filename: 'asc' },
         ],
         include: {
@@ -1684,6 +1685,56 @@ router.patch('/:id/hidden', asyncHandler(async (req: Request, res: Response) => 
 // =============================================================================
 // Series Relationships (Parent/Child)
 // =============================================================================
+
+/**
+ * POST /api/series/bulk-link
+ * Link multiple series as children to a single parent series.
+ * Body: {
+ *   targetSeriesId: string,
+ *   children: Array<{ seriesId: string, relationshipType?: RelationshipType }>
+ * }
+ */
+router.post('/bulk-link', asyncHandler(async (req: Request, res: Response) => {
+  const { targetSeriesId, children } = req.body;
+
+  if (!targetSeriesId) {
+    return sendBadRequest(res, 'targetSeriesId is required');
+  }
+
+  if (!Array.isArray(children) || children.length === 0) {
+    return sendBadRequest(res, 'children array is required and must not be empty');
+  }
+
+  if (children.length > 10) {
+    return sendBadRequest(res, 'Maximum 10 series per bulk link operation');
+  }
+
+  // Validate relationship types
+  const validTypes = ['related', 'spinoff', 'prequel', 'sequel', 'bonus'];
+  for (const child of children) {
+    if (!child.seriesId) {
+      return sendBadRequest(res, 'Each child must have a seriesId');
+    }
+    if (child.relationshipType && !validTypes.includes(child.relationshipType)) {
+      return sendBadRequest(res, `Invalid relationship type: ${child.relationshipType}`);
+    }
+  }
+
+  const result = await bulkAddChildSeries({
+    parentSeriesId: targetSeriesId,
+    children: children.map((c: { seriesId: string; relationshipType?: string }) => ({
+      childSeriesId: c.seriesId,
+      relationshipType: (c.relationshipType || 'related') as RelationshipType,
+    })),
+  });
+
+  logger.info(
+    { targetSeriesId, childCount: children.length, successful: result.successful },
+    'Bulk linked series'
+  );
+
+  sendSuccess(res, result);
+}));
 
 /**
  * GET /api/series/:id/relationships

@@ -38,6 +38,17 @@ import {
   updateCollectionMetadata,
   getCollectionReadingProgress,
 } from '../services/collection.service.js';
+import {
+  refreshSmartCollection,
+  updateSmartFilter,
+  convertToSmartCollection,
+  convertToRegularCollection,
+  toggleWhitelist,
+  toggleBlacklist,
+  getSmartCollectionOverrides,
+  type SmartFilter,
+  type SmartScope,
+} from '../services/smart-collection.service.js';
 
 const router = Router();
 
@@ -87,13 +98,25 @@ router.get('/', async (req: Request, res: Response) => {
 /**
  * GET /api/collections/for-item
  * Get all collections containing a specific series or file for the current user
+ *
+ * Query params:
+ *   - seriesId: Filter by series ID
+ *   - fileId: Filter by file ID
+ *   - includeSeriesFiles: When 'true' and seriesId is provided, also includes collections
+ *     containing individual files from that series
  */
 router.get('/for-item', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { seriesId, fileId } = req.query as { seriesId?: string; fileId?: string };
+    const { seriesId, fileId, includeSeriesFiles } = req.query as {
+      seriesId?: string;
+      fileId?: string;
+      includeSeriesFiles?: string;
+    };
 
-    const collections = await getCollectionsForItem(userId, seriesId, fileId);
+    const collections = await getCollectionsForItem(userId, seriesId, fileId, {
+      includeSeriesFiles: includeSeriesFiles === 'true',
+    });
     res.json({ collections });
   } catch (error) {
     logError('collections.routes', error, { operation: 'getCollectionsForItem' });
@@ -907,6 +930,231 @@ router.put('/:id/metadata', async (req: Request, res: Response) => {
     }
     return res.status(500).json({
       error: 'Failed to update collection metadata',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Smart Collection Routes
+// =============================================================================
+
+/**
+ * POST /api/collections/:id/smart/refresh
+ * Manually refresh a smart collection (full re-evaluation)
+ */
+router.post('/:id/smart/refresh', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const result = await refreshSmartCollection(collectionId, userId);
+    return res.json({
+      success: true,
+      added: result.added,
+      removed: result.removed,
+    });
+  } catch (error) {
+    logError('collections', error, { action: 'smart-refresh' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to refresh smart collection',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * PUT /api/collections/:id/smart/filter
+ * Update the smart filter definition for a collection
+ */
+router.put('/:id/smart/filter', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { filter, scope } = req.body as { filter: SmartFilter; scope: SmartScope };
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!filter || !scope) {
+      return res.status(400).json({ error: 'Filter and scope are required' });
+    }
+
+    if (!['series', 'files'].includes(scope)) {
+      return res.status(400).json({ error: 'Scope must be "series" or "files"' });
+    }
+
+    await updateSmartFilter(collectionId, userId, filter, scope);
+    return res.json({ success: true });
+  } catch (error) {
+    logError('collections', error, { action: 'update-smart-filter' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to update smart filter',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/smart/convert
+ * Convert a regular collection to a smart collection
+ */
+router.post('/:id/smart/convert', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { filter, scope } = req.body as { filter: SmartFilter; scope: SmartScope };
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!filter || !scope) {
+      return res.status(400).json({ error: 'Filter and scope are required' });
+    }
+
+    const result = await convertToSmartCollection(collectionId, userId, filter, scope);
+    return res.json({
+      success: true,
+      added: result.added,
+      removed: result.removed,
+    });
+  } catch (error) {
+    logError('collections', error, { action: 'convert-to-smart' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to convert to smart collection',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/collections/:id/smart
+ * Convert a smart collection back to a regular collection
+ */
+router.delete('/:id/smart', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    await convertToRegularCollection(collectionId, userId);
+    return res.json({ success: true });
+  } catch (error) {
+    logError('collections', error, { action: 'convert-to-regular' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to convert to regular collection',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/smart/whitelist
+ * Toggle whitelist status for an item in a smart collection
+ */
+router.post('/:id/smart/whitelist', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { seriesId, fileId } = req.body as { seriesId?: string; fileId?: string };
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!seriesId && !fileId) {
+      return res.status(400).json({ error: 'Either seriesId or fileId is required' });
+    }
+
+    const isWhitelisted = await toggleWhitelist(collectionId, userId, seriesId, fileId);
+    return res.json({ success: true, isWhitelisted });
+  } catch (error) {
+    logError('collections', error, { action: 'toggle-whitelist' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to toggle whitelist',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/smart/blacklist
+ * Toggle blacklist status for an item in a smart collection
+ */
+router.post('/:id/smart/blacklist', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+    const { seriesId, fileId } = req.body as { seriesId?: string; fileId?: string };
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    if (!seriesId && !fileId) {
+      return res.status(400).json({ error: 'Either seriesId or fileId is required' });
+    }
+
+    const isBlacklisted = await toggleBlacklist(collectionId, userId, seriesId, fileId);
+    return res.json({ success: true, isBlacklisted });
+  } catch (error) {
+    logError('collections', error, { action: 'toggle-blacklist' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to toggle blacklist',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * GET /api/collections/:id/smart/overrides
+ * Get whitelist and blacklist items for a smart collection
+ */
+router.get('/:id/smart/overrides', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { id: collectionId } = req.params;
+
+    if (!collectionId) {
+      return res.status(400).json({ error: 'Collection ID is required' });
+    }
+
+    const overrides = await getSmartCollectionOverrides(collectionId, userId);
+    return res.json(overrides);
+  } catch (error) {
+    logError('collections', error, { action: 'get-overrides' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    return res.status(500).json({
+      error: 'Failed to get smart collection overrides',
       message: error instanceof Error ? error.message : String(error),
     });
   }

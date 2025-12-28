@@ -1009,16 +1009,45 @@ export async function reorderItems(userId: string, collectionId: string, ordered
 
 /**
  * Get all collections containing a specific series or file for a user
+ *
+ * @param options.includeSeriesFiles - When true and seriesId is provided, also finds
+ *   collections containing individual files from that series (not just the series itself)
  */
 export async function getCollectionsForItem(
   userId: string,
   seriesId?: string,
-  fileId?: string
+  fileId?: string,
+  options?: { includeSeriesFiles?: boolean }
 ): Promise<Collection[]> {
   const db = getDatabase();
 
   if (!seriesId && !fileId) {
     return [];
+  }
+
+  // Build the OR conditions for the query
+  const orConditions: Array<{ seriesId?: string; fileId?: string | { in: string[] } }> = [];
+
+  if (seriesId) {
+    orConditions.push({ seriesId });
+
+    // If includeSeriesFiles is true, also match collection items where the file belongs to this series
+    if (options?.includeSeriesFiles) {
+      // First, get all file IDs that belong to this series
+      const seriesFiles = await db.comicFile.findMany({
+        where: { seriesId },
+        select: { id: true },
+      });
+
+      if (seriesFiles.length > 0) {
+        const fileIds = seriesFiles.map((f) => f.id);
+        orConditions.push({ fileId: { in: fileIds } });
+      }
+    }
+  }
+
+  if (fileId) {
+    orConditions.push({ fileId });
   }
 
   // Find all collection items matching the series or file in user's collections
@@ -1027,10 +1056,7 @@ export async function getCollectionsForItem(
       userId,
       items: {
         some: {
-          OR: [
-            ...(seriesId ? [{ seriesId }] : []),
-            ...(fileId ? [{ fileId }] : []),
-          ],
+          OR: orConditions,
         },
       },
     },

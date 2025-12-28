@@ -795,6 +795,29 @@ export async function rejectAllFiles(
 }
 
 /**
+ * Move a file to a different series group within the approval session
+ */
+export async function moveFileToSeriesGroup(
+  sessionId: string,
+  fileId: string,
+  targetSeriesGroupIndex: number
+): Promise<{
+  success: boolean;
+  fileChange: FileChange;
+  seriesGroups: Array<{
+    index: number;
+    displayName: string;
+    fileCount: number;
+    status: string;
+    selectedSeries: { name: string; startYear?: number } | null;
+  }>;
+}> {
+  return post(`/metadata-approval/sessions/${sessionId}/files/${fileId}/move`, {
+    targetSeriesGroupIndex,
+  });
+}
+
+/**
  * Apply all approved changes to files
  */
 export async function applyApprovedChanges(sessionId: string): Promise<{

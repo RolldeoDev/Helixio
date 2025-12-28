@@ -9,8 +9,12 @@ import { getDatabase } from '../database.service.js';
 import { createServiceLogger } from '../logger.service.js';
 import { readComicInfo, mergeComicInfo, type ComicInfo } from '../comicinfo.service.js';
 import { convertCbrToCbz } from '../conversion.service.js';
-import { generateUniqueFilename, needsRename } from '../filename-generator.service.js';
-import { renameFile } from '../file-operations.service.js';
+import {
+  generateUniqueFilename,
+  needsRename,
+  generateUniqueFilenameFromTemplate,
+} from '../filename-generator.service.js';
+import { renameFile, renameFileWithTracking, moveFileWithTracking } from '../file-operations.service.js';
 import {
   writeSeriesJson,
   writeMixedSeriesCache,
@@ -180,7 +184,22 @@ export async function applyChanges(
     try {
       const file = await prisma.comicFile.findUnique({
         where: { id: fileChange.fileId },
-        select: { path: true },
+        select: {
+          path: true,
+          libraryId: true,
+          library: {
+            select: { rootPath: true },
+          },
+          series: {
+            select: {
+              name: true,
+              publisher: true,
+              startYear: true,
+              volume: true,
+              issueCount: true,
+            },
+          },
+        },
       });
 
       if (!file) {
@@ -221,15 +240,36 @@ export async function applyChanges(
 
       const completeMetadataResult = await readComicInfo(file.path);
       if (completeMetadataResult.success && completeMetadataResult.comicInfo) {
+        // Use template-based filename generation
         const {
           result: generatedResult,
           finalFilename,
+          finalPath,
           hadCollision: collision,
-        } = await generateUniqueFilename(completeMetadataResult.comicInfo, file.path);
+          needsFolderCreation,
+        } = await generateUniqueFilenameFromTemplate(
+          completeMetadataResult.comicInfo,
+          file.path,
+          file.library.rootPath,
+          {
+            libraryId: file.libraryId,
+            series: file.series ? {
+              name: file.series.name,
+              publisher: file.series.publisher || undefined,
+              startYear: file.series.startYear || undefined,
+              volume: file.series.volume || undefined,
+              issueCount: file.series.issueCount || undefined,
+            } : undefined,
+          }
+        );
 
         hadCollision = collision;
 
-        if (needsRename(filename, finalFilename)) {
+        // Check if rename/move is needed
+        const needsMove = file.path !== finalPath;
+        const needsRenameOnly = !needsMove && needsRename(filename, finalFilename);
+
+        if (needsMove || needsRenameOnly) {
           if (hadCollision) {
             progress(
               `Collision detected: ${generatedResult.filename}`,
@@ -237,17 +277,29 @@ export async function applyChanges(
             );
           }
 
-          progress(`Renaming: ${filename}`, `to ${finalFilename}`);
+          if (needsMove) {
+            progress(`Moving: ${filename}`, `to ${generatedResult.fullRelativePath}`);
+          } else {
+            progress(`Renaming: ${filename}`, `to ${finalFilename}`);
+          }
 
-          const renameResult = await renameFile(fileChange.fileId, finalFilename);
+          // Use move with tracking if folder changes, otherwise just rename
+          const operationResult = needsMove
+            ? await moveFileWithTracking(fileChange.fileId, finalPath, {
+                createDirs: needsFolderCreation,
+                templateId: generatedResult.templateId || undefined,
+              })
+            : await renameFileWithTracking(fileChange.fileId, finalFilename, {
+                templateId: generatedResult.templateId || undefined,
+              });
 
-          if (renameResult.success) {
+          if (operationResult.success) {
             newFilename = finalFilename;
             wasRenamed = true;
           } else {
             logger.warn(
-              { fileId: fileChange.fileId, filename, error: renameResult.error },
-              'Failed to rename file'
+              { fileId: fileChange.fileId, filename, error: operationResult.error },
+              'Failed to rename/move file'
             );
           }
         }

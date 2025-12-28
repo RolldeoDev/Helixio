@@ -12,16 +12,18 @@
 
 import { useCoverImage } from './useCoverImage';
 import type { ReadingProgressData } from './types';
-import { ProgressRing, CompletedBadge } from '../Progress';
+import { ProgressRing } from '../Progress';
 
 interface CoverImageProps {
   fileId: string;
   filename: string;
   progress?: ReadingProgressData;
   eager?: boolean;
+  /** Optional cover version/hash for cache-busting when cover changes */
+  coverVersion?: string | null;
 }
 
-export function CoverImage({ fileId, filename, progress, eager }: CoverImageProps) {
+export function CoverImage({ fileId, filename, progress, eager, coverVersion }: CoverImageProps) {
   const {
     status,
     isInView,
@@ -30,14 +32,17 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
     handleLoad,
     handleError,
     handleRetry,
-  } = useCoverImage(fileId, { eager });
+  } = useCoverImage(fileId, { eager, coverVersion });
 
   // Calculate progress percentage
   const progressPercent =
     progress && progress.totalPages > 0
       ? Math.round((progress.currentPage / progress.totalPages) * 100)
       : 0;
-  const isInProgress = progress && progress.currentPage > 0 && !progress.completed;
+  // Show progress ring when: in progress (started but not completed) OR completed
+  const showProgressRing = progress && (progress.currentPage > 0 || progress.completed);
+  // Use 100% for completed, otherwise use calculated progress
+  const displayProgress = progress?.completed ? 100 : progressPercent;
 
   return (
     <div ref={containerRef} className="cover-card__image-container">
@@ -78,18 +83,13 @@ export function CoverImage({ fileId, filename, progress, eager }: CoverImageProp
         />
       )}
 
-      {/* Reading progress ring */}
-      {isInProgress && (
+      {/* Reading progress ring - shows percentage when in progress, 100% when completed */}
+      {showProgressRing && (
         <ProgressRing
-          progress={progressPercent}
+          progress={displayProgress}
           size="sm"
           className="cover-card__progress-ring"
         />
-      )}
-
-      {/* Completed badge */}
-      {progress?.completed && (
-        <CompletedBadge size="sm" className="cover-card__completed-badge" />
       )}
     </div>
   );

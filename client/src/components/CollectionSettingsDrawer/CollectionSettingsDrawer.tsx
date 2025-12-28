@@ -24,9 +24,20 @@ import {
   getCollectionDescriptionGenerationStatus,
   generateCollectionDescription,
 } from '../../services/api.service';
+import {
+  type SmartFilter,
+  type SmartFilterGroup,
+  type SmartScope,
+} from '../../services/api/series';
+import {
+  useRefreshSmartCollection,
+  useConvertToSmartCollection,
+  useConvertToRegularCollection,
+  useSmartCollectionOverrides,
+} from '../../hooks/queries/useCollections';
 import './CollectionSettingsDrawer.css';
 
-type TabId = 'general' | 'appearance' | 'display' | 'items';
+type TabId = 'general' | 'appearance' | 'display' | 'items' | 'smart';
 
 interface CollectionSettingsDrawerProps {
   collection: Collection | null;
@@ -139,6 +150,27 @@ export function CollectionSettingsDrawer({
   const [showGenerateConfirmDialog, setShowGenerateConfirmDialog] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
+  // Smart Collection State
+  const [isSmartEnabled, setIsSmartEnabled] = useState(false);
+  const [smartScope, setSmartScope] = useState<SmartScope>('series');
+  const [smartFilter, setSmartFilter] = useState<SmartFilter>({
+    id: 'root',
+    rootOperator: 'AND',
+    groups: [],
+  });
+  const [smartError, setSmartError] = useState<string | null>(null);
+  const [showDisableSmartConfirm, setShowDisableSmartConfirm] = useState(false);
+
+  // Smart Collection Mutations
+  const refreshSmartMutation = useRefreshSmartCollection();
+  const convertToSmartMutation = useConvertToSmartCollection();
+  const convertToRegularMutation = useConvertToRegularCollection();
+
+  // Fetch smart collection overrides when viewing a smart collection
+  const { data: smartOverrides } = useSmartCollectionOverrides(
+    collection?.isSmart ? collection.id : undefined
+  );
+
   // Initialize form state when collection changes
   useEffect(() => {
     if (collection) {
@@ -169,6 +201,19 @@ export function CollectionSettingsDrawer({
       setNotes(collection.notes || '');
       setVisibility(collection.visibility || 'private');
       setReadingMode(collection.readingMode || null);
+      // Smart collection state
+      setIsSmartEnabled(collection.isSmart || false);
+      setSmartScope((collection.smartScope as SmartScope) || 'series');
+      if (collection.filterDefinition) {
+        try {
+          setSmartFilter(JSON.parse(collection.filterDefinition));
+        } catch {
+          setSmartFilter({ id: 'root', rootOperator: 'AND', groups: [] });
+        }
+      } else {
+        setSmartFilter({ id: 'root', rootOperator: 'AND', groups: [] });
+      }
+      setSmartError(null);
       setHasChanges(false);
     }
   }, [collection]);
@@ -559,11 +604,21 @@ export function CollectionSettingsDrawer({
 
   const portalTarget = document.body;
 
-  const tabs: { id: TabId; label: string }[] = [
+  const tabs: { id: TabId; label: string; icon?: React.ReactNode }[] = [
     { id: 'general', label: 'General' },
     { id: 'appearance', label: 'Appearance' },
     { id: 'display', label: 'Display' },
     { id: 'items', label: `Items (${localItems.length})` },
+    // Smart tab only for non-system collections
+    ...(!collection.isSystem ? [{
+      id: 'smart' as TabId,
+      label: collection.isSmart ? 'Smart' : 'Smart',
+      icon: collection.isSmart ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+          <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+        </svg>
+      ) : null,
+    }] : []),
   ];
 
   return createPortal(
@@ -587,9 +642,10 @@ export function CollectionSettingsDrawer({
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              className={`drawer-tab ${activeTab === tab.id ? 'active' : ''}`}
+              className={`drawer-tab ${activeTab === tab.id ? 'active' : ''} ${tab.icon ? 'has-icon' : ''}`}
               onClick={() => setActiveTab(tab.id)}
             >
+              {tab.icon && <span className="tab-icon">{tab.icon}</span>}
               {tab.label}
             </button>
           ))}
@@ -1324,6 +1380,646 @@ export function CollectionSettingsDrawer({
               </div>
             </div>
           )}
+
+          {/* Smart Tab */}
+          {activeTab === 'smart' && !collection.isSystem && (
+            <div className="tab-content smart-tab">
+              {/* Smart Collection Toggle */}
+              <div className="form-group">
+                <div className="toggle-row">
+                  <div className="toggle-info">
+                    <label>Smart Collection</label>
+                    <span className="form-hint">
+                      Automatically populate this collection based on filter criteria.
+                      {collection.isSmart && collection.lastEvaluatedAt && (
+                        <span className="last-evaluated">
+                          {' '}Last updated: {new Date(collection.lastEvaluatedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    className={`toggle-switch ${isSmartEnabled ? 'active' : ''}`}
+                    onClick={() => {
+                      if (isSmartEnabled && collection.isSmart) {
+                        // Show confirmation when disabling
+                        setShowDisableSmartConfirm(true);
+                      } else {
+                        setIsSmartEnabled(!isSmartEnabled);
+                        markChanged();
+                      }
+                    }}
+                    type="button"
+                    disabled={convertToSmartMutation.isPending || convertToRegularMutation.isPending}
+                  >
+                    <span className="toggle-slider" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Smart Collection Settings (only show when enabled) */}
+              {isSmartEnabled && (
+                <>
+                  {/* Scope Selector */}
+                  <div className="form-group">
+                    <label>Match Scope</label>
+                    <div className="scope-options">
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="smartScope"
+                          value="series"
+                          checked={smartScope === 'series'}
+                          onChange={() => { setSmartScope('series'); markChanged(); }}
+                        />
+                        <span className="radio-label">
+                          <strong>Series</strong>
+                          <span className="radio-description">Match criteria against series metadata</span>
+                        </span>
+                      </label>
+                      <label className="radio-option">
+                        <input
+                          type="radio"
+                          name="smartScope"
+                          value="files"
+                          checked={smartScope === 'files'}
+                          onChange={() => { setSmartScope('files'); markChanged(); }}
+                        />
+                        <span className="radio-label">
+                          <strong>Issues</strong>
+                          <span className="radio-description">Match criteria against individual issue metadata</span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Filter Builder */}
+                  <div className="form-group filter-builder-section">
+                    <div className="section-header">
+                      <label>Filter Criteria</label>
+                      <div className="filter-actions">
+                        <select
+                          value={smartFilter.rootOperator}
+                          onChange={(e) => {
+                            setSmartFilter(prev => ({
+                              ...prev,
+                              rootOperator: e.target.value as 'AND' | 'OR'
+                            }));
+                            markChanged();
+                          }}
+                          className="operator-select"
+                        >
+                          <option value="AND">Match ALL groups</option>
+                          <option value="OR">Match ANY group</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="btn-small add-group-btn"
+                          onClick={() => {
+                            const newGroup: SmartFilterGroup = {
+                              id: `group-${Date.now()}`,
+                              operator: 'AND',
+                              conditions: [{
+                                id: `cond-${Date.now()}`,
+                                field: 'name',
+                                comparison: 'contains',
+                                value: ''
+                              }]
+                            };
+                            setSmartFilter(prev => ({
+                              ...prev,
+                              groups: [...prev.groups, newGroup]
+                            }));
+                            markChanged();
+                          }}
+                        >
+                          + Add Group
+                        </button>
+                      </div>
+                    </div>
+
+                    {smartFilter.groups.length === 0 ? (
+                      <div className="no-filters-message">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                        </svg>
+                        <p>No filter criteria defined.</p>
+                        <span>Add a filter group to define which items should be included in this collection.</span>
+                      </div>
+                    ) : (
+                      <div className="filter-groups">
+                        {smartFilter.groups.map((group, groupIndex) => (
+                          <div key={group.id} className="filter-group">
+                            <div className="group-header">
+                              <span className="group-label">
+                                {groupIndex > 0 && (
+                                  <span className="connector">{smartFilter.rootOperator}</span>
+                                )}
+                                Group {groupIndex + 1}
+                              </span>
+                              <div className="group-controls">
+                                <select
+                                  value={group.operator}
+                                  onChange={(e) => {
+                                    setSmartFilter(prev => ({
+                                      ...prev,
+                                      groups: prev.groups.map((g, i) =>
+                                        i === groupIndex ? { ...g, operator: e.target.value as 'AND' | 'OR' } : g
+                                      )
+                                    }));
+                                    markChanged();
+                                  }}
+                                  className="operator-select-small"
+                                >
+                                  <option value="AND">ALL</option>
+                                  <option value="OR">ANY</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  className="remove-group-btn"
+                                  onClick={() => {
+                                    setSmartFilter(prev => ({
+                                      ...prev,
+                                      groups: prev.groups.filter((_, i) => i !== groupIndex)
+                                    }));
+                                    markChanged();
+                                  }}
+                                  title="Remove group"
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M18 6L6 18M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="group-conditions">
+                              {group.conditions.map((condition, condIndex) => (
+                                <div key={condition.id} className="condition-row">
+                                  {condIndex > 0 && (
+                                    <span className="condition-connector">{group.operator}</span>
+                                  )}
+                                  <select
+                                    value={condition.field}
+                                    onChange={(e) => {
+                                      setSmartFilter(prev => ({
+                                        ...prev,
+                                        groups: prev.groups.map((g, gi) =>
+                                          gi === groupIndex ? {
+                                            ...g,
+                                            conditions: g.conditions.map((c, ci) =>
+                                              ci === condIndex ? { ...c, field: e.target.value, value: '', value2: undefined } : c
+                                            )
+                                          } : g
+                                        )
+                                      }));
+                                      markChanged();
+                                    }}
+                                    className="field-select"
+                                  >
+                                    <optgroup label="Text Fields">
+                                      <option value="name">Name</option>
+                                      <option value="publisher">Publisher</option>
+                                      <option value="writer">Writer</option>
+                                      <option value="penciller">Penciller</option>
+                                      <option value="genres">Genres</option>
+                                      <option value="tags">Tags</option>
+                                      <option value="summary">Summary</option>
+                                    </optgroup>
+                                    <optgroup label="Numeric Fields">
+                                      <option value="startYear">Start Year</option>
+                                      <option value="issueCount">Issue Count</option>
+                                      <option value="rating">Rating</option>
+                                      <option value="pageCount">Page Count</option>
+                                    </optgroup>
+                                    <optgroup label="Status Fields">
+                                      <option value="readStatus">Read Status</option>
+                                      <option value="type">Type</option>
+                                      <option value="ageRating">Age Rating</option>
+                                    </optgroup>
+                                    <optgroup label="Date Fields">
+                                      <option value="dateAdded">Date Added</option>
+                                      <option value="lastReadAt">Last Read</option>
+                                    </optgroup>
+                                  </select>
+
+                                  <select
+                                    value={condition.comparison}
+                                    onChange={(e) => {
+                                      setSmartFilter(prev => ({
+                                        ...prev,
+                                        groups: prev.groups.map((g, gi) =>
+                                          gi === groupIndex ? {
+                                            ...g,
+                                            conditions: g.conditions.map((c, ci) =>
+                                              ci === condIndex ? { ...c, comparison: e.target.value } : c
+                                            )
+                                          } : g
+                                        )
+                                      }));
+                                      markChanged();
+                                    }}
+                                    className="comparison-select"
+                                  >
+                                    {['name', 'publisher', 'writer', 'penciller', 'genres', 'tags', 'summary'].includes(condition.field) && (
+                                      <>
+                                        <option value="contains">contains</option>
+                                        <option value="notContains">doesn't contain</option>
+                                        <option value="equals">equals</option>
+                                        <option value="notEquals">doesn't equal</option>
+                                        <option value="startsWith">starts with</option>
+                                        <option value="endsWith">ends with</option>
+                                        <option value="regex">matches regex</option>
+                                        <option value="isEmpty">is empty</option>
+                                        <option value="isNotEmpty">is not empty</option>
+                                      </>
+                                    )}
+                                    {['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) && (
+                                      <>
+                                        <option value="equals">equals</option>
+                                        <option value="notEquals">doesn't equal</option>
+                                        <option value="greaterThan">greater than</option>
+                                        <option value="lessThan">less than</option>
+                                        <option value="greaterOrEqual">greater or equal</option>
+                                        <option value="lessOrEqual">less or equal</option>
+                                        <option value="between">between</option>
+                                      </>
+                                    )}
+                                    {condition.field === 'readStatus' && (
+                                      <>
+                                        <option value="equals">is</option>
+                                        <option value="notEquals">is not</option>
+                                      </>
+                                    )}
+                                    {['type', 'ageRating'].includes(condition.field) && (
+                                      <>
+                                        <option value="equals">is</option>
+                                        <option value="notEquals">is not</option>
+                                      </>
+                                    )}
+                                    {['dateAdded', 'lastReadAt'].includes(condition.field) && (
+                                      <>
+                                        <option value="inLast">in the last</option>
+                                        <option value="notInLast">not in the last</option>
+                                        <option value="before">before</option>
+                                        <option value="after">after</option>
+                                        <option value="between">between</option>
+                                      </>
+                                    )}
+                                  </select>
+
+                                  {/* Value input - varies by field type */}
+                                  {!['isEmpty', 'isNotEmpty'].includes(condition.comparison) && (
+                                    <>
+                                      {condition.field === 'readStatus' ? (
+                                        <select
+                                          value={condition.value}
+                                          onChange={(e) => {
+                                            setSmartFilter(prev => ({
+                                              ...prev,
+                                              groups: prev.groups.map((g, gi) =>
+                                                gi === groupIndex ? {
+                                                  ...g,
+                                                  conditions: g.conditions.map((c, ci) =>
+                                                    ci === condIndex ? { ...c, value: e.target.value } : c
+                                                  )
+                                                } : g
+                                              )
+                                            }));
+                                            markChanged();
+                                          }}
+                                          className="value-select"
+                                        >
+                                          <option value="">Select...</option>
+                                          <option value="unread">Unread</option>
+                                          <option value="reading">Reading</option>
+                                          <option value="completed">Completed</option>
+                                        </select>
+                                      ) : condition.field === 'type' ? (
+                                        <select
+                                          value={condition.value}
+                                          onChange={(e) => {
+                                            setSmartFilter(prev => ({
+                                              ...prev,
+                                              groups: prev.groups.map((g, gi) =>
+                                                gi === groupIndex ? {
+                                                  ...g,
+                                                  conditions: g.conditions.map((c, ci) =>
+                                                    ci === condIndex ? { ...c, value: e.target.value } : c
+                                                  )
+                                                } : g
+                                              )
+                                            }));
+                                            markChanged();
+                                          }}
+                                          className="value-select"
+                                        >
+                                          <option value="">Select...</option>
+                                          <option value="western">Western</option>
+                                          <option value="manga">Manga</option>
+                                        </select>
+                                      ) : ['inLast', 'notInLast'].includes(condition.comparison) ? (
+                                        <div className="date-relative-input">
+                                          <input
+                                            type="number"
+                                            value={condition.value}
+                                            onChange={(e) => {
+                                              setSmartFilter(prev => ({
+                                                ...prev,
+                                                groups: prev.groups.map((g, gi) =>
+                                                  gi === groupIndex ? {
+                                                    ...g,
+                                                    conditions: g.conditions.map((c, ci) =>
+                                                      ci === condIndex ? { ...c, value: e.target.value } : c
+                                                    )
+                                                  } : g
+                                                )
+                                              }));
+                                              markChanged();
+                                            }}
+                                            placeholder="7"
+                                            min="1"
+                                            className="value-input-small"
+                                          />
+                                          <select
+                                            value={condition.value2 || 'days'}
+                                            onChange={(e) => {
+                                              setSmartFilter(prev => ({
+                                                ...prev,
+                                                groups: prev.groups.map((g, gi) =>
+                                                  gi === groupIndex ? {
+                                                    ...g,
+                                                    conditions: g.conditions.map((c, ci) =>
+                                                      ci === condIndex ? { ...c, value2: e.target.value } : c
+                                                    )
+                                                  } : g
+                                                )
+                                              }));
+                                              markChanged();
+                                            }}
+                                            className="unit-select"
+                                          >
+                                            <option value="days">days</option>
+                                            <option value="weeks">weeks</option>
+                                            <option value="months">months</option>
+                                            <option value="years">years</option>
+                                          </select>
+                                        </div>
+                                      ) : condition.comparison === 'between' ? (
+                                        <div className="between-inputs">
+                                          <input
+                                            type={['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) ? 'number' : 'date'}
+                                            value={condition.value}
+                                            onChange={(e) => {
+                                              setSmartFilter(prev => ({
+                                                ...prev,
+                                                groups: prev.groups.map((g, gi) =>
+                                                  gi === groupIndex ? {
+                                                    ...g,
+                                                    conditions: g.conditions.map((c, ci) =>
+                                                      ci === condIndex ? { ...c, value: e.target.value } : c
+                                                    )
+                                                  } : g
+                                                )
+                                              }));
+                                              markChanged();
+                                            }}
+                                            placeholder="From"
+                                            className="value-input-small"
+                                          />
+                                          <span className="between-separator">and</span>
+                                          <input
+                                            type={['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) ? 'number' : 'date'}
+                                            value={condition.value2 || ''}
+                                            onChange={(e) => {
+                                              setSmartFilter(prev => ({
+                                                ...prev,
+                                                groups: prev.groups.map((g, gi) =>
+                                                  gi === groupIndex ? {
+                                                    ...g,
+                                                    conditions: g.conditions.map((c, ci) =>
+                                                      ci === condIndex ? { ...c, value2: e.target.value } : c
+                                                    )
+                                                  } : g
+                                                )
+                                              }));
+                                              markChanged();
+                                            }}
+                                            placeholder="To"
+                                            className="value-input-small"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <input
+                                          type={['startYear', 'issueCount', 'rating', 'pageCount'].includes(condition.field) ? 'number' : ['before', 'after'].includes(condition.comparison) ? 'date' : 'text'}
+                                          value={condition.value}
+                                          onChange={(e) => {
+                                            setSmartFilter(prev => ({
+                                              ...prev,
+                                              groups: prev.groups.map((g, gi) =>
+                                                gi === groupIndex ? {
+                                                  ...g,
+                                                  conditions: g.conditions.map((c, ci) =>
+                                                    ci === condIndex ? { ...c, value: e.target.value } : c
+                                                  )
+                                                } : g
+                                              )
+                                            }));
+                                            markChanged();
+                                          }}
+                                          placeholder="Value..."
+                                          className="value-input"
+                                        />
+                                      )}
+                                    </>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="remove-condition-btn"
+                                    onClick={() => {
+                                      setSmartFilter(prev => ({
+                                        ...prev,
+                                        groups: prev.groups.map((g, gi) =>
+                                          gi === groupIndex ? {
+                                            ...g,
+                                            conditions: g.conditions.filter((_, ci) => ci !== condIndex)
+                                          } : g
+                                        ).filter(g => g.conditions.length > 0)
+                                      }));
+                                      markChanged();
+                                    }}
+                                    title="Remove condition"
+                                  >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <path d="M18 6L6 18M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))}
+
+                              <button
+                                type="button"
+                                className="add-condition-btn"
+                                onClick={() => {
+                                  setSmartFilter(prev => ({
+                                    ...prev,
+                                    groups: prev.groups.map((g, gi) =>
+                                      gi === groupIndex ? {
+                                        ...g,
+                                        conditions: [...g.conditions, {
+                                          id: `cond-${Date.now()}`,
+                                          field: 'name',
+                                          comparison: 'contains',
+                                          value: ''
+                                        }]
+                                      } : g
+                                    )
+                                  }));
+                                  markChanged();
+                                }}
+                              >
+                                + Add Condition
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="smart-actions">
+                    {collection.isSmart && (
+                      <button
+                        type="button"
+                        className="refresh-smart-btn"
+                        onClick={async () => {
+                          try {
+                            setSmartError(null);
+                            const result = await refreshSmartMutation.mutateAsync(collection.id);
+                            // Show success feedback
+                            setSmartError(`Refreshed: ${result.added} added, ${result.removed} removed`);
+                            setTimeout(() => setSmartError(null), 3000);
+                          } catch (err) {
+                            setSmartError(err instanceof Error ? err.message : 'Failed to refresh');
+                          }
+                        }}
+                        disabled={refreshSmartMutation.isPending}
+                      >
+                        {refreshSmartMutation.isPending ? (
+                          <>
+                            <span className="spinner-small" />
+                            Refreshing...
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M23 4v6h-6M1 20v-6h6" />
+                              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                            </svg>
+                            Refresh Now
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {!collection.isSmart && smartFilter.groups.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn-primary apply-smart-btn"
+                        onClick={async () => {
+                          try {
+                            setSmartError(null);
+                            const result = await convertToSmartMutation.mutateAsync({
+                              collectionId: collection.id,
+                              filter: smartFilter,
+                              scope: smartScope,
+                            });
+                            setSmartError(`Smart collection created: ${result.added} items added`);
+                            setTimeout(() => setSmartError(null), 3000);
+                          } catch (err) {
+                            setSmartError(err instanceof Error ? err.message : 'Failed to convert');
+                          }
+                        }}
+                        disabled={convertToSmartMutation.isPending}
+                      >
+                        {convertToSmartMutation.isPending ? 'Converting...' : 'Enable Smart Collection'}
+                      </button>
+                    )}
+                  </div>
+
+                  {smartError && (
+                    <div className={`smart-feedback ${smartError.startsWith('Refreshed') || smartError.startsWith('Smart collection created') ? 'success' : 'error'}`}>
+                      {smartError}
+                    </div>
+                  )}
+
+                  {/* Whitelist/Blacklist Section */}
+                  {collection.isSmart && smartOverrides && (
+                    <div className="overrides-section">
+                      <div className="form-section">
+                        <div className="section-header">
+                          <h4>Manual Overrides</h4>
+                          <span className="form-hint">Items manually included or excluded from automatic filtering</span>
+                        </div>
+
+                        {/* Whitelist */}
+                        <div className="override-list">
+                          <label className="override-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                              <polyline points="22 4 12 14.01 9 11.01" />
+                            </svg>
+                            Always Include ({smartOverrides.whitelist.length})
+                          </label>
+                          {smartOverrides.whitelist.length === 0 ? (
+                            <span className="empty-override">No items manually included</span>
+                          ) : (
+                            <div className="override-items">
+                              {smartOverrides.whitelist.slice(0, 5).map((item, idx) => (
+                                <span key={idx} className="override-item whitelist">
+                                  {item.seriesId ? 'Series' : 'Issue'} #{idx + 1}
+                                </span>
+                              ))}
+                              {smartOverrides.whitelist.length > 5 && (
+                                <span className="override-more">+{smartOverrides.whitelist.length - 5} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Blacklist */}
+                        <div className="override-list">
+                          <label className="override-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                            </svg>
+                            Always Exclude ({smartOverrides.blacklist.length})
+                          </label>
+                          {smartOverrides.blacklist.length === 0 ? (
+                            <span className="empty-override">No items manually excluded</span>
+                          ) : (
+                            <div className="override-items">
+                              {smartOverrides.blacklist.slice(0, 5).map((item, idx) => (
+                                <span key={idx} className="override-item blacklist">
+                                  {item.seriesId ? 'Series' : 'Issue'} #{idx + 1}
+                                </span>
+                              ))}
+                              {smartOverrides.blacklist.length > 5 && (
+                                <span className="override-more">+{smartOverrides.blacklist.length - 5} more</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1362,6 +2058,48 @@ export function CollectionSettingsDrawer({
                   onClick={performGenerateDescription}
                 >
                   Replace
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Disable Smart Collection Confirmation Dialog */}
+        {showDisableSmartConfirm && (
+          <div className="confirm-dialog-overlay" onClick={() => setShowDisableSmartConfirm(false)}>
+            <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+              <h3>Disable Smart Collection?</h3>
+              <p>
+                This will convert the collection back to a regular collection. The current items will remain,
+                but automatic updates based on filter criteria will stop. Manual overrides (whitelist/blacklist)
+                will be preserved but inactive.
+              </p>
+              <div className="confirm-dialog-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowDisableSmartConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={async () => {
+                    setShowDisableSmartConfirm(false);
+                    try {
+                      setSmartError(null);
+                      await convertToRegularMutation.mutateAsync(collection.id);
+                      setIsSmartEnabled(false);
+                      setSmartError('Smart collection disabled');
+                      setTimeout(() => setSmartError(null), 3000);
+                    } catch (err) {
+                      setSmartError(err instanceof Error ? err.message : 'Failed to disable');
+                    }
+                  }}
+                  disabled={convertToRegularMutation.isPending}
+                >
+                  {convertToRegularMutation.isPending ? 'Disabling...' : 'Disable Smart'}
                 </button>
               </div>
             </div>

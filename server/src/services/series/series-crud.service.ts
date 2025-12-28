@@ -156,6 +156,15 @@ export async function getSeries(
         select: { issues: true },
       },
       progress: progressInclude,
+      // Include first issue for cover fallback
+      issues: {
+        take: 1,
+        orderBy: [
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+          { filename: 'asc' },
+        ],
+        select: { id: true },
+      },
     },
   });
 
@@ -256,7 +265,7 @@ export async function getSeriesList(
       issues: {
         take: 1,
         orderBy: [
-          { metadata: { issueNumberSort: 'asc' } },
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
           { filename: 'asc' },
         ],
         select: { id: true },
@@ -387,7 +396,7 @@ export async function getSeriesCover(
       issues: {
         take: 1,
         orderBy: [
-          { metadata: { issueNumberSort: 'asc' } },
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
           { filename: 'asc' },
         ],
         include: {

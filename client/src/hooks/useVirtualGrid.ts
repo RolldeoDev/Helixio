@@ -293,9 +293,18 @@ export function useVirtualGrid<T>(
       setContainerWidth(width);
       setContainerHeight(height);
 
-      // Recalculate visible range with new dimensions
-      const newRange = calculateVisibleRange(scrollTopRef.current);
-      setVisibleRange(newRange);
+      // Calculate visible range directly using measured height
+      // This avoids stale closure issues with calculateVisibleRange callback
+      if (height > 0) {
+        const rowHeight = itemHeight + actualGap;
+        const scrollTop = scrollTopRef.current;
+        const startRow = Math.floor(scrollTop / rowHeight);
+        const visibleRows = Math.ceil(height / rowHeight);
+        const startRowWithOverscan = Math.max(0, startRow - overscan);
+        const endRowWithOverscan = Math.min(rows - 1, startRow + visibleRows + overscan);
+
+        setVisibleRange({ startRow: startRowWithOverscan, endRow: endRowWithOverscan });
+      }
     };
 
     updateDimensions();
@@ -317,7 +326,7 @@ export function useVirtualGrid<T>(
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [handleScroll, calculateVisibleRange, horizontalPadding]);
+  }, [handleScroll, horizontalPadding, itemHeight, actualGap, rows, overscan]);
 
   // Scroll to a specific item index
   const scrollTo = useCallback((index: number) => {

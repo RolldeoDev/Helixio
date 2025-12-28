@@ -49,6 +49,8 @@ import { MergeSeriesModal } from '../components/MergeSeriesModal';
 import { LinkSeriesModal } from '../components/LinkSeriesModal';
 import { ManageRelationshipsModal } from '../components/ManageRelationshipsModal';
 import { removeChildSeries, updateRelationshipType, type RelationshipType } from '../services/api/series';
+import { useSeriesCollections, useRemoveFromCollection } from '../hooks/queries/useCollections';
+import type { Collection } from '../services/api/series';
 import { SeriesMetadataSearchModal } from '../components/SeriesMetadataSearchModal';
 import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
@@ -180,8 +182,12 @@ export function SeriesDetailPage() {
   const [parentSeries, setParentSeries] = useState<RelatedSeriesInfo[]>([]);
   const [childSeries, setChildSeries] = useState<RelatedSeriesInfo[]>([]);
 
-  // Tab state for Issues/Related Series tabs
-  const [activeTab, setActiveTab] = useState<'issues' | 'related'>('issues');
+  // Tab state for Issues/Related Series/Collections tabs
+  const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'collections'>('issues');
+
+  // Fetch collections containing this series (or its files)
+  const { data: seriesCollections = [] } = useSeriesCollections(seriesId);
+  const removeFromCollectionMutation = useRemoveFromCollection();
 
   // Combined related series for the unified row with isParent flag
   const allRelatedSeries = useMemo(() => {
@@ -356,6 +362,24 @@ export function SeriesDetailPage() {
       }
     },
     [seriesId, parentSeries, fetchSeries, addToast]
+  );
+
+  // Handle collection card action menu
+  const handleCollectionAction = useCallback(
+    (actionId: string, collection: Collection) => {
+      if (actionId === 'view') {
+        navigate(`/collection/${collection.id}`);
+      } else if (actionId === 'remove') {
+        removeFromCollectionMutation.mutate(
+          { collectionId: collection.id, seriesId },
+          {
+            onSuccess: () => addToast('success', `Removed from "${collection.name}"`),
+            onError: () => addToast('error', 'Failed to remove from collection'),
+          }
+        );
+      }
+    },
+    [navigate, seriesId, removeFromCollectionMutation, addToast]
   );
 
   // Set breadcrumbs when series data loads
@@ -874,8 +898,8 @@ export function SeriesDetailPage() {
         </div>
       )}
 
-      {/* Content Section - Tabbed when related series exist, simple when not */}
-      {allRelatedSeries.length > 0 ? (
+      {/* Content Section - Tabbed when related series or collections exist, simple when not */}
+      {allRelatedSeries.length > 0 || seriesCollections.length > 0 ? (
         <div className="series-content-section">
           {/* Tab Navigation */}
           <div className="series-content-tabs">
@@ -886,13 +910,24 @@ export function SeriesDetailPage() {
               Issues
               <span className="tab-count">{totalOwned}</span>
             </button>
-            <button
-              className={`series-content-tab ${activeTab === 'related' ? 'active' : ''}`}
-              onClick={() => setActiveTab('related')}
-            >
-              Related Series
-              <span className="tab-count">{allRelatedSeries.length}</span>
-            </button>
+            {allRelatedSeries.length > 0 && (
+              <button
+                className={`series-content-tab ${activeTab === 'related' ? 'active' : ''}`}
+                onClick={() => setActiveTab('related')}
+              >
+                Related Series
+                <span className="tab-count">{allRelatedSeries.length}</span>
+              </button>
+            )}
+            {seriesCollections.length > 0 && (
+              <button
+                className={`series-content-tab ${activeTab === 'collections' ? 'active' : ''}`}
+                onClick={() => setActiveTab('collections')}
+              >
+                Collections
+                <span className="tab-count">{seriesCollections.length}</span>
+              </button>
+            )}
           </div>
 
           {/* Tab Content */}
@@ -1026,6 +1061,76 @@ export function SeriesDetailPage() {
                             }
                           }}
                           ariaLabel={`Actions for ${related.name}`}
+                          size="small"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {activeTab === 'collections' && (
+              <div className="series-collections-tab-content">
+                {seriesCollections.map((collection) => {
+                  const collectionCoverUrl = collection.coverHash
+                    ? getApiCoverUrl(collection.coverHash)
+                    : collection.coverFileId
+                      ? getCoverUrl(collection.coverFileId)
+                      : null;
+
+                  return (
+                    <div
+                      key={collection.id}
+                      className="collection-series-card"
+                      onClick={() => navigate(`/collection/${collection.id}`)}
+                    >
+                      {/* Cover image */}
+                      <div className="collection-series-card__cover">
+                        {collectionCoverUrl ? (
+                          <img src={collectionCoverUrl} alt={collection.name} loading="lazy" />
+                        ) : (
+                          <div className="collection-series-card__cover-placeholder">
+                            {collection.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info section */}
+                      <div className="collection-series-card__info">
+                        <h4 className="collection-series-card__name" title={collection.name}>
+                          {collection.name}
+                        </h4>
+                        <div className="collection-series-card__meta">
+                          {collection.itemCount !== undefined && (
+                            <span>{collection.itemCount} items</span>
+                          )}
+                          {collection.isSystem && collection.systemKey && (
+                            <>
+                              <span className="collection-series-card__meta-separator" aria-hidden="true" />
+                              <span className="collection-series-card__system-badge">
+                                {collection.systemKey === 'favorites' ? 'Favorites' : 'Want to Read'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        {collection.deck && (
+                          <p className="collection-series-card__deck">{collection.deck}</p>
+                        )}
+                      </div>
+
+                      {/* Actions menu */}
+                      <div
+                        className="collection-series-card__actions"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ActionMenu
+                          items={[
+                            { id: 'view', label: 'View Collection' },
+                            { id: 'remove', label: 'Remove Series', danger: true, dividerBefore: true },
+                          ]}
+                          onAction={(actionId) => handleCollectionAction(actionId, collection)}
+                          ariaLabel={`Actions for ${collection.name}`}
                           size="small"
                         />
                       </div>

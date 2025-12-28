@@ -177,11 +177,18 @@ export function CollectionsSidebar({
             {userCollections.map(collection => (
               <div
                 key={collection.id}
-                className={`collection-item ${selectedCollectionId === collection.id ? 'selected' : ''}`}
+                className={`collection-item ${selectedCollectionId === collection.id ? 'selected' : ''} ${collection.isSmart ? 'smart-collection' : ''}`}
                 onClick={() => onSelectCollection?.(collection)}
               >
                 <div className="collection-icon">
                   <CollectionIcon size={16} />
+                  {collection.isSmart && (
+                    <span className="smart-badge" title="Smart Collection">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                      </svg>
+                    </span>
+                  )}
                 </div>
                 <div className="collection-info">
                   <span className="collection-name">{collection.name}</span>

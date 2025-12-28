@@ -6,8 +6,7 @@
 
 import {
   SeriesForMerge,
-  getCoverUrl,
-  getApiCoverUrl,
+  resolveSeriesCoverUrl,
 } from '../../services/api.service';
 
 interface SeriesComparisonCardProps {
@@ -27,18 +26,7 @@ export function SeriesComparisonCard({
   onSelect,
   showRadio,
 }: SeriesComparisonCardProps) {
-  // Get cover URL - try API cover first, then first issue
-  const getCover = () => {
-    if (series.coverHash) {
-      return getApiCoverUrl(series.coverHash);
-    }
-    if (series.coverFileId) {
-      return getCoverUrl(series.coverFileId);
-    }
-    return null;
-  };
-
-  const coverUrl = getCover();
+  const coverUrl = resolveSeriesCoverUrl(series);
 
   const cardClasses = [
     'series-comparison-card',

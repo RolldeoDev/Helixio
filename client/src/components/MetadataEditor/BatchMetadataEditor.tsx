@@ -13,6 +13,7 @@ import {
   type TagFieldType,
 } from '../../services/api.service';
 import { SimpleTagInput } from './SimpleTagInput';
+import { LocalSeriesSearchModal } from '../LocalSeriesSearchModal';
 import './BatchMetadataEditor.css';
 
 interface BatchMetadataEditorProps {
@@ -117,6 +118,9 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
     total: number;
     failed: string[];
   } | null>(null);
+
+  // State for changing series
+  const [isChangingSeriesOpen, setIsChangingSeriesOpen] = useState(false);
 
   const handleFieldChange = (field: EditableField, value: string | number | undefined) => {
     setMetadata((prev) => ({
@@ -339,13 +343,22 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
             </p>
           </div>
         </div>
-        {onClose && (
-          <button className="batch-editor-close" onClick={onClose} title="Close">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+        <div className="batch-editor-header-actions">
+          <button
+            className="batch-btn batch-btn-ghost batch-btn-sm"
+            onClick={() => setIsChangingSeriesOpen(true)}
+            title="Move all files to a different series"
+          >
+            Change Series
           </button>
-        )}
+          {onClose && (
+            <button className="batch-editor-close" onClick={onClose} title="Close">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M5 5L15 15M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
       </header>
 
       {error && (
@@ -548,6 +561,20 @@ export function BatchMetadataEditor({ fileIds, onClose, onSave }: BatchMetadataE
           )}
         </button>
       </footer>
+
+      {/* Change Series Modal */}
+      <LocalSeriesSearchModal
+        isOpen={isChangingSeriesOpen}
+        onClose={() => setIsChangingSeriesOpen(false)}
+        fileIds={fileIds}
+        currentSeriesId={null}
+        currentSeriesName={null}
+        onSuccess={() => {
+          setIsChangingSeriesOpen(false);
+          onSave?.();
+          onClose?.();
+        }}
+      />
     </div>
   );
 }

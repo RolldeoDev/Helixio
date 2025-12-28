@@ -169,7 +169,7 @@ export async function getChildSeries(
             take: 1,
             // Order by numeric sort key to get actual Issue #1, not just first file added
             orderBy: [
-              { metadata: { issueNumberSort: 'asc' } },
+              { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
               { filename: 'asc' },
             ],
             select: { id: true },
@@ -218,7 +218,7 @@ export async function getParentSeries(
             take: 1,
             // Order by numeric sort key to get actual Issue #1, not just first file added
             orderBy: [
-              { metadata: { issueNumberSort: 'asc' } },
+              { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
               { filename: 'asc' },
             ],
             select: { id: true },
@@ -381,4 +381,166 @@ export async function getAllRelationships(): Promise<SeriesRelationshipWithSerie
     },
     orderBy: [{ parentSeriesId: 'asc' }, { sortOrder: 'asc' }],
   });
+}
+
+// =============================================================================
+// Bulk Operations
+// =============================================================================
+
+export interface BulkAddChildInput {
+  parentSeriesId: string;
+  children: Array<{
+    childSeriesId: string;
+    relationshipType: RelationshipType;
+  }>;
+}
+
+export interface BulkOperationResult {
+  total: number;
+  successful: number;
+  failed: number;
+  results: Array<{
+    seriesId: string;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
+/**
+ * Add multiple child series to a parent series in bulk.
+ * Continues processing on individual failures.
+ *
+ * @param input - The parent series ID and array of children to add
+ * @returns Aggregated results with per-item success/failure info
+ */
+export async function bulkAddChildSeries(
+  input: BulkAddChildInput
+): Promise<BulkOperationResult> {
+  const db = getDatabase();
+  const { parentSeriesId, children } = input;
+
+  const results: BulkOperationResult['results'] = [];
+  let successful = 0;
+
+  // Validate parent series exists
+  const parent = await db.series.findUnique({ where: { id: parentSeriesId } });
+  if (!parent) {
+    // If parent doesn't exist, fail all
+    return {
+      total: children.length,
+      successful: 0,
+      failed: children.length,
+      results: children.map((c) => ({
+        seriesId: c.childSeriesId,
+        success: false,
+        error: `Parent series ${parentSeriesId} not found`,
+      })),
+    };
+  }
+
+  // Get current max sort order for this parent
+  const maxSortOrder = await db.seriesRelationship.findFirst({
+    where: { parentSeriesId },
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true },
+  });
+
+  let nextSortOrder = (maxSortOrder?.sortOrder ?? -1) + 1;
+
+  // Process each child
+  for (const child of children) {
+    const { childSeriesId, relationshipType } = child;
+
+    try {
+      // Check child exists
+      const childSeries = await db.series.findUnique({
+        where: { id: childSeriesId },
+      });
+
+      if (!childSeries) {
+        results.push({
+          seriesId: childSeriesId,
+          success: false,
+          error: 'Series not found',
+        });
+        continue;
+      }
+
+      // Check not self-referential
+      if (parentSeriesId === childSeriesId) {
+        results.push({
+          seriesId: childSeriesId,
+          success: false,
+          error: 'Cannot link series to itself',
+        });
+        continue;
+      }
+
+      // Check for circular relationship
+      const wouldBeCircular = await db.seriesRelationship.findFirst({
+        where: {
+          parentSeriesId: childSeriesId,
+          childSeriesId: parentSeriesId,
+        },
+      });
+
+      if (wouldBeCircular) {
+        results.push({
+          seriesId: childSeriesId,
+          success: false,
+          error: 'Would create circular relationship',
+        });
+        continue;
+      }
+
+      // Check for existing relationship (skip if already linked)
+      const existingRelationship = await db.seriesRelationship.findUnique({
+        where: {
+          parentSeriesId_childSeriesId: {
+            parentSeriesId,
+            childSeriesId,
+          },
+        },
+      });
+
+      if (existingRelationship) {
+        results.push({
+          seriesId: childSeriesId,
+          success: false,
+          error: 'Already linked to this parent',
+        });
+        continue;
+      }
+
+      // Create the relationship
+      await db.seriesRelationship.create({
+        data: {
+          parentSeriesId,
+          childSeriesId,
+          relationshipType,
+          sortOrder: nextSortOrder,
+        },
+      });
+
+      nextSortOrder++;
+      successful++;
+      results.push({
+        seriesId: childSeriesId,
+        success: true,
+      });
+    } catch (error) {
+      results.push({
+        seriesId: childSeriesId,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    total: children.length,
+    successful,
+    failed: children.length - successful,
+    results,
+  };
 }

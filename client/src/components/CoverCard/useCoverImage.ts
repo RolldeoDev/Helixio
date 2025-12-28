@@ -16,6 +16,8 @@ import type { CoverImageStatus } from './types';
 interface UseCoverImageOptions {
   /** Disable lazy loading for above-the-fold items */
   eager?: boolean;
+  /** Optional version/hash for cache-busting when cover changes */
+  coverVersion?: string | null;
 }
 
 interface UseCoverImageReturn {
@@ -111,7 +113,7 @@ export function useCoverImage(
   fileId: string,
   options: UseCoverImageOptions = {}
 ): UseCoverImageReturn {
-  const { eager = false } = options;
+  const { eager = false, coverVersion } = options;
 
   const [status, setStatus] = useState<CoverImageStatus>('loading');
   const [isInView, setIsInView] = useState(eager);
@@ -144,10 +146,16 @@ export function useCoverImage(
   }, [eager, isInView]);
 
   // Build URL - only when in view
+  // Include coverVersion for cache-busting when cover changes
   const coverUrl = isInView
-    ? retryCount > 0
-      ? `${getCoverUrl(fileId)}?retry=${retryCount}`
-      : getCoverUrl(fileId)
+    ? (() => {
+        const baseUrl = getCoverUrl(fileId);
+        const params = new URLSearchParams();
+        if (coverVersion) params.set('v', coverVersion);
+        if (retryCount > 0) params.set('retry', retryCount.toString());
+        const queryString = params.toString();
+        return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+      })()
     : '';
 
   const handleLoad = useCallback(() => {

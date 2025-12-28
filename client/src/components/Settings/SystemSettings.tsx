@@ -18,6 +18,7 @@ import {
 } from '../../services/api.service';
 import { SectionCard } from '../SectionCard';
 import { FactoryResetModal, FactoryResetSection } from '../FactoryReset';
+import { ApiKeySettings } from './ApiKeySettings';
 import { useApiToast } from '../../hooks';
 import { useConfirmModal } from '../ConfirmModal';
 import './SystemSettings.css';
@@ -1054,6 +1055,9 @@ export function SystemSettings() {
           )}
         </div>
       </SectionCard>
+
+      {/* Helixio API Keys Section */}
+      <ApiKeySettings />
 
       {/* Factory Reset Section */}
       <SectionCard

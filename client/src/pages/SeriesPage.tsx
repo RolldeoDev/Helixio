@@ -17,6 +17,7 @@ import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { BatchSeriesMetadataModal } from '../components/BatchSeriesMetadataModal';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
 import { LinkSeriesModal } from '../components/LinkSeriesModal';
+import { BulkLinkSeriesModal } from '../components/BulkLinkSeriesModal';
 import {
   getSeriesPublishers,
   getSeriesGenres,
@@ -75,6 +76,7 @@ export function SeriesPage() {
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [showBatchEditModal, setShowBatchEditModal] = useState(false);
   const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
+  const [showBulkLinkModal, setShowBulkLinkModal] = useState(false);
   const [linkSeriesInfo, setLinkSeriesInfo] = useState<{ id: string; name: string } | null>(null);
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
@@ -239,16 +241,23 @@ export function SeriesPage() {
   }, [clearSeriesSelection, addToast]);
 
   const handleLinkSeries = useCallback(async () => {
-    if (selectedSeries.size !== 1) return;
-    const seriesId = Array.from(selectedSeries)[0];
-    if (!seriesId) return;
-    try {
-      const { series } = await getSeries(seriesId);
-      setLinkSeriesInfo({ id: series.id, name: series.name });
-      setShowLinkSeriesModal(true);
-    } catch (err) {
-      console.error('Failed to fetch series info:', err);
-      addToast('error', 'Failed to load series info');
+    if (selectedSeries.size === 0 || selectedSeries.size > 10) return;
+
+    if (selectedSeries.size === 1) {
+      // Single series - use existing LinkSeriesModal
+      const seriesId = Array.from(selectedSeries)[0];
+      if (!seriesId) return;
+      try {
+        const { series } = await getSeries(seriesId);
+        setLinkSeriesInfo({ id: series.id, name: series.name });
+        setShowLinkSeriesModal(true);
+      } catch (err) {
+        console.error('Failed to fetch series info:', err);
+        addToast('error', 'Failed to load series info');
+      }
+    } else {
+      // Multiple series - use BulkLinkSeriesModal
+      setShowBulkLinkModal(true);
     }
   }, [selectedSeries, addToast]);
 
@@ -488,6 +497,22 @@ export function SeriesPage() {
           }}
         />
       )}
+
+      {/* Bulk Link Series Modal */}
+      <BulkLinkSeriesModal
+        isOpen={showBulkLinkModal}
+        onClose={() => setShowBulkLinkModal(false)}
+        sourceSeriesIds={Array.from(selectedSeries)}
+        onLinked={(result) => {
+          setShowBulkLinkModal(false);
+          clearSeriesSelection();
+          if (result.failed > 0) {
+            addToast('warning', `Linked ${result.successful} series. ${result.failed} skipped.`);
+          } else {
+            addToast('success', `Linked ${result.successful} series`);
+          }
+        }}
+      />
     </div>
   );
 }

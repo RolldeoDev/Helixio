@@ -3,12 +3,12 @@
  *
  * Cover selection component for individual comic issues with four modes:
  * - Auto: Use default cover (first page or cover.jpg)
- * - Select Page: Choose a specific page from the comic as cover
+ * - Select Page: Choose a specific page from the comic as cover (virtualized for large comics)
  * - From URL: Enter a custom cover image URL (downloads and stores locally)
  * - Upload: Upload a custom image from local computer
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   getCoverUrl,
   getApiCoverUrl,
@@ -17,7 +17,7 @@ import {
   setFileCover,
   uploadFileCover,
 } from '../../services/api.service';
-import { PageBrowserModal } from './PageBrowserModal';
+import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import './IssueCoverPicker.css';
 
 export type IssueCoverMode = 'auto' | 'page' | 'url' | 'upload';
@@ -33,6 +33,12 @@ interface IssueCoverPickerProps {
     coverHash?: string;
   }) => void;
   disabled?: boolean;
+}
+
+// Page item for virtualization
+interface PageItem {
+  index: number;
+  filename: string;
 }
 
 export function IssueCoverPicker({
@@ -60,8 +66,26 @@ export function IssueCoverPicker({
   const [saving, setSaving] = useState(false);
   // Track uploaded cover hash, initialized from prop if already custom
   const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(currentCoverHash);
-  const [showPageBrowser, setShowPageBrowser] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Convert pages array to PageItem array for virtualization
+  const pageItems = useMemo<PageItem[]>(() => {
+    return pages.map((filename, index) => ({ index, filename }));
+  }, [pages]);
+
+  // Virtualized grid configuration - fixed item sizes for page thumbnails
+  const {
+    virtualItems,
+    totalHeight,
+    containerRef,
+    scrollTo,
+  } = useVirtualGrid<PageItem>(pageItems, {
+    itemWidth: 80,
+    itemHeight: 130, // 80 * 1.5 aspect ratio + 10px for page number
+    gap: 8,
+    overscan: 3,
+    horizontalPadding: 8,
+  });
 
   // Load pages when switching to page mode
   useEffect(() => {
@@ -69,6 +93,14 @@ export function IssueCoverPicker({
       loadPages();
     }
   }, [mode]);
+
+  // Scroll to selected page when pages load
+  useEffect(() => {
+    if (selectedPageIndex !== null && pages.length > 0) {
+      // Small delay to ensure virtualization is ready
+      setTimeout(() => scrollTo(selectedPageIndex), 100);
+    }
+  }, [pages.length, selectedPageIndex, scrollTo]);
 
   const loadPages = async () => {
     setLoadingPages(true);
@@ -282,45 +314,50 @@ export function IssueCoverPicker({
           {mode === 'page' && (
             <div className="page-selector">
               {loadingPages ? (
-                <p className="loading-pages">Loading pages...</p>
+                <div className="loading-pages">
+                  <div className="loading-spinner" />
+                  <span>Loading {pages.length > 0 ? `${pages.length} pages...` : 'pages...'}</span>
+                </div>
               ) : pagesError ? (
                 <p className="pages-error">{pagesError}</p>
               ) : pages.length === 0 ? (
                 <p className="no-pages">No pages found</p>
               ) : (
                 <>
-                  <div className="page-grid">
-                    {pages.slice(0, 12).map((page, index) => (
-                      <button
-                        key={page}
-                        className={`page-thumbnail ${selectedPageIndex === index ? 'selected' : ''}`}
-                        onClick={() => handlePageSelect(index)}
-                        disabled={disabled}
-                      >
-                        <img
-                          src={getPageThumbnailUrl(fileId, page)}
-                          alt={`Page ${index + 1}`}
-                          loading="lazy"
-                        />
-                        <span className="page-number">{index + 1}</span>
-                      </button>
-                    ))}
+                  <div className="page-count-header">
+                    <span className="page-count">{pages.length} pages</span>
+                    {selectedPageIndex !== null && (
+                      <span className="selected-indicator">
+                        Selected: Page {selectedPageIndex + 1}
+                      </span>
+                    )}
                   </div>
-                  {pages.length > 12 && (
-                    <div className="more-pages-section">
-                      <p className="more-pages">
-                        Showing first 12 of {pages.length} pages
-                      </p>
-                      <button
-                        type="button"
-                        className="browse-all-pages-btn"
-                        onClick={() => setShowPageBrowser(true)}
-                        disabled={disabled}
-                      >
-                        Browse All Pages
-                      </button>
+                  <div
+                    className="virtual-page-grid"
+                    ref={containerRef}
+                  >
+                    <div
+                      className="virtual-page-grid-inner"
+                      style={{ height: totalHeight, position: 'relative' }}
+                    >
+                      {virtualItems.map(({ item, style }) => (
+                        <button
+                          key={item.filename}
+                          className={`page-thumbnail ${selectedPageIndex === item.index ? 'selected' : ''}`}
+                          style={style}
+                          onClick={() => handlePageSelect(item.index)}
+                          disabled={disabled}
+                        >
+                          <img
+                            src={getPageThumbnailUrl(fileId, item.filename)}
+                            alt={`Page ${item.index + 1}`}
+                            loading="lazy"
+                          />
+                          <span className="page-number">{item.index + 1}</span>
+                        </button>
+                      ))}
                     </div>
-                  )}
+                  </div>
                 </>
               )}
             </div>
@@ -395,19 +432,6 @@ export function IssueCoverPicker({
           </button>
         </div>
       )}
-
-      {/* Page browser modal for viewing all pages */}
-      <PageBrowserModal
-        isOpen={showPageBrowser}
-        fileId={fileId}
-        pages={pages}
-        currentSelectedIndex={selectedPageIndex}
-        onClose={() => setShowPageBrowser(false)}
-        onPageSelect={(index) => {
-          setSelectedPageIndex(index);
-          setShowPageBrowser(false);
-        }}
-      />
     </div>
   );
 }

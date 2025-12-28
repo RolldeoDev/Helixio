@@ -267,8 +267,8 @@ export function useSetFileCover() {
       fileId: string;
       options: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; url?: string };
     }) => setFileCover(fileId, options),
-    onSuccess: (_, { fileId }) => {
-      invalidateAfterCoverUpdate({ fileId });
+    onSuccess: (result, { fileId }) => {
+      invalidateAfterCoverUpdate({ fileId, coverHash: result.coverHash });
     },
   });
 }
@@ -280,8 +280,8 @@ export function useUploadFileCover() {
   return useMutation({
     mutationFn: ({ fileId, file }: { fileId: string; file: File }) =>
       uploadFileCover(fileId, file),
-    onSuccess: (_, { fileId }) => {
-      invalidateAfterCoverUpdate({ fileId });
+    onSuccess: (result, { fileId }) => {
+      invalidateAfterCoverUpdate({ fileId, coverHash: result.coverHash });
     },
   });
 }

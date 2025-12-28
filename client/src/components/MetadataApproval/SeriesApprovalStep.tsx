@@ -20,6 +20,7 @@ import {
 } from '../../services/api.service';
 import { SeriesDetailDrawer } from './SeriesDetailDrawer';
 import { MergedMetadataModal } from './MergedMetadataModal';
+import { MatchedFilesModal } from './MatchedFilesModal';
 
 interface SeriesApprovalStepProps {
   session: ApprovalSession;
@@ -41,8 +42,9 @@ export function SeriesApprovalStep({
     resetSeriesSelection,
     expandResult,
     searchAllSources,
-    options,
+    options: _options,
   } = useMetadataJob();
+  void _options; // Reserved for future feature expansion
 
   // Compute currentGroup from seriesGroups array and currentSeriesIndex
   // The server returns seriesGroups[] and currentSeriesIndex, not currentSeriesGroup directly
@@ -95,11 +97,14 @@ export function SeriesApprovalStep({
   const [isExpandModalOpen, setIsExpandModalOpen] = useState(false);
   const [expandedResult, setExpandedResult] = useState<ExpandedSeriesResult | null>(null);
   const [isExpanding, setIsExpanding] = useState(false);
-  const [expandingSeriesId, setExpandingSeriesId] = useState<string | null>(null);
+  const [_expandingSeriesId, setExpandingSeriesId] = useState<string | null>(null);
+  void _expandingSeriesId; // Reserved for showing loading indicator on specific result
   // Source selector state
   const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>('all');
   // Load more state
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Matched files modal state
+  const [isMatchedFilesModalOpen, setIsMatchedFilesModalOpen] = useState(false);
 
   // Track the last processed series index to avoid resetting user selections on polls
   const lastProcessedIndexRef = useRef<number | null>(null);
@@ -240,7 +245,8 @@ export function SeriesApprovalStep({
   }, [session.currentSeriesIndex, resetSeriesSelection]);
 
   // Handler to expand a single series result (fetch from all sources)
-  const handleExpandResult = useCallback(async (series: SeriesMatch) => {
+  // Reserved for future "expand to all sources" UI feature
+  const _handleExpandResult = useCallback(async (series: SeriesMatch) => {
     setIsExpanding(true);
     setExpandingSeriesId(series.sourceId);
     setError(null);
@@ -256,9 +262,11 @@ export function SeriesApprovalStep({
       setExpandingSeriesId(null);
     }
   }, [expandResult]);
+  void _handleExpandResult;
 
   // Handler to search all sources globally
-  const handleSearchAllSources = useCallback(async () => {
+  // Reserved for future "search all sources" UI feature
+  const _handleSearchAllSources = useCallback(async () => {
     if (!searchQuery.trim()) return;
 
     setIsExpanding(true);
@@ -279,6 +287,7 @@ export function SeriesApprovalStep({
       setIsExpanding(false);
     }
   }, [searchQuery, searchAllSources]);
+  void _handleSearchAllSources;
 
   // Handler when user accepts merged data from the modal
   const handleAcceptMerged = useCallback((merged: MergedSeriesMetadata) => {
@@ -329,18 +338,25 @@ export function SeriesApprovalStep({
         </div>
         <div className="series-files">
           <span className="file-count">{currentGroup.fileCount} files</span>
-          <div className="file-list-preview">
-            {currentGroup.filenames.slice(0, 3).map((name, idx) => (
-              <span key={idx} className="filename" title={name}>
-                {name}
-              </span>
-            ))}
-            {currentGroup.filenames.length > 3 && (
-              <span className="more-files">
-                +{currentGroup.filenames.length - 3} more
-              </span>
-            )}
-          </div>
+          <button
+            className="file-list-preview-btn"
+            onClick={() => setIsMatchedFilesModalOpen(true)}
+            title="View all matched files"
+          >
+            <div className="file-list-preview">
+              {currentGroup.filenames.slice(0, 3).map((name, idx) => (
+                <span key={idx} className="filename" title={name}>
+                  {name}
+                </span>
+              ))}
+              {currentGroup.filenames.length > 3 && (
+                <span className="more-files">
+                  +{currentGroup.filenames.length - 3} more
+                </span>
+              )}
+            </div>
+            <span className="view-all-icon" title="View all files">✎</span>
+          </button>
         </div>
       </div>
 
@@ -402,27 +418,6 @@ export function SeriesApprovalStep({
         >
           {isSearching ? 'Searching...' : 'Search'}
         </button>
-        {/* Search All Sources button - shown when searching single source and not in full data mode */}
-        {selectedSource !== 'all' && (!options.searchMode || options.searchMode === 'quick') ? (
-          <button
-            className="btn-expand-all"
-            onClick={handleSearchAllSources}
-            disabled={isSearching || isApproving || isExpanding || !searchQuery.trim()}
-            title="Search all enabled metadata sources and merge results"
-          >
-            {isExpanding && !expandingSeriesId ? (
-              <>
-                <span className="spinner-tiny" />
-                Searching...
-              </>
-            ) : (
-              <>
-                <span className="expand-icon">⊕</span>
-                All Sources
-              </>
-            )}
-          </button>
-        ) : null}
       </div>
 
       {error && <div className="error-message">{error}</div>}
@@ -612,24 +607,6 @@ export function SeriesApprovalStep({
                       {formatConfidence(series.confidence)}
                     </div>
                     <div className="result-actions">
-                      {/* Expand button - fetch from all sources */}
-                      {(!options.searchMode || options.searchMode === 'quick') && (
-                        <button
-                          className={`expand-result-btn ${expandingSeriesId === series.sourceId ? 'loading' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleExpandResult(series);
-                          }}
-                          disabled={isExpanding || isApproving}
-                          title="Expand: fetch from all sources"
-                        >
-                          {expandingSeriesId === series.sourceId ? (
-                            <span className="spinner-tiny" />
-                          ) : (
-                            <span className="expand-icon">⊕</span>
-                          )}
-                        </button>
-                      )}
                       {/* Details button */}
                       <button
                         className={`details-toggle ${hasRichData ? 'has-data' : ''}`}
@@ -735,6 +712,14 @@ export function SeriesApprovalStep({
           isLoading={false}
         />
       )}
+
+      {/* Matched Files Modal - shows all files in current series group */}
+      <MatchedFilesModal
+        isOpen={isMatchedFilesModalOpen}
+        onClose={() => setIsMatchedFilesModalOpen(false)}
+        seriesName={currentGroup?.displayName ?? 'Unknown Series'}
+        filenames={currentGroup?.filenames ?? []}
+      />
     </div>
   );
 }

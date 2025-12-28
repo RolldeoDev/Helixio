@@ -653,6 +653,69 @@ router.post('/sessions/:id/files/reject-all', async (req: Request, res: Response
   }
 });
 
+/**
+ * POST /api/metadata-approval/sessions/:id/files/:fileId/move
+ * Move a file to a different series group.
+ * Body: { targetSeriesGroupIndex: number }
+ */
+router.post('/sessions/:id/files/:fileId/move', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id!;
+    const fileId = req.params.fileId!;
+    const { targetSeriesGroupIndex } = req.body;
+
+    if (typeof targetSeriesGroupIndex !== 'number') {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'targetSeriesGroupIndex must be a number',
+      });
+      return;
+    }
+
+    const fileChange = await MetadataApproval.moveFileToSeriesGroup(id, fileId, targetSeriesGroupIndex);
+    const session = MetadataApproval.getSession(id);
+
+    res.json({
+      success: true,
+      fileChange,
+      seriesGroups: session?.seriesGroups.map((g, index) => ({
+        index,
+        displayName: g.displayName,
+        fileCount: g.fileIds.length,
+        status: g.status,
+        selectedSeries: g.selectedSeries
+          ? {
+              name: g.selectedSeries.name,
+              startYear: g.selectedSeries.startYear,
+            }
+          : null,
+      })),
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Session not found') {
+      res.status(404).json({ error: 'Session not found or expired' });
+      return;
+    }
+    if (err instanceof Error && err.message === 'File not found in any series group') {
+      res.status(404).json({ error: 'File not found in session' });
+      return;
+    }
+    if (err instanceof Error && err.message === 'Invalid target series group index') {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof Error && err.message === 'File is already in this series group') {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    logError('metadata-approval', err, { action: 'move-file-to-series-group' });
+    res.status(500).json({
+      error: 'Failed to move file',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
 // =============================================================================
 // Apply Changes (Phase 3)
 // =============================================================================

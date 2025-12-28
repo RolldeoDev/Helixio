@@ -2,30 +2,54 @@
  * Authentication Middleware
  *
  * Middleware for protecting routes and handling authentication.
+ * Supports both session tokens and API keys.
  */
 
 import { Request, Response, NextFunction } from 'express';
 import { validateToken, UserInfo } from '../services/auth.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
+import {
+  validateApiKey,
+  updateApiKeyUsage,
+  logApiKeyRequest,
+  isIpAllowed,
+  ApiKeyValidation,
+} from '../services/api-key.service.js';
+import {
+  checkRateLimit,
+  getRateLimitHeaders,
+} from '../services/rate-limit.service.js';
+import { ApiScope, scopeGrantsAccess } from '../services/api-key-scopes.js';
 
-// Extend Express Request type to include user
+// API Key info attached to request
+export interface ApiKeyInfo {
+  id: string;
+  userId: string;
+  scopes: string[];
+  libraryIds: string[] | null;
+  tier: string;
+}
+
+// Extend Express Request type to include user and API key
 declare global {
   namespace Express {
     interface Request {
       user?: UserInfo;
       token?: string;
+      apiKey?: ApiKeyInfo;
+      authMethod?: 'session' | 'api-key' | 'basic';
     }
   }
 }
 
 /**
- * Extract token from Authorization header or cookie
+ * Extract session token from Authorization header or cookie
  */
 function extractToken(req: Request): string | null {
-  // Check Authorization header
+  // Check Authorization header (only non-API keys)
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ') && !authHeader.startsWith('Bearer hlx_')) {
     return authHeader.slice(7);
   }
 
@@ -37,7 +61,7 @@ function extractToken(req: Request): string | null {
 
   // Check query param (for OPDS clients that can't set headers)
   const queryToken = req.query.token;
-  if (typeof queryToken === 'string') {
+  if (typeof queryToken === 'string' && !queryToken.startsWith('hlx_')) {
     return queryToken;
   }
 
@@ -45,32 +69,140 @@ function extractToken(req: Request): string | null {
 }
 
 /**
+ * Extract API key from X-API-Key header or Authorization header
+ */
+function extractApiKey(req: Request): string | null {
+  // Check X-API-Key header (preferred for API keys)
+  const apiKeyHeader = req.headers['x-api-key'];
+  if (typeof apiKeyHeader === 'string') {
+    return apiKeyHeader;
+  }
+
+  // Check Authorization header for API key format
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer hlx_')) {
+    return authHeader.slice(7);
+  }
+
+  // Check query param for API key format
+  const queryToken = req.query.token;
+  if (typeof queryToken === 'string' && queryToken.startsWith('hlx_')) {
+    return queryToken;
+  }
+
+  return null;
+}
+
+/**
+ * Get client IP address from request
+ */
+function getClientIp(req: Request): string {
+  // Check X-Forwarded-For header (for proxied requests)
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    const firstIp = forwarded.split(',')[0];
+    return firstIp ? firstIp.trim() : 'unknown';
+  }
+
+  // Check X-Real-IP header
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string') {
+    return realIp;
+  }
+
+  // Fallback to connection remote address
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+/**
  * Middleware that requires authentication
+ * Supports both session tokens and API keys
  * Returns 401 if not authenticated
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const token = extractToken(req);
+  // Try session token first
+  const sessionToken = extractToken(req);
 
-  if (!token) {
-    res.status(401).json({ error: 'Authentication required' });
-    return;
-  }
-
-  try {
-    const user = await validateToken(token);
-
-    if (!user) {
-      res.status(401).json({ error: 'Invalid or expired token' });
-      return;
+  if (sessionToken) {
+    try {
+      const user = await validateToken(sessionToken);
+      if (user) {
+        req.user = user;
+        req.token = sessionToken;
+        req.authMethod = 'session';
+        next();
+        return;
+      }
+    } catch (error) {
+      logError('auth-middleware', error, { action: 'validate-session' });
     }
-
-    req.user = user;
-    req.token = token;
-    next();
-  } catch (error) {
-    logError('auth-middleware', error, { action: 'require-auth' });
-    res.status(500).json({ error: 'Authentication error' });
   }
+
+  // Try API key
+  const apiKeyRaw = extractApiKey(req);
+
+  if (apiKeyRaw) {
+    try {
+      const validation = await validateApiKey(apiKeyRaw);
+
+      if (validation) {
+        const clientIp = getClientIp(req);
+
+        // Check IP whitelist
+        if (validation.ipWhitelist && validation.ipWhitelist.length > 0) {
+          if (!isIpAllowed(clientIp, validation.ipWhitelist)) {
+            res.status(403).json({
+              error: 'IP address not allowed',
+              message: 'Your IP address is not in the whitelist for this API key',
+            });
+            return;
+          }
+        }
+
+        // Check rate limit
+        const rateLimitResult = checkRateLimit(validation.id, validation.tier);
+        const rateLimitHeaders = getRateLimitHeaders(rateLimitResult);
+
+        // Set rate limit headers
+        for (const [key, value] of Object.entries(rateLimitHeaders)) {
+          res.setHeader(key, value);
+        }
+
+        if (!rateLimitResult.allowed) {
+          res.status(429).json({
+            error: 'Rate limit exceeded',
+            message: `Too many requests. Try again in ${rateLimitResult.retryAfter} seconds.`,
+            retryAfter: rateLimitResult.retryAfter,
+          });
+          return;
+        }
+
+        // Set request context
+        req.user = validation.user;
+        req.apiKey = {
+          id: validation.id,
+          userId: validation.userId,
+          scopes: validation.scopes,
+          libraryIds: validation.libraryIds,
+          tier: validation.tier,
+        };
+        req.authMethod = 'api-key';
+
+        // Update usage tracking asynchronously (don't wait)
+        updateApiKeyUsage(validation.id, clientIp).catch((err) =>
+          logError('auth-middleware', err, { action: 'update-api-key-usage' })
+        );
+
+        next();
+        return;
+      }
+    } catch (error) {
+      logError('auth-middleware', error, { action: 'validate-api-key' });
+    }
+  }
+
+  // No valid authentication found
+  res.status(401).json({ error: 'Authentication required' });
 }
 
 /**
@@ -97,39 +229,98 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
 
 /**
  * Middleware that requires admin role
+ * Works with both session and API key auth (API keys need admin:* scopes)
  */
 export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const token = extractToken(req);
+  // First ensure user is authenticated
+  if (!req.user) {
+    // Try to authenticate first
+    const token = extractToken(req);
+    if (token) {
+      try {
+        const user = await validateToken(token);
+        if (user) {
+          req.user = user;
+          req.token = token;
+          req.authMethod = 'session';
+        }
+      } catch (error) {
+        logError('auth-middleware', error, { action: 'require-admin-validate' });
+      }
+    }
 
-  if (!token) {
+    // Try API key if no session
+    if (!req.user) {
+      const apiKeyRaw = extractApiKey(req);
+      if (apiKeyRaw) {
+        try {
+          const validation = await validateApiKey(apiKeyRaw);
+          if (validation) {
+            req.user = validation.user;
+            req.apiKey = {
+              id: validation.id,
+              userId: validation.userId,
+              scopes: validation.scopes,
+              libraryIds: validation.libraryIds,
+              tier: validation.tier,
+            };
+            req.authMethod = 'api-key';
+          }
+        } catch (error) {
+          logError('auth-middleware', error, { action: 'require-admin-api-key' });
+        }
+      }
+    }
+  }
+
+  if (!req.user) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  try {
-    const user = await validateToken(token);
-
-    if (!user) {
-      res.status(401).json({ error: 'Invalid or expired token' });
-      return;
-    }
-
-    if (user.role !== 'admin') {
-      res.status(403).json({ error: 'Admin access required' });
-      return;
-    }
-
-    req.user = user;
-    req.token = token;
-    next();
-  } catch (error) {
-    logError('auth-middleware', error, { action: 'require-admin' });
-    res.status(500).json({ error: 'Authentication error' });
+  // Check admin role
+  if (req.user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
   }
+
+  next();
+}
+
+/**
+ * Middleware that requires specific API scopes
+ * Session auth has all scopes, API keys must have the required scope
+ */
+export function requireScope(...requiredScopes: ApiScope[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    // Session auth has all scopes (full access)
+    if (req.authMethod === 'session' || !req.apiKey) {
+      next();
+      return;
+    }
+
+    // API key must have at least one of the required scopes
+    const hasScope = requiredScopes.some((scope) =>
+      scopeGrantsAccess(req.apiKey!.scopes, scope)
+    );
+
+    if (!hasScope) {
+      res.status(403).json({
+        error: 'Insufficient scope',
+        message: `This operation requires one of: ${requiredScopes.join(', ')}`,
+        required: requiredScopes,
+        granted: req.apiKey.scopes,
+      });
+      return;
+    }
+
+    next();
+  };
 }
 
 /**
  * Middleware that checks library access
+ * Also checks API key library restrictions if using API key auth
  */
 export function requireLibraryAccess(permission: 'read' | 'write' | 'admin' = 'read') {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -138,16 +329,27 @@ export function requireLibraryAccess(permission: 'read' | 'write' | 'admin' = 'r
       return;
     }
 
-    // Admins have access to all libraries
-    if (req.user.role === 'admin') {
-      next();
-      return;
-    }
-
     const libraryId = req.params.libraryId || req.body?.libraryId;
 
     if (!libraryId) {
       res.status(400).json({ error: 'Library ID required' });
+      return;
+    }
+
+    // Check API key library restrictions first
+    if (req.apiKey && req.apiKey.libraryIds !== null) {
+      if (!req.apiKey.libraryIds.includes(libraryId)) {
+        res.status(403).json({
+          error: 'API key does not have access to this library',
+          message: 'This API key is restricted to specific libraries',
+        });
+        return;
+      }
+    }
+
+    // Admins have access to all libraries
+    if (req.user.role === 'admin') {
+      next();
       return;
     }
 

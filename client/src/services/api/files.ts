@@ -193,6 +193,31 @@ export async function bulkQuarantineFiles(
 }
 
 // =============================================================================
+// File-Series Linking
+// =============================================================================
+
+/**
+ * Link a file to a different series
+ */
+export async function linkFileToSeries(
+  fileId: string,
+  seriesId: string
+): Promise<{ message: string }> {
+  // Route is under /api/series/files/:fileId/link-series
+  return post(`/series/files/${fileId}/link-series`, { seriesId });
+}
+
+/**
+ * Unlink a file from its current series
+ */
+export async function unlinkFileFromSeries(
+  fileId: string
+): Promise<{ message: string }> {
+  // Route is under /api/series/files/:fileId/unlink-series
+  return del(`/series/files/${fileId}/unlink-series`);
+}
+
+// =============================================================================
 // File Cover Management
 // =============================================================================
 
@@ -259,24 +284,149 @@ export function getPageThumbnailUrl(fileId: string, pagePath: string): string {
 // Cover URL Helpers
 // =============================================================================
 
-export function getCoverUrl(fileId: string): string {
-  return `${API_BASE}/archives/${fileId}/cover`;
+/**
+ * Get cover URL for a file with optional cache-busting parameter.
+ * @param fileId - The file ID
+ * @param version - Optional version string (e.g., coverHash or timestamp) for cache-busting
+ */
+export function getCoverUrl(fileId: string, version?: string | null): string {
+  const baseUrl = `${API_BASE}/archives/${fileId}/cover`;
+  if (version) {
+    return `${baseUrl}?v=${encodeURIComponent(version)}`;
+  }
+  return baseUrl;
 }
 
 /**
- * Get URL for a cached API cover by its hash
- * Used when series has coverHash from downloaded API cover
+ * Get URL for a cached API cover by its hash.
+ * The hash itself acts as a cache-buster since different covers have different hashes.
+ * Used when series has coverHash from downloaded API cover.
  */
 export function getApiCoverUrl(coverHash: string): string {
   return `${API_BASE}/covers/series/${coverHash}`;
 }
 
 /**
- * Get URL for a collection mosaic cover by its hash
- * Used when collection has coverType='auto' with a cached mosaic
+ * Type for series-like objects that can have cover URLs
+ * Supports full Series, RelatedSeriesInfo, and partial series objects
+ */
+export interface SeriesCoverData {
+  coverHash?: string | null;
+  coverFileId?: string | null;
+  coverSource?: string | null;  // Allow any string to support various series types
+  issues?: Array<{ id: string }>;
+  firstIssueId?: string | null;
+}
+
+/**
+ * Resolve cover URL for a series with full fallback chain
+ * Priority: API cover (coverHash) > User-set cover (coverFileId) > First issue cover
+ *
+ * This is the canonical implementation - use this function instead of
+ * duplicating the fallback logic in components.
+ *
+ * Note: This is different from getSeriesCoverUrl(seriesId) in series.ts which
+ * returns a server endpoint URL. This function resolves the URL client-side
+ * from available series data.
+ *
+ * @param series - Series-like object with cover data
+ * @returns Cover URL string or null if no cover available
+ */
+export function resolveSeriesCoverUrl(series: SeriesCoverData): string | null {
+  // Respect coverSource setting if present
+  if (series.coverSource === 'api') {
+    if (series.coverHash) return getApiCoverUrl(series.coverHash);
+    // Fall through to first issue if no API cover available
+  } else if (series.coverSource === 'user') {
+    if (series.coverFileId) return getCoverUrl(series.coverFileId);
+    // Fall through to first issue if selection is invalid
+  }
+
+  // Default/auto mode: Priority fallback chain
+  // API cover (local cache) > User-set file > First issue in series
+  if (series.coverHash) return getApiCoverUrl(series.coverHash);
+  if (series.coverFileId) return getCoverUrl(series.coverFileId);
+
+  // Fallback to first issue cover
+  const firstIssueId = series.issues?.[0]?.id || series.firstIssueId;
+  if (firstIssueId) return getCoverUrl(firstIssueId);
+
+  return null;
+}
+
+/**
+ * Get URL for a collection mosaic cover by its hash.
+ * The hash itself acts as a cache-buster since different covers have different hashes.
+ * Used when collection has coverType='auto' with a cached mosaic.
  */
 export function getCollectionCoverUrl(coverHash: string): string {
   return `${API_BASE}/covers/collection/${coverHash}`;
+}
+
+// =============================================================================
+// Cover Version Tracking
+// =============================================================================
+
+/**
+ * Global cover version cache for cache-busting.
+ * Maps fileId -> version (timestamp or hash).
+ * Updated when covers are changed and persisted to sessionStorage.
+ */
+const COVER_VERSION_STORAGE_KEY = 'helixio_cover_versions';
+
+function getCoverVersionCache(): Map<string, string> {
+  if (typeof window === 'undefined') return new Map();
+
+  try {
+    const stored = sessionStorage.getItem(COVER_VERSION_STORAGE_KEY);
+    if (stored) {
+      return new Map(JSON.parse(stored));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return new Map();
+}
+
+function saveCoverVersionCache(cache: Map<string, string>): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    // Keep only last 1000 entries to prevent unbounded growth
+    const entries = Array.from(cache.entries());
+    if (entries.length > 1000) {
+      entries.splice(0, entries.length - 1000);
+    }
+    sessionStorage.setItem(COVER_VERSION_STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Update the cover version for a file/series.
+ * Call this after a cover update to ensure cache-busting.
+ */
+export function updateCoverVersion(id: string, version?: string): void {
+  const cache = getCoverVersionCache();
+  cache.set(id, version || Date.now().toString());
+  saveCoverVersionCache(cache);
+}
+
+/**
+ * Get the cover version for cache-busting.
+ * Returns undefined if no version has been set.
+ */
+export function getCoverVersion(id: string): string | undefined {
+  return getCoverVersionCache().get(id);
+}
+
+/**
+ * Clear all cover versions (useful for testing or cache reset).
+ */
+export function clearCoverVersions(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(COVER_VERSION_STORAGE_KEY);
 }
 
 /**

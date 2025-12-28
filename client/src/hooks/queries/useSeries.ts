@@ -204,8 +204,10 @@ export function useSetSeriesCover() {
       seriesId: string;
       options: { source?: 'api' | 'user' | 'auto'; fileId?: string; url?: string };
     }) => setSeriesCover(seriesId, options),
-    onSuccess: (_, { seriesId }) => {
-      invalidateAfterCoverUpdate({ seriesId });
+    onSuccess: (result, { seriesId }) => {
+      // result.cover may contain coverHash for cache-busting
+      const coverHash = 'coverHash' in result.cover ? result.cover.coverHash : undefined;
+      invalidateAfterCoverUpdate({ seriesId, coverHash });
     },
   });
 }
@@ -217,8 +219,8 @@ export function useUploadSeriesCover() {
   return useMutation({
     mutationFn: ({ seriesId, file }: { seriesId: string; file: File }) =>
       uploadSeriesCover(seriesId, file),
-    onSuccess: (_, { seriesId }) => {
-      invalidateAfterCoverUpdate({ seriesId });
+    onSuccess: (result, { seriesId }) => {
+      invalidateAfterCoverUpdate({ seriesId, coverHash: result.coverHash });
     },
   });
 }

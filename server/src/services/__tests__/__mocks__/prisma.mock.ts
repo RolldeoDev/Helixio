@@ -50,11 +50,15 @@ export function createMockPrismaClient() {
       create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'meta-1', ...args.data })),
       upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'meta-1', ...args.create })),
       update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
       delete: vi.fn().mockResolvedValue({}),
     },
     operationLog: {
       findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'log-1', ...args.data })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       count: vi.fn().mockResolvedValue(0),
     },
@@ -119,6 +123,7 @@ export function createMockPrismaClient() {
       delete: vi.fn().mockResolvedValue({}),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       count: vi.fn().mockResolvedValue(0),
+      aggregate: vi.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
     },
     collection: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -271,6 +276,52 @@ export function createMockPrismaClient() {
       update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id ?? 'orig-1', ...args.data })),
       delete: vi.fn().mockResolvedValue({}),
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    apiKey: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'key-1',
+        userId: args.data.userId,
+        name: args.data.name,
+        keyPrefix: args.data.keyPrefix ?? 'hlx_test1234',
+        keyHash: args.data.keyHash ?? 'mockhash',
+        scopes: args.data.scopes ?? '["read:library"]',
+        description: args.data.description ?? null,
+        libraryIds: args.data.libraryIds ?? null,
+        ipWhitelist: args.data.ipWhitelist ?? null,
+        expiresAt: args.data.expiresAt ?? null,
+        isActive: args.data.isActive ?? true,
+        lastUsedAt: null,
+        lastUsedIp: null,
+        usageCount: 0,
+        revokedAt: null,
+        revokedReason: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    apiKeyUsageLog: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'log-1',
+        apiKeyId: args.data.apiKeyId,
+        endpoint: args.data.endpoint,
+        method: args.data.method,
+        statusCode: args.data.statusCode ?? 200,
+        ipAddress: args.data.ipAddress ?? null,
+        userAgent: args.data.userAgent ?? null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
@@ -711,6 +762,77 @@ export function createMockOperationLog(overrides: Partial<{
     metadata: null,
     error: null,
     batchId: null,
+    createdAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock API key record.
+ */
+export function createMockApiKey(overrides: Partial<{
+  id: string;
+  userId: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  scopes: string;
+  description: string | null;
+  libraryIds: string | null;
+  ipWhitelist: string | null;
+  expiresAt: Date | null;
+  isActive: boolean;
+  lastUsedAt: Date | null;
+  lastUsedIp: string | null;
+  usageCount: number;
+  revokedAt: Date | null;
+  revokedReason: string | null;
+  createdAt: Date;
+  user?: { id: string; username: string; role: string; isActive: boolean };
+}> = {}) {
+  return {
+    id: 'key-1',
+    userId: 'user-1',
+    name: 'Test API Key',
+    keyPrefix: 'hlx_test1234',
+    keyHash: 'mockhash',
+    scopes: '["read:library"]',
+    description: null,
+    libraryIds: null,
+    ipWhitelist: null,
+    expiresAt: null,
+    isActive: true,
+    lastUsedAt: null,
+    lastUsedIp: null,
+    usageCount: 0,
+    revokedAt: null,
+    revokedReason: null,
+    createdAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock API key usage log record.
+ */
+export function createMockApiKeyUsageLog(overrides: Partial<{
+  id: string;
+  apiKeyId: string;
+  endpoint: string;
+  method: string;
+  statusCode: number;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: Date;
+}> = {}) {
+  return {
+    id: 'log-1',
+    apiKeyId: 'key-1',
+    endpoint: '/api/test',
+    method: 'GET',
+    statusCode: 200,
+    ipAddress: '127.0.0.1',
+    userAgent: 'Mozilla/5.0',
     createdAt: new Date('2024-01-01'),
     ...overrides,
   };

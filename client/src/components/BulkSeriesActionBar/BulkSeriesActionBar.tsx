@@ -159,12 +159,12 @@ export function BulkSeriesActionBar({
       ),
       onClick: onBatchEdit,
     },
-    // Link Series - only shown when exactly 1 series is selected
-    ...(selectedCount === 1 && onLinkSeries
+    // Link Series - shown when 1-10 series are selected
+    ...(selectedCount >= 1 && selectedCount <= 10 && onLinkSeries
       ? [
           {
             id: 'link',
-            label: 'Link',
+            label: selectedCount > 1 ? 'Bulk Link' : 'Link',
             icon: (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />

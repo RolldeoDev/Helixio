@@ -109,6 +109,17 @@
   color: var(--color-text);
 }
 
+.batch-editor-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.batch-btn-sm {
+  padding: var(--spacing-xs) var(--spacing-md) !important;
+  font-size: 0.8rem !important;
+}
+
 /* =============================================================================
    Error Message - Fixed height when present
    ============================================================================= */

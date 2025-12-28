@@ -31,6 +31,7 @@ import { CoverSizeSlider } from '../CoverSizeSlider';
 import { SeriesSelectModal } from '../SeriesSelectModal';
 import { MergeSeriesModal } from '../MergeSeriesModal';
 import { LinkSeriesModal } from '../LinkSeriesModal';
+import { BulkLinkSeriesModal } from '../BulkLinkSeriesModal';
 import { NavigationSidebar } from '../NavigationSidebar';
 import { Spinner } from '../LoadingState';
 import { useMetadataJob } from '../../contexts/MetadataJobContext';
@@ -264,6 +265,9 @@ export function SeriesGrid({
   const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
   const [linkSourceSeries, setLinkSourceSeries] = useState<{ id: string; name: string } | null>(null);
 
+  // Bulk link series modal state
+  const [showBulkLinkModal, setShowBulkLinkModal] = useState(false);
+
   // Cover size state (1-10 scale) - persisted in localStorage
   const [coverSize, setCoverSize] = useState(() => {
     const saved = localStorage.getItem('helixio-cover-size');
@@ -406,11 +410,18 @@ export function SeriesGrid({
         break;
 
       case 'linkSeries':
-        // Find the series to link (only works for series items)
-        const linkItem = gridItems.find((item) => item.id === seriesId && item.itemType === 'series');
-        if (linkItem && linkItem.itemType === 'series') {
-          setLinkSourceSeries({ id: linkItem.series.id, name: linkItem.series.name });
-          setShowLinkSeriesModal(true);
+        // Check if multiple series are selected
+        const selectionCount = selectedSeries?.size ?? 0;
+        if (selectionCount > 1 && selectionCount <= 10) {
+          // Multiple series selected - open bulk link modal
+          setShowBulkLinkModal(true);
+        } else {
+          // Single series or context menu on unselected - use regular link modal
+          const linkItem = gridItems.find((item) => item.id === seriesId && item.itemType === 'series');
+          if (linkItem && linkItem.itemType === 'series') {
+            setLinkSourceSeries({ id: linkItem.series.id, name: linkItem.series.name });
+            setShowLinkSeriesModal(true);
+          }
         }
         break;
 
@@ -574,6 +585,22 @@ export function SeriesGrid({
           }}
         />
       )}
+
+      {/* Bulk Link Series Modal */}
+      <BulkLinkSeriesModal
+        isOpen={showBulkLinkModal}
+        onClose={() => setShowBulkLinkModal(false)}
+        sourceSeriesIds={selectedSeries ? Array.from(selectedSeries) : []}
+        onLinked={(result) => {
+          setShowBulkLinkModal(false);
+          if (result.failed > 0) {
+            setOperationMessage(`Linked ${result.successful} series. ${result.failed} skipped.`);
+          } else {
+            setOperationMessage(`Linked ${result.successful} series`);
+          }
+          setTimeout(() => setOperationMessage(null), 2000);
+        }}
+      />
 
     </div>
   );

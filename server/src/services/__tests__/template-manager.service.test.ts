@@ -20,8 +20,8 @@ import {
   duplicateTemplate,
   DEFAULT_TEMPLATE,
 } from '../template-manager.service.js';
-import { createMockPrismaClient, createMockFilenameTemplate } from './__mocks__/prisma.mock.js';
-import { SAMPLE_CHAR_RULES, createMockGlobalTemplate, createMockLibraryTemplate } from './template.fixtures.js';
+import { createMockPrismaClient } from './__mocks__/prisma.mock.js';
+import { SAMPLE_CHAR_RULES, createMockGlobalTemplate, createMockLibraryTemplate, createMockFilenameTemplate } from './template.fixtures.js';
 
 // Mock the database service
 vi.mock('../database.service.js', () => ({
@@ -166,9 +166,9 @@ describe('Template Manager Service', () => {
       expect(result!.folderSegments).toEqual(['{Publisher}', '{Series}']);
     });
 
-    it('uses default character rules when null', async () => {
+    it('uses default character rules when empty JSON', async () => {
       const template = createMockGlobalTemplate({
-        characterRules: null,
+        characterRules: '{}',
       });
       mockPrisma.filenameTemplate.findUnique.mockResolvedValue(template);
 

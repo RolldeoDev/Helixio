@@ -195,12 +195,13 @@ export function CoverCard({
             filename={file.filename}
             progress={progress}
             eager={eager}
+            coverVersion={'coverHash' in file ? file.coverHash : undefined}
           />
 
           {/* Issue number badge */}
           {showIssueNumber && file.metadata?.number && (
             <div
-              className={`cover-card__issue-badge${progress?.completed ? ' cover-card__issue-badge--completed' : ''}`}
+              className="cover-card__issue-badge"
               aria-label={`Issue ${file.metadata.number}${progress?.completed ? ', completed' : ''}`}
             >
               <span className="cover-card__issue-badge-hash">#</span>

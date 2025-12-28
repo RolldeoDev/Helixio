@@ -16,16 +16,28 @@
 
 import { getDatabase } from './database.service.js';
 import { convertCbrToCbz, findConvertibleFiles } from './conversion.service.js';
-import { moveFile, renameFile, deleteFile as deleteFileOp } from './file-operations.service.js';
+import {
+  moveFile,
+  renameFile,
+  deleteFile as deleteFileOp,
+  renameFileWithTracking,
+  moveFileWithTracking,
+  restoreOriginalFilename,
+  getOriginalFilename,
+} from './file-operations.service.js';
 import { updateComicInfo, readComicInfo } from './comicinfo.service.js';
 import type { ComicInfo } from './comicinfo.service.js';
+import {
+  generateUniqueFilenameFromTemplate,
+  type TemplateGeneratedPath,
+} from './filename-generator.service.js';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export type BatchStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'paused' | 'cancelled';
-export type BatchType = 'convert' | 'rename' | 'metadata_update' | 'move' | 'delete';
+export type BatchType = 'convert' | 'rename' | 'metadata_update' | 'move' | 'delete' | 'template_rename' | 'restore_original';
 
 export interface BatchItem {
   id: string;
@@ -265,6 +277,10 @@ async function executeBatchByType(
     case 'delete':
     case 'metadata_update':
       return executeFileOperationBatch(batch, errors, onProgress);
+    case 'template_rename':
+      return executeTemplateRenameBatch(batch, errors, onProgress);
+    case 'restore_original':
+      return executeRestoreOriginalBatch(batch, errors, onProgress);
     default:
       throw new Error(`Unknown batch type: ${batch.type}`);
   }
@@ -781,6 +797,574 @@ export async function retryFailedItems(batchId: string): Promise<{
   return {
     id: newBatch.id,
     itemCount: failedOps.length,
+  };
+}
+
+// =============================================================================
+// Template Rename Batch
+// =============================================================================
+
+/**
+ * Preview template-based renaming for files.
+ * Returns what the files would be renamed to without making changes.
+ */
+export async function previewTemplateRename(
+  fileIds: string[],
+  options: { templateId?: string; libraryId?: string } = {}
+): Promise<Array<{
+  fileId: string;
+  currentPath: string;
+  currentFilename: string;
+  newPath: string;
+  newFilename: string;
+  needsMove: boolean;
+  hasCollision: boolean;
+  error?: string;
+}>> {
+  const db = getDatabase();
+  const results: Array<{
+    fileId: string;
+    currentPath: string;
+    currentFilename: string;
+    newPath: string;
+    newFilename: string;
+    needsMove: boolean;
+    hasCollision: boolean;
+    error?: string;
+  }> = [];
+
+  for (const fileId of fileIds) {
+    const file = await db.comicFile.findUnique({
+      where: { id: fileId },
+      include: {
+        library: { select: { rootPath: true } },
+        series: { select: { name: true, publisher: true, startYear: true, volume: true } },
+        metadata: true,
+      },
+    });
+
+    if (!file) {
+      results.push({
+        fileId,
+        currentPath: '',
+        currentFilename: '',
+        newPath: '',
+        newFilename: '',
+        needsMove: false,
+        hasCollision: false,
+        error: 'File not found',
+      });
+      continue;
+    }
+
+    try {
+      // Build ComicInfo from metadata
+      const comicInfo = {
+        Series: file.series?.name || file.metadata?.series || '',
+        Number: file.metadata?.number || '',
+        Title: file.metadata?.title || '',
+        Volume: file.series?.volume || file.metadata?.volume || undefined,
+        Year: file.metadata?.year || file.series?.startYear || undefined,
+        Publisher: file.series?.publisher || file.metadata?.publisher || '',
+        Format: file.metadata?.format || undefined,
+        Writer: file.metadata?.writer || undefined,
+        Penciller: file.metadata?.penciller || undefined,
+        PageCount: file.metadata?.pageCount || undefined,
+      };
+
+      const result = await generateUniqueFilenameFromTemplate(
+        comicInfo,
+        file.path,
+        file.library?.rootPath || '',
+        { libraryId: options.libraryId || file.libraryId || undefined }
+      );
+
+      const needsMove = result.finalPath !== file.path;
+      const hasCollision = result.hadCollision;
+
+      results.push({
+        fileId,
+        currentPath: file.path,
+        currentFilename: file.filename,
+        newPath: result.finalPath,
+        newFilename: result.finalFilename,
+        needsMove,
+        hasCollision,
+      });
+    } catch (err) {
+      results.push({
+        fileId,
+        currentPath: file.path,
+        currentFilename: file.filename,
+        newPath: '',
+        newFilename: '',
+        needsMove: false,
+        hasCollision: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Create a batch for template-based renaming.
+ */
+export async function createTemplateRenameBatch(
+  fileIds: string[],
+  options: { libraryId?: string; templateId?: string } = {}
+): Promise<{
+  id: string;
+  itemCount: number;
+  preview: Awaited<ReturnType<typeof previewTemplateRename>>;
+}> {
+  const db = getDatabase();
+
+  // Get preview of changes
+  const preview = await previewTemplateRename(fileIds, options);
+
+  // Filter out files with errors or no changes needed
+  const validItems = preview.filter(p => !p.error && p.currentPath !== p.newPath);
+
+  if (validItems.length === 0) {
+    throw new Error('No files to rename (all files either have errors or already match the template)');
+  }
+
+  // Create the batch
+  const batch = await db.batchOperation.create({
+    data: {
+      type: 'template_rename',
+      libraryId: options.libraryId,
+      status: 'pending',
+      totalItems: validItems.length,
+      completedItems: 0,
+      failedItems: 0,
+    },
+  });
+
+  // Create operation log entries for each file
+  for (const item of validItems) {
+    await db.operationLog.create({
+      data: {
+        operation: item.needsMove ? 'move' : 'rename',
+        source: item.currentPath,
+        destination: item.newPath,
+        status: 'pending',
+        reversible: true,
+        batchId: batch.id,
+        metadata: JSON.stringify({ fileId: item.fileId }),
+      },
+    });
+  }
+
+  return {
+    id: batch.id,
+    itemCount: validItems.length,
+    preview,
+  };
+}
+
+/**
+ * Execute a template rename batch.
+ */
+async function executeTemplateRenameBatch(
+  batch: {
+    id: string;
+    type: string;
+    libraryId: string | null;
+    totalItems: number;
+    completedItems: number;
+    failedItems: number;
+    lastProcessedId: string | null;
+    startedAt: Date | null;
+  },
+  errors: Array<{ filename: string; error: string }>,
+  onProgress?: (progress: BatchProgress) => void
+): Promise<BatchResult> {
+  const db = getDatabase();
+
+  // Get pending operations for this batch
+  const operations = await db.operationLog.findMany({
+    where: {
+      batchId: batch.id,
+      status: 'pending',
+    },
+    orderBy: { timestamp: 'asc' },
+  });
+
+  let completed = batch.completedItems;
+  let failed = batch.failedItems;
+
+  for (const op of operations) {
+    // Check for cancellation
+    if (shouldCancel) {
+      await db.batchOperation.update({
+        where: { id: batch.id },
+        data: {
+          status: 'paused',
+          completedItems: completed,
+          failedItems: failed,
+          lastProcessedId: op.id,
+          errorSummary: errors.length > 0 ? JSON.stringify(errors) : null,
+        },
+      });
+
+      return {
+        id: batch.id,
+        type: batch.type as BatchType,
+        status: 'paused',
+        totalItems: batch.totalItems,
+        completedItems: completed,
+        failedItems: failed,
+        errors,
+        startedAt: batch.startedAt || undefined,
+      };
+    }
+
+    // Extract fileId from metadata
+    const metadata = op.metadata ? JSON.parse(op.metadata) : {};
+    const fileId = metadata.fileId;
+    const filename = op.source.split('/').pop() || op.source;
+
+    // Report progress
+    if (onProgress) {
+      onProgress({
+        id: batch.id,
+        type: batch.type as BatchType,
+        status: 'in_progress',
+        totalItems: batch.totalItems,
+        completedItems: completed,
+        failedItems: failed,
+        progress: Math.round(((completed + failed) / batch.totalItems) * 100),
+        currentItem: filename,
+        lastProcessedPath: op.source,
+        errors,
+      });
+    }
+
+    try {
+      // Execute the rename/move operation
+      if (op.operation === 'move' && op.destination) {
+        await moveFileWithTracking(op.source, op.destination, fileId);
+      } else if (op.destination) {
+        const newFilename = op.destination.split('/').pop() || '';
+        await renameFileWithTracking(op.source, newFilename, fileId);
+      }
+
+      // Update operation status
+      await db.operationLog.update({
+        where: { id: op.id },
+        data: { status: 'success' },
+      });
+
+      // Update file record in database
+      if (fileId && op.destination) {
+        await db.comicFile.update({
+          where: { id: fileId },
+          data: {
+            path: op.destination,
+            filename: op.destination.split('/').pop() || '',
+          },
+        });
+      }
+
+      completed++;
+    } catch (err) {
+      failed++;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      errors.push({ filename, error: errorMsg });
+
+      await db.operationLog.update({
+        where: { id: op.id },
+        data: { status: 'failed', error: errorMsg },
+      });
+    }
+  }
+
+  // Finalize batch
+  const finalStatus: BatchStatus = failed > 0 && completed === 0 ? 'failed' : 'completed';
+  await db.batchOperation.update({
+    where: { id: batch.id },
+    data: {
+      status: finalStatus,
+      completedItems: completed,
+      failedItems: failed,
+      completedAt: new Date(),
+      errorSummary: errors.length > 0 ? JSON.stringify(errors) : null,
+    },
+  });
+
+  return {
+    id: batch.id,
+    type: batch.type as BatchType,
+    status: finalStatus,
+    totalItems: batch.totalItems,
+    completedItems: completed,
+    failedItems: failed,
+    errors,
+    startedAt: batch.startedAt || undefined,
+    completedAt: new Date(),
+  };
+}
+
+// =============================================================================
+// Restore Original Filename Batch
+// =============================================================================
+
+/**
+ * Preview restoration of original filenames.
+ */
+export async function previewRestoreOriginal(
+  fileIds: string[]
+): Promise<Array<{
+  fileId: string;
+  currentPath: string;
+  currentFilename: string;
+  originalPath: string;
+  originalFilename: string;
+  hasOriginal: boolean;
+  error?: string;
+}>> {
+  const db = getDatabase();
+  const results: Array<{
+    fileId: string;
+    currentPath: string;
+    currentFilename: string;
+    originalPath: string;
+    originalFilename: string;
+    hasOriginal: boolean;
+    error?: string;
+  }> = [];
+
+  for (const fileId of fileIds) {
+    const file = await db.comicFile.findUnique({
+      where: { id: fileId },
+      select: { id: true, path: true, filename: true },
+    });
+
+    if (!file) {
+      results.push({
+        fileId,
+        currentPath: '',
+        currentFilename: '',
+        originalPath: '',
+        originalFilename: '',
+        hasOriginal: false,
+        error: 'File not found',
+      });
+      continue;
+    }
+
+    const original = await getOriginalFilename(fileId);
+
+    results.push({
+      fileId,
+      currentPath: file.path,
+      currentFilename: file.filename,
+      originalPath: original?.originalPath || '',
+      originalFilename: original?.originalFilename || '',
+      hasOriginal: !!original,
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Create a batch for restoring original filenames.
+ */
+export async function createRestoreOriginalBatch(
+  fileIds: string[]
+): Promise<{
+  id: string;
+  itemCount: number;
+  preview: Awaited<ReturnType<typeof previewRestoreOriginal>>;
+}> {
+  const db = getDatabase();
+
+  // Get preview of restorations
+  const preview = await previewRestoreOriginal(fileIds);
+
+  // Filter to only files with originals to restore
+  const validItems = preview.filter(p => p.hasOriginal && !p.error);
+
+  if (validItems.length === 0) {
+    throw new Error('No files have original filenames to restore');
+  }
+
+  // Create the batch
+  const batch = await db.batchOperation.create({
+    data: {
+      type: 'restore_original',
+      status: 'pending',
+      totalItems: validItems.length,
+      completedItems: 0,
+      failedItems: 0,
+    },
+  });
+
+  // Create operation log entries
+  for (const item of validItems) {
+    await db.operationLog.create({
+      data: {
+        operation: 'restore',
+        source: item.currentPath,
+        destination: item.originalPath,
+        status: 'pending',
+        reversible: true,
+        batchId: batch.id,
+        metadata: JSON.stringify({ fileId: item.fileId }),
+      },
+    });
+  }
+
+  return {
+    id: batch.id,
+    itemCount: validItems.length,
+    preview,
+  };
+}
+
+/**
+ * Execute a restore original batch.
+ */
+async function executeRestoreOriginalBatch(
+  batch: {
+    id: string;
+    type: string;
+    libraryId: string | null;
+    totalItems: number;
+    completedItems: number;
+    failedItems: number;
+    lastProcessedId: string | null;
+    startedAt: Date | null;
+  },
+  errors: Array<{ filename: string; error: string }>,
+  onProgress?: (progress: BatchProgress) => void
+): Promise<BatchResult> {
+  const db = getDatabase();
+
+  // Get pending operations for this batch
+  const operations = await db.operationLog.findMany({
+    where: {
+      batchId: batch.id,
+      status: 'pending',
+    },
+    orderBy: { timestamp: 'asc' },
+  });
+
+  let completed = batch.completedItems;
+  let failed = batch.failedItems;
+
+  for (const op of operations) {
+    // Check for cancellation
+    if (shouldCancel) {
+      await db.batchOperation.update({
+        where: { id: batch.id },
+        data: {
+          status: 'paused',
+          completedItems: completed,
+          failedItems: failed,
+          lastProcessedId: op.id,
+          errorSummary: errors.length > 0 ? JSON.stringify(errors) : null,
+        },
+      });
+
+      return {
+        id: batch.id,
+        type: batch.type as BatchType,
+        status: 'paused',
+        totalItems: batch.totalItems,
+        completedItems: completed,
+        failedItems: failed,
+        errors,
+        startedAt: batch.startedAt || undefined,
+      };
+    }
+
+    // Extract fileId from metadata
+    const metadata = op.metadata ? JSON.parse(op.metadata) : {};
+    const fileId = metadata.fileId;
+    const filename = op.source.split('/').pop() || op.source;
+
+    // Report progress
+    if (onProgress) {
+      onProgress({
+        id: batch.id,
+        type: batch.type as BatchType,
+        status: 'in_progress',
+        totalItems: batch.totalItems,
+        completedItems: completed,
+        failedItems: failed,
+        progress: Math.round(((completed + failed) / batch.totalItems) * 100),
+        currentItem: filename,
+        lastProcessedPath: op.source,
+        errors,
+      });
+    }
+
+    try {
+      // Restore original filename
+      const result = await restoreOriginalFilename(fileId);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to restore original filename');
+      }
+
+      // Update operation status
+      await db.operationLog.update({
+        where: { id: op.id },
+        data: { status: 'success' },
+      });
+
+      // Update file record in database
+      if (result.destination) {
+        await db.comicFile.update({
+          where: { id: fileId },
+          data: {
+            path: result.destination,
+            filename: result.destination.split('/').pop() || '',
+          },
+        });
+      }
+
+      completed++;
+    } catch (err) {
+      failed++;
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      errors.push({ filename, error: errorMsg });
+
+      await db.operationLog.update({
+        where: { id: op.id },
+        data: { status: 'failed', error: errorMsg },
+      });
+    }
+  }
+
+  // Finalize batch
+  const finalStatus: BatchStatus = failed > 0 && completed === 0 ? 'failed' : 'completed';
+  await db.batchOperation.update({
+    where: { id: batch.id },
+    data: {
+      status: finalStatus,
+      completedItems: completed,
+      failedItems: failed,
+      completedAt: new Date(),
+      errorSummary: errors.length > 0 ? JSON.stringify(errors) : null,
+    },
+  });
+
+  return {
+    id: batch.id,
+    type: batch.type as BatchType,
+    status: finalStatus,
+    totalItems: batch.totalItems,
+    completedItems: completed,
+    failedItems: failed,
+    errors,
+    startedAt: batch.startedAt || undefined,
+    completedAt: new Date(),
   };
 }
 

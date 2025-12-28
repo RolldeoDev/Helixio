@@ -1428,3 +1428,25 @@ model IssueReaderSettings {
 
   @@index([fileId])
 }
+
+// =============================================================================
+// Filename Templates
+// =============================================================================
+
+model FilenameTemplate {
+  id              String   @id @default(cuid())
+  libraryId       String?  // null = global template
+  name            String
+  description     String?
+  filePattern     String   // Template pattern like "{Series} - {Number:000}.{Extension}"
+  folderSegments  String   @default("[]") // JSON array of folder segment patterns
+  characterRules  String   @default("{}") // JSON object for character replacement rules
+  isActive        Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([libraryId, name])
+  @@index([libraryId])
+  @@index([isActive])
+}

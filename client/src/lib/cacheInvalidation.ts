@@ -6,6 +6,7 @@
  */
 
 import { queryClient, queryKeys } from './queryClient';
+import { updateCoverVersion } from '../services/api/files';
 
 // =============================================================================
 // Individual Invalidation Functions
@@ -180,12 +181,20 @@ export function invalidateAfterLibraryScan(libraryId?: string) {
  * Invalidate caches after cover updates.
  * Used when series or file covers are changed.
  * This ensures covers are refreshed everywhere they are displayed.
+ * Also updates cover version for cache-busting browser cache.
  */
 export function invalidateAfterCoverUpdate(options: {
   seriesId?: string;
   fileId?: string;
+  /** New cover hash (used as cache-buster version) */
+  coverHash?: string;
 }) {
+  const version = options.coverHash || Date.now().toString();
+
   if (options.seriesId) {
+    // Update cover version for cache-busting
+    updateCoverVersion(options.seriesId, version);
+
     queryClient.invalidateQueries({ queryKey: queryKeys.series.cover(options.seriesId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.series.detail(options.seriesId) });
     // Also invalidate series list to refresh thumbnails
@@ -198,6 +207,9 @@ export function invalidateAfterCoverUpdate(options: {
   }
 
   if (options.fileId) {
+    // Update cover version for cache-busting
+    updateCoverVersion(options.fileId, version);
+
     queryClient.invalidateQueries({ queryKey: queryKeys.files.coverInfo(options.fileId) });
     queryClient.invalidateQueries({ queryKey: queryKeys.files.detail(options.fileId) });
     // Invalidate all series lists and grids since this file's cover might be used as series cover

@@ -368,7 +368,7 @@ export async function generateSeriesFeed(baseUrl: string, series: string): Promi
     },
     include: { metadata: true },
     orderBy: [
-      { metadata: { issueNumberSort: 'asc' } },
+      { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
       { filename: 'asc' },
     ],
   });

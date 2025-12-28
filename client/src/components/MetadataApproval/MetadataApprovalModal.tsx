@@ -14,11 +14,13 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMetadataJob, type JobStep, type StepLogEntry } from '../../contexts/MetadataJobContext';
+import { useToast } from '../../contexts/ToastContext';
 import { SeriesApprovalStep } from './SeriesApprovalStep';
 import { FileReviewStep } from './FileReviewStep';
 import { StepSidebar, type StepId } from './StepSidebar';
-import { getIndexedFilesInfo, type IndexedFilesInfo } from '../../services/api.service';
+import { getIndexedFilesInfo, getFile, type IndexedFilesInfo } from '../../services/api.service';
 import './MetadataApproval.css';
 
 export function MetadataApprovalModal() {
@@ -44,11 +46,26 @@ export function MetadataApprovalModal() {
     resetSeriesSelection,
   } = useMetadataJob();
 
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+
   const [viewingStep, setViewingStep] = useState<StepId | null>(null);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [logsExpanded, setLogsExpanded] = useState(true);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const isUserAtBottomRef = useRef(true); // Track if user is scrolled to bottom
+
+  // Resizable log panel state
+  const LOG_PANEL_MIN_HEIGHT = 100;
+  const LOG_PANEL_MAX_HEIGHT = 400;
+  const LOG_PANEL_DEFAULT_HEIGHT = 200;
+  const [logPanelHeight, setLogPanelHeight] = useState<number>(() => {
+    const saved = localStorage.getItem('metadata-log-panel-height');
+    return saved ? Math.min(Math.max(parseInt(saved, 10), LOG_PANEL_MIN_HEIGHT), LOG_PANEL_MAX_HEIGHT) : LOG_PANEL_DEFAULT_HEIGHT;
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef<number>(0);
+  const dragStartHeight = useRef<number>(0);
 
   // Indexed files state for the re-search option
   const [indexedFilesInfo, setIndexedFilesInfo] = useState<IndexedFilesInfo | null>(null);
@@ -154,6 +171,45 @@ export function MetadataApprovalModal() {
     }
   }, []);
 
+  // Log panel resize handlers
+  const handleDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = logPanelHeight;
+  }, [logPanelHeight]);
+
+  const handleDragMove = useCallback((e: MouseEvent) => {
+    if (!isDragging) return;
+    // Dragging up increases height, dragging down decreases
+    const deltaY = dragStartY.current - e.clientY;
+    const newHeight = Math.min(Math.max(dragStartHeight.current + deltaY, LOG_PANEL_MIN_HEIGHT), LOG_PANEL_MAX_HEIGHT);
+    setLogPanelHeight(newHeight);
+  }, [isDragging]);
+
+  const handleDragEnd = useCallback(() => {
+    if (isDragging) {
+      setIsDragging(false);
+      localStorage.setItem('metadata-log-panel-height', logPanelHeight.toString());
+    }
+  }, [isDragging, logPanelHeight]);
+
+  // Attach drag event listeners to window
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleDragMove);
+      window.addEventListener('mouseup', handleDragEnd);
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleDragMove);
+      window.removeEventListener('mouseup', handleDragEnd);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging, handleDragMove, handleDragEnd]);
+
   // Auto-scroll logs to bottom only if user is already at bottom
   useEffect(() => {
     if (logContainerRef.current && logsExpanded && isUserAtBottomRef.current) {
@@ -167,6 +223,10 @@ export function MetadataApprovalModal() {
   }, [step]);
 
   const handleClose = () => {
+    // Show toast when closing with job still running
+    if (step !== 'options' && step !== 'complete' && step !== 'error') {
+      addToast('info', 'Metadata job running in background. You can resume from Active Jobs.');
+    }
     closeModal();
   };
 
@@ -197,8 +257,31 @@ export function MetadataApprovalModal() {
     applyChanges();
   };
 
-  const handleDone = () => {
+  const handleDone = async () => {
+    // Find the series to navigate to (the one with the most files affected)
+    let targetSeriesId: string | null = null;
+
+    if (applyResult && applyResult.results.length > 0) {
+      // Get a successful file to find its series
+      const successfulFile = applyResult.results.find((r) => r.success);
+      if (successfulFile) {
+        try {
+          const file = await getFile(successfulFile.fileId);
+          if (file.seriesId) {
+            targetSeriesId = file.seriesId;
+          }
+        } catch {
+          // If we can't get the file, just complete without navigating
+        }
+      }
+    }
+
     completeJob();
+
+    // Navigate to the affected series if we found one
+    if (targetSeriesId) {
+      navigate(`/series/${targetSeriesId}`);
+    }
   };
 
   const handleStepClick = (clickedStep: StepId) => {
@@ -365,23 +448,9 @@ export function MetadataApprovalModal() {
                   onChange={(e) => setOptions({ ...options, mixedSeries: e.target.checked })}
                 />
                 <span className="option-label">
-                  <strong>Mixed Series</strong>
+                  <strong>Multiple Series</strong>
                   <span className="option-description">
-                    Folder contains multiple series. Each file will be parsed individually and existing series.json will be ignored. Use when a folder has comics from different series.
-                  </span>
-                </span>
-              </label>
-
-              <label className="option-checkbox">
-                <input
-                  type="checkbox"
-                  checked={options.searchMode === 'full'}
-                  onChange={(e) => setOptions({ ...options, searchMode: e.target.checked ? 'full' : 'quick' })}
-                />
-                <span className="option-label">
-                  <strong>Full Data Mode</strong>
-                  <span className="option-description">
-                    Search all enabled metadata sources (ComicVine, Metron) and merge results for richer data. When disabled, only the primary source is searched (faster).
+                    Selection contains multiple distinct series. Each file will be parsed individually and existing series.json will be ignored. Enable when your selection includes comics from different series.
                   </span>
                 </span>
               </label>
@@ -698,7 +767,15 @@ export function MetadataApprovalModal() {
 
             {/* Collapsible Log Panel */}
             {showLogsPanel && currentLogs.length > 0 && (
-              <div className={`log-panel ${logsExpanded ? 'expanded' : 'collapsed'}`}>
+              <div className={`log-panel ${logsExpanded ? 'expanded' : 'collapsed'} ${isDragging ? 'dragging' : ''}`}>
+                {/* Resize handle - only show when expanded */}
+                {logsExpanded && (
+                  <div
+                    className="log-panel-resize-handle"
+                    onMouseDown={handleDragStart}
+                    title="Drag to resize"
+                  />
+                )}
                 <button
                   className="log-panel-toggle"
                   onClick={() => setLogsExpanded(!logsExpanded)}
@@ -709,7 +786,12 @@ export function MetadataApprovalModal() {
                   </span>
                 </button>
                 {logsExpanded && (
-                  <div className="log-panel-content" ref={logContainerRef} onScroll={handleLogScroll}>
+                  <div
+                    className="log-panel-content"
+                    ref={logContainerRef}
+                    onScroll={handleLogScroll}
+                    style={{ height: `${logPanelHeight}px` }}
+                  >
                     {currentLogs.map((log, index) => (
                       <div key={index} className={`log-entry ${log.type || 'info'}`}>
                         <span className="log-timestamp">{formatTimestamp(log.timestamp)}</span>

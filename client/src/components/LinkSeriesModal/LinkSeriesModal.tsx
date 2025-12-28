@@ -11,8 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Series,
   getSeriesList,
-  getCoverUrl,
-  getApiCoverUrl,
+  resolveSeriesCoverUrl,
 } from '../../services/api.service';
 import {
   addChildSeries,
@@ -224,15 +223,6 @@ export function LinkSeriesModal({
     }
   };
 
-  const getCover = (s: Series) => {
-    if (s.coverHash) return getApiCoverUrl(s.coverHash);
-    if (s.coverFileId) return getCoverUrl(s.coverFileId);
-    if (s.issues && s.issues.length > 0 && s.issues[0]) {
-      return getCoverUrl(s.issues[0].id);
-    }
-    return null;
-  };
-
   const selectedSeries = series.filter((s) => selectedIds.has(s.id));
 
   // =============================================================================
@@ -353,7 +343,7 @@ export function LinkSeriesModal({
                 ) : (
                   <>
                     {series.map((s) => {
-                      const coverUrl = getCover(s);
+                      const coverUrl = resolveSeriesCoverUrl(s);
                       const isSelected = selectedIds.has(s.id);
 
                       return (
@@ -431,7 +421,7 @@ export function LinkSeriesModal({
 
               <div className="link-series-selected-preview">
                 {selectedSeries.map((s) => {
-                  const coverUrl = getCover(s);
+                  const coverUrl = resolveSeriesCoverUrl(s);
                   return (
                     <div key={s.id} className="link-series-preview-item">
                       <div className="link-series-preview-cover">

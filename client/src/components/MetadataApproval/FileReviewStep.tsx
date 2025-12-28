@@ -20,6 +20,7 @@ import {
   rejectFile,
   acceptAllFiles,
   rejectAllFiles,
+  moveFileToSeriesGroup,
   type ApprovalSession,
   type FileChange,
 } from '../../services/api.service';
@@ -37,6 +38,25 @@ interface FileReviewStepProps {
 }
 
 type FilterStatus = 'all' | 'matched' | 'unmatched' | 'rejected' | 'high-confidence' | 'low-confidence';
+
+/**
+ * Check if a value is effectively empty (null, undefined, or empty string)
+ */
+function isEmptyValue(value: unknown): boolean {
+  return value === null || value === undefined || value === '';
+}
+
+/**
+ * Check if a field change is a meaningful change (not empty-to-empty)
+ */
+function hasMeaningfulChange(proposed: unknown, current: unknown): boolean {
+  // If both are empty, it's not a meaningful change
+  if (isEmptyValue(proposed) && isEmptyValue(current)) {
+    return false;
+  }
+  // Otherwise compare normally
+  return proposed !== current;
+}
 
 export function FileReviewStep({
   session,
@@ -57,7 +77,7 @@ export function FileReviewStep({
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [showOnlyWithChanges, setShowOnlyWithChanges] = useState(true);
+  const [showOnlyWithChanges, setShowOnlyWithChanges] = useState(false);
 
   // Hover preview state
   const [hoveredFileId, setHoveredFileId] = useState<string | null>(null);
@@ -78,6 +98,11 @@ export function FileReviewStep({
 
   // Series group picker state
   const [showSeriesPicker, setShowSeriesPicker] = useState(false);
+
+  // File-to-series-group move modal state
+  const [showMoveToSeriesModal, setShowMoveToSeriesModal] = useState(false);
+  const [fileToMoveId, setFileToMoveId] = useState<string | null>(null);
+  const [isMovingFile, setIsMovingFile] = useState(false);
 
   // Refs
   const fileListRef = useRef<HTMLDivElement>(null);
@@ -146,7 +171,7 @@ export function FileReviewStep({
 
       // Only with changes filter
       if (showOnlyWithChanges) {
-        const hasChanges = Object.values(fc.fields).some(f => f.proposed !== f.current);
+        const hasChanges = Object.values(fc.fields).some(f => hasMeaningfulChange(f.proposed, f.current));
         if (!hasChanges && fc.status !== 'rejected') return false;
       }
 
@@ -159,7 +184,7 @@ export function FileReviewStep({
     return fileChanges.filter(fc =>
       fc.status !== 'rejected' &&
       fc.matchConfidence >= 0.8 &&
-      Object.values(fc.fields).some(f => f.proposed !== f.current)
+      Object.values(fc.fields).some(f => hasMeaningfulChange(f.proposed, f.current))
     );
   }, [fileChanges]);
 
@@ -454,6 +479,40 @@ export function FileReviewStep({
     );
   }, []);
 
+  // File-to-series-group move handlers
+  const openMoveToSeriesModal = useCallback((fileId: string) => {
+    setFileToMoveId(fileId);
+    setShowMoveToSeriesModal(true);
+    setDrawerFileId(null); // Close the drawer when opening the modal
+  }, []);
+
+  const closeMoveToSeriesModal = useCallback(() => {
+    setShowMoveToSeriesModal(false);
+    setFileToMoveId(null);
+  }, []);
+
+  const handleMoveFileToSeriesGroup = useCallback(async (targetGroupIndex: number) => {
+    if (!fileToMoveId) return;
+
+    setIsMovingFile(true);
+    try {
+      const result = await moveFileToSeriesGroup(session.sessionId, fileToMoveId, targetGroupIndex);
+
+      // Update the file change in state
+      setFileChanges((prev) =>
+        prev.map((fc) => (fc.fileId === result.fileChange.fileId ? result.fileChange : fc))
+      );
+
+      const targetGroup = session.seriesGroups?.[targetGroupIndex];
+      setAnnouncement(`File moved to "${targetGroup?.displayName || 'series group'}"`);
+      closeMoveToSeriesModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to move file');
+    } finally {
+      setIsMovingFile(false);
+    }
+  }, [session.sessionId, fileToMoveId, session.seriesGroups, closeMoveToSeriesModal]);
+
   const handleApply = useCallback(() => {
     setError(null);
     onStartApply();
@@ -679,7 +738,7 @@ export function FileReviewStep({
               if (!fc) return null;
 
               const changeCount = Object.values(fc.fields).filter(
-                (f) => f.proposed !== f.current
+                (f) => hasMeaningfulChange(f.proposed, f.current)
               ).length;
               const isSelected = fc.fileId === selectedFileId;
               const isHovered = fc.fileId === hoveredFileId;
@@ -829,6 +888,7 @@ export function FileReviewStep({
         onAcceptAll={handleAcceptAllFields}
         onSwitchMatch={openIssueBrowserFromDrawer}
         onReject={handleRejectFile}
+        onMoveToSeriesGroup={session.seriesGroups && session.seriesGroups.length > 1 ? openMoveToSeriesModal : undefined}
         disabled={applying}
       />
 
@@ -933,6 +993,64 @@ export function FileReviewStep({
             </div>
             <div className="confirm-actions">
               <button className="btn-secondary" onClick={() => setShowSeriesPicker(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Move File to Series Group Modal */}
+      {showMoveToSeriesModal && fileToMoveId && session.seriesGroups && (
+        <div className="modal-overlay confirm-overlay" onClick={closeMoveToSeriesModal}>
+          <div className="confirm-dialog series-picker-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Move File to Series</h3>
+            <p className="series-picker-hint">
+              Select a series group to move this file to. The file will be re-matched against the new series' issues.
+            </p>
+            <div className="file-info-preview">
+              <span className="label">File:</span>
+              <span className="filename" title={fileChanges.find(fc => fc.fileId === fileToMoveId)?.filename}>
+                {fileChanges.find(fc => fc.fileId === fileToMoveId)?.filename}
+              </span>
+            </div>
+            <div className="series-picker-list">
+              {session.seriesGroups.map((group, index) => {
+                // Find current group for this file
+                const isCurrentGroup = group.fileIds?.includes(fileToMoveId);
+
+                return (
+                  <button
+                    key={index}
+                    className={`series-picker-item ${isCurrentGroup ? 'current' : ''}`}
+                    onClick={() => !isCurrentGroup && handleMoveFileToSeriesGroup(index)}
+                    disabled={isCurrentGroup || isMovingFile}
+                  >
+                    <div className="series-picker-item-name">
+                      {group.displayName}
+                      {isCurrentGroup && <span className="current-badge">Current</span>}
+                    </div>
+                    <div className="series-picker-item-meta">
+                      <span className="file-count">{group.fileCount} files</span>
+                      {group.selectedSeries && (
+                        <span className="current-match">
+                          {group.selectedSeries.name}
+                          {group.selectedSeries.startYear && ` (${group.selectedSeries.startYear})`}
+                        </span>
+                      )}
+                      {group.status === 'skipped' && (
+                        <span className="status-skipped">Skipped</span>
+                      )}
+                      {group.status === 'pending' && (
+                        <span className="status-pending">Not yet matched</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="confirm-actions">
+              <button className="btn-secondary" onClick={closeMoveToSeriesModal} disabled={isMovingFile}>
                 Cancel
               </button>
             </div>
