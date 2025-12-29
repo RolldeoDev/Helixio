@@ -29,9 +29,11 @@ import {
   getSeries as getMetronSeries,
   getSeriesIssues as getMetronSeriesIssues,
   getSeriesName as getMetronSeriesName,
+  isMetronAvailable,
   type MetronSeries,
   type MetronIssue,
 } from './metron.service.js';
+import { hasApiKey } from './config.service.js';
 import { logError } from './logger.service.js';
 
 // =============================================================================
@@ -191,6 +193,16 @@ export async function getOrFetchSeries(
   let issueCount: number | undefined;
 
   if (source === 'comicvine') {
+    // Check if ComicVine API key is configured
+    if (!hasApiKey('comicVine')) {
+      logError('series-cache', new Error('ComicVine API key not configured'), {
+        action: 'fetch-series',
+        source,
+        sourceId,
+      });
+      return null;
+    }
+
     const volume = await getVolume(parseInt(sourceId, 10), options.sessionId);
     if (!volume) {
       return null;
@@ -201,6 +213,16 @@ export async function getOrFetchSeries(
     startYear = volume.start_year ? parseInt(volume.start_year, 10) : undefined;
     issueCount = volume.count_of_issues;
   } else if (source === 'metron') {
+    // Check if Metron credentials are configured
+    if (!isMetronAvailable()) {
+      logError('series-cache', new Error('Metron credentials not configured'), {
+        action: 'fetch-series',
+        source,
+        sourceId,
+      });
+      return null;
+    }
+
     const series = await getMetronSeries(parseInt(sourceId, 10), options.sessionId);
     if (!series) {
       return null;
@@ -319,6 +341,16 @@ export async function getOrFetchIssues(
   let total = 0;
 
   if (source === 'comicvine') {
+    // Check if ComicVine API key is configured
+    if (!hasApiKey('comicVine')) {
+      logError('series-cache', new Error('ComicVine API key not configured'), {
+        action: 'fetch-issues',
+        source,
+        seriesId,
+      });
+      return null;
+    }
+
     const volumeId = parseInt(seriesId, 10);
     let offset = 0;
     const limit = 100;
@@ -331,6 +363,16 @@ export async function getOrFetchIssues(
       offset += limit;
     } while (allIssues.length < total);
   } else if (source === 'metron') {
+    // Check if Metron credentials are configured
+    if (!isMetronAvailable()) {
+      logError('series-cache', new Error('Metron credentials not configured'), {
+        action: 'fetch-issues',
+        source,
+        seriesId,
+      });
+      return null;
+    }
+
     const metronSeriesId = parseInt(seriesId, 10);
     let page = 1;
     let hasMore = true;

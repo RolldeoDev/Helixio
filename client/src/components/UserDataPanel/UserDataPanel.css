@@ -112,6 +112,29 @@
   gap: 1rem;
 }
 
+/* Clear Rating Button */
+.clear-rating-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--button-secondary-bg, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 50%;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.clear-rating-button:hover {
+  background: var(--danger-bg, rgba(239, 68, 68, 0.2));
+  border-color: var(--danger-color, #ef4444);
+  color: var(--danger-color, #ef4444);
+}
+
 /* Text Areas */
 .user-data-textarea {
   width: 100%;

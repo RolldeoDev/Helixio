@@ -46,11 +46,6 @@
 
   /* Border radius */
   --series-card-radius: var(--radius-md, 8px);
-
-  /* Hover effects */
-  --series-card-hover-scale: var(--scale-hover, 1.06);
-  --series-card-hover-lift: var(--lift-hover, -4px);
-  --series-card-image-hover-scale: var(--scale-image-hover, 1.05);
 }
 
 /* =============================================================================
@@ -68,32 +63,18 @@
   cursor: pointer;
   /* Slower transition for hover-off (easing out) */
   transition:
-    transform var(--series-card-transition-out),
     box-shadow var(--series-card-transition-out),
     background var(--series-card-transition-out);
   outline: none;
   box-shadow: var(--series-card-shadow);
-  /* Prevent border-radius clipping issues during transform */
   overflow: hidden;
-  will-change: transform;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
 }
 
 .series-cover-card:hover {
-  /*
-   * Transform anchored to bottom center to prevent jitter.
-   * Scale expands upward/outward while bottom edge stays fixed.
-   * No translateY - it would move the bottom edge and cause jitter
-   * when cursor approaches from below.
-   */
-  transform-origin: bottom center;
-  transform: scale(var(--series-card-hover-scale));
   box-shadow: var(--series-card-shadow-hover), var(--series-card-hover-glow);
   background: var(--series-card-bg-hover);
   /* Faster transition for hover-on */
   transition:
-    transform var(--series-card-transition),
     box-shadow var(--series-card-transition),
     background var(--series-card-transition);
 }
@@ -178,11 +159,8 @@
 }
 
 .series-cover-card:hover .series-cover-card__image {
-  transform: scale(var(--series-card-image-hover-scale));
   /* Faster transition for hover-on */
-  transition:
-    opacity var(--series-card-transition),
-    transform var(--series-card-transition);
+  transition: opacity var(--series-card-transition);
 }
 
 .series-cover-card__image--loaded {
@@ -291,26 +269,6 @@
   text-overflow: ellipsis;
 }
 
-/* =============================================================================
-   Animations
-   ============================================================================= */
-
-@keyframes series-card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(1);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.series-cover-card {
-  /* Use 'backwards' fill mode so animation doesn't override hover transforms after completion */
-  animation: series-card-enter 0.3s ease backwards;
-  animation-delay: calc(var(--animation-index, 0) * 30ms);
-}
 
 /* =============================================================================
    Context Menu
@@ -469,15 +427,34 @@
   .series-cover-card {
     --series-card-transition: 0ms;
     --series-card-transition-out: 0ms;
-    --series-card-hover-scale: 1;
-    --series-card-hover-lift: 0;
-    --series-card-image-hover-scale: 1;
-    animation: none;
   }
 
   .series-cover-card__spinner {
     animation: none;
   }
+}
+
+/* =============================================================================
+   Scroll Performance Optimizations
+   Disable hover effects during scroll to prevent flickering
+   ============================================================================= */
+
+.scrolling .series-cover-card {
+  transition: none !important;
+}
+
+.scrolling .series-cover-card:hover {
+  box-shadow: var(--series-card-shadow) !important;
+  background: var(--series-card-bg) !important;
+}
+
+.scrolling .series-cover-card:hover .series-cover-card__checkbox,
+.scrolling .series-cover-card:hover .series-cover-card__remove-btn {
+  opacity: 0 !important;
+}
+
+.scrolling .series-cover-card:hover .series-cover-card__progress-ring {
+  opacity: 1 !important;
 }
 
 /* =============================================================================
@@ -494,12 +471,6 @@
   .series-cover-card__checkbox input {
     width: 28px;
     height: 28px;
-  }
-
-  /* Disable hover scale on touch - prevents janky transforms */
-  .series-cover-card {
-    --series-card-hover-scale: 1;
-    --series-card-image-hover-scale: 1;
   }
 
   /* Add active state for touch feedback */

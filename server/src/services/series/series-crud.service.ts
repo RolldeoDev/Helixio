@@ -32,6 +32,8 @@ import type {
   BulkOperationResult,
 } from './series.types.js';
 import { getSeriesByIdentity } from './series-lookup.service.js';
+import { onSeriesMetadataChanged } from '../collection.service.js';
+import { markSmartCollectionsDirty } from '../smart-collection-dirty.service.js';
 
 // =============================================================================
 // CRUD Operations
@@ -360,6 +362,21 @@ export async function updateSeries(
   // Extract tags for autocomplete after series is updated
   await refreshTagsFromSeries(seriesId);
 
+  // Trigger collection recalculation for collections containing this series
+  // Fire-and-forget to avoid blocking the update response
+  onSeriesMetadataChanged(seriesId).catch(() => {
+    // Errors are logged inside onSeriesMetadataChanged
+  });
+
+  // Mark smart collections dirty so they can re-evaluate this series
+  // This handles the case where metadata changes make the series match/unmatch filters
+  markSmartCollectionsDirty({
+    seriesIds: [seriesId],
+    reason: 'series_metadata',
+  }).catch(() => {
+    // Errors are logged inside markSmartCollectionsDirty
+  });
+
   return updated;
 }
 
@@ -649,6 +666,14 @@ export async function softDeleteSeries(seriesId: string): Promise<Series> {
     data: { isAvailable: false },
   });
 
+  // Mark smart collections dirty to remove this series from any matching collections
+  markSmartCollectionsDirty({
+    seriesIds: [seriesId],
+    reason: 'item_deleted',
+  }).catch(() => {
+    // Errors are logged inside markSmartCollectionsDirty
+  });
+
   return updated;
 }
 
@@ -881,6 +906,11 @@ export async function bulkUpdateSeries(
       // Refresh tags for autocomplete
       await refreshTagsFromSeries(seriesId);
 
+      // Trigger collection recalculation (fire-and-forget)
+      onSeriesMetadataChanged(seriesId).catch(() => {
+        // Errors are logged inside onSeriesMetadataChanged
+      });
+
       results.push({ seriesId, success: true });
       successful++;
     } catch (error) {
@@ -891,6 +921,18 @@ export async function bulkUpdateSeries(
       });
       failed++;
     }
+  }
+
+  // Mark smart collections dirty for all successfully updated series
+  // Batched to trigger a single debounced evaluation
+  const successfulSeriesIds = results.filter((r) => r.success).map((r) => r.seriesId);
+  if (successfulSeriesIds.length > 0) {
+    markSmartCollectionsDirty({
+      seriesIds: successfulSeriesIds,
+      reason: 'series_metadata',
+    }).catch(() => {
+      // Errors are logged inside markSmartCollectionsDirty
+    });
   }
 
   return {

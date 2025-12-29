@@ -48,11 +48,6 @@
 
   /* Border radius */
   --cover-card-radius: var(--radius-md, 8px);
-
-  /* Hover effects */
-  --cover-card-hover-scale: var(--scale-hover, 1.06);
-  --cover-card-hover-lift: var(--lift-hover, -4px);
-  --cover-card-image-hover-scale: var(--scale-image-hover, 1.05);
 }
 
 /* =============================================================================
@@ -71,46 +66,15 @@
   cursor: pointer;
   /* Shorter transitions for better Chrome performance */
   transition:
-    transform 150ms ease-out,
     box-shadow 150ms ease-out,
     border-color 150ms ease-out;
   outline: none;
   box-shadow: var(--cover-card-shadow);
-  /* Note: overflow:hidden moved to child containers to allow hover buffer */
-  /* Use GPU layer promotion only when hovered (not all cards) */
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
 }
 
-/*
- * Invisible hover buffer zone to prevent flickering.
- * When the card transforms on hover (translateY + scale), edges can move
- * out from under the cursor at card boundaries, causing rapid hover toggling.
- * This pseudo-element extends beyond the card to maintain stable hover state.
- * Hovering over ::before triggers :hover on the parent .cover-card.
- *
- * Buffer sizes based on transform: translateY(-3px) scale(1.03)
- * - Top edge moves up ~7px (scale + translate combined)
- * - Side edges expand ~3px each (scale only)
- * - Bottom edge moves down ~1px (scale - translate nearly cancel)
- */
-.cover-card::before {
-  content: '';
-  position: absolute;
-  /* Top needs most buffer for the combined upward movement */
-  top: -10px;
-  /* Sides/bottom need smaller buffer; kept under half of typical grid gap */
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  z-index: -1;
-}
 
 .cover-card:hover {
-  transform: translateY(-3px) scale(1.03);
   box-shadow: var(--cover-card-shadow-hover);
-  /* Promote to GPU layer only on hover */
-  will-change: transform;
 }
 
 .cover-card:focus-visible {
@@ -630,6 +594,14 @@
   text-overflow: ellipsis;
 }
 
+.cover-card__date {
+  font-size: clamp(8px, calc(var(--cover-card-width) * 0.06), 12px);
+  color: var(--cover-card-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* =============================================================================
    Context Menu
    ============================================================================= */
@@ -709,9 +681,6 @@
   .cover-card {
     --cover-card-transition: 0ms;
     --cover-card-transition-out: 0ms;
-    --cover-card-hover-scale: 1;
-    --cover-card-hover-lift: 0;
-    --cover-card-image-hover-scale: 1;
     animation: none;
   }
 
@@ -744,9 +713,7 @@
 
 .scrolling .cover-card:hover {
   /* Disable all hover effects during scroll */
-  transform: none !important;
   box-shadow: var(--cover-card-shadow) !important;
-  will-change: auto !important;
 }
 
 /* Hide read overlay during scroll for performance */
@@ -779,11 +746,6 @@
   .cover-card__read-overlay {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  /* Disable hover transforms on touch */
-  .cover-card:hover {
-    transform: none;
   }
 
   /* Add active state for touch feedback */

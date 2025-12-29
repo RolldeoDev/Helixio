@@ -92,6 +92,7 @@ model Series {
   metronId      String?
   anilistId     String?                   // AniList series ID
   malId         String?                   // MyAnimeList ID (auto-linked from AniList idMal)
+  gcdId         String?                   // Grand Comics Database ID
 
   // File system reference
   primaryFolder String?                   // Primary folder path for series.json sync
@@ -127,6 +128,7 @@ model Series {
   progress      SeriesProgress[]
   readerSettings SeriesReaderSettingsNew?
   userData      UserSeriesData[]
+  externalRatings ExternalRating[]
 
   // Parent/Child relationships (many-to-many)
   parentRelationships  SeriesRelationship[] @relation("ChildSeries")   // Series where this is the child
@@ -141,6 +143,7 @@ model Series {
   @@index([metronId])
   @@index([anilistId])
   @@index([malId])
+  @@index([gcdId])
 }
 
 // =============================================================================
@@ -154,8 +157,8 @@ model UserSeriesData {
   seriesId         String
   series           Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
-  // User's explicit rating (1-5 stars)
-  rating           Int?
+  // User's explicit rating (0.5-5.0 stars, 0.5 increments)
+  rating           Float?
 
   // User's review/notes
   privateNotes     String?                     // Private notes only visible to user
@@ -302,6 +305,7 @@ model ComicFile {
   readingQueue        ReadingQueue?
   readingHistory      ReadingHistory[]
   readerSettings      IssueReaderSettings?
+  externalRatings     ExternalRating[]
 
   @@index([libraryId])
   @@index([hash])
@@ -985,7 +989,7 @@ model UserReadingProgress {
   currentPage Int       @default(0)
   totalPages  Int       @default(0)
   completed   Boolean   @default(false)
-  rating      Int?      // 1-5 stars
+  rating      Float?    // 0.5-5.0 stars (0.5 increments)
   bookmarks   String    @default("[]") // JSON array of page indices
   lastReadAt  DateTime  @updatedAt
   createdAt   DateTime  @default(now())
@@ -1208,6 +1212,26 @@ model StatsDirtyFlag {
   @@index([createdAt])
 }
 
+// Smart Collection Dirty Flag - Track which smart collections need re-evaluation
+model SmartCollectionDirtyFlag {
+  id        String   @id @default(cuid())
+
+  // Scope - null userId means all users with smart collections should be evaluated
+  userId    String?  // If provided, only evaluate this user's collections
+
+  // Changed items
+  seriesId  String?  // Changed series
+  fileId    String?  // Changed file
+
+  // Why it's dirty
+  reason    String   // "series_metadata" | "file_metadata" | "reading_progress" | "user_data" | "item_deleted"
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
 // User Stats - User-level aggregates (cross-library)
 model UserStat {
   id              String   @id @default(cuid())
@@ -1324,7 +1348,7 @@ model Collection {
   // ===========================================
   // User collection metadata
   // ===========================================
-  rating       Int?                          // 1-5 star rating
+  rating       Float?                        // 0.5-5.0 star rating (0.5 increments)
   notes        String?                       // Private notes/reminders
   visibility   String    @default("private") // "public", "private", "unlisted"
   readingMode  String?                       // Preferred reader mode: "single", "double", "webtoon"
@@ -1553,6 +1577,97 @@ model IssueReaderSettings {
 }
 
 // =============================================================================
+// Series Similarity (Recommendation Engine)
+// =============================================================================
+
+// Precomputed similarity scores between series pairs
+model SeriesSimilarity {
+  id               String   @id @default(cuid())
+
+  // The two series being compared (sourceSeriesId < targetSeriesId to avoid duplicates)
+  sourceSeriesId   String
+  targetSeriesId   String
+
+  // Overall similarity score (0.0 - 1.0)
+  similarityScore  Float
+
+  // Component scores for transparency/debugging (0.0 - 1.0 each)
+  genreScore       Float    @default(0)
+  tagScore         Float    @default(0)
+  characterScore   Float    @default(0)
+  teamScore        Float    @default(0)
+  creatorScore     Float    @default(0)
+  publisherScore   Float    @default(0)
+  keywordScore     Float    @default(0)   // From description/summary analysis
+
+  // Timestamp
+  computedAt       DateTime @default(now())
+
+  @@unique([sourceSeriesId, targetSeriesId])
+  @@index([sourceSeriesId, similarityScore(sort: Desc)])
+  @@index([targetSeriesId, similarityScore(sort: Desc)])
+  @@index([computedAt])
+}
+
+// =============================================================================
+// Recommendation Feedback (User Like/Dislike)
+// =============================================================================
+
+// Tracks user feedback on recommendations to improve future suggestions
+model RecommendationFeedback {
+  id                   String   @id @default(cuid())
+  userId               String
+
+  // What was recommended
+  recommendedSeriesId  String
+
+  // Context: what series triggered this recommendation (null for discover/cold start)
+  sourceSeriesId       String?
+
+  // Feedback type
+  feedbackType         String   // "like" | "dislike" | "not_interested"
+
+  // Timestamp
+  createdAt            DateTime @default(now())
+
+  @@unique([userId, recommendedSeriesId])
+  @@index([userId])
+  @@index([recommendedSeriesId])
+  @@index([userId, feedbackType])
+}
+
+// =============================================================================
+// Similarity Job (Background Computation Tracking)
+// =============================================================================
+
+// Tracks background jobs that compute series similarity scores
+model SimilarityJob {
+  id               String    @id @default(cuid())
+
+  // Job state
+  status           String    @default("pending")  // "pending" | "running" | "completed" | "failed"
+  type             String    @default("incremental")  // "full" | "incremental"
+
+  // Progress tracking
+  totalPairs       Int       @default(0)
+  processedPairs   Int       @default(0)
+
+  // Resume capability
+  lastProcessedId  String?   // Last series ID processed (for resume)
+
+  // Error tracking
+  error            String?
+
+  // Timestamps
+  createdAt        DateTime  @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+// =============================================================================
 // Filename Templates
 // =============================================================================
 
@@ -1572,4 +1687,93 @@ model FilenameTemplate {
   @@unique([libraryId, name])
   @@index([libraryId])
   @@index([isActive])
+}
+
+// =============================================================================
+// External Ratings (Community/Critic ratings from external sources)
+// =============================================================================
+
+model ExternalRating {
+  id              String   @id @default(cuid())
+
+  // Target - either seriesId OR fileId (never both)
+  seriesId        String?
+  fileId          String?
+
+  // Source identification
+  source          String   // "comicbookroundup" | "leagueofcomicgeeks" | "comicvine" | "metron" | "anilist"
+  sourceId        String?  // External ID on that source (for future syncs)
+
+  // Rating data
+  ratingType      String   // "community" | "critic"
+  ratingValue     Float    // Normalized to 0-10 scale
+  ratingScale     Float    // Original scale (e.g., 5, 10, 100)
+  originalValue   Float    // Original value before normalization
+  voteCount       Int?     // Number of votes/reviews
+  reviewCount     Int?     // Number of written reviews (if different from votes)
+
+  // Sync metadata
+  confidence      Float    @default(1.0)  // Match confidence 0-1 (lower if fuzzy matched)
+  matchMethod     String?  // "id" | "name_year" | "fuzzy" | "manual"
+  lastSyncedAt    DateTime @default(now())
+  expiresAt       DateTime // When this rating should be refreshed
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  series          Series?    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  file            ComicFile? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, source, ratingType])
+  @@unique([fileId, source, ratingType])
+  @@index([seriesId])
+  @@index([fileId])
+  @@index([source])
+  @@index([expiresAt])
+  @@index([lastSyncedAt])
+}
+
+// =============================================================================
+// Rating Sync Jobs (Background job tracking for rating sync)
+// =============================================================================
+
+model RatingSyncJob {
+  id              String    @id @default(cuid())
+
+  // Job scope
+  type            String    // "series" | "library" | "scheduled"
+  seriesId        String?   // For single series sync
+  libraryId       String?   // For library-wide sync
+
+  // Job state
+  status          String    @default("pending")  // "pending" | "running" | "completed" | "failed" | "cancelled"
+
+  // Progress tracking
+  totalItems      Int       @default(0)
+  processedItems  Int       @default(0)
+  successItems    Int       @default(0)
+  failedItems     Int       @default(0)
+  unmatchedItems  Int       @default(0)  // Series that couldn't be matched on sources
+
+  // Configuration
+  sources         String    // JSON array of sources to sync (e.g., '["comicbookroundup", "anilist"]')
+  forceRefresh    Boolean   @default(false)  // Ignore TTL and refresh all
+
+  // Results
+  unmatchedSeries String?   // JSON array of {seriesId, seriesName, attemptedSources}
+  errorDetails    String?   // JSON array of per-item errors
+
+  // Error tracking
+  error           String?   // Top-level error if job failed entirely
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  @@index([status])
+  @@index([seriesId])
+  @@index([libraryId])
+  @@index([createdAt])
 }

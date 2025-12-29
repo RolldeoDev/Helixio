@@ -13,6 +13,7 @@
 import { rm } from 'fs/promises';
 import { getDatabase } from './database.service.js';
 import { markDirtyForReadingProgress } from './stats-dirty.service.js';
+import { markSmartCollectionsDirty } from './smart-collection-dirty.service.js';
 
 // =============================================================================
 // Types
@@ -147,6 +148,19 @@ export async function updateProgress(
     // Non-critical, continue even if dirty marking fails
   }
 
+  // Mark smart collections dirty for read status filter re-evaluation
+  // This is user-specific since reading progress is per-user
+  if (file.seriesId) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds: [file.seriesId],
+      fileIds: [fileId],
+      reason: 'reading_progress',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
+  }
+
   return {
     ...progress,
     bookmarks: JSON.parse(progress.bookmarks) as number[],
@@ -196,11 +210,29 @@ export async function markCompleted(userId: string, fileId: string): Promise<Rea
       // Non-critical
     }
 
+    // Mark smart collections dirty for read status filter re-evaluation
+    if (file.seriesId) {
+      markSmartCollectionsDirty({
+        userId,
+        seriesIds: [file.seriesId],
+        fileIds: [fileId],
+        reason: 'reading_progress',
+      }).catch(() => {
+        // Non-critical, errors logged inside
+      });
+    }
+
     return {
       ...progress,
       bookmarks: [],
     };
   }
+
+  // Fetch file to get seriesId for smart collection updates
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: { seriesId: true },
+  });
 
   const progress = await db.userReadingProgress.update({
     where: {
@@ -217,6 +249,18 @@ export async function markCompleted(userId: string, fileId: string): Promise<Rea
     await markDirtyForReadingProgress(fileId);
   } catch {
     // Non-critical, continue even if dirty marking fails
+  }
+
+  // Mark smart collections dirty for read status filter re-evaluation
+  if (file?.seriesId) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds: [file.seriesId],
+      fileIds: [fileId],
+      reason: 'reading_progress',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
   }
 
   return {
@@ -243,6 +287,12 @@ export async function markIncomplete(userId: string, fileId: string): Promise<Re
     throw new Error(`No reading progress found for file: ${fileId}`);
   }
 
+  // Fetch file to get seriesId for smart collection updates
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: { seriesId: true },
+  });
+
   const progress = await db.userReadingProgress.update({
     where: {
       userId_fileId: { userId, fileId },
@@ -261,6 +311,18 @@ export async function markIncomplete(userId: string, fileId: string): Promise<Re
     await markDirtyForReadingProgress(fileId);
   } catch {
     // Non-critical, continue even if dirty marking fails
+  }
+
+  // Mark smart collections dirty for read status filter re-evaluation
+  if (file?.seriesId) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds: [file.seriesId],
+      fileIds: [fileId],
+      reason: 'reading_progress',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
   }
 
   // Clear the page extraction cache for this file

@@ -144,6 +144,8 @@ async function mergeSeries(group: DuplicateGroup): Promise<{ merged: number; iss
     if (!primary.locations && dup.locations) mergedData.locations = dup.locations;
     if (!primary.storyArcs && dup.storyArcs) mergedData.storyArcs = dup.storyArcs;
     if (!primary.coverUrl && dup.coverUrl) mergedData.coverUrl = dup.coverUrl;
+    // Priority: coverHash (API-downloaded covers) > coverFileId
+    if (!primary.coverHash && dup.coverHash) mergedData.coverHash = dup.coverHash;
     if (!primary.coverFileId && dup.coverFileId) mergedData.coverFileId = dup.coverFileId;
     if (!primary.comicVineId && dup.comicVineId) mergedData.comicVineId = dup.comicVineId;
     if (!primary.metronId && dup.metronId) mergedData.metronId = dup.metronId;

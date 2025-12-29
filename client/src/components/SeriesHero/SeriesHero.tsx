@@ -16,6 +16,7 @@ import { CollectionFlyout } from '../CollectionFlyout';
 import { ActionMenu, type ActionMenuItem } from '../ActionMenu';
 import { MarkdownContent } from '../MarkdownContent';
 import { ProgressRing, CompletedBadge } from '../Progress';
+import { ExternalProviderLinks } from '../ExternalProviderLinks';
 import './SeriesHero.css';
 
 // =============================================================================
@@ -187,6 +188,14 @@ export function SeriesHero({
                 </svg>
               </span>
             )}
+            <ExternalProviderLinks
+              comicVineId={series.comicVineId}
+              metronId={series.metronId}
+              gcdId={series.gcdId}
+              anilistId={series.anilistId}
+              malId={series.malId}
+              context="series"
+            />
           </div>
 
           {/* Title */}

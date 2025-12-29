@@ -86,8 +86,13 @@ router.put('/series/:seriesId', async (req: Request, res: Response) => {
 
     // Validate input
     if (input.rating !== undefined && input.rating !== null) {
-      if (typeof input.rating !== 'number' || input.rating < 1 || input.rating > 5) {
-        res.status(400).json({ error: 'Rating must be a number between 1 and 5' });
+      if (typeof input.rating !== 'number' || input.rating < 0.5 || input.rating > 5) {
+        res.status(400).json({ error: 'Rating must be a number between 0.5 and 5' });
+        return;
+      }
+      // Validate 0.5 increments
+      if ((input.rating * 2) % 1 !== 0) {
+        res.status(400).json({ error: 'Rating must be in 0.5 increments' });
         return;
       }
     }
@@ -224,8 +229,13 @@ router.put('/issues/:fileId', async (req: Request, res: Response) => {
 
     // Validate input
     if (input.rating !== undefined && input.rating !== null) {
-      if (typeof input.rating !== 'number' || input.rating < 1 || input.rating > 5) {
-        res.status(400).json({ error: 'Rating must be a number between 1 and 5' });
+      if (typeof input.rating !== 'number' || input.rating < 0.5 || input.rating > 5) {
+        res.status(400).json({ error: 'Rating must be a number between 0.5 and 5' });
+        return;
+      }
+      // Validate 0.5 increments
+      if ((input.rating * 2) % 1 !== 0) {
+        res.status(400).json({ error: 'Rating must be in 0.5 increments' });
         return;
       }
     }

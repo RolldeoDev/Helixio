@@ -89,21 +89,30 @@ async function prepareMangaFileChanges(
     const fileId = group.fileIds[i]!;
     const filename = group.filenames[i]!;
     const parsedData = group.parsedFiles[fileId];
+    const pageCount = pageCountMap.get(fileId) || 0;
 
-    // Get chapter number from parsed data or filename
-    const chapterNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
+    // STEP 1: Run classification FIRST to extract volume/chapter from filename
+    // This handles patterns like "v05" that parseFilenameToQuery misses
+    let classification: MangaClassificationResult | undefined;
+    if (classificationSettings.enabled) {
+      classification = classifyMangaFile(filename, pageCount, classificationSettings);
+    }
 
-    if (chapterNumber) {
-      // Get page count for classification
-      const pageCount = pageCountMap.get(fileId) || 0;
+    // STEP 2: Get match number from multiple sources (volume OR chapter)
+    // Priority: classification result > LLM parsed data > regex fallback
+    const matchNumber =
+      classification?.primaryNumber ||           // From classification (handles v05, v5c12, etc.)
+      parsedData?.volume ||                      // LLM parsed volume
+      parsedData?.chapter ||                     // LLM parsed chapter
+      parsedData?.number ||                      // LLM parsed generic number
+      parseFilenameToQuery(filename).issueNumber; // Regex fallback
 
-      // Pre-compute classification if enabled
-      let classification: MangaClassificationResult | undefined;
-      if (classificationSettings.enabled) {
-        classification = classifyMangaFile(filename, pageCount, classificationSettings);
-      }
+    if (matchNumber) {
+      // STEP 3: Matched - use classification type or default
+      const contentType = classification?.contentType || 'chapter';
+      const isVolume = contentType === 'volume';
 
-      // Create field changes using series-level metadata + parsed chapter number
+      // Create field changes using series-level metadata + parsed number
       const options: MangaChapterOptions = {
         classification,
         pageCount,
@@ -112,15 +121,14 @@ async function prepareMangaFileChanges(
 
       const fields = await mangaChapterToFieldChanges(
         fileId,
-        chapterNumber,
+        matchNumber,
         metadataSource,
         options
       );
 
-      // Determine display label based on classification
-      const displayLabel = classification
-        ? classification.displayTitle
-        : `Chapter #${chapterNumber}`;
+      // Determine display label based on classification or content type
+      const displayLabel = classification?.displayTitle ||
+        (isVolume ? `Volume ${matchNumber}` : `Chapter ${matchNumber}`);
 
       progress(
         `Matched: "${filename.length > 40 ? filename.slice(0, 40) + '...' : filename}"`,
@@ -132,8 +140,8 @@ async function prepareMangaFileChanges(
         filename,
         matchedIssue: {
           source: metadataSource.source,
-          sourceId: `chapter-${chapterNumber}`, // Virtual ID for chapter
-          number: classification?.primaryNumber || chapterNumber,
+          sourceId: `${isVolume ? 'volume' : 'chapter'}-${matchNumber}`, // Virtual ID for volume/chapter
+          number: matchNumber,
           title: classification?.displayTitle,
           coverDate: undefined,
         },
@@ -144,7 +152,7 @@ async function prepareMangaFileChanges(
     } else {
       progress(
         `Unmatched: "${filename.length > 40 ? filename.slice(0, 40) + '...' : filename}"`,
-        'No chapter number detected in filename'
+        'No volume or chapter number detected in filename'
       );
 
       fileChanges.push({

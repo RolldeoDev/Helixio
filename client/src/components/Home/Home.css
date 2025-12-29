@@ -792,6 +792,83 @@
   color: var(--color-text);
 }
 
+/* Carousel Container */
+.discover-carousel-container {
+  position: relative;
+}
+
+/* Carousel Track */
+.discover-carousel {
+  display: flex;
+  gap: var(--home-carousel-gap);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  padding: var(--spacing-sm) 0;
+  margin: 0 calc(-1 * var(--spacing-sm));
+  padding-left: var(--spacing-sm);
+  padding-right: var(--spacing-sm);
+}
+
+.discover-carousel::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Fixed width for carousel cards */
+.discover-carousel .discover-card {
+  flex-shrink: 0;
+  width: var(--home-card-width-sm);
+}
+
+/* Navigation Arrows */
+.discover-carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.discover-carousel-nav--left {
+  left: -8px;
+}
+
+.discover-carousel-nav--right {
+  right: -8px;
+}
+
+.discover-carousel-nav:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary, #6366f1);
+  transform: translateY(-50%) scale(1.05);
+}
+
+.discover-carousel-nav:hover svg {
+  color: #fff;
+}
+
+.discover-carousel-nav:active {
+  transform: translateY(-50%) scale(0.98);
+}
+
+.discover-carousel-nav svg {
+  color: var(--color-primary);
+}
+
+/* Legacy grid support (kept for backwards compatibility) */
 .discover-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--home-card-width-sm), 1fr));
@@ -832,22 +909,14 @@
   color: var(--color-primary);
 }
 
-/* Discover grid animation */
-.discover-grid .comic-card {
+/* Carousel animation */
+.discover-carousel .discover-card {
   opacity: 0;
   animation: home-scale-in 0.3s ease forwards;
+  animation-delay: calc(var(--animation-index, 0) * 0.03s);
 }
 
-.discover-grid .comic-card:nth-child(1) { animation-delay: 0.05s; }
-.discover-grid .comic-card:nth-child(2) { animation-delay: 0.1s; }
-.discover-grid .comic-card:nth-child(3) { animation-delay: 0.15s; }
-.discover-grid .comic-card:nth-child(4) { animation-delay: 0.2s; }
-.discover-grid .comic-card:nth-child(5) { animation-delay: 0.25s; }
-.discover-grid .comic-card:nth-child(6) { animation-delay: 0.3s; }
-.discover-grid .comic-card:nth-child(7) { animation-delay: 0.35s; }
-.discover-grid .comic-card:nth-child(8) { animation-delay: 0.4s; }
-
-/* Responsive discover grid */
+/* Responsive carousel */
 @media (max-width: 768px) {
   .discover-pills {
     gap: var(--spacing-xs);
@@ -858,8 +927,38 @@
     font-size: 0.8rem;
   }
 
-  .discover-grid {
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  .discover-carousel .discover-card {
+    width: 120px;
+  }
+
+  .discover-carousel-nav {
+    width: 36px;
+    height: 36px;
+  }
+
+  .discover-carousel-nav svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .discover-carousel .discover-card {
+    width: 100px;
+  }
+
+  .discover-carousel-nav {
+    display: none; /* Hide arrows on very small screens, rely on swipe */
+  }
+
+  .discover-header {
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .discover-refresh-btn--header {
+    width: 32px;
+    height: 32px;
   }
 }
 
@@ -1051,5 +1150,377 @@
   .queue-preview-action {
     width: 28px;
     height: 28px;
+  }
+}
+
+/* =============================================================================
+   Discover Card (Recommendation Cards)
+   ============================================================================= */
+
+.discover-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: transform var(--home-hover-duration) ease;
+  opacity: 0;
+  animation: home-scale-in 0.3s ease forwards;
+  animation-delay: calc(var(--animation-index, 0) * 0.03s);
+}
+
+.discover-card:hover {
+  transform: translateY(-6px);
+}
+
+.discover-card:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+  border-radius: var(--radius-md);
+}
+
+.discover-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  border: var(--home-panel-border);
+  box-shadow: var(--home-panel-shadow);
+  transition: all var(--home-hover-duration) ease;
+}
+
+.discover-card:hover .discover-card__cover {
+  border-color: var(--color-primary);
+  box-shadow: var(--home-panel-shadow-hover);
+}
+
+.discover-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+}
+
+.discover-card__initial {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text-muted);
+  opacity: 0.4;
+}
+
+.discover-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+.discover-card__image--loaded {
+  opacity: 1;
+}
+
+.discover-card:hover .discover-card__image {
+  transform: scale(1.05);
+}
+
+/* Cover overlay gradient */
+.discover-card__cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.7) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+/* Recommendation reason badge - Comic Caption Box Style */
+.discover-card__reason {
+  position: absolute;
+  bottom: 40px;
+  left: 6px;
+  right: 6px;
+  z-index: 5;
+
+  /* Theme-aware caption box */
+  background: var(--color-bg-elevated, #1a1a2e);
+  color: var(--color-primary, #8b5cf6);
+
+  /* Typography - readable at small sizes */
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-style: italic;
+  line-height: 1.3;
+  text-transform: none;
+  letter-spacing: 0.01em;
+
+  /* Allow natural text wrapping */
+  padding: 5px 7px;
+  border-radius: var(--radius-sm, 4px);
+  white-space: normal;
+  word-wrap: break-word;
+  hyphens: auto;
+
+  /* Comic panel border effect - uses theme border */
+  border: 1.5px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  box-shadow:
+    2px 2px 0 var(--color-bg-tertiary, rgba(0, 0, 0, 0.3)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Subtle entrance - starts slightly faded */
+  opacity: 0.92;
+  transform: translateY(0);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* Hover: make the caption pop */
+.discover-card:hover .discover-card__reason {
+  opacity: 1;
+  transform: translateY(-2px);
+  border-color: var(--color-primary, #8b5cf6);
+  box-shadow:
+    3px 3px 0 var(--color-bg-tertiary, rgba(0, 0, 0, 0.4)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Focus state for accessibility */
+.discover-card:focus .discover-card__reason {
+  opacity: 1;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* Emphasized keyword styling - the series name or category */
+.discover-card__reason strong,
+.discover-card__reason b {
+  font-weight: 700;
+  color: var(--color-text, #e2e8f0);
+}
+
+/* Issue count badge - positioned to not conflict with caption */
+.discover-card__count {
+  position: absolute;
+  bottom: 8px;
+  right: 6px;
+  background: rgba(10, 10, 10, 0.9);
+  color: #f0f0f0;
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 6px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  z-index: 6;
+  backdrop-filter: blur(2px);
+  transition: background 0.2s ease;
+}
+
+.discover-card:hover .discover-card__count {
+  background: rgba(0, 0, 0, 0.95);
+}
+
+/* Card info below cover */
+.discover-card__info {
+  padding: var(--spacing-sm) 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.discover-card__title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.discover-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.discover-card__year {
+  font-weight: 500;
+}
+
+.discover-card__publisher {
+  opacity: 0.8;
+}
+
+.discover-card__number {
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+/* Responsive discover cards */
+@media (max-width: 768px) {
+  .discover-card__title {
+    font-size: 0.7rem;
+  }
+
+  .discover-card__meta {
+    font-size: 0.6rem;
+  }
+
+  .discover-card__reason {
+    font-size: 0.55rem;
+    padding: 4px 6px;
+    bottom: 36px;
+    left: 4px;
+    right: 4px;
+  }
+
+  .discover-card__count {
+    font-size: 0.55rem;
+    padding: 2px 5px;
+    bottom: 6px;
+    right: 4px;
+  }
+
+  .discover-card__initial {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .discover-card__title {
+    font-size: 0.65rem;
+    -webkit-line-clamp: 1;
+  }
+
+  .discover-card__meta {
+    display: none;
+  }
+
+  .discover-card__reason {
+    font-size: 0.5rem;
+    padding: 3px 5px;
+    bottom: 32px;
+    left: 3px;
+    right: 3px;
+    line-height: 1.25;
+  }
+
+  .discover-card__count {
+    font-size: 0.5rem;
+    padding: 2px 4px;
+    bottom: 4px;
+    right: 3px;
+  }
+}
+
+/* =============================================================================
+   Discover Card Feedback Buttons
+   ============================================================================= */
+
+.discover-card__feedback {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: all var(--home-hover-duration) ease;
+  z-index: 7;
+}
+
+.discover-card:hover .discover-card__feedback {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.discover-card__feedback-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--home-hover-duration) ease;
+}
+
+.discover-card__feedback-btn:hover {
+  transform: scale(1.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.discover-card__feedback-btn--like:hover {
+  background: rgba(40, 167, 69, 0.3);
+  color: #28a745;
+  border-color: rgba(40, 167, 69, 0.4);
+}
+
+.discover-card__feedback-btn--like.active {
+  background: rgba(40, 167, 69, 0.4);
+  color: #28a745;
+  border-color: #28a745;
+}
+
+.discover-card__feedback-btn--dislike:hover {
+  background: rgba(220, 53, 69, 0.3);
+  color: #dc3545;
+  border-color: rgba(220, 53, 69, 0.4);
+}
+
+.discover-card__feedback-btn--dislike.active {
+  background: rgba(220, 53, 69, 0.4);
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+.discover-card__feedback-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Card with feedback - visual indicator */
+.discover-card--has-feedback .discover-card__cover {
+  border-color: var(--color-primary);
+}
+
+/* Show feedback buttons on touch devices */
+@media (pointer: coarse) {
+  .discover-card__feedback {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .discover-card__feedback-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .discover-card__feedback-btn svg {
+    width: 14px;
+    height: 14px;
   }
 }

@@ -12,9 +12,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // =============================================================================
 
 const mockGetMetadataSettings = vi.fn();
+const mockHasApiKey = vi.fn();
 
 vi.mock('../config.service.js', () => ({
   getMetadataSettings: () => mockGetMetadataSettings(),
+  hasApiKey: (key: string) => mockHasApiKey(key),
 }));
 
 const mockComicVine = {
@@ -156,6 +158,8 @@ describe('Metadata Search Service', () => {
       rateLimitLevel: 5,
     });
     mockMetron.isMetronAvailable.mockReturnValue(false);
+    // Mock hasApiKey to return true for comicVine so sources are available
+    mockHasApiKey.mockImplementation((key: string) => key === 'comicVine');
   });
 
   // ===========================================================================
@@ -171,13 +175,18 @@ describe('Metadata Search Service', () => {
     });
 
     it('should prioritize ComicVine/Metron for western libraries', () => {
+      // Make metron available for this test
+      mockMetron.isMetronAvailable.mockReturnValue(true);
+
       const sources = getSourcesForLibraryType('western');
 
       expect(sources[0]).toBe('comicvine');
       expect(sources[1]).toBe('metron');
     });
 
-    it('should include other enabled sources after primary for manga', () => {
+    it('should only include manga-specific sources for manga libraries', () => {
+      // Manga libraries intentionally exclude western sources (ComicVine/Metron/GCD)
+      // because those databases don't have manga data
       mockGetMetadataSettings.mockReturnValue({
         enabledSources: ['comicvine', 'metron', 'anilist', 'mal'],
       });
@@ -186,8 +195,9 @@ describe('Metadata Search Service', () => {
 
       expect(sources).toContain('anilist');
       expect(sources).toContain('mal');
-      expect(sources).toContain('comicvine');
-      expect(sources).toContain('metron');
+      // Western sources should NOT be included for manga libraries
+      expect(sources).not.toContain('comicvine');
+      expect(sources).not.toContain('metron');
     });
   });
 

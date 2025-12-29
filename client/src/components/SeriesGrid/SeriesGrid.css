@@ -125,7 +125,19 @@
   background: var(--color-text-muted);
 }
 
-/* .scrolling class is still applied for CSS animation/transition optimizations */
+/* =============================================================================
+   Scroll Performance Optimizations
+   .scrolling class is applied during active scrolling to disable expensive effects
+   ============================================================================= */
+
+.scrolling .series-grid-item {
+  transition: none !important;
+}
+
+.scrolling .series-grid-item:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
 
 .series-grid-virtual {
   /* Virtual container - items are positioned absolutely within */

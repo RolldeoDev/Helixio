@@ -514,6 +514,21 @@ export function MetadataApprovalModal() {
                   )}
                 </div>
               )}
+
+              <label className="option-checkbox">
+                <input
+                  type="checkbox"
+                  checked={options.fetchExternalRatings ?? false}
+                  onChange={(e) => setOptions({ ...options, fetchExternalRatings: e.target.checked })}
+                />
+                <span className="option-label">
+                  <strong>Get External Ratings</strong>
+                  <span className="option-description">
+                    Fetch community and critic ratings from ComicBookRoundup after metadata is applied.
+                    This adds extra time due to rate limiting (~6 seconds per issue) but provides valuable rating data.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="options-footer">
@@ -597,6 +612,7 @@ export function MetadataApprovalModal() {
           converting: 'Converting CBR to CBZ',
           applying: 'Writing Metadata',
           creating_series_json: 'Creating Series Files',
+          syncing_ratings: 'Fetching External Ratings',
           complete: 'Finishing...',
         };
         const progressPercent = applyProgress.total > 0

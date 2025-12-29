@@ -1,0 +1,284 @@
+/* =============================================================================
+   Rating Insights
+   Stats cards showing rating and review habits
+   ============================================================================= */
+
+.rating-insights {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  animation: stats-section-in 0.6s ease forwards;
+  animation-delay: 0.4s;
+  opacity: 0;
+}
+
+.rating-insights__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.rating-insights__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rating-insights__subtitle {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.rating-insights__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.rating-insights__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-sm);
+}
+
+/* =============================================================================
+   Insight Card
+   ============================================================================= */
+
+.rating-insight-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: default;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  animation: stats-card-in 0.5s ease forwards;
+  opacity: 0;
+}
+
+.rating-insight-card:hover {
+  border-color: var(--color-primary-muted);
+  transform: translateY(-2px);
+}
+
+.rating-insight-card__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.rating-insight-card__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rating-insight-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rating-insight-card__value {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-style: italic;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+.rating-insight-card__label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* =============================================================================
+   Rating Distribution Chart
+   ============================================================================= */
+
+.rating-insights__distribution {
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.rating-insights__distribution-title {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.rating-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.rating-distribution__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.rating-distribution__label {
+  width: 28px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.rating-distribution__track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.rating-distribution__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.rating-distribution__count {
+  width: 40px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+/* =============================================================================
+   Favorites Section
+   ============================================================================= */
+
+.rating-insights__favorites {
+  display: flex;
+  gap: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.rating-insights__favorite {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rating-insights__favorite-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rating-insights__favorite-value {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.rating-insights__favorite-count {
+  margin-left: 4px;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Empty State
+   ============================================================================= */
+
+.rating-insights__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  color: var(--color-text-muted);
+}
+
+.rating-insights__empty svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.5;
+}
+
+.rating-insights__empty p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.rating-insights--loading {
+  animation: none;
+  opacity: 1;
+}
+
+.rating-insights__skeleton {
+  height: 200px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 25%,
+    var(--color-bg) 50%,
+    var(--color-bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 900px) {
+  .rating-insights__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rating-insights__favorites {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .rating-insights {
+    padding: var(--spacing-md);
+  }
+
+  .rating-insights__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rating-insight-card {
+    padding: var(--spacing-sm);
+  }
+
+  .rating-insight-card__value {
+    font-size: 1.125rem;
+  }
+}

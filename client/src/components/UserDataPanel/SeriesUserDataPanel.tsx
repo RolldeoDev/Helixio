@@ -7,6 +7,7 @@
 
 import { UserDataPanel } from './UserDataPanel';
 import { useSeriesUserData, useUpdateSeriesUserData } from '../../hooks/queries';
+import { RatingStars } from '../RatingStars';
 import type { SeriesRatingStats } from '../../services/api/user-data';
 import './SeriesUserDataPanel.css';
 
@@ -37,8 +38,7 @@ function AverageRatingStats({ ratingStats }: { ratingStats: SeriesRatingStats })
       <span className="stats-label">Average from Issues:</span>
       <span className="stats-value">
         <span className="stats-stars">
-          {'★'.repeat(Math.round(ratingStats.average || 0))}
-          {'☆'.repeat(5 - Math.round(ratingStats.average || 0))}
+          <RatingStars value={ratingStats.average || 0} readonly size="small" showEmpty />
         </span>
         <span className="stats-number">
           {ratingStats.average?.toFixed(1)}
@@ -62,6 +62,11 @@ export function SeriesUserDataPanel({
   const userData = data?.data;
   const ratingStats = data?.ratingStats;
 
+  // Check if user has any data for this series
+  const hasUserData = userData?.rating !== null && userData?.rating !== undefined
+    || userData?.privateNotes
+    || userData?.publicReview;
+
   const handleRatingChange = (rating: number | null) => {
     updateMutation.mutate({ seriesId, input: { rating } });
   };
@@ -77,6 +82,12 @@ export function SeriesUserDataPanel({
   const handleVisibilityChange = (reviewVisibility: 'private' | 'public') => {
     updateMutation.mutate({ seriesId, input: { reviewVisibility } });
   };
+
+  // Don't render the panel if user has no data (rating, notes, or review)
+  // The user can add a rating via the sidebar, which will make this panel appear
+  if (!isLoading && !hasUserData) {
+    return null;
+  }
 
   return (
     <UserDataPanel

@@ -6,7 +6,16 @@
  * and designed to be engaging.
  */
 
-import type { StatsSummary, AllTimeStats, EntityStatResult } from '../services/api.service';
+import type {
+  StatsSummary,
+  AllTimeStats,
+  EntityStatResult,
+  RatingStats,
+  EnhancedLibraryOverview,
+  FileFormatDistribution,
+  PublicationStatusDistribution,
+  DayOfWeekActivity,
+} from '../services/api.service';
 
 export interface FunFact {
   icon: string;
@@ -26,7 +35,12 @@ export interface FunFact {
     | 'format'
     | 'series'
     | 'arc'
-    | 'discovery';
+    | 'discovery'
+    | 'ratings'
+    | 'dayOfWeek'
+    | 'fileFormat'
+    | 'publicationStatus'
+    | 'librarySize';
 }
 
 // =============================================================================
@@ -1181,6 +1195,553 @@ function generateDiscoveryFacts(stats: StatsSummary, _allTimeStats: AllTimeStats
   return facts;
 }
 
+function generateRatingsFacts(ratingStats: RatingStats | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!ratingStats) return facts;
+
+  const {
+    totalSeriesRated,
+    totalIssuesRated,
+    totalReviewsWritten,
+    ratingDistribution,
+    averageRatingGiven,
+    highestRatedSeries,
+    lowestRatedSeries,
+    mostRatedGenre,
+    mostRatedPublisher,
+    uniqueGenresRated,
+    uniquePublishersRated,
+    currentRatingStreak,
+    longestRatingStreak,
+    longestReviewLength,
+    seriesWithCompleteRatings,
+    maxRatingsSameDay,
+    maxReviewsSameDay,
+  } = ratingStats;
+
+  // Total ratings given
+  const totalRatings = totalSeriesRated + totalIssuesRated;
+  if (totalRatings > 0) {
+    facts.push({
+      icon: '⭐',
+      text: `You've given`,
+      emphasis: `${formatNumber(totalRatings)} ratings`,
+      category: 'ratings',
+    });
+  }
+
+  // Series rated
+  if (totalSeriesRated > 0) {
+    facts.push({
+      icon: '📊',
+      text: `You've rated`,
+      emphasis: `${formatNumber(totalSeriesRated)} series`,
+      category: 'ratings',
+    });
+  }
+
+  // Issues rated
+  if (totalIssuesRated > 10) {
+    facts.push({
+      icon: '📝',
+      text: `Individual issues rated:`,
+      emphasis: formatNumber(totalIssuesRated),
+      category: 'ratings',
+    });
+  }
+
+  // Rating tendency based on average
+  if (averageRatingGiven !== null) {
+    if (averageRatingGiven >= 4.2) {
+      facts.push({
+        icon: '😊',
+        text: `You're a generous critic, averaging`,
+        emphasis: `${averageRatingGiven.toFixed(1)} stars`,
+        category: 'ratings',
+      });
+    } else if (averageRatingGiven <= 2.8) {
+      facts.push({
+        icon: '🧐',
+        text: `Tough critic! Your average rating is just`,
+        emphasis: `${averageRatingGiven.toFixed(1)} stars`,
+        category: 'ratings',
+      });
+    } else {
+      facts.push({
+        icon: '⚖️',
+        text: `Your ratings are balanced, averaging`,
+        emphasis: `${averageRatingGiven.toFixed(1)} stars`,
+        category: 'ratings',
+      });
+    }
+  }
+
+  // Reviews written
+  if (totalReviewsWritten > 0) {
+    facts.push({
+      icon: '✍️',
+      text: `You've written`,
+      emphasis: `${formatNumber(totalReviewsWritten)} review${totalReviewsWritten !== 1 ? 's' : ''}`,
+      category: 'ratings',
+    });
+  }
+
+  // Longest review
+  if (longestReviewLength > 500) {
+    facts.push({
+      icon: '📖',
+      text: `Your longest review is`,
+      emphasis: `${formatNumber(longestReviewLength)} characters - a mini essay!`,
+      category: 'ratings',
+    });
+  } else if (longestReviewLength > 100) {
+    facts.push({
+      icon: '💬',
+      text: `Longest review:`,
+      emphasis: `${formatNumber(longestReviewLength)} characters`,
+      category: 'ratings',
+    });
+  }
+
+  // Highest rated series
+  if (highestRatedSeries) {
+    facts.push({
+      icon: '🏆',
+      text: `Your top-rated series:`,
+      emphasis: `${highestRatedSeries.name} (${highestRatedSeries.rating}★)`,
+      category: 'ratings',
+    });
+  }
+
+  // Lowest rated series
+  if (lowestRatedSeries && lowestRatedSeries.rating <= 2) {
+    facts.push({
+      icon: '👎',
+      text: `Your toughest review went to`,
+      emphasis: `${lowestRatedSeries.name} (${lowestRatedSeries.rating}★)`,
+      category: 'ratings',
+    });
+  }
+
+  // Most rated genre
+  if (mostRatedGenre && mostRatedGenre.count > 3) {
+    facts.push({
+      icon: '🎭',
+      text: `${mostRatedGenre.name} is your most-rated genre with`,
+      emphasis: `${mostRatedGenre.count} ratings`,
+      category: 'ratings',
+    });
+  }
+
+  // Most rated publisher
+  if (mostRatedPublisher && mostRatedPublisher.count > 3) {
+    facts.push({
+      icon: '🏢',
+      text: `You've rated ${mostRatedPublisher.name}`,
+      emphasis: `${mostRatedPublisher.count} times`,
+      category: 'ratings',
+    });
+  }
+
+  // Rating distribution - find most common rating
+  if (ratingDistribution && ratingDistribution.length > 0) {
+    const sorted = [...ratingDistribution].sort((a, b) => b.count - a.count);
+    const mostCommon = sorted[0];
+    if (mostCommon && mostCommon.count > 3) {
+      const stars = '★'.repeat(mostCommon.rating);
+      facts.push({
+        icon: '📊',
+        text: `You give ${stars} more than any other rating`,
+        emphasis: `(${mostCommon.count} times)`,
+        category: 'ratings',
+      });
+    }
+
+    // Check for lots of 5-star ratings
+    const fiveStars = ratingDistribution.find(r => r.rating === 5);
+    if (fiveStars && fiveStars.count >= 10 && totalRatings > 0) {
+      const percentage = Math.round((fiveStars.count / totalRatings) * 100);
+      if (percentage >= 40) {
+        facts.push({
+          icon: '🌟',
+          text: `${percentage}% of your ratings are`,
+          emphasis: '5 stars!',
+          category: 'ratings',
+        });
+      }
+    }
+  }
+
+  // Current rating streak
+  if (currentRatingStreak > 0) {
+    if (currentRatingStreak >= 7) {
+      facts.push({
+        icon: '🔥',
+        text: `${currentRatingStreak}-day rating streak!`,
+        emphasis: "You're on fire!",
+        category: 'ratings',
+      });
+    } else {
+      facts.push({
+        icon: '⚡',
+        text: `Current rating streak:`,
+        emphasis: `${currentRatingStreak} day${currentRatingStreak !== 1 ? 's' : ''}`,
+        category: 'ratings',
+      });
+    }
+  }
+
+  // Longest rating streak
+  if (longestRatingStreak > 7 && longestRatingStreak > currentRatingStreak) {
+    facts.push({
+      icon: '🏅',
+      text: `Your longest rating streak was`,
+      emphasis: `${longestRatingStreak} days`,
+      category: 'ratings',
+    });
+  }
+
+  // Series with complete ratings
+  if (seriesWithCompleteRatings > 0) {
+    facts.push({
+      icon: '✅',
+      text: `You've rated every issue in`,
+      emphasis: `${seriesWithCompleteRatings} series`,
+      category: 'ratings',
+    });
+  }
+
+  // Most ratings in one day
+  if (maxRatingsSameDay >= 5) {
+    facts.push({
+      icon: '📈',
+      text: `Your most productive rating day:`,
+      emphasis: `${maxRatingsSameDay} ratings`,
+      category: 'ratings',
+    });
+  }
+
+  // Most reviews in one day
+  if (maxReviewsSameDay >= 3) {
+    facts.push({
+      icon: '✏️',
+      text: `Most reviews in one day:`,
+      emphasis: `${maxReviewsSameDay}`,
+      category: 'ratings',
+    });
+  }
+
+  // Rating diversity - genres
+  if (uniqueGenresRated >= 5) {
+    facts.push({
+      icon: '🌈',
+      text: `Your ratings span`,
+      emphasis: `${uniqueGenresRated} different genres`,
+      category: 'ratings',
+    });
+  }
+
+  // Rating diversity - publishers
+  if (uniquePublishersRated >= 5) {
+    facts.push({
+      icon: '🌐',
+      text: `You've rated comics from`,
+      emphasis: `${uniquePublishersRated} publishers`,
+      category: 'ratings',
+    });
+  }
+
+  return facts;
+}
+
+// =============================================================================
+// New Fact Generators - Stats Page Extended Data
+// =============================================================================
+
+/**
+ * Format bytes to human-readable size
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function generateDayOfWeekFacts(activity: DayOfWeekActivity[] | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!activity || activity.length === 0) return facts;
+
+  // Find favorite reading day
+  const sortedByReads = [...activity].sort((a, b) => b.readCount - a.readCount);
+  const favoriteDay = sortedByReads[0];
+  if (favoriteDay && favoriteDay.readCount > 0) {
+    facts.push({
+      icon: '📅',
+      text: `${favoriteDay.dayName} is your favorite reading day with`,
+      emphasis: `${formatNumber(favoriteDay.readCount)} comics read`,
+      category: 'dayOfWeek',
+    });
+  }
+
+  // Weekend vs weekday pattern
+  const weekendCount = activity.filter(d => d.dayOfWeek === 0 || d.dayOfWeek === 6)
+    .reduce((sum, d) => sum + d.readCount, 0);
+  const weekdayCount = activity.filter(d => d.dayOfWeek >= 1 && d.dayOfWeek <= 5)
+    .reduce((sum, d) => sum + d.readCount, 0);
+  const totalCount = weekendCount + weekdayCount;
+
+  if (totalCount > 10) {
+    const weekendPercentage = Math.round((weekendCount / totalCount) * 100);
+    if (weekendPercentage >= 60) {
+      facts.push({
+        icon: '🌅',
+        text: `Weekend warrior!`,
+        emphasis: `${weekendPercentage}% of your reading happens on weekends`,
+        category: 'dayOfWeek',
+      });
+    } else if (weekendPercentage <= 30) {
+      facts.push({
+        icon: '💼',
+        text: `Weekday reader!`,
+        emphasis: `${100 - weekendPercentage}% of reading during the week`,
+        category: 'dayOfWeek',
+      });
+    }
+  }
+
+  // Most pages on a specific day
+  const sortedByPages = [...activity].sort((a, b) => b.pagesRead - a.pagesRead);
+  const topPageDay = sortedByPages[0];
+  if (topPageDay && topPageDay.pagesRead > 100) {
+    facts.push({
+      icon: '📖',
+      text: `You've turned ${formatNumber(topPageDay.pagesRead)} pages on`,
+      emphasis: `${topPageDay.dayName}s`,
+      category: 'dayOfWeek',
+    });
+  }
+
+  // Least active day
+  const leastActive = sortedByReads[sortedByReads.length - 1];
+  if (leastActive && favoriteDay && favoriteDay.readCount > 5 && leastActive.readCount === 0) {
+    facts.push({
+      icon: '😴',
+      text: `${leastActive.dayName}s are your`,
+      emphasis: 'comic-free zone',
+      category: 'dayOfWeek',
+    });
+  }
+
+  return facts;
+}
+
+function generateFileFormatFacts(formats: FileFormatDistribution[] | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!formats || formats.length === 0) return facts;
+
+  // Most common format
+  const topFormat = formats[0];
+  if (topFormat && topFormat.count > 0) {
+    const extension = topFormat.extension.toUpperCase();
+    facts.push({
+      icon: '📦',
+      text: `${topFormat.percentage}% of your collection is`,
+      emphasis: `${extension} format`,
+      category: 'fileFormat',
+    });
+  }
+
+  // CBR files (legacy format)
+  const cbrFormat = formats.find(f => f.extension.toLowerCase() === 'cbr' || f.extension.toLowerCase() === '.cbr');
+  if (cbrFormat && cbrFormat.count > 10) {
+    facts.push({
+      icon: '💾',
+      text: `${formatNumber(cbrFormat.count)} CBR files`,
+      emphasis: '(classic RAR format!)',
+      category: 'fileFormat',
+    });
+  }
+
+  // CB7 files (7-zip format)
+  const cb7Format = formats.find(f => f.extension.toLowerCase() === 'cb7' || f.extension.toLowerCase() === '.cb7');
+  if (cb7Format && cb7Format.count > 5) {
+    facts.push({
+      icon: '🗜️',
+      text: `${formatNumber(cb7Format.count)} CB7 files using`,
+      emphasis: '7-zip compression',
+      category: 'fileFormat',
+    });
+  }
+
+  // Format diversity
+  if (formats.length >= 3) {
+    facts.push({
+      icon: '🗂️',
+      text: `Your library uses`,
+      emphasis: `${formats.length} different file formats`,
+      category: 'fileFormat',
+    });
+  }
+
+  return facts;
+}
+
+function generatePublicationStatusFacts(status: PublicationStatusDistribution[] | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!status || status.length === 0) return facts;
+
+  const ongoing = status.find(s => s.status === 'ongoing');
+  const ended = status.find(s => s.status === 'ended');
+
+  if (ongoing && ongoing.count > 0) {
+    facts.push({
+      icon: '📡',
+      text: `Following`,
+      emphasis: `${formatNumber(ongoing.count)} ongoing series`,
+      category: 'publicationStatus',
+    });
+
+    if (ongoing.percentage >= 60) {
+      facts.push({
+        icon: '🆕',
+        text: `Staying current!`,
+        emphasis: `${ongoing.percentage}% of series are still running`,
+        category: 'publicationStatus',
+      });
+    }
+  }
+
+  if (ended && ended.count > 0) {
+    facts.push({
+      icon: '✅',
+      text: `${formatNumber(ended.count)} series are`,
+      emphasis: 'completed runs',
+      category: 'publicationStatus',
+    });
+
+    if (ended.percentage >= 60) {
+      facts.push({
+        icon: '📚',
+        text: `Classic collector!`,
+        emphasis: `${ended.percentage}% of series are completed`,
+        category: 'publicationStatus',
+      });
+    }
+  }
+
+  return facts;
+}
+
+function generateLibrarySizeFacts(overview: EnhancedLibraryOverview | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!overview) return facts;
+
+  // Library size in GB
+  if (overview.totalSizeBytes > 0) {
+    facts.push({
+      icon: '💿',
+      text: `Your collection is`,
+      emphasis: formatBytes(overview.totalSizeBytes),
+      category: 'librarySize',
+    });
+
+    // DVD equivalents (4.7 GB per DVD)
+    const dvdEquivalent = Math.ceil(overview.totalSizeBytes / (4.7 * 1024 * 1024 * 1024));
+    if (dvdEquivalent > 1) {
+      facts.push({
+        icon: '📀',
+        text: `That's equivalent to`,
+        emphasis: `${dvdEquivalent} DVD${dvdEquivalent !== 1 ? 's' : ''} of comics`,
+        category: 'librarySize',
+      });
+    }
+
+    // Dial-up download time (56 kbps = 7 KB/s)
+    const dialupSeconds = overview.totalSizeBytes / 7000;
+    const dialupHours = Math.round(dialupSeconds / 3600);
+    if (dialupHours > 24) {
+      const dialupDays = Math.round(dialupHours / 24);
+      facts.push({
+        icon: '🐌',
+        text: `On dial-up, that would take`,
+        emphasis: `${formatNumber(dialupDays)} days to download`,
+        category: 'librarySize',
+      });
+    } else if (dialupHours > 1) {
+      facts.push({
+        icon: '🐌',
+        text: `On dial-up, that would take`,
+        emphasis: `${formatNumber(dialupHours)} hours to download`,
+        category: 'librarySize',
+      });
+    }
+
+    // Average file size
+    if (overview.totalFiles > 0) {
+      const avgSize = overview.totalSizeBytes / overview.totalFiles;
+      const avgMB = Math.round(avgSize / (1024 * 1024));
+      if (avgMB > 0) {
+        facts.push({
+          icon: '📊',
+          text: `Average file size:`,
+          emphasis: `${avgMB} MB per comic`,
+          category: 'librarySize',
+        });
+      }
+    }
+  }
+
+  return facts;
+}
+
+function generateVolumeTagFacts(overview: EnhancedLibraryOverview | undefined): FunFact[] {
+  const facts: FunFact[] = [];
+  if (!overview) return facts;
+
+  // Volumes count
+  if (overview.totalVolumes > 0) {
+    facts.push({
+      icon: '📖',
+      text: `${formatNumber(overview.totalVolumes)} collected volumes`,
+      emphasis: 'in your library',
+      category: 'collection',
+    });
+  }
+
+  // Tags diversity
+  if (overview.totalTags > 5) {
+    facts.push({
+      icon: '🏷️',
+      text: `Your collection spans`,
+      emphasis: `${overview.totalTags} different tags`,
+      category: 'collection',
+    });
+  }
+
+  // Total people (creators)
+  if (overview.totalPeople > 50) {
+    facts.push({
+      icon: '👥',
+      text: `Work from`,
+      emphasis: `${formatNumber(overview.totalPeople)} creators`,
+      category: 'collection',
+    });
+  }
+
+  // Total read time from overview
+  if (overview.totalReadTime > 3600) {
+    facts.push({
+      icon: '⏱️',
+      text: `Library-wide reading time:`,
+      emphasis: formatDuration(overview.totalReadTime),
+      category: 'reading',
+    });
+  }
+
+  return facts;
+}
+
 // =============================================================================
 // Main Export
 // =============================================================================
@@ -1209,6 +1770,13 @@ export function generateFunFact(
     ...generateSeriesFacts(summary),
     ...generateStoryArcFacts(summary),
     ...generateDiscoveryFacts(summary, allTimeStats),
+    ...generateRatingsFacts(summary.ratingStats),
+    // New generators from stats page extended data
+    ...generateDayOfWeekFacts(summary.dayOfWeekActivity),
+    ...generateFileFormatFacts(summary.fileFormats),
+    ...generatePublicationStatusFacts(summary.publicationStatus),
+    ...generateLibrarySizeFacts(summary.libraryOverview),
+    ...generateVolumeTagFacts(summary.libraryOverview),
   ];
 
   if (allFacts.length === 0) {
@@ -1248,6 +1816,13 @@ export function generateMultipleFacts(
     ...generateSeriesFacts(summary),
     ...generateStoryArcFacts(summary),
     ...generateDiscoveryFacts(summary, allTimeStats),
+    ...generateRatingsFacts(summary.ratingStats),
+    // New generators from stats page extended data
+    ...generateDayOfWeekFacts(summary.dayOfWeekActivity),
+    ...generateFileFormatFacts(summary.fileFormats),
+    ...generatePublicationStatusFacts(summary.publicationStatus),
+    ...generateLibrarySizeFacts(summary.libraryOverview),
+    ...generateVolumeTagFacts(summary.libraryOverview),
   ];
 
   // Shuffle and take unique facts

@@ -258,6 +258,7 @@ export function CollectionCoverCard({
           <ProgressRing
             progress={isComplete ? 100 : progressPercent}
             size="md"
+            showLabel
             className="collection-cover-card__progress-ring"
           />
         )}

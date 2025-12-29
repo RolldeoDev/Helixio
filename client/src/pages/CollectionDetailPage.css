@@ -204,24 +204,6 @@
   }
 }
 
-/* Rating Stars */
-.collection-rating {
-  display: flex;
-  gap: 2px;
-  margin-top: var(--spacing-xs);
-}
-
-.collection-rating .rating-star {
-  font-size: 1.25rem;
-  color: var(--color-text-muted);
-  opacity: 0.3;
-}
-
-.collection-rating .rating-star.filled {
-  color: #f59e0b;
-  opacity: 1;
-}
-
 .collection-deck {
   font-size: 1rem;
   line-height: 1.5;
@@ -446,6 +428,30 @@
   margin: 0;
   padding-bottom: var(--spacing-xs);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* Rating Section */
+.collection-rating-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.collection-rating-section .rating-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.collection-rating-section .rating-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .collection-series-list {
@@ -795,11 +801,6 @@
 }
 
 .collection-series-name-link {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--color-text);
   text-decoration: none;
   transition: color var(--transition-fast);
@@ -812,6 +813,7 @@
 }
 
 .collection-series-count {
+  margin-left: auto;
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-text-muted);

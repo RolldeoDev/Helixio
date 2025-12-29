@@ -5,7 +5,7 @@
  * Follows the ReaderSettings drawer pattern with overlay backdrop.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useReader } from './ReaderContext';
 import {
   getComicInfo,
@@ -22,6 +22,8 @@ import {
 import { ExpandablePillSection } from '../ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../CreatorCredits';
 import { MarkdownContent } from '../MarkdownContent';
+import { RatingStars } from '../RatingStars';
+import { useIssueUserData, useUpdateIssueUserData } from '../../hooks/queries';
 import { formatFileSize } from '../../utils/format';
 import './ReaderInfo.css';
 
@@ -95,6 +97,17 @@ export function ReaderInfo() {
   const [error, setError] = useState<string | null>(null);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
+  // User data state
+  const [localNotes, setLocalNotes] = useState('');
+  const [localReview, setLocalReview] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingReview, setIsEditingReview] = useState(false);
+
+  // User data hooks
+  const { data: userDataResponse } = useIssueUserData(state.fileId);
+  const updateUserData = useUpdateIssueUserData();
+  const userData = userDataResponse?.data;
+
   // Fetch data when panel opens
   useEffect(() => {
     async function fetchData() {
@@ -127,6 +140,62 @@ export function ReaderInfo() {
 
     fetchData();
   }, [state.fileId]);
+
+  // Sync local notes state with server data
+  useEffect(() => {
+    if (!isEditingNotes) {
+      setLocalNotes(userData?.privateNotes || '');
+    }
+  }, [userData?.privateNotes, isEditingNotes]);
+
+  // Sync local review state with server data
+  useEffect(() => {
+    if (!isEditingReview) {
+      setLocalReview(userData?.publicReview || '');
+    }
+  }, [userData?.publicReview, isEditingReview]);
+
+  // Handle rating change
+  const handleRatingChange = useCallback((rating: number | null) => {
+    updateUserData.mutate({
+      fileId: state.fileId,
+      input: { rating },
+    });
+  }, [state.fileId, updateUserData]);
+
+  // Handle notes save on blur
+  const handleNotesSave = useCallback(() => {
+    setIsEditingNotes(false);
+    const trimmed = localNotes.trim() || null;
+    if (trimmed !== (userData?.privateNotes || null)) {
+      updateUserData.mutate({
+        fileId: state.fileId,
+        input: { privateNotes: trimmed },
+      });
+    }
+  }, [localNotes, userData?.privateNotes, state.fileId, updateUserData]);
+
+  // Handle review save on blur
+  const handleReviewSave = useCallback(() => {
+    setIsEditingReview(false);
+    const trimmed = localReview.trim() || null;
+    if (trimmed !== (userData?.publicReview || null)) {
+      updateUserData.mutate({
+        fileId: state.fileId,
+        input: { publicReview: trimmed },
+      });
+    }
+  }, [localReview, userData?.publicReview, state.fileId, updateUserData]);
+
+  // Toggle review visibility
+  const handleToggleVisibility = useCallback(() => {
+    updateUserData.mutate({
+      fileId: state.fileId,
+      input: {
+        reviewVisibility: userData?.reviewVisibility === 'public' ? 'private' : 'public',
+      },
+    });
+  }, [state.fileId, userData?.reviewVisibility, updateUserData]);
 
   // Handle overlay click
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -405,6 +474,87 @@ export function ReaderInfo() {
                   </div>
                 </div>
               )}
+
+              {/* User Rating & Notes Section */}
+              <div className="reader-info-section reader-info-user-data">
+                <div className="reader-info-section-title">Your Rating & Notes</div>
+
+                {/* Rating */}
+                <div className="reader-info-rating-row">
+                  <RatingStars
+                    value={userData?.rating ?? null}
+                    onChange={handleRatingChange}
+                    size="default"
+                    showEmpty
+                    allowClear
+                    ariaLabel="Rate this issue"
+                  />
+                  {updateUserData.isPending && (
+                    <span className="reader-info-saving">Saving...</span>
+                  )}
+                </div>
+
+                {/* Private Notes */}
+                <div className="reader-info-user-field">
+                  <label className="reader-info-user-field-label">
+                    Private Notes
+                    <span className="reader-info-user-field-hint">(only you)</span>
+                  </label>
+                  <textarea
+                    className="reader-info-textarea"
+                    value={localNotes}
+                    onChange={(e) => setLocalNotes(e.target.value)}
+                    onFocus={() => setIsEditingNotes(true)}
+                    onBlur={handleNotesSave}
+                    placeholder="Add private notes..."
+                    rows={2}
+                  />
+                </div>
+
+                {/* Public Review */}
+                <div className="reader-info-user-field">
+                  <div className="reader-info-user-field-header">
+                    <label className="reader-info-user-field-label">
+                      Review
+                      <span className="reader-info-user-field-hint">
+                        ({userData?.reviewVisibility === 'public' ? 'public' : 'private'})
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      className={`reader-info-visibility-toggle ${userData?.reviewVisibility === 'public' ? 'public' : ''}`}
+                      onClick={handleToggleVisibility}
+                    >
+                      {userData?.reviewVisibility === 'public' ? (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                          Public
+                        </>
+                      ) : (
+                        <>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                            <line x1="1" y1="1" x2="23" y2="23" />
+                          </svg>
+                          Private
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <textarea
+                    className="reader-info-textarea"
+                    value={localReview}
+                    onChange={(e) => setLocalReview(e.target.value)}
+                    onFocus={() => setIsEditingReview(true)}
+                    onBlur={handleReviewSave}
+                    placeholder="Write a review..."
+                    rows={3}
+                  />
+                </div>
+              </div>
             </>
           )}
         </div>

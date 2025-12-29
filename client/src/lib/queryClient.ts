@@ -178,4 +178,15 @@ export const queryKeys = {
     seriesBatch: (seriesIds: string[]) => [...queryKeys.userData.all, 'seriesBatch', seriesIds.sort().join(',')] as const,
     issuesBatch: (fileIds: string[]) => [...queryKeys.userData.all, 'issuesBatch', fileIds.sort().join(',')] as const,
   },
+
+  // External Ratings (community/critic ratings from external sources)
+  externalRatings: {
+    all: ['externalRatings'] as const,
+    series: (seriesId: string) => [...queryKeys.externalRatings.all, 'series', seriesId] as const,
+    issue: (fileId: string) => [...queryKeys.externalRatings.all, 'issue', fileId] as const,
+    sources: () => [...queryKeys.externalRatings.all, 'sources'] as const,
+    settings: () => [...queryKeys.externalRatings.all, 'settings'] as const,
+    jobs: (status?: string) => [...queryKeys.externalRatings.all, 'jobs', status] as const,
+    job: (jobId: string) => [...queryKeys.externalRatings.all, 'job', jobId] as const,
+  },
 } as const;

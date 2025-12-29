@@ -77,6 +77,10 @@ export interface SeriesMetadata {
   seriesType?: string;
   volume?: number;
 
+  // Content classification (currently only AniList provides these)
+  genres?: string[];
+  tags?: string[];
+
   // Rich data (availability varies by source)
   characters?: Credit[];
   creators?: Credit[];

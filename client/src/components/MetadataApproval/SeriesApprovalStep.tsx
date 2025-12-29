@@ -21,6 +21,7 @@ import {
 import { SeriesDetailDrawer } from './SeriesDetailDrawer';
 import { MergedMetadataModal } from './MergedMetadataModal';
 import { MatchedFilesModal } from './MatchedFilesModal';
+import { useConfirmModal } from '../ConfirmModal';
 
 interface SeriesApprovalStepProps {
   session: ApprovalSession;
@@ -45,6 +46,9 @@ export function SeriesApprovalStep({
     options: _options,
   } = useMetadataJob();
   void _options; // Reserved for future feature expansion
+
+  // Confirmation modal hook
+  const confirm = useConfirmModal();
 
   // Compute currentGroup from seriesGroups array and currentSeriesIndex
   // The server returns seriesGroups[] and currentSeriesIndex, not currentSeriesGroup directly
@@ -183,6 +187,24 @@ export function SeriesApprovalStep({
       return;
     }
 
+    // Show confirmation dialog when applying to remaining series
+    if (applyToRemaining) {
+      const remainingCount = (session.seriesGroups?.length ?? 0) - (session.currentSeriesIndex ?? 0) - 1;
+      const selectedSeriesName = currentGroup?.searchResults?.find(
+        s => s.sourceId === selectedSeriesId
+      )?.name ?? 'selected series';
+
+      const confirmed = await confirm({
+        title: 'Apply to Remaining Series',
+        message: `Apply "${selectedSeriesName}" to ${remainingCount} remaining series groups? This will match all remaining files to this series.`,
+        confirmText: 'Apply to All',
+        cancelText: 'Cancel',
+        variant: 'warning',
+      });
+
+      if (!confirmed) return;
+    }
+
     setIsApproving(true);
     setError(null);
 
@@ -204,7 +226,7 @@ export function SeriesApprovalStep({
     } finally {
       setIsApproving(false);
     }
-  }, [selectedSeriesId, issueMatchingSeriesId, useDifferentForIssues, applyToRemaining, approveSeriesJob]);
+  }, [selectedSeriesId, issueMatchingSeriesId, useDifferentForIssues, applyToRemaining, approveSeriesJob, session.seriesGroups, session.currentSeriesIndex, currentGroup, confirm]);
 
   const handleSkip = useCallback(async () => {
     setIsApproving(true);
@@ -448,10 +470,10 @@ export function SeriesApprovalStep({
               type="checkbox"
               checked={applyToRemaining}
               onChange={(e) => setApplyToRemaining(e.target.checked)}
-              disabled={isApproving}
+              disabled={isApproving || !selectedSeriesId}
             />
             <span>
-              Apply to remaining ({session.seriesGroups.length - (session.currentSeriesIndex ?? 0) - 1} series)
+              Apply this series to remaining ({session.seriesGroups.length - (session.currentSeriesIndex ?? 0) - 1} groups)
             </span>
           </label>
         )}
@@ -467,7 +489,7 @@ export function SeriesApprovalStep({
           )}
           {applyToRemaining && (
             <p className="toggle-hint">
-              Auto-approve remaining series using their top search results. Series without high-confidence matches will be skipped.
+              Apply the currently selected series to all remaining series groups. Use this when you know all files belong to the same series.
             </p>
           )}
         </div>

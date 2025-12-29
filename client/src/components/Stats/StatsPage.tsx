@@ -4,16 +4,32 @@ import {
   getReadingStats,
   getStatsSummary,
   triggerStatsRebuild,
+  getEnhancedLibraryOverview,
+  getSeriesByYear,
+  getFileFormatDistribution,
+  getPublicationStatusDistribution,
+  getDayOfWeekActivity,
   type AllTimeStats,
   type DailyStats,
   type StatsSummary,
+  type EnhancedLibraryOverview,
+  type YearlySeriesCount,
+  type FileFormatDistribution,
+  type PublicationStatusDistribution,
+  type DayOfWeekActivity,
+  type StatsTimeframe,
 } from '../../services/api.service';
+import { useAuth } from '../../contexts/AuthContext';
 import { StatsHero } from './StatsHero';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import { CollectionDonut } from './CollectionDonut';
 import { EntityInsights } from './EntityInsights';
 import { Achievements } from './Achievements';
 import { ReadingInsights } from './ReadingInsights';
+import { RatingInsights } from './RatingInsights';
+import { LibraryOverview } from './LibraryOverview';
+import { ReleaseYearsChart, FileFormatChart, PublicationStatusChart, DayOfWeekChart } from './charts';
+import { AdminStatsSection } from './AdminStats';
 import './StatsPage.css';
 
 // Helper to get date strings
@@ -29,6 +45,7 @@ function getDateRange(daysAgo: number): { start: string; end: string } {
 }
 
 export function StatsPage() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,19 +59,35 @@ export function StatsPage() {
   const [currentPeriodStats, setCurrentPeriodStats] = useState<DailyStats[]>([]);
   const [previousPeriodStats, setPreviousPeriodStats] = useState<DailyStats[]>([]);
 
+  // New enhanced stats
+  const [libraryOverview, setLibraryOverview] = useState<EnhancedLibraryOverview | null>(null);
+  const [releaseYears, setReleaseYears] = useState<YearlySeriesCount[]>([]);
+  const [fileFormats, setFileFormats] = useState<FileFormatDistribution[]>([]);
+  const [publicationStatus, setPublicationStatus] = useState<PublicationStatusDistribution[]>([]);
+  const [dayOfWeekActivity, setDayOfWeekActivity] = useState<DayOfWeekActivity[]>([]);
+  const [dayOfWeekTimeframe, setDayOfWeekTimeframe] = useState<StatsTimeframe>('this_month');
+
   const fetchData = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
       // Parallel fetch all data
-      const [allTime, summaryData] = await Promise.all([
+      const [allTime, summaryData, overview, years, formats, status] = await Promise.all([
         getAllTimeReadingStats(),
         getStatsSummary(),
+        getEnhancedLibraryOverview(),
+        getSeriesByYear(),
+        getFileFormatDistribution(),
+        getPublicationStatusDistribution(),
       ]);
 
       setAllTimeStats(allTime);
       setSummary(summaryData);
+      setLibraryOverview(overview);
+      setReleaseYears(years);
+      setFileFormats(formats);
+      setPublicationStatus(status);
 
       // Fetch yearly stats for heatmap
       const yearRange = getDateRange(365);
@@ -78,11 +111,26 @@ export function StatsPage() {
 
       setCurrentPeriodStats(currentData.stats);
       setPreviousPeriodStats(previousData.stats);
+
+      // Fetch day of week activity
+      const dayActivity = await getDayOfWeekActivity(user?.id, dayOfWeekTimeframe);
+      setDayOfWeekActivity(dayActivity);
     } catch (err) {
       console.error('Failed to fetch stats:', err);
       setError('Failed to load statistics. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Refetch day of week activity when timeframe changes
+  const handleDayOfWeekTimeframeChange = async (newTimeframe: StatsTimeframe) => {
+    setDayOfWeekTimeframe(newTimeframe);
+    try {
+      const dayActivity = await getDayOfWeekActivity(user?.id, newTimeframe);
+      setDayOfWeekActivity(dayActivity);
+    } catch (err) {
+      console.error('Failed to fetch day of week activity:', err);
     }
   };
 
@@ -152,11 +200,29 @@ export function StatsPage() {
         isLoading={isLoading}
       />
 
+      {/* Library Overview */}
+      <LibraryOverview data={libraryOverview} isLoading={isLoading} />
+
       {/* Activity & Collection Row */}
       <div className="stats-page__row stats-page__row--two-col">
         <ActivityHeatmap dailyStats={yearlyStats} isLoading={isLoading} />
         <CollectionDonut stats={aggregatedStats} isLoading={isLoading} />
       </div>
+
+      {/* Charts Row */}
+      <div className="stats-page__row stats-page__row--three-col">
+        <ReleaseYearsChart data={releaseYears} isLoading={isLoading} />
+        <FileFormatChart data={fileFormats} isLoading={isLoading} />
+        <PublicationStatusChart data={publicationStatus} isLoading={isLoading} />
+      </div>
+
+      {/* Day of Week Activity */}
+      <DayOfWeekChart
+        data={dayOfWeekActivity}
+        isLoading={isLoading}
+        timeframe={dayOfWeekTimeframe}
+        onTimeframeChange={handleDayOfWeekTimeframeChange}
+      />
 
       {/* Entity Insights */}
       <EntityInsights summary={summary} isLoading={isLoading} />
@@ -170,6 +236,17 @@ export function StatsPage() {
           isLoading={isLoading}
         />
       </div>
+
+      {/* Ratings & Reviews Insights */}
+      <div className="stats-page__row">
+        <RatingInsights
+          ratingStats={summary?.ratingStats}
+          isLoading={isLoading}
+        />
+      </div>
+
+      {/* Admin-Only Stats Section */}
+      <AdminStatsSection />
     </div>
   );
 }

@@ -144,10 +144,9 @@ export function parseTemplate(template: string): ParsedTemplate {
   TOKEN_REGEX.lastIndex = 0;
 
   while ((match = TOKEN_REGEX.exec(template)) !== null) {
-    // Add literal text before this token
-    if (match.index > lastIndex) {
-      literals.push(template.slice(lastIndex, match.index));
-    }
+    // Always add literal text before this token (empty string if token is at position 0)
+    // This ensures literals[i] corresponds to text BEFORE tokens[i]
+    literals.push(template.slice(lastIndex, match.index));
 
     const [raw, name, modifier, fallback] = match;
 
@@ -168,10 +167,9 @@ export function parseTemplate(template: string): ParsedTemplate {
     lastIndex = match.index + raw!.length;
   }
 
-  // Add remaining literal text after last token
-  if (lastIndex < template.length) {
-    literals.push(template.slice(lastIndex));
-  }
+  // Always add trailing literal after last token (empty if no trailing text)
+  // This ensures literals.length === tokens.length + 1
+  literals.push(template.slice(lastIndex));
 
   // Check for unmatched braces
   const openBraces = (template.match(/\{/g) || []).length;

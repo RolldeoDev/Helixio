@@ -6,3 +6,4 @@ export { EntityInsights } from './EntityInsights';
 export { EntityDrawer } from './EntityDrawer';
 export { Achievements } from './Achievements';
 export { ReadingInsights } from './ReadingInsights';
+export { RatingInsights } from './RatingInsights';

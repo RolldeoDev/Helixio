@@ -42,7 +42,9 @@ import { LocalSeriesSearchModal } from '../components/LocalSeriesSearchModal';
 import { formatFileSize } from '../utils/format';
 import { RatingStars } from '../components/RatingStars';
 import { IssueUserDataPanel } from '../components/UserDataPanel';
-import { useIssueUserData, useUpdateIssueUserData } from '../hooks/queries';
+import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
+import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
+import { useIssueUserData, useUpdateIssueUserData, useHasExternalRatings } from '../hooks/queries';
 import './IssueDetailPage.css';
 
 // =============================================================================
@@ -137,6 +139,7 @@ export function IssueDetailPage() {
   const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
   const [isChangeSeriesModalOpen, setIsChangeSeriesModalOpen] = useState(false);
   const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
+  const [showRatingsModal, setShowRatingsModal] = useState(false);
   const { addToast } = useApiToast();
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
@@ -146,6 +149,9 @@ export function IssueDetailPage() {
   // User ratings and reviews
   const { data: userData } = useIssueUserData(fileId);
   const updateUserDataMutation = useUpdateIssueUserData();
+
+  // External ratings status (for showing fetch icon when no ratings exist)
+  const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(undefined, fileId);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -406,6 +412,10 @@ export function IssueDetailPage() {
 
   // Extract metadata
   const metadata = file.metadata;
+  // Extract external provider IDs (using type assertion since not in TS types)
+  const extendedMetadata = metadata as Record<string, unknown> | null | undefined;
+  const issueComicVineId = extendedMetadata?.comicVineId as string | undefined;
+  const issueMetronId = extendedMetadata?.metronId as string | undefined;
   const series = comicInfo?.Series || metadata?.series || '';
   const summary = comicInfo?.Summary || metadata?.summary || '';
   const genre = comicInfo?.Genre || metadata?.genre || '';
@@ -478,6 +488,8 @@ export function IssueDetailPage() {
               onIssueAction={handleIssueAction}
               seriesId={fileSeriesId}
               seriesName={series}
+              comicVineId={issueComicVineId}
+              metronId={issueMetronId}
             />
 
             {/* Summary/Description & Creators - Combined Section */}
@@ -530,7 +542,22 @@ export function IssueDetailPage() {
           <aside className="issue-hero-sidebar">
             {/* User Rating */}
             <div className="issue-rating-section">
-              <span className="rating-label">Your Rating</span>
+              <div className="rating-header">
+                <span className="rating-label">Your Rating</span>
+                {!hasExternalRatings && !isLoadingExternalRatings && (
+                  <button
+                    className="fetch-external-ratings-icon"
+                    onClick={() => setShowRatingsModal(true)}
+                    title="Search for external ratings"
+                    type="button"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      <path d="M12 17v4m0 0l-2-2m2 2l2-2" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <RatingStars
                 value={userData?.data?.rating ?? null}
                 onChange={(rating) => fileId && updateUserDataMutation.mutate({ fileId, input: { rating } })}
@@ -539,6 +566,14 @@ export function IssueDetailPage() {
                 allowClear
               />
             </div>
+
+            {/* External Ratings Preview */}
+            {fileId && (
+              <ExternalRatingsPreview
+                fileId={fileId}
+                onViewDetails={() => setShowRatingsModal(true)}
+              />
+            )}
 
             {/* Release Date */}
             {hasFullDate && (
@@ -691,38 +726,6 @@ export function IssueDetailPage() {
               <span className="file-info-label">Path</span>
               <span className="file-info-value path-value">{file.relativePath}</span>
             </div>
-
-            {/* External IDs */}
-            {(() => {
-              const extendedMetadata = metadata as Record<string, unknown> | null | undefined;
-              const comicVineId = extendedMetadata?.comicVineId as string | undefined;
-              const metronId = extendedMetadata?.metronId as string | undefined;
-              if (!comicVineId && !metronId) return null;
-              return (
-                <div className="external-ids">
-                  {comicVineId && (
-                    <a
-                      href={`https://comicvine.gamespot.com/issue/4000-${comicVineId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="external-link"
-                    >
-                      ComicVine
-                    </a>
-                  )}
-                  {metronId && (
-                    <a
-                      href={`https://metron.cloud/issue/${metronId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="external-link"
-                    >
-                      Metron
-                    </a>
-                  )}
-                </div>
-              );
-            })()}
           </div>
         )}
       </div>
@@ -777,6 +780,16 @@ export function IssueDetailPage() {
               } as NavigationOrigin,
             });
           }}
+        />
+      )}
+
+      {/* Community Ratings Modal */}
+      {fileId && (
+        <CommunityRatingsModal
+          isOpen={showRatingsModal}
+          fileId={fileId}
+          issueName={series && comicInfo?.Number ? `${series} #${comicInfo.Number}` : file?.filename}
+          onClose={() => setShowRatingsModal(false)}
         />
       )}
     </div>

@@ -6,6 +6,7 @@
 
 import { Router } from 'express';
 import { cachePresets } from '../middleware/cache.middleware.js';
+import { optionalAuth, requireAdmin } from '../middleware/auth.middleware.js';
 import {
   getAggregatedStats,
   getEntityStats,
@@ -13,6 +14,17 @@ import {
   getEntityDetails,
   getTopEntitiesSummary,
   getExtendedStats,
+  getEnhancedLibraryOverview,
+  getSeriesByYear,
+  getFileFormatDistribution,
+  getPublicationStatusDistribution,
+  getDayOfWeekActivity,
+  getMostActiveUsers,
+  getPopularLibraries,
+  getPopularSeries,
+  getRecentlyRead,
+  getTopReadersByMediaType,
+  type StatsTimeframe,
 } from '../services/stats-query.service.js';
 import {
   triggerDirtyStatsProcessing,
@@ -51,16 +63,33 @@ router.get('/', cachePresets.shortTerm, async (req, res) => {
 router.get('/summary', cachePresets.shortTerm, async (req, res) => {
   try {
     const { libraryId } = req.query;
-    const [stats, topEntities, extendedStats] = await Promise.all([
+    const userId = req.user?.id;
+    const [
+      stats,
+      topEntities,
+      extendedStats,
+      libraryOverview,
+      fileFormats,
+      publicationStatus,
+      dayOfWeekActivity,
+    ] = await Promise.all([
       getAggregatedStats(libraryId as string | undefined),
       getTopEntitiesSummary(libraryId as string | undefined),
-      getExtendedStats(libraryId as string | undefined),
+      getExtendedStats(libraryId as string | undefined, userId),
+      getEnhancedLibraryOverview(libraryId as string | undefined),
+      getFileFormatDistribution(libraryId as string | undefined),
+      getPublicationStatusDistribution(libraryId as string | undefined),
+      getDayOfWeekActivity(userId, 'all_time'),
     ]);
 
     res.json({
       ...stats,
       ...topEntities,
       ...extendedStats,
+      libraryOverview,
+      fileFormats,
+      publicationStatus,
+      dayOfWeekActivity,
     });
   } catch (error) {
     logError('stats', error, { action: 'get-stats-summary' });
@@ -231,6 +260,205 @@ router.get('/scheduler', async (_req, res) => {
   } catch (error) {
     logError('stats', error, { action: 'get-scheduler-status' });
     res.status(500).json({ error: 'Failed to get scheduler status' });
+  }
+});
+
+// =============================================================================
+// Enhanced Stats (Public)
+// =============================================================================
+
+/**
+ * GET /api/stats/library-overview
+ * Get enhanced library overview stats
+ */
+router.get('/library-overview', cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { libraryId } = req.query;
+    const overview = await getEnhancedLibraryOverview(libraryId as string | undefined);
+    res.json(overview);
+  } catch (error) {
+    logError('stats', error, { action: 'get-library-overview' });
+    res.status(500).json({ error: 'Failed to get library overview' });
+  }
+});
+
+/**
+ * GET /api/stats/release-years
+ * Get series count by publication year
+ */
+router.get('/release-years', cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { libraryId } = req.query;
+    const yearData = await getSeriesByYear(libraryId as string | undefined);
+    res.json(yearData);
+  } catch (error) {
+    logError('stats', error, { action: 'get-release-years' });
+    res.status(500).json({ error: 'Failed to get release years' });
+  }
+});
+
+/**
+ * GET /api/stats/file-formats
+ * Get file format distribution by extension
+ */
+router.get('/file-formats', cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { libraryId } = req.query;
+    const formatData = await getFileFormatDistribution(libraryId as string | undefined);
+    res.json(formatData);
+  } catch (error) {
+    logError('stats', error, { action: 'get-file-formats' });
+    res.status(500).json({ error: 'Failed to get file formats' });
+  }
+});
+
+/**
+ * GET /api/stats/publication-status
+ * Get publication status distribution (ongoing vs ended)
+ */
+router.get('/publication-status', cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { libraryId } = req.query;
+    const statusData = await getPublicationStatusDistribution(libraryId as string | undefined);
+    res.json(statusData);
+  } catch (error) {
+    logError('stats', error, { action: 'get-publication-status' });
+    res.status(500).json({ error: 'Failed to get publication status' });
+  }
+});
+
+/**
+ * GET /api/stats/day-of-week
+ * Get reading activity by day of week
+ */
+router.get('/day-of-week', optionalAuth, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { userId, timeframe } = req.query;
+
+    // Non-admin users can only view their own stats
+    const requestingUserId = req.user?.id;
+    const targetUserId = userId as string | undefined;
+
+    if (targetUserId && targetUserId !== requestingUserId && req.user?.role !== 'admin') {
+      res.status(403).json({ error: 'Cannot view other users\' stats' });
+      return;
+    }
+
+    const effectiveUserId = targetUserId || requestingUserId;
+    const validTimeframes: StatsTimeframe[] = ['this_week', 'this_month', 'this_year', 'all_time'];
+    const effectiveTimeframe = validTimeframes.includes(timeframe as StatsTimeframe)
+      ? (timeframe as StatsTimeframe)
+      : 'this_month';
+
+    const activityData = await getDayOfWeekActivity(effectiveUserId, effectiveTimeframe);
+    res.json(activityData);
+  } catch (error) {
+    logError('stats', error, { action: 'get-day-of-week-activity' });
+    res.status(500).json({ error: 'Failed to get day of week activity' });
+  }
+});
+
+// =============================================================================
+// Admin-Only Stats
+// =============================================================================
+
+/**
+ * Helper to parse and validate timeframe parameter
+ */
+function parseTimeframe(timeframe: unknown): StatsTimeframe {
+  const validTimeframes: StatsTimeframe[] = ['this_week', 'this_month', 'this_year', 'all_time'];
+  return validTimeframes.includes(timeframe as StatsTimeframe)
+    ? (timeframe as StatsTimeframe)
+    : 'this_month';
+}
+
+/**
+ * GET /api/stats/admin/active-users
+ * Get most active users (admin-only)
+ */
+router.get('/admin/active-users', requireAdmin, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { timeframe, limit } = req.query;
+    const effectiveTimeframe = parseTimeframe(timeframe);
+    const effectiveLimit = limit ? Math.min(parseInt(limit as string, 10), 50) : 10;
+
+    const users = await getMostActiveUsers(effectiveTimeframe, effectiveLimit);
+    res.json(users);
+  } catch (error) {
+    logError('stats', error, { action: 'get-active-users' });
+    res.status(500).json({ error: 'Failed to get active users' });
+  }
+});
+
+/**
+ * GET /api/stats/admin/popular-libraries
+ * Get popular libraries by read count (admin-only)
+ */
+router.get('/admin/popular-libraries', requireAdmin, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { timeframe, limit } = req.query;
+    const effectiveTimeframe = parseTimeframe(timeframe);
+    const effectiveLimit = limit ? Math.min(parseInt(limit as string, 10), 50) : 10;
+
+    const libraries = await getPopularLibraries(effectiveTimeframe, effectiveLimit);
+    res.json(libraries);
+  } catch (error) {
+    logError('stats', error, { action: 'get-popular-libraries' });
+    res.status(500).json({ error: 'Failed to get popular libraries' });
+  }
+});
+
+/**
+ * GET /api/stats/admin/popular-series
+ * Get popular series with cover images (admin-only)
+ */
+router.get('/admin/popular-series', requireAdmin, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { timeframe, limit } = req.query;
+    const effectiveTimeframe = parseTimeframe(timeframe);
+    const effectiveLimit = limit ? Math.min(parseInt(limit as string, 10), 50) : 10;
+
+    const series = await getPopularSeries(effectiveTimeframe, effectiveLimit);
+    res.json(series);
+  } catch (error) {
+    logError('stats', error, { action: 'get-popular-series' });
+    res.status(500).json({ error: 'Failed to get popular series' });
+  }
+});
+
+/**
+ * GET /api/stats/admin/recently-read
+ * Get recently read series with covers (admin-only)
+ */
+router.get('/admin/recently-read', requireAdmin, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { timeframe, limit } = req.query;
+    const effectiveTimeframe = parseTimeframe(timeframe);
+    const effectiveLimit = limit ? Math.min(parseInt(limit as string, 10), 50) : 10;
+
+    const recentlyRead = await getRecentlyRead(effectiveTimeframe, effectiveLimit);
+    res.json(recentlyRead);
+  } catch (error) {
+    logError('stats', error, { action: 'get-recently-read' });
+    res.status(500).json({ error: 'Failed to get recently read' });
+  }
+});
+
+/**
+ * GET /api/stats/admin/media-type-readers
+ * Get top readers with media type breakdown (admin-only)
+ */
+router.get('/admin/media-type-readers', requireAdmin, cachePresets.shortTerm, async (req, res) => {
+  try {
+    const { timeframe, limit } = req.query;
+    const effectiveTimeframe = parseTimeframe(timeframe);
+    const effectiveLimit = limit ? Math.min(parseInt(limit as string, 10), 50) : 10;
+
+    const readers = await getTopReadersByMediaType(effectiveTimeframe, effectiveLimit);
+    res.json(readers);
+  } catch (error) {
+    logError('stats', error, { action: 'get-media-type-readers' });
+    res.status(500).json({ error: 'Failed to get media type readers' });
   }
 });
 

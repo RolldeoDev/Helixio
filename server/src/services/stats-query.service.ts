@@ -7,6 +7,7 @@
 
 import { getDatabase } from './database.service.js';
 import { EntityType } from './stats-dirty.service.js';
+import { RatingStats, computeRatingStats } from './rating-stats.service.js';
 
 // =============================================================================
 // Types
@@ -623,12 +624,17 @@ export interface ExtendedStats {
 
   // Story arcs
   storyArcCount: number;
+
+  // Rating & Review stats (user-specific, optional)
+  ratingStats?: RatingStats;
 }
 
 /**
  * Get extended stats for fun facts feature
+ * @param libraryId - Optional library to filter stats
+ * @param userId - Optional user ID for user-specific stats (rating stats)
  */
-export async function getExtendedStats(libraryId?: string): Promise<ExtendedStats> {
+export async function getExtendedStats(libraryId?: string, userId?: string): Promise<ExtendedStats> {
   const db = getDatabase();
 
   const whereClause = libraryId
@@ -689,6 +695,9 @@ export async function getExtendedStats(libraryId?: string): Promise<ExtendedStat
   // Get story arc count
   const storyArcCount = await getStoryArcCount(libraryId);
 
+  // Get rating stats if userId is provided
+  const ratingStats = userId ? await computeRatingStats(userId) : undefined;
+
   return {
     formatCounts,
     decadeCounts,
@@ -706,6 +715,7 @@ export async function getExtendedStats(libraryId?: string): Promise<ExtendedStat
     oldestYear: yearRange.oldest,
     newestYear: yearRange.newest,
     storyArcCount,
+    ratingStats,
   };
 }
 
@@ -876,4 +886,823 @@ async function getStoryArcCount(libraryId?: string): Promise<number> {
   });
 
   return results.length;
+}
+
+// =============================================================================
+// Enhanced Stats Types and Queries
+// =============================================================================
+
+export type StatsTimeframe = 'this_week' | 'this_month' | 'this_year' | 'all_time';
+
+export interface EnhancedLibraryOverview {
+  totalSeries: number;
+  totalVolumes: number;
+  totalFiles: number;
+  totalSizeBytes: number;
+  totalGenres: number;
+  totalTags: number;
+  totalPeople: number;
+  totalReadTime: number;
+}
+
+export interface YearlySeriesCount {
+  year: number;
+  count: number;
+}
+
+export interface FileFormatDistribution {
+  extension: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PublicationStatusDistribution {
+  status: 'ongoing' | 'ended';
+  count: number;
+  percentage: number;
+}
+
+export interface DayOfWeekActivity {
+  dayOfWeek: number;
+  dayName: string;
+  readCount: number;
+  pagesRead: number;
+  readingTime: number;
+}
+
+export interface UserReadingRanking {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  readCount: number;
+  readingTime: number;
+  lastActiveAt: Date | null;
+}
+
+export interface LibraryReadingRanking {
+  libraryId: string;
+  libraryName: string;
+  readCount: number;
+  userCount: number;
+  totalFiles: number;
+}
+
+export interface PopularSeriesItem {
+  seriesId: string;
+  seriesName: string;
+  publisher: string | null;
+  coverHash: string | null;
+  firstIssueId: string | null;
+  firstIssueCoverHash: string | null;
+  readCount: number;
+  userCount: number;
+}
+
+export interface RecentlyReadItem {
+  seriesId: string;
+  seriesName: string;
+  publisher: string | null;
+  coverHash: string | null;
+  firstIssueId: string | null;
+  firstIssueCoverHash: string | null;
+  lastReadAt: Date;
+  lastReadByUsername: string;
+}
+
+export interface MediaTypeBreakdown {
+  comicsCount: number;
+  mangaCount: number;
+  comicsHours: number;
+  mangaHours: number;
+}
+
+/**
+ * Get date range for timeframe
+ */
+function getTimeframeRange(timeframe: StatsTimeframe): { start: Date | null; end: Date } {
+  const now = new Date();
+  const end = now;
+
+  switch (timeframe) {
+    case 'this_week': {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 7);
+      start.setHours(0, 0, 0, 0);
+      return { start, end };
+    }
+    case 'this_month': {
+      const start = new Date(now);
+      start.setDate(now.getDate() - 30);
+      start.setHours(0, 0, 0, 0);
+      return { start, end };
+    }
+    case 'this_year': {
+      const start = new Date(now);
+      start.setFullYear(now.getFullYear() - 1);
+      start.setHours(0, 0, 0, 0);
+      return { start, end };
+    }
+    case 'all_time':
+    default:
+      return { start: null, end };
+  }
+}
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// =============================================================================
+// Enhanced Library Overview
+// =============================================================================
+
+/**
+ * Get enhanced library overview stats
+ */
+export async function getEnhancedLibraryOverview(libraryId?: string): Promise<EnhancedLibraryOverview> {
+  const db = getDatabase();
+
+  const fileWhereClause = libraryId
+    ? { libraryId, status: 'indexed' as const }
+    : { status: 'indexed' as const };
+
+  const metadataWhereClause = libraryId
+    ? { comic: { libraryId, status: 'indexed' as const } }
+    : { comic: { status: 'indexed' as const } };
+
+  // Parallel queries for efficiency
+  const [
+    fileStats,
+    seriesCount,
+    volumeCount,
+    genreData,
+    tagData,
+    creatorCount,
+    readingTimeResult,
+  ] = await Promise.all([
+    // File stats (count and size)
+    db.comicFile.aggregate({
+      where: fileWhereClause,
+      _count: { id: true },
+      _sum: { size: true },
+    }),
+    // Series count
+    db.series.count({
+      where: libraryId
+        ? { issues: { some: { libraryId } } }
+        : {},
+    }),
+    // Volume count (files with volume-like formats)
+    db.fileMetadata.count({
+      where: {
+        ...metadataWhereClause,
+        format: { in: ['Volume', 'TPB', 'Omnibus', 'Hardcover', 'Graphic Novel'] },
+      },
+    }),
+    // Get all unique genres (comma-separated field)
+    db.fileMetadata.findMany({
+      where: { ...metadataWhereClause, genre: { not: null } },
+      select: { genre: true },
+      distinct: ['genre'],
+    }),
+    // Get all unique tags from series
+    db.series.findMany({
+      where: libraryId
+        ? { issues: { some: { libraryId } }, tags: { not: null } }
+        : { tags: { not: null } },
+      select: { tags: true },
+      distinct: ['tags'],
+    }),
+    // Creator count (unique across all roles)
+    db.entityStat.count({
+      where: { entityType: 'creator', libraryId: libraryId ?? null },
+    }),
+    // Total reading time
+    libraryId
+      ? db.readingHistory.aggregate({
+          where: { file: { libraryId } },
+          _sum: { duration: true },
+        })
+      : db.readingHistory.aggregate({
+          _sum: { duration: true },
+        }),
+  ]);
+
+  // Count unique genres (they're comma-separated)
+  const uniqueGenres = new Set<string>();
+  for (const record of genreData) {
+    if (record.genre) {
+      record.genre.split(',').forEach(g => {
+        const trimmed = g.trim();
+        if (trimmed) uniqueGenres.add(trimmed);
+      });
+    }
+  }
+
+  // Count unique tags (they're comma-separated)
+  const uniqueTags = new Set<string>();
+  for (const record of tagData) {
+    if (record.tags) {
+      record.tags.split(',').forEach(t => {
+        const trimmed = t.trim();
+        if (trimmed) uniqueTags.add(trimmed);
+      });
+    }
+  }
+
+  return {
+    totalSeries: seriesCount,
+    totalVolumes: volumeCount,
+    totalFiles: fileStats._count.id,
+    totalSizeBytes: fileStats._sum.size ?? 0,
+    totalGenres: uniqueGenres.size,
+    totalTags: uniqueTags.size,
+    totalPeople: creatorCount,
+    totalReadTime: readingTimeResult._sum.duration ?? 0,
+  };
+}
+
+// =============================================================================
+// Release Years Aggregation
+// =============================================================================
+
+/**
+ * Get series count by publication year
+ */
+export async function getSeriesByYear(libraryId?: string): Promise<YearlySeriesCount[]> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { issues: { some: { libraryId } }, startYear: { not: null } }
+    : { startYear: { not: null } };
+
+  const series = await db.series.findMany({
+    where: whereClause,
+    select: { startYear: true },
+  });
+
+  // Count by year
+  const yearCounts = new Map<number, number>();
+  for (const s of series) {
+    if (s.startYear) {
+      yearCounts.set(s.startYear, (yearCounts.get(s.startYear) || 0) + 1);
+    }
+  }
+
+  // Convert to sorted array
+  return Array.from(yearCounts.entries())
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => a.year - b.year);
+}
+
+// =============================================================================
+// File Format Distribution
+// =============================================================================
+
+/**
+ * Get file format distribution by extension
+ */
+export async function getFileFormatDistribution(libraryId?: string): Promise<FileFormatDistribution[]> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { libraryId, status: 'indexed' as const }
+    : { status: 'indexed' as const };
+
+  const results = await db.comicFile.groupBy({
+    by: ['extension'],
+    where: whereClause,
+    _count: { extension: true },
+  });
+
+  const total = results.reduce((sum, r) => sum + r._count.extension, 0);
+
+  return results
+    .map(r => ({
+      extension: r.extension || 'unknown',
+      count: r._count.extension,
+      percentage: total > 0 ? Math.round((r._count.extension / total) * 10000) / 100 : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+// =============================================================================
+// Publication Status Distribution
+// =============================================================================
+
+/**
+ * Get publication status distribution (ongoing vs ended)
+ */
+export async function getPublicationStatusDistribution(libraryId?: string): Promise<PublicationStatusDistribution[]> {
+  const db = getDatabase();
+
+  const whereClause = libraryId
+    ? { issues: { some: { libraryId } } }
+    : {};
+
+  const [ongoingCount, endedCount] = await Promise.all([
+    db.series.count({
+      where: { ...whereClause, endYear: null },
+    }),
+    db.series.count({
+      where: { ...whereClause, endYear: { not: null } },
+    }),
+  ]);
+
+  const total = ongoingCount + endedCount;
+
+  return [
+    {
+      status: 'ongoing',
+      count: ongoingCount,
+      percentage: total > 0 ? Math.round((ongoingCount / total) * 10000) / 100 : 0,
+    },
+    {
+      status: 'ended',
+      count: endedCount,
+      percentage: total > 0 ? Math.round((endedCount / total) * 10000) / 100 : 0,
+    },
+  ];
+}
+
+// =============================================================================
+// Day of Week Activity
+// =============================================================================
+
+/**
+ * Get reading activity by day of week
+ */
+export async function getDayOfWeekActivity(
+  userId?: string,
+  timeframe: StatsTimeframe = 'this_month'
+): Promise<DayOfWeekActivity[]> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Build where clause for UserReadingProgress
+  const whereClause: {
+    lastReadAt?: { gte: Date };
+    userId?: string;
+  } = {};
+
+  if (start) {
+    whereClause.lastReadAt = { gte: start };
+  }
+  if (userId) {
+    whereClause.userId = userId;
+  }
+
+  // Get all reading progress records in timeframe
+  const records = await db.userReadingProgress.findMany({
+    where: whereClause,
+    select: {
+      lastReadAt: true,
+      totalPages: true,
+      currentPage: true,
+    },
+  });
+
+  // Aggregate by day of week
+  // Estimate reading time as 2 minutes per page
+  const MINUTES_PER_PAGE = 2;
+  const dayStats = Array.from({ length: 7 }, (_, i) => ({
+    dayOfWeek: i,
+    dayName: DAY_NAMES[i]!,
+    readCount: 0,
+    pagesRead: 0,
+    readingTime: 0,
+  }));
+
+  for (const record of records) {
+    const dayIndex = record.lastReadAt.getDay();
+    dayStats[dayIndex]!.readCount++;
+    dayStats[dayIndex]!.pagesRead += record.currentPage;
+    dayStats[dayIndex]!.readingTime += record.currentPage * MINUTES_PER_PAGE * 60; // seconds
+  }
+
+  return dayStats;
+}
+
+// =============================================================================
+// Admin-Only Stats Functions
+// =============================================================================
+
+/**
+ * Get most active users (admin-only)
+ */
+export async function getMostActiveUsers(
+  timeframe: StatsTimeframe,
+  limit: number = 10
+): Promise<UserReadingRanking[]> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Build where clause for UserReadingProgress
+  const whereClause: { lastReadAt?: { gte: Date } } = {};
+  if (start) {
+    whereClause.lastReadAt = { gte: start };
+  }
+
+  // Get reading stats grouped by user from UserReadingProgress
+  const userStats = await db.userReadingProgress.groupBy({
+    by: ['userId'],
+    where: whereClause,
+    _count: { id: true },
+    _max: { lastReadAt: true },
+  });
+
+  // Sort by read count and take top N
+  const sortedStats = userStats
+    .sort((a, b) => (b._count?.id ?? 0) - (a._count?.id ?? 0))
+    .slice(0, limit);
+
+  // Get user details
+  const userIds = sortedStats.map(s => s.userId);
+  const users = await db.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, username: true, displayName: true, avatarUrl: true },
+  });
+
+  const userMap = new Map(users.map(u => [u.id, u]));
+
+  return sortedStats.map(s => {
+    const user = userMap.get(s.userId);
+    return {
+      userId: s.userId,
+      username: user?.username ?? 'Unknown',
+      displayName: user?.displayName ?? null,
+      avatarUrl: user?.avatarUrl ?? null,
+      readCount: s._count?.id ?? 0,
+      readingTime: 0, // UserReadingProgress doesn't track duration
+      lastActiveAt: s._max?.lastReadAt ?? null,
+    };
+  });
+}
+
+/**
+ * Get popular libraries by read count (admin-only)
+ */
+export async function getPopularLibraries(
+  timeframe: StatsTimeframe,
+  limit: number = 10
+): Promise<LibraryReadingRanking[]> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Get all libraries with their stats
+  const libraries = await db.library.findMany({
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { files: true } },
+    },
+  });
+
+  // Get reading stats per library using UserReadingProgress
+  const libraryReadCounts = await Promise.all(
+    libraries.map(async (lib) => {
+      const whereClause: { file: { libraryId: string }; lastReadAt?: { gte: Date } } = {
+        file: { libraryId: lib.id },
+      };
+      if (start) {
+        whereClause.lastReadAt = { gte: start };
+      }
+
+      const stats = await db.userReadingProgress.aggregate({
+        where: whereClause,
+        _count: { id: true },
+      });
+
+      // Get unique user count
+      const uniqueUsers = await db.userReadingProgress.groupBy({
+        by: ['userId'],
+        where: whereClause,
+      });
+
+      return {
+        libraryId: lib.id,
+        libraryName: lib.name,
+        readCount: stats._count?.id ?? 0,
+        userCount: uniqueUsers.length,
+        totalFiles: lib._count.files,
+      };
+    })
+  );
+
+  return libraryReadCounts
+    .sort((a, b) => b.readCount - a.readCount)
+    .slice(0, limit);
+}
+
+/**
+ * Get popular series with cover images (admin-only)
+ */
+export async function getPopularSeries(
+  timeframe: StatsTimeframe,
+  limit: number = 10
+): Promise<PopularSeriesItem[]> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Build where clause for UserReadingProgress
+  const whereClause: { lastReadAt?: { gte: Date } } = {};
+  if (start) {
+    whereClause.lastReadAt = { gte: start };
+  }
+
+  // Get reading progress with file and series info
+  const readingData = await db.userReadingProgress.findMany({
+    where: whereClause,
+    select: {
+      userId: true,
+      file: {
+        select: {
+          seriesId: true,
+          series: {
+            select: {
+              id: true,
+              name: true,
+              publisher: true,
+              coverHash: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Aggregate by series
+  const seriesStats = new Map<string, {
+    series: { id: string; name: string; publisher: string | null; coverHash: string | null };
+    readCount: number;
+    users: Set<string>;
+  }>();
+
+  for (const record of readingData) {
+    if (!record.file.series) continue;
+
+    const seriesId = record.file.series.id;
+    const existing = seriesStats.get(seriesId);
+
+    if (existing) {
+      existing.readCount++;
+      existing.users.add(record.userId);
+    } else {
+      seriesStats.set(seriesId, {
+        series: record.file.series,
+        readCount: 1,
+        users: new Set([record.userId]),
+      });
+    }
+  }
+
+  // Sort and limit
+  const sorted = Array.from(seriesStats.values())
+    .sort((a, b) => b.readCount - a.readCount)
+    .slice(0, limit);
+
+  // Get first issue for each series (for cover fallback)
+  const seriesIds = sorted.map(s => s.series.id);
+  const firstIssues = await db.comicFile.findMany({
+    where: {
+      seriesId: { in: seriesIds },
+      status: 'indexed',
+    },
+    select: {
+      seriesId: true,
+      id: true,
+      coverHash: true,
+    },
+    orderBy: [
+      { metadata: { issueNumberSort: 'asc' } },
+      { filename: 'asc' },
+    ],
+    distinct: ['seriesId'],
+  });
+
+  const firstIssueMap = new Map(firstIssues.map(f => [f.seriesId, f]));
+
+  return sorted.map(s => {
+    const firstIssue = firstIssueMap.get(s.series.id);
+    return {
+      seriesId: s.series.id,
+      seriesName: s.series.name,
+      publisher: s.series.publisher,
+      coverHash: s.series.coverHash,
+      firstIssueId: firstIssue?.id ?? null,
+      firstIssueCoverHash: firstIssue?.coverHash ?? null,
+      readCount: s.readCount,
+      userCount: s.users.size,
+    };
+  });
+}
+
+/**
+ * Get recently read series with covers (admin-only)
+ */
+export async function getRecentlyRead(
+  timeframe: StatsTimeframe,
+  limit: number = 10
+): Promise<RecentlyReadItem[]> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Build where clause for UserReadingProgress
+  const whereClause: { lastReadAt?: { gte: Date } } = {};
+  if (start) {
+    whereClause.lastReadAt = { gte: start };
+  }
+
+  // Get most recent reading progress per series
+  const recentReads = await db.userReadingProgress.findMany({
+    where: whereClause,
+    select: {
+      lastReadAt: true,
+      userId: true,
+      user: {
+        select: { username: true },
+      },
+      file: {
+        select: {
+          seriesId: true,
+          series: {
+            select: {
+              id: true,
+              name: true,
+              publisher: true,
+              coverHash: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { lastReadAt: 'desc' },
+    take: 100, // Get more than limit to dedupe by series
+  });
+
+  // Dedupe by series, keeping most recent
+  const seriesSeen = new Set<string>();
+  const uniqueReads: typeof recentReads = [];
+
+  for (const record of recentReads) {
+    if (!record.file.series || seriesSeen.has(record.file.series.id)) continue;
+    seriesSeen.add(record.file.series.id);
+    uniqueReads.push(record);
+    if (uniqueReads.length >= limit) break;
+  }
+
+  // Get first issue for each series
+  const seriesIds = uniqueReads.map(r => r.file.series!.id);
+  const firstIssues = await db.comicFile.findMany({
+    where: {
+      seriesId: { in: seriesIds },
+      status: 'indexed',
+    },
+    select: {
+      seriesId: true,
+      id: true,
+      coverHash: true,
+    },
+    orderBy: [
+      { metadata: { issueNumberSort: 'asc' } },
+      { filename: 'asc' },
+    ],
+    distinct: ['seriesId'],
+  });
+
+  const firstIssueMap = new Map(firstIssues.map(f => [f.seriesId, f]));
+
+  return uniqueReads.map(r => {
+    const series = r.file.series!;
+    const firstIssue = firstIssueMap.get(series.id);
+    return {
+      seriesId: series.id,
+      seriesName: series.name,
+      publisher: series.publisher,
+      coverHash: series.coverHash,
+      firstIssueId: firstIssue?.id ?? null,
+      firstIssueCoverHash: firstIssue?.coverHash ?? null,
+      lastReadAt: r.lastReadAt,
+      lastReadByUsername: r.user?.username ?? 'Unknown',
+    };
+  });
+}
+
+/**
+ * Get top readers with media type breakdown (admin-only)
+ */
+export async function getTopReadersByMediaType(
+  timeframe: StatsTimeframe,
+  limit: number = 10
+): Promise<Array<UserReadingRanking & MediaTypeBreakdown>> {
+  const db = getDatabase();
+
+  const { start } = getTimeframeRange(timeframe);
+
+  // Build where clause for UserReadingProgress
+  const whereClause: { lastReadAt?: { gte: Date } } = {};
+  if (start) {
+    whereClause.lastReadAt = { gte: start };
+  }
+
+  // Get reading progress with series type info
+  const readingData = await db.userReadingProgress.findMany({
+    where: whereClause,
+    select: {
+      userId: true,
+      totalPages: true,
+      file: {
+        select: {
+          series: {
+            select: { type: true },
+          },
+        },
+      },
+    },
+  });
+
+  // Aggregate by user with media type breakdown
+  // Since UserReadingProgress doesn't have duration, estimate based on pages (avg 2 min/page)
+  const MINUTES_PER_PAGE = 2;
+  const userStats = new Map<string, {
+    readCount: number;
+    readingTime: number;
+    comicsCount: number;
+    mangaCount: number;
+    comicsHours: number;
+    mangaHours: number;
+  }>();
+
+  for (const record of readingData) {
+    const existing = userStats.get(record.userId) || {
+      readCount: 0,
+      readingTime: 0,
+      comicsCount: 0,
+      mangaCount: 0,
+      comicsHours: 0,
+      mangaHours: 0,
+    };
+
+    existing.readCount++;
+    const estimatedMinutes = record.totalPages * MINUTES_PER_PAGE;
+    existing.readingTime += estimatedMinutes * 60; // Convert to seconds
+
+    const isManga = record.file.series?.type === 'manga';
+    if (isManga) {
+      existing.mangaCount++;
+      existing.mangaHours += estimatedMinutes / 60;
+    } else {
+      existing.comicsCount++;
+      existing.comicsHours += estimatedMinutes / 60;
+    }
+
+    userStats.set(record.userId, existing);
+  }
+
+  // Sort by total read count
+  const sortedUserIds = Array.from(userStats.entries())
+    .sort((a, b) => b[1].readCount - a[1].readCount)
+    .slice(0, limit)
+    .map(([userId]) => userId);
+
+  // Get user details
+  const users = await db.user.findMany({
+    where: { id: { in: sortedUserIds } },
+    select: { id: true, username: true, displayName: true, avatarUrl: true },
+  });
+
+  const userMap = new Map(users.map(u => [u.id, u]));
+
+  // Get last active date per user from UserReadingProgress
+  const lastActiveDates = await db.userReadingProgress.groupBy({
+    by: ['userId'],
+    where: { userId: { in: sortedUserIds }, ...whereClause },
+    _max: { lastReadAt: true },
+  });
+
+  const lastActiveMap = new Map(
+    lastActiveDates.map(d => [d.userId, d._max?.lastReadAt ?? null])
+  );
+
+  return sortedUserIds.map(userId => {
+    const stats = userStats.get(userId)!;
+    const user = userMap.get(userId);
+    return {
+      userId,
+      username: user?.username ?? 'Unknown',
+      displayName: user?.displayName ?? null,
+      avatarUrl: user?.avatarUrl ?? null,
+      readCount: stats.readCount,
+      readingTime: stats.readingTime,
+      lastActiveAt: lastActiveMap.get(userId) ?? null,
+      comicsCount: stats.comicsCount,
+      mangaCount: stats.mangaCount,
+      comicsHours: Math.round(stats.comicsHours * 10) / 10,
+      mangaHours: Math.round(stats.mangaHours * 10) / 10,
+    };
+  });
 }

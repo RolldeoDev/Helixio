@@ -21,6 +21,7 @@ import { QuickCollectionIcons } from '../QuickCollectionIcons';
 import { CollectionFlyout } from '../CollectionFlyout';
 import { ActionMenu, type ActionMenuItem } from '../ActionMenu';
 import { ProgressRing, CompletedBadge } from '../Progress';
+import { ExternalProviderLinks } from '../ExternalProviderLinks';
 import './IssueHero.css';
 
 // =============================================================================
@@ -39,6 +40,8 @@ export interface IssueHeroProps {
   onIssueAction: (actionId: string) => void;
   seriesId?: string;
   seriesName?: string;
+  comicVineId?: string | null;
+  metronId?: string | null;
 }
 
 // =============================================================================
@@ -105,6 +108,8 @@ export function IssueHero({
   onIssueAction,
   seriesId,
   seriesName,
+  comicVineId,
+  metronId,
 }: IssueHeroProps) {
   // Progress calculations
   const currentPage = progress?.currentPage ?? 0;
@@ -195,6 +200,11 @@ export function IssueHero({
             {totalPages > 0 && (
               <span className="issue-hero__meta-pages">{totalPages} pages</span>
             )}
+            <ExternalProviderLinks
+              comicVineId={comicVineId}
+              metronId={metronId}
+              context="issue"
+            />
           </div>
 
           {/* Progress bar */}

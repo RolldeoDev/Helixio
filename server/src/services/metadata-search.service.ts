@@ -6,7 +6,7 @@
  * Includes confidence scoring for matching results.
  */
 
-import { getMetadataSettings } from './config.service.js';
+import { getMetadataSettings, hasApiKey } from './config.service.js';
 import * as comicVine from './comicvine.service.js';
 import * as metron from './metron.service.js';
 import { isMetronAvailable, getSeriesName } from './metron.service.js';
@@ -25,36 +25,53 @@ export type MetadataSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
 export type LibraryType = 'western' | 'manga';
 
 /**
+ * Check if a metadata source is available (configured with credentials if needed).
+ * ComicVine requires API key, Metron requires username/password.
+ * AniList and MAL are free public APIs and always available.
+ */
+export function isSourceAvailable(source: MetadataSource): boolean {
+  switch (source) {
+    case 'anilist':
+    case 'mal':
+      // Free public APIs - always available
+      return true;
+    case 'metron':
+      // Requires credentials
+      return isMetronAvailable();
+    case 'comicvine':
+      // Requires API key
+      return hasApiKey('comicVine');
+    case 'gcd':
+      // GCD doesn't require auth but isn't implemented yet, return false
+      return false;
+    default:
+      return false;
+  }
+}
+
+/**
  * Get prioritized sources based on library type.
- * Manga libraries prioritize AniList/MAL, Western libraries prioritize ComicVine/Metron.
+ * Manga libraries use only AniList/MAL (manga-specific sources).
+ * Western libraries use ComicVine/Metron (western-comic sources).
+ * Unconfigured sources are automatically filtered out.
  */
 export function getSourcesForLibraryType(libraryType: LibraryType): MetadataSource[] {
-  const settings = getMetadataSettings();
-  const enabledSources = settings.enabledSources || ['comicvine', 'metron', 'anilist', 'mal'];
-
   if (libraryType === 'manga') {
-    // For manga libraries, ALWAYS include AniList/MAL (they're free public APIs)
-    // regardless of enabledSources config, plus any other enabled sources
+    // For manga libraries, ONLY use manga-specific sources (AniList/MAL).
+    // ComicVine, Metron, and GCD are western comic databases and don't have manga data.
     const mangaSources: MetadataSource[] = ['anilist', 'mal'];
-    const otherSources = enabledSources.filter((s): s is MetadataSource =>
-      !mangaSources.includes(s as MetadataSource)
-    );
-    // Always include manga sources first, then other enabled sources
-    return [
-      ...mangaSources,
-      ...otherSources,
-    ];
+    return mangaSources.filter(isSourceAvailable);
   }
 
   // For western comics, prioritize ComicVine/Metron
+  const settings = getMetadataSettings();
+  const enabledSources = settings.enabledSources || ['comicvine', 'metron'];
   const westernSources: MetadataSource[] = ['comicvine', 'metron', 'gcd'];
-  const otherSources = enabledSources.filter((s): s is MetadataSource =>
-    !westernSources.includes(s as MetadataSource)
-  );
-  return [
-    ...westernSources.filter((s) => enabledSources.includes(s)),
-    ...otherSources,
-  ];
+
+  // Only include configured and enabled western sources
+  return westernSources
+    .filter((s) => enabledSources.includes(s))
+    .filter(isSourceAvailable);
 }
 
 export interface SearchQuery {
@@ -892,6 +909,12 @@ export async function getSeriesMetadata(
   if (source === 'anilist') {
     const manga = await anilist.getMangaById(id, sessionId);
     if (!manga) return null;
+
+    // Extract tags with rank > 75, excluding spoiler tags
+    const tags =
+      manga.tags?.filter((tag) => tag.rank > 75 && !tag.isMediaSpoiler).map((tag) => tag.name) ||
+      [];
+
     // Convert AniList manga to metadata format
     return {
       name: anilist.getPreferredTitle(manga),
@@ -902,6 +925,7 @@ export async function getSeriesMetadata(
       issueCount: manga.chapters || manga.volumes,
       coverUrl: manga.coverImage?.large || manga.coverImage?.medium,
       genres: manga.genres,
+      tags: tags.length > 0 ? tags : undefined,
       characters: manga.characters?.edges?.map((e) => e.node.name.full) || [],
       status: manga.status,
     };

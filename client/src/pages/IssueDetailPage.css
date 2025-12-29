@@ -292,6 +292,49 @@
   margin-bottom: 0;
 }
 
+.issue-rating-section .rating-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+/* Rating Header with fetch icon */
+.issue-rating-section .rating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.issue-rating-section .fetch-external-ratings-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  transition: color 0.15s, background 0.15s;
+}
+
+.issue-rating-section .fetch-external-ratings-icon:hover {
+  color: var(--color-warning, #f59e0b);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.issue-rating-section .fetch-external-ratings-icon:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.issue-rating-section .fetch-external-ratings-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* =============================================================================
    User Data Panel Section
    ============================================================================= */

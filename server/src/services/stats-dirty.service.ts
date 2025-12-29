@@ -12,7 +12,7 @@ import { getDatabase } from './database.service.js';
 // =============================================================================
 
 export type DirtyScope = 'library' | 'entity' | 'user';
-export type DirtyReason = 'metadata_change' | 'reading_progress' | 'file_added' | 'file_removed';
+export type DirtyReason = 'metadata_change' | 'reading_progress' | 'file_added' | 'file_removed' | 'rating_change';
 export type EntityType = 'creator' | 'genre' | 'character' | 'team' | 'publisher';
 
 export interface DirtyFlag {
@@ -295,6 +295,17 @@ export async function markDirtyForFileChange(
   await markDirty({
     scope: 'user',
     reason,
+  });
+}
+
+/**
+ * Mark stats dirty for rating/review change
+ * Only marks user-level as dirty (rating stats are user-specific)
+ */
+export async function markDirtyForRatingChange(): Promise<void> {
+  await markDirty({
+    scope: 'user',
+    reason: 'rating_change',
   });
 }
 

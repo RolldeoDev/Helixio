@@ -72,6 +72,9 @@ export interface CreateSeriesInput {
   coverUrl?: string | null;
   comicVineId?: string | null;
   metronId?: string | null;
+  anilistId?: string | null;
+  malId?: string | null;
+  gcdId?: string | null;
   primaryFolder?: string | null;
 }
 

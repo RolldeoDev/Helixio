@@ -151,6 +151,71 @@ describe('Template Parser Service', () => {
       });
     });
 
+    describe('literals array structure', () => {
+      it('includes leading empty literal when first token is at position 0', () => {
+        const result = parseTemplate('{Series} - {Number}');
+
+        expect(result.isValid).toBe(true);
+        expect(result.tokens).toHaveLength(2);
+        // Key invariant: literals[0] should be empty (before first token)
+        // literals[1] should be " - " (between tokens)
+        // literals[2] should be "" (after last token)
+        expect(result.literals).toHaveLength(3);
+        expect(result.literals[0]).toBe('');
+        expect(result.literals[1]).toBe(' - ');
+        expect(result.literals[2]).toBe('');
+      });
+
+      it('includes non-empty leading literal when template starts with text', () => {
+        const result = parseTemplate('prefix_{Series} - {Number}');
+
+        expect(result.isValid).toBe(true);
+        expect(result.tokens).toHaveLength(2);
+        expect(result.literals).toHaveLength(3);
+        expect(result.literals[0]).toBe('prefix_');
+        expect(result.literals[1]).toBe(' - ');
+        expect(result.literals[2]).toBe('');
+      });
+
+      it('maintains correct literal count: tokens.length + 1', () => {
+        const result = parseTemplate('{A} - {B} - {C} - {D}');
+
+        expect(result.isValid).toBe(false); // Unknown tokens, but structure is correct
+        expect(result.tokens).toHaveLength(4);
+        expect(result.literals).toHaveLength(5);
+        expect(result.literals[0]).toBe(''); // before A
+        expect(result.literals[1]).toBe(' - '); // between A and B
+        expect(result.literals[2]).toBe(' - '); // between B and C
+        expect(result.literals[3]).toBe(' - '); // between C and D
+        expect(result.literals[4]).toBe(''); // after D
+      });
+
+      it('handles trailing literal correctly', () => {
+        const result = parseTemplate('{Series}.cbz');
+
+        expect(result.isValid).toBe(true);
+        expect(result.tokens).toHaveLength(1);
+        expect(result.literals).toHaveLength(2);
+        expect(result.literals[0]).toBe('');
+        expect(result.literals[1]).toBe('.cbz');
+      });
+
+      it('handles default template literal structure', () => {
+        const result = parseTemplate('{Series} - {Type} {Number:000} - {Title} ({Year|}).{Extension}');
+
+        expect(result.isValid).toBe(true);
+        expect(result.tokens).toHaveLength(6);
+        expect(result.literals).toHaveLength(7);
+        expect(result.literals[0]).toBe(''); // before Series
+        expect(result.literals[1]).toBe(' - '); // between Series and Type
+        expect(result.literals[2]).toBe(' '); // between Type and Number
+        expect(result.literals[3]).toBe(' - '); // between Number and Title
+        expect(result.literals[4]).toBe(' ('); // between Title and Year
+        expect(result.literals[5]).toBe(').'); // between Year and Extension
+        expect(result.literals[6]).toBe(''); // after Extension
+      });
+    });
+
     describe('edge cases', () => {
       it('handles template with only literals', () => {
         const result = parseTemplate('static-filename.cbz');

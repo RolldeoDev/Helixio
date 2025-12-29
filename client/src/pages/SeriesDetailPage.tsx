@@ -21,10 +21,12 @@ import {
   getNextSeriesIssue,
   getCoverUrl,
   getApiCoverUrl,
+  getCollectionCoverUrl,
   fetchSeriesMetadata,
   previewSeriesMetadata,
   applySeriesMetadata,
   getSeriesRelationships,
+  getSimilarSeries,
   Series,
   SeriesIssue,
   SeriesForMerge,
@@ -32,6 +34,7 @@ import {
   SeriesMetadataPayload,
   MetadataPreviewField,
   RelatedSeriesInfo,
+  SimilarSeriesEntry,
 } from '../services/api.service';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useApiToast, useMenuActions } from '../hooks';
@@ -64,7 +67,9 @@ import { RelationshipTypeBadge } from '../components/RelationshipTypeBadge';
 import { useWindowVirtualGrid } from '../hooks/useWindowVirtualGrid';
 import { RatingStars } from '../components/RatingStars';
 import { SeriesUserDataPanel } from '../components/UserDataPanel';
-import { useSeriesUserData, useUpdateSeriesUserData } from '../hooks/queries';
+import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
+import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
+import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings } from '../hooks/queries';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -185,8 +190,14 @@ export function SeriesDetailPage() {
   const [parentSeries, setParentSeries] = useState<RelatedSeriesInfo[]>([]);
   const [childSeries, setChildSeries] = useState<RelatedSeriesInfo[]>([]);
 
-  // Tab state for Issues/Related Series/Collections tabs
-  const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'collections'>('issues');
+  // Similar series state (from recommendation engine)
+  const [similarSeries, setSimilarSeries] = useState<SimilarSeriesEntry[]>([]);
+  const [similarSeriesLoading, setSimilarSeriesLoading] = useState(false);
+  const [similarSeriesError, setSimilarSeriesError] = useState(false);
+  const similarFetchedRef = useRef(false);
+
+  // Tab state for Issues/Related Series/Similar/Collections tabs
+  const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'similar' | 'collections'>('issues');
 
   // Fetch collections containing this series (or its files)
   const { data: seriesCollections = [] } = useSeriesCollections(seriesId);
@@ -195,6 +206,9 @@ export function SeriesDetailPage() {
   // User ratings and reviews
   const { data: userData } = useSeriesUserData(seriesId);
   const updateUserDataMutation = useUpdateSeriesUserData();
+
+  // External ratings status (for showing fetch icon when no ratings exist)
+  const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(seriesId);
 
   // Combined related series for the unified row with isParent flag
   const allRelatedSeries = useMemo(() => {
@@ -228,6 +242,9 @@ export function SeriesDetailPage() {
   // Relationship modal state
   const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
   const [showManageRelationshipsModal, setShowManageRelationshipsModal] = useState(false);
+
+  // External ratings modal state
+  const [showRatingsModal, setShowRatingsModal] = useState(false);
 
   // Description expand/collapse state
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -281,6 +298,39 @@ export function SeriesDetailPage() {
   useEffect(() => {
     fetchSeries();
   }, [fetchSeries]);
+
+  // Fetch similar series when tab is selected (lazy loading)
+  const fetchSimilarSeries = useCallback(async () => {
+    if (!seriesId || similarFetchedRef.current) return;
+
+    similarFetchedRef.current = true;
+    setSimilarSeriesLoading(true);
+    setSimilarSeriesError(false);
+
+    try {
+      const result = await getSimilarSeries(seriesId, 12);
+      setSimilarSeries(result.similar);
+    } catch (err) {
+      console.error('Failed to fetch similar series:', err);
+      setSimilarSeriesError(true);
+    } finally {
+      setSimilarSeriesLoading(false);
+    }
+  }, [seriesId]);
+
+  // Load similar series when tab is selected
+  useEffect(() => {
+    if (activeTab === 'similar') {
+      fetchSimilarSeries();
+    }
+  }, [activeTab, fetchSimilarSeries]);
+
+  // Reset similar series state when seriesId changes
+  useEffect(() => {
+    similarFetchedRef.current = false;
+    setSimilarSeries([]);
+    setSimilarSeriesError(false);
+  }, [seriesId]);
 
   // Refresh series data when a metadata job completes
   useEffect(() => {
@@ -840,7 +890,22 @@ export function SeriesDetailPage() {
           <aside className="series-hero-sidebar">
             {/* User Rating */}
             <div className="series-rating-section">
-              <span className="rating-label">Your Rating</span>
+              <div className="rating-header">
+                <span className="rating-label">Your Rating</span>
+                {!hasExternalRatings && !isLoadingExternalRatings && (
+                  <button
+                    className="fetch-external-ratings-icon"
+                    onClick={() => setShowRatingsModal(true)}
+                    title="Search for external ratings"
+                    type="button"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      <path d="M12 17v4m0 0l-2-2m2 2l2-2" />
+                    </svg>
+                  </button>
+                )}
+              </div>
               <RatingStars
                 value={userData?.data?.rating ?? null}
                 onChange={(rating) => seriesId && updateUserDataMutation.mutate({ seriesId, input: { rating } })}
@@ -854,6 +919,14 @@ export function SeriesDetailPage() {
                 </span>
               )}
             </div>
+
+            {/* External Ratings Preview */}
+            {seriesId && (
+              <ExternalRatingsPreview
+                seriesId={seriesId}
+                onViewDetails={() => setShowRatingsModal(true)}
+              />
+            )}
 
             {/* Genres */}
             {genreList.length > 0 && (
@@ -918,15 +991,17 @@ export function SeriesDetailPage() {
         </div>
       </DetailHeroSection>
 
-      {/* User Rating & Notes Panel */}
-      {seriesId && (
+      {/* User Rating & Notes Panel - only show when user has data */}
+      {seriesId && (userData?.data?.rating !== null && userData?.data?.rating !== undefined
+        || userData?.data?.privateNotes
+        || userData?.data?.publicReview) && (
         <div className="series-user-data-section">
           <SeriesUserDataPanel seriesId={seriesId} defaultExpanded={false} />
         </div>
       )}
 
-      {/* Content Section - Tabbed when related series or collections exist, simple when not */}
-      {allRelatedSeries.length > 0 || seriesCollections.length > 0 ? (
+      {/* Content Section - Always use tabbed layout to include Similar Series discovery */}
+      {true ? (
         <div className="series-content-section">
           {/* Tab Navigation */}
           <div className="series-content-tabs">
@@ -946,6 +1021,16 @@ export function SeriesDetailPage() {
                 <span className="tab-count">{allRelatedSeries.length}</span>
               </button>
             )}
+            {/* Always show Similar tab - content is lazy-loaded */}
+            <button
+              className={`series-content-tab ${activeTab === 'similar' ? 'active' : ''}`}
+              onClick={() => setActiveTab('similar')}
+            >
+              Similar Series
+              {similarSeries.length > 0 && (
+                <span className="tab-count">{similarSeries.length}</span>
+              )}
+            </button>
             {seriesCollections.length > 0 && (
               <button
                 className={`series-content-tab ${activeTab === 'collections' ? 'active' : ''}`}
@@ -1097,14 +1182,150 @@ export function SeriesDetailPage() {
               </div>
             )}
 
+            {activeTab === 'similar' && (
+              <div className="series-similar-tab-content">
+                {similarSeriesLoading ? (
+                  <div className="similar-series-loading">
+                    <div className="spinner" />
+                    <span>Finding similar series...</span>
+                  </div>
+                ) : similarSeriesError ? (
+                  <div className="similar-series-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <circle cx="12" cy="16" r="0.5" fill="currentColor" />
+                    </svg>
+                    <p>Unable to load similar series.</p>
+                    <button
+                      className="similar-series-retry-btn"
+                      onClick={() => {
+                        similarFetchedRef.current = false;
+                        fetchSimilarSeries();
+                      }}
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : similarSeries.length === 0 ? (
+                  <div className="similar-series-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <p>No similar series found yet.</p>
+                    <span className="similar-series-empty-hint">
+                      Similarity scores are computed periodically. Check back later!
+                    </span>
+                  </div>
+                ) : (
+                  similarSeries.map((entry) => {
+                    const { series: sim, similarityScore, matchReasons } = entry;
+                    // Smart cover fallback: series coverHash > coverUrl > first issue coverHash > first issue file
+                    const simCoverUrl = sim.coverHash
+                      ? getApiCoverUrl(sim.coverHash)
+                      : sim.coverUrl
+                        ? sim.coverUrl
+                        : sim.firstIssueCoverHash
+                          ? getApiCoverUrl(sim.firstIssueCoverHash)
+                          : sim.firstIssueId
+                            ? getCoverUrl(sim.firstIssueId)
+                            : null;
+
+                    // Get top match reason for display
+                    const topReason = matchReasons[0];
+                    const reasonText = topReason
+                      ? topReason.type === 'character'
+                        ? 'Similar characters'
+                        : topReason.type === 'genre'
+                          ? 'Similar genres'
+                          : topReason.type === 'creator'
+                            ? 'Same creators'
+                            : topReason.type === 'tag'
+                              ? 'Similar tags'
+                              : topReason.type === 'team'
+                                ? 'Same teams'
+                                : topReason.type === 'keyword'
+                                  ? 'Related themes'
+                                  : topReason.type === 'publisher'
+                                    ? 'Same publisher'
+                                    : 'Similar'
+                      : null;
+
+                    return (
+                      <div
+                        key={sim.id}
+                        className="similar-series-card"
+                        onClick={() => navigate(`/series/${sim.id}`)}
+                      >
+                        {/* Cover image */}
+                        <div className="similar-series-card__cover">
+                          {simCoverUrl ? (
+                            <img src={simCoverUrl} alt={sim.name} loading="lazy" />
+                          ) : (
+                            <div className="similar-series-card__cover-placeholder">
+                              {sim.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          {/* Match score badge */}
+                          <div className="similar-series-card__score">
+                            {Math.round(similarityScore * 100)}% match
+                          </div>
+                        </div>
+
+                        {/* Info section */}
+                        <div className="similar-series-card__info">
+                          <h4 className="similar-series-card__name" title={sim.name}>
+                            {sim.name}
+                          </h4>
+                          <div className="similar-series-card__meta">
+                            {sim.publisher && (
+                              <span>{sim.publisher}</span>
+                            )}
+                            {sim.publisher && sim.startYear && (
+                              <span className="similar-series-card__meta-separator" aria-hidden="true" />
+                            )}
+                            {sim.startYear && (
+                              <span>{sim.startYear}</span>
+                            )}
+                            {(sim.publisher || sim.startYear) && sim.issueCount > 0 && (
+                              <span className="similar-series-card__meta-separator" aria-hidden="true" />
+                            )}
+                            {sim.issueCount > 0 && (
+                              <span>{sim.issueCount} issues</span>
+                            )}
+                          </div>
+                          {reasonText && (
+                            <div className="similar-series-card__reason">
+                              {reasonText}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
             {activeTab === 'collections' && (
               <div className="series-collections-tab-content">
                 {seriesCollections.map((collection) => {
-                  const collectionCoverUrl = collection.coverHash
-                    ? getApiCoverUrl(collection.coverHash)
-                    : collection.coverFileId
-                      ? getCoverUrl(collection.coverFileId)
-                      : null;
+                  // Determine cover URL based on coverType
+                  let collectionCoverUrl: string | null = null;
+                  if (collection.coverType === 'auto' && collection.coverHash) {
+                    // Auto-generated mosaic covers use the collection covers endpoint
+                    collectionCoverUrl = getCollectionCoverUrl(collection.coverHash);
+                  } else if (collection.coverType === 'custom' && collection.coverHash) {
+                    // Custom uploaded covers are stored in series covers directory
+                    collectionCoverUrl = getApiCoverUrl(collection.coverHash);
+                  } else if (collection.coverType === 'issue' && collection.coverFileId) {
+                    // Issue covers use file cover endpoint
+                    collectionCoverUrl = getCoverUrl(collection.coverFileId);
+                  } else if (collection.coverFileId) {
+                    // Fallback to file cover
+                    collectionCoverUrl = getCoverUrl(collection.coverFileId);
+                  }
 
                   return (
                     <div
@@ -1313,6 +1534,17 @@ export function SeriesDetailPage() {
           parents={parentSeries}
           children={childSeries}
           onUpdate={fetchSeries}
+        />
+      )}
+
+      {/* Community Ratings Modal */}
+      {seriesId && (
+        <CommunityRatingsModal
+          isOpen={showRatingsModal}
+          seriesId={seriesId}
+          seriesName={series?.name}
+          issueCount={series?._count?.issues ?? issues.length}
+          onClose={() => setShowRatingsModal(false)}
         />
       )}
     </div>

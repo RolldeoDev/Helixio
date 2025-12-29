@@ -684,6 +684,14 @@ describe('ReadingHistoryService', () => {
         longestSession: 0,
         currentStreak: 0,
         longestStreak: 0,
+        // Extended stats
+        totalActiveDays: 0,
+        maxPagesDay: 0,
+        maxComicsDay: 0,
+        maxTimeDay: 0,
+        sessionsTotal: 0,
+        bingeDaysCount: 0,
+        daysSinceLastRead: 0,
       });
     });
 

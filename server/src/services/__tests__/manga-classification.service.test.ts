@@ -91,6 +91,37 @@ describe('parseMangaFilename', () => {
       expect(result.volume).toBe('5');
       expect(result.contentType).toBe('volume');
     });
+
+    it('should parse v05 format with leading zeros', () => {
+      const result = parseMangaFilename('Manga Name v05.cbz');
+      expect(result.volume).toBe('05');
+      expect(result.chapter).toBeUndefined();
+      expect(result.contentType).toBe('volume');
+      expect(result.primaryNumber).toBe('05');
+    });
+
+    it('should parse real-world manga filename: Lone Wolf and Cub v05', () => {
+      const result = parseMangaFilename('Lone Wolf and Cub v05 - Black Wind (2001) (Digital) (danke-Empire).cbz');
+      expect(result.volume).toBe('05');
+      expect(result.chapter).toBeUndefined();
+      expect(result.contentType).toBe('volume');
+      expect(result.primaryNumber).toBe('05');
+      expect(result.confidence).toBeGreaterThanOrEqual(0.9);
+    });
+
+    it('should parse v01 through v99 formats', () => {
+      const v01 = parseMangaFilename('Series v01.cbz');
+      const v10 = parseMangaFilename('Series v10.cbz');
+      const v99 = parseMangaFilename('Series v99.cbz');
+
+      expect(v01.volume).toBe('01');
+      expect(v10.volume).toBe('10');
+      expect(v99.volume).toBe('99');
+
+      expect(v01.contentType).toBe('volume');
+      expect(v10.contentType).toBe('volume');
+      expect(v99.contentType).toBe('volume');
+    });
   });
 
   describe('special content types', () => {
@@ -240,6 +271,37 @@ describe('classifyMangaFile', () => {
     expect(result.volume).toBe('5');
     expect(result.chapter).toBe('12');
     expect(result.primaryNumber).toBe('12');
+  });
+
+  describe('volume-only files', () => {
+    it('should classify volume-only file correctly', () => {
+      const result = classifyMangaFile('Manga v05.cbz', 200, defaultSettings);
+      expect(result.contentType).toBe('volume');
+      expect(result.volume).toBe('05');
+      expect(result.chapter).toBeUndefined();
+      expect(result.primaryNumber).toBe('05');
+      expect(result.displayTitle).toBe('Volume 5');
+    });
+
+    it('should classify Lone Wolf and Cub v05 correctly', () => {
+      const result = classifyMangaFile(
+        'Lone Wolf and Cub v05 - Black Wind (2001) (Digital) (danke-Empire).cbz',
+        200,
+        defaultSettings
+      );
+      expect(result.contentType).toBe('volume');
+      expect(result.volume).toBe('05');
+      expect(result.primaryNumber).toBe('05');
+      expect(result.displayTitle).toBe('Volume 5');
+      expect(result.source).toBe('filename');
+      expect(result.confidence).toBeGreaterThanOrEqual(0.9);
+    });
+
+    it('should use volume number as primaryNumber for volume-only files', () => {
+      const result = classifyMangaFile('Series v10.cbz', 180, defaultSettings);
+      expect(result.primaryNumber).toBe('10');
+      expect(result.volume).toBe('10');
+    });
   });
 });
 

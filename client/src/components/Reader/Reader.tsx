@@ -593,6 +593,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
             currentIndex: state.adjacentFiles?.currentIndex ?? 0,
             totalInSeries: state.adjacentFiles?.totalInSeries ?? 0,
           }}
+          currentFileId={state.fileId}
           onNavigate={(fileId) => onNavigateToFile?.(fileId, { startPage: 0 })}
           onReturn={exitTransitionScreen}
           onClose={onClose}

@@ -137,7 +137,7 @@ function SeriesGridContent({
   const { virtualItems, totalHeight, containerRef, isScrolling, scrollTo, visibleRange } = useVirtualGrid(items, {
     sliderValue: coverSize,
     gap,
-    overscan: 3, // Render 3 extra rows for smooth scrolling
+    overscan: 2, // Render 2 extra rows for smooth scrolling (reduced from 3)
     aspectRatio: 1.5,
     infoHeight: 60,
     minCoverWidth: 80,

@@ -305,6 +305,18 @@
   color: var(--text-secondary);
 }
 
+.similarity-running-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-primary-dim, rgba(99, 102, 241, 0.1));
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: var(--color-primary, #6366f1);
+}
+
 /* Mismatched Files */
 .mismatched-files-list {
   margin-top: 1rem;

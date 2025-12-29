@@ -122,6 +122,8 @@ export interface ApprovalSession {
 
   // Options
   useLLMCleanup: boolean;
+  /** Session options (stored for use in applyChanges) */
+  options?: CreateSessionOptions;
 
   // Phase 1: Series groups (wizard through one at a time)
   seriesGroups: SeriesGroup[];
@@ -143,6 +145,8 @@ export interface CreateSessionOptions {
   excludeFileIds?: string[];
   /** Mixed series mode - ignores series.json and parses each file individually */
   mixedSeries?: boolean;
+  /** Fetch external ratings from ComicBookRoundup after applying metadata */
+  fetchExternalRatings?: boolean;
 }
 
 // =============================================================================

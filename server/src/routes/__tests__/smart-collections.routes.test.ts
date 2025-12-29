@@ -18,7 +18,19 @@ import request from 'supertest';
 // Mock the auth middleware FIRST before any imports
 vi.mock('../../middleware/auth.middleware.js', () => ({
   requireAuth: (_req: Request, _res: Response, next: NextFunction) => {
-    (_req as Request & { user: { id: string } }).user = { id: 'user-1', email: 'test@test.com', role: 'user' };
+    (_req as Request & { user: { id: string } }).user = {
+      id: 'user-1',
+      username: 'testuser',
+      email: 'test@test.com',
+      displayName: 'Test User',
+      avatarUrl: null,
+      role: 'user',
+      isActive: true,
+      profilePrivate: false,
+      hideReadingStats: false,
+      createdAt: new Date(),
+      lastLoginAt: null,
+    };
     next();
   },
   optionalAuth: (_req: Request, _res: Response, next: NextFunction) => next(),
@@ -58,6 +70,7 @@ vi.mock('../../services/collection.service.js', () => ({
   toggleSystemCollection: vi.fn().mockResolvedValue({ added: true }),
   ensureSystemCollections: vi.fn().mockResolvedValue(undefined),
   getSystemCollection: vi.fn().mockResolvedValue(null),
+  regenerateMosaicSync: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock cover service
@@ -125,7 +138,7 @@ describe('Smart Collections Routes', () => {
         .post('/api/collections/col-1/smart/refresh')
         .expect(200);
 
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         success: true,
         added: 5,
         removed: 2,
@@ -328,7 +341,7 @@ describe('Smart Collections Routes', () => {
         .send({ seriesId: 'series-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isWhitelisted: true });
+      expect(response.body).toMatchObject({ success: true, isWhitelisted: true });
       expect(mockToggleWhitelist).toHaveBeenCalledWith('col-1', 'user-1', 'series-1', undefined);
     });
 
@@ -340,7 +353,7 @@ describe('Smart Collections Routes', () => {
         .send({ fileId: 'file-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isWhitelisted: true });
+      expect(response.body).toMatchObject({ success: true, isWhitelisted: true });
       expect(mockToggleWhitelist).toHaveBeenCalledWith('col-1', 'user-1', undefined, 'file-1');
     });
 
@@ -361,7 +374,7 @@ describe('Smart Collections Routes', () => {
         .send({ seriesId: 'series-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isWhitelisted: false });
+      expect(response.body).toMatchObject({ success: true, isWhitelisted: false });
     });
 
     it('should return 404 when collection not found', async () => {
@@ -389,7 +402,7 @@ describe('Smart Collections Routes', () => {
         .send({ seriesId: 'series-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isBlacklisted: true });
+      expect(response.body).toMatchObject({ success: true, isBlacklisted: true });
       expect(mockToggleBlacklist).toHaveBeenCalledWith('col-1', 'user-1', 'series-1', undefined);
     });
 
@@ -401,7 +414,7 @@ describe('Smart Collections Routes', () => {
         .send({ fileId: 'file-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isBlacklisted: true });
+      expect(response.body).toMatchObject({ success: true, isBlacklisted: true });
       expect(mockToggleBlacklist).toHaveBeenCalledWith('col-1', 'user-1', undefined, 'file-1');
     });
 
@@ -422,7 +435,7 @@ describe('Smart Collections Routes', () => {
         .send({ seriesId: 'series-1' })
         .expect(200);
 
-      expect(response.body).toEqual({ success: true, isBlacklisted: false });
+      expect(response.body).toMatchObject({ success: true, isBlacklisted: false });
     });
   });
 

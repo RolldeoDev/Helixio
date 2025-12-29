@@ -12,6 +12,7 @@
 
 import { getDatabase } from './database.service.js';
 import { createServiceLogger } from './logger.service.js';
+import { recalculateCollectionMetadata } from './collection.service.js';
 
 const logger = createServiceLogger('smart-collection');
 
@@ -45,7 +46,11 @@ export type FilterField =
   | 'rating'
   | 'pageCount'
   | 'fileSize'
-  | 'libraryId';
+  | 'libraryId'
+  // External rating fields
+  | 'externalRating'    // Any external rating (max across sources)
+  | 'communityRating'   // Community ratings only (max across sources)
+  | 'criticRating';     // Critic ratings only (max across sources)
 
 export type FilterComparison =
   | 'contains'
@@ -209,6 +214,15 @@ function getSeriesFieldValue(series: Record<string, unknown>, field: FilterField
       return series.lastReadAt;
     case 'rating':
       return series.rating;
+    case 'externalRating':
+      // Max of all external ratings (normalized to 0-10)
+      return series.externalRatingMax;
+    case 'communityRating':
+      // Max of community ratings only
+      return series.communityRatingMax;
+    case 'criticRating':
+      // Max of critic ratings only
+      return series.criticRatingMax;
     default:
       return series[field];
   }
@@ -386,7 +400,7 @@ export async function refreshSmartCollection(
   let matchingIds: Set<string>;
 
   if (scope === 'series') {
-    // Get all series with reading progress and user data for this user
+    // Get all series with reading progress, user data, and external ratings
     const series = await db.series.findMany({
       where: { deletedAt: null, isHidden: false },
       include: {
@@ -398,6 +412,7 @@ export async function refreshSmartCollection(
           where: { userId },
           take: 1,
         },
+        externalRatings: true,
       },
     });
 
@@ -408,6 +423,22 @@ export async function refreshSmartCollection(
           // Augment series with progress data and user data
           const progress = s.progress[0];
           const userData = s.userData[0];
+
+          // Compute max external ratings
+          const externalRatings = s.externalRatings || [];
+          const communityRatings = externalRatings.filter((r) => r.ratingType === 'community');
+          const criticRatings = externalRatings.filter((r) => r.ratingType === 'critic');
+
+          const externalRatingMax = externalRatings.length > 0
+            ? Math.max(...externalRatings.map((r) => r.ratingValue))
+            : null;
+          const communityRatingMax = communityRatings.length > 0
+            ? Math.max(...communityRatings.map((r) => r.ratingValue))
+            : null;
+          const criticRatingMax = criticRatings.length > 0
+            ? Math.max(...criticRatings.map((r) => r.ratingValue))
+            : null;
+
           const augmentedSeries = {
             ...s,
             readStatus: progress
@@ -419,6 +450,9 @@ export async function refreshSmartCollection(
               : 'unread',
             lastReadAt: progress?.lastReadAt,
             rating: userData?.rating,
+            externalRatingMax,
+            communityRatingMax,
+            criticRatingMax,
           };
           return evaluateFilter(filter, augmentedSeries as unknown as Record<string, unknown>, scope);
         })
@@ -531,6 +565,13 @@ export async function refreshSmartCollection(
 
   logger.info(`Refreshed smart collection ${collectionId}: added ${toAdd.length}, removed ${toRemove.length}`);
 
+  // Recalculate collection metadata from children if items changed
+  if (toAdd.length > 0 || toRemove.length > 0) {
+    recalculateCollectionMetadata(collectionId, userId).catch((err) => {
+      logger.error(`Failed to recalculate metadata for collection ${collectionId}:`, err);
+    });
+  }
+
   return { added: toAdd.length, removed: toRemove.length };
 }
 
@@ -627,6 +668,8 @@ async function evaluateSeriesAgainstCollection(
 
   const existingMap = new Map(existingItems.map((i) => [i.seriesId, i]));
 
+  let itemsChanged = false;
+
   for (const s of series) {
     const existing = existingMap.get(s.id);
     const progress = s.progress[0];
@@ -667,6 +710,7 @@ async function evaluateSeriesAgainstCollection(
         },
       });
 
+      itemsChanged = true;
       logger.debug(`Added series ${s.id} to smart collection ${collection.id}`);
     } else if (!matches && existing && !existing.isWhitelisted) {
       // Remove from collection (unless whitelisted)
@@ -674,6 +718,7 @@ async function evaluateSeriesAgainstCollection(
         where: { id: existing.id },
       });
 
+      itemsChanged = true;
       logger.debug(`Removed series ${s.id} from smart collection ${collection.id}`);
     }
   }
@@ -683,6 +728,13 @@ async function evaluateSeriesAgainstCollection(
     where: { id: collection.id },
     data: { lastEvaluatedAt: new Date() },
   });
+
+  // Recalculate collection metadata from children if items changed
+  if (itemsChanged) {
+    recalculateCollectionMetadata(collection.id, userId).catch((err) => {
+      logger.error(`Failed to recalculate metadata for collection ${collection.id}:`, err);
+    });
+  }
 }
 
 /**
@@ -709,6 +761,8 @@ async function evaluateFilesAgainstCollection(
   });
 
   const existingMap = new Map(existingItems.map((i) => [i.fileId, i]));
+
+  let itemsChanged = false;
 
   for (const f of files) {
     const existing = existingMap.get(f.id);
@@ -749,6 +803,7 @@ async function evaluateFilesAgainstCollection(
         },
       });
 
+      itemsChanged = true;
       logger.debug(`Added file ${f.id} to smart collection ${collection.id}`);
     } else if (!matches && existing && !existing.isWhitelisted) {
       // Remove from collection (unless whitelisted)
@@ -756,6 +811,7 @@ async function evaluateFilesAgainstCollection(
         where: { id: existing.id },
       });
 
+      itemsChanged = true;
       logger.debug(`Removed file ${f.id} from smart collection ${collection.id}`);
     }
   }
@@ -765,6 +821,13 @@ async function evaluateFilesAgainstCollection(
     where: { id: collection.id },
     data: { lastEvaluatedAt: new Date() },
   });
+
+  // Recalculate collection metadata from children if items changed
+  if (itemsChanged) {
+    recalculateCollectionMetadata(collection.id, userId).catch((err) => {
+      logger.error(`Failed to recalculate metadata for collection ${collection.id}:`, err);
+    });
+  }
 }
 
 /**

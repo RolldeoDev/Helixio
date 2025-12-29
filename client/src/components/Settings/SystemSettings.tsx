@@ -96,6 +96,20 @@ export function SystemSettings() {
   // API key help modal state
   const [helpModal, setHelpModal] = useState<'comicVine' | 'anthropic' | null>(null);
 
+  // Similarity/Recommendations state
+  const [similarityStats, setSimilarityStats] = useState<{
+    totalPairs: number;
+    avgScore: number;
+    lastComputedAt: string | null;
+    scheduler?: {
+      isRunning: boolean;
+      lastJobType?: string;
+      nextScheduledRun?: string;
+    };
+  } | null>(null);
+  const [loadingSimilarityStats, setLoadingSimilarityStats] = useState(false);
+  const [rebuildingSimilarity, setRebuildingSimilarity] = useState(false);
+
   const { addToast } = useApiToast();
   const confirm = useConfirmModal();
 
@@ -363,6 +377,47 @@ export function SystemSettings() {
       addToast('error', err instanceof Error ? err.message : 'Failed to clear download cache');
     } finally {
       setClearingDownloadCache(false);
+    }
+  };
+
+  // Similarity stats handlers
+  const loadSimilarityStats = async () => {
+    setLoadingSimilarityStats(true);
+    try {
+      const response = await fetch(`${API_BASE}/recommendations/similarity-stats`);
+      if (response.ok) {
+        const stats = await response.json();
+        setSimilarityStats(stats);
+      }
+    } catch (err) {
+      console.error('Failed to load similarity stats:', err);
+    } finally {
+      setLoadingSimilarityStats(false);
+    }
+  };
+
+  const handleRebuildSimilarity = async () => {
+    const confirmed = await confirm({
+      title: 'Recalculate Similarities',
+      message: 'This will recalculate similarity scores for all series. This runs in the background and may take several minutes depending on your library size.',
+      confirmText: 'Recalculate',
+    });
+    if (!confirmed) return;
+
+    setRebuildingSimilarity(true);
+    try {
+      const response = await fetch(`${API_BASE}/recommendations/similarity/rebuild`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to start similarity rebuild');
+
+      addToast('success', 'Similarity recalculation started. This runs in the background.');
+      // Reload stats after a short delay to show updated status
+      setTimeout(() => loadSimilarityStats(), 2000);
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to start similarity rebuild');
+    } finally {
+      setRebuildingSimilarity(false);
     }
   };
 
@@ -1053,6 +1108,77 @@ export function SystemSettings() {
               </div>
             </div>
           )}
+        </div>
+      </SectionCard>
+
+      {/* Recommendations Section */}
+      <SectionCard
+        title="Recommendations"
+        description="Manage the similarity engine that powers series recommendations."
+      >
+        <div className="setting-group">
+          <label>Series Similarity Data</label>
+          <p className="setting-description">
+            Similar series recommendations are based on precomputed similarity scores
+            (genres, characters, creators, tags, etc.). These are normally updated nightly at 2 AM.
+          </p>
+
+          {loadingSimilarityStats ? (
+            <div className="cache-loading">
+              <div className="spinner-small" />
+              <span>Loading...</span>
+            </div>
+          ) : similarityStats ? (
+            <div className="cache-stats">
+              <div className="stat-grid">
+                <div className="stat-item">
+                  <span className="stat-value">{similarityStats.totalPairs.toLocaleString()}</span>
+                  <span className="stat-label">Similarity Pairs</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {(similarityStats.avgScore * 100).toFixed(1)}%
+                  </span>
+                  <span className="stat-label">Avg Score</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {similarityStats.lastComputedAt
+                      ? new Date(similarityStats.lastComputedAt).toLocaleDateString()
+                      : 'Never'}
+                  </span>
+                  <span className="stat-label">Last Computed</span>
+                </div>
+              </div>
+              {similarityStats.scheduler?.isRunning && (
+                <div className="similarity-running-badge">
+                  <div className="spinner-small" />
+                  <span>Computation in progress...</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <button className="btn-ghost" onClick={loadSimilarityStats}>
+              Load Statistics
+            </button>
+          )}
+
+          <div className="button-group" style={{ marginTop: '1rem' }}>
+            <button
+              className="btn-secondary"
+              onClick={loadSimilarityStats}
+              disabled={loadingSimilarityStats}
+            >
+              {loadingSimilarityStats ? 'Loading...' : 'Refresh Stats'}
+            </button>
+            <button
+              className="btn-primary"
+              onClick={handleRebuildSimilarity}
+              disabled={rebuildingSimilarity || similarityStats?.scheduler?.isRunning}
+            >
+              {rebuildingSimilarity ? 'Starting...' : 'Recalculate Similarities'}
+            </button>
+          </div>
         </div>
       </SectionCard>
 

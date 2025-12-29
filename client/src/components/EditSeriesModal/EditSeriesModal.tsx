@@ -310,7 +310,7 @@ const SECTION_FIELDS = {
   contentEntities: ['characters', 'teams', 'locations', 'storyArcs'],
   creators: ['creators', 'writer', 'penciller', 'inker', 'colorist', 'letterer', 'coverArtist', 'editor'],
   cover: ['coverSource', 'coverFileId', 'coverUrl', 'coverHash'],
-  externalIds: ['comicVineId', 'metronId'],
+  externalIds: ['comicVineId', 'metronId', 'anilistId', 'malId', 'gcdId'],
   userData: ['userNotes', 'aliases'],
 } as const;
 
@@ -630,8 +630,14 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
   // =============================================================================
 
   const handleFetchMetadata = useCallback(async () => {
-    // Check if series already has external ID
-    if (state.originalSeries?.comicVineId || state.originalSeries?.metronId) {
+    // Check if series already has any external ID
+    if (
+      state.originalSeries?.comicVineId ||
+      state.originalSeries?.metronId ||
+      state.originalSeries?.anilistId ||
+      state.originalSeries?.malId ||
+      state.originalSeries?.gcdId
+    ) {
       dispatch({ type: 'SHOW_REFETCH_CONFIRM' });
       return;
     }
@@ -1431,6 +1437,39 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     isModified={state.modifiedFields.has('metronId')}
                     placeholder="e.g., 12345"
                   />
+                  <FieldWithLock
+                    fieldName="anilistId"
+                    label="AniList ID"
+                    value={series.anilistId}
+                    onChange={handleFieldChange('anilistId')}
+                    isLocked={isLocked('anilistId')}
+                    onToggleLock={() => handleToggleLock('anilistId')}
+                    fieldSource={getFieldSource('anilistId')}
+                    isModified={state.modifiedFields.has('anilistId')}
+                    placeholder="e.g., 12345"
+                  />
+                  <FieldWithLock
+                    fieldName="malId"
+                    label="MAL ID"
+                    value={series.malId}
+                    onChange={handleFieldChange('malId')}
+                    isLocked={isLocked('malId')}
+                    onToggleLock={() => handleToggleLock('malId')}
+                    fieldSource={getFieldSource('malId')}
+                    isModified={state.modifiedFields.has('malId')}
+                    placeholder="e.g., 12345"
+                  />
+                  <FieldWithLock
+                    fieldName="gcdId"
+                    label="GCD ID"
+                    value={series.gcdId}
+                    onChange={handleFieldChange('gcdId')}
+                    isLocked={isLocked('gcdId')}
+                    onToggleLock={() => handleToggleLock('gcdId')}
+                    fieldSource={getFieldSource('gcdId')}
+                    isModified={state.modifiedFields.has('gcdId')}
+                    placeholder="e.g., 12345"
+                  />
                 </div>
               </CollapsibleSection>
 
@@ -1449,22 +1488,24 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     />
                   </div>
 
-                  {/* Per-user private notes */}
+                  {/* Per-user private notes - saves on blur to avoid excessive API calls */}
                   <div className="field-group full-width">
                     <label className="field-label">Private Notes</label>
                     <textarea
                       className="field-input"
-                      value={userData?.privateNotes ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value || null;
-                        updateUserData.mutate({ seriesId, input: { privateNotes: value } });
+                      defaultValue={userData?.privateNotes ?? ''}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim() || null;
+                        if (value !== (userData?.privateNotes ?? null)) {
+                          updateUserData.mutate({ seriesId, input: { privateNotes: value } });
+                        }
                       }}
                       rows={3}
                       placeholder="Your personal notes (only visible to you)..."
                     />
                   </div>
 
-                  {/* Per-user public review */}
+                  {/* Per-user public review - saves on blur */}
                   <div className="field-group full-width">
                     <div className="field-label-row">
                       <label className="field-label">Review</label>
@@ -1484,10 +1525,12 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                     </div>
                     <textarea
                       className="field-input"
-                      value={userData?.publicReview ?? ''}
-                      onChange={(e) => {
-                        const value = e.target.value || null;
-                        updateUserData.mutate({ seriesId, input: { publicReview: value } });
+                      defaultValue={userData?.publicReview ?? ''}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim() || null;
+                        if (value !== (userData?.publicReview ?? null)) {
+                          updateUserData.mutate({ seriesId, input: { publicReview: value } });
+                        }
                       }}
                       rows={4}
                       placeholder={userData?.reviewVisibility === 'public'
@@ -1574,7 +1617,13 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               This series is already linked to{' '}
               {state.originalSeries?.comicVineId
                 ? `ComicVine (ID: ${state.originalSeries.comicVineId})`
-                : `Metron (ID: ${state.originalSeries?.metronId})`}
+                : state.originalSeries?.metronId
+                  ? `Metron (ID: ${state.originalSeries.metronId})`
+                  : state.originalSeries?.anilistId
+                    ? `AniList (ID: ${state.originalSeries.anilistId})`
+                    : state.originalSeries?.malId
+                      ? `MAL (ID: ${state.originalSeries.malId})`
+                      : `GCD (ID: ${state.originalSeries?.gcdId})`}
               .
             </p>
             <p>What would you like to do?</p>

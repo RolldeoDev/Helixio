@@ -59,6 +59,8 @@ const SERIES_ARRAY_FIELDS: (keyof SeriesMetadata)[] = [
   'locations',
   'objects',
   'aliases',
+  'genres',
+  'tags',
 ];
 
 /** Fields that are scalar and should use non-empty wins */

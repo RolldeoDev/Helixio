@@ -86,6 +86,7 @@ export interface FileMetadata {
   volume: number | null;
   year: number | null;
   month: number | null;
+  day: number | null;
   writer: string | null;
   penciller: string | null;
   publisher: string | null;

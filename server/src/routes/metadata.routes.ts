@@ -45,6 +45,7 @@ import {
 import { ProviderRegistry } from '../services/metadata-providers/registry.js';
 import { mergeSeriesWithAllValues } from '../services/metadata-merge.service.js';
 import { logError } from '../services/logger.service.js';
+import { markSmartCollectionsDirty } from '../services/smart-collection-dirty.service.js';
 
 const router = Router();
 
@@ -438,9 +439,10 @@ router.patch('/file/:fileId', async (req: Request, res: Response): Promise<void>
     const updates: Partial<ComicInfo> = req.body;
     const prisma = getDatabase();
 
-    // Get file from database
+    // Get file from database (include seriesId for smart collection updates)
     const file = await prisma.comicFile.findUnique({
       where: { id: fileId },
+      select: { id: true, path: true, seriesId: true },
     });
 
     if (!file) {
@@ -464,6 +466,25 @@ router.patch('/file/:fileId', async (req: Request, res: Response): Promise<void>
       refreshFromArchive: true,
       updateSeriesLinkage: true,
     });
+
+    // Mark smart collections dirty for file metadata filters
+    // This handles file-scoped smart collections that filter on metadata fields
+    if (file.seriesId) {
+      markSmartCollectionsDirty({
+        seriesIds: [file.seriesId],
+        fileIds: [fileId!],
+        reason: 'file_metadata',
+      }).catch(() => {
+        // Non-critical, errors logged inside
+      });
+    } else {
+      markSmartCollectionsDirty({
+        fileIds: [fileId!],
+        reason: 'file_metadata',
+      }).catch(() => {
+        // Non-critical, errors logged inside
+      });
+    }
 
     res.json({
       success: true,

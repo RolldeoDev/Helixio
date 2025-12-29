@@ -383,6 +383,90 @@ export interface DiscoverResult {
 }
 
 // =============================================================================
+// Intelligent Recommendations Types
+// =============================================================================
+
+export interface RecommendationReason {
+  type: 'similar_to' | 'genre' | 'creator' | 'popular' | 'random';
+  sourceSeriesName?: string;
+  detail?: string;
+}
+
+export interface SeriesRecommendation {
+  seriesId: string;
+  series: {
+    id: string;
+    name: string;
+    publisher: string | null;
+    startYear: number | null;
+    coverHash: string | null;
+    coverUrl: string | null;
+    genres: string | null;
+    issueCount: number;
+    /** First issue ID for cover fallback */
+    firstIssueId: string | null;
+    /** First issue cover hash for cover fallback */
+    firstIssueCoverHash: string | null;
+  };
+  score: number;
+  reasons: RecommendationReason[];
+}
+
+export interface IntelligentRecommendationsResult {
+  recommendations: SeriesRecommendation[];
+  cached: boolean;
+}
+
+export type RecommendationFeedbackType = 'like' | 'dislike' | 'not_interested';
+
+export interface RecommendationFeedback {
+  id: string;
+  userId: string;
+  recommendedSeriesId: string;
+  sourceSeriesId: string | null;
+  feedbackType: RecommendationFeedbackType;
+  createdAt: string;
+}
+
+export interface RecommendationStats {
+  totalFeedback: number;
+  likes: number;
+  dislikes: number;
+  notInterested: number;
+  engagedSeriesCount: number;
+  hasEnoughHistory: boolean;
+}
+
+export interface SimilarSeriesMatch {
+  type: string;
+  score: number;
+}
+
+export interface SimilarSeriesEntry {
+  series: {
+    id: string;
+    name: string;
+    publisher: string | null;
+    startYear: number | null;
+    coverHash: string | null;
+    coverUrl: string | null;
+    genres: string | null;
+    issueCount: number;
+    /** First issue ID for cover fallback */
+    firstIssueId: string | null;
+    /** First issue cover hash for cover fallback */
+    firstIssueCoverHash: string | null;
+  };
+  similarityScore: number;
+  matchReasons: SimilarSeriesMatch[];
+}
+
+export interface SimilarSeriesResult {
+  similar: SimilarSeriesEntry[];
+  cached: boolean;
+}
+
+// =============================================================================
 // Cache Operations
 // =============================================================================
 
@@ -1134,7 +1218,7 @@ export async function getRecommendations(
 }
 
 /**
- * Get discover comics (random unread)
+ * Get discover comics (random unread) - Legacy endpoint
  */
 export async function getDiscoverComics(
   limit = 12,
@@ -1143,5 +1227,98 @@ export async function getDiscoverComics(
   const params = new URLSearchParams();
   params.set('limit', limit.toString());
   if (libraryId) params.set('libraryId', libraryId);
-  return get<DiscoverResult>(`/recommendations/discover?${params}`);
+  return get<DiscoverResult>(`/recommendations/discover/legacy?${params}`);
+}
+
+// =============================================================================
+// Intelligent Recommendations API
+// =============================================================================
+
+/**
+ * Get intelligent series recommendations based on reading history
+ */
+export async function getIntelligentRecommendations(
+  userId: string,
+  limit = 20,
+  libraryId?: string,
+  noCache = false
+): Promise<IntelligentRecommendationsResult> {
+  const params = new URLSearchParams();
+  params.set('userId', userId);
+  params.set('limit', limit.toString());
+  if (libraryId) params.set('libraryId', libraryId);
+  if (noCache) params.set('noCache', 'true');
+  return get<IntelligentRecommendationsResult>(
+    `/recommendations/discover?${params}`
+  );
+}
+
+/**
+ * Submit feedback on a recommendation
+ */
+export async function submitRecommendationFeedback(
+  userId: string,
+  recommendedSeriesId: string,
+  feedbackType: RecommendationFeedbackType,
+  sourceSeriesId?: string
+): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>('/recommendations/feedback', {
+    userId,
+    recommendedSeriesId,
+    feedbackType,
+    sourceSeriesId,
+  });
+}
+
+/**
+ * Remove feedback for a recommendation
+ */
+export async function removeRecommendationFeedback(
+  userId: string,
+  recommendedSeriesId: string
+): Promise<{ success: boolean }> {
+  const response = await fetch(`${API_BASE}/recommendations/feedback`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, recommendedSeriesId }),
+  });
+  return handleResponse<{ success: boolean }>(response);
+}
+
+/**
+ * Get user's recommendation feedback history
+ */
+export async function getRecommendationFeedback(
+  userId: string
+): Promise<{ feedback: RecommendationFeedback[] }> {
+  const params = new URLSearchParams();
+  params.set('userId', userId);
+  return get<{ feedback: RecommendationFeedback[] }>(
+    `/recommendations/feedback?${params}`
+  );
+}
+
+/**
+ * Get recommendation statistics for a user
+ */
+export async function getRecommendationStats(
+  userId: string
+): Promise<RecommendationStats> {
+  const params = new URLSearchParams();
+  params.set('userId', userId);
+  return get<RecommendationStats>(`/recommendations/stats?${params}`);
+}
+
+/**
+ * Get similar series for a given series
+ */
+export async function getSimilarSeries(
+  seriesId: string,
+  limit = 10,
+  userId?: string
+): Promise<SimilarSeriesResult> {
+  const params = new URLSearchParams();
+  params.set('limit', limit.toString());
+  if (userId) params.set('userId', userId);
+  return get<SimilarSeriesResult>(`/series/${seriesId}/similar?${params}`);
 }

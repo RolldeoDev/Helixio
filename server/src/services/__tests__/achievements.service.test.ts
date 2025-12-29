@@ -143,7 +143,7 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('CATEGORY_INFO', () => {
-    it('should have all 25 categories defined', () => {
+    it('should have all 26 categories defined', () => {
       const expectedCategories = [
         'page_milestones', 'comic_completions', 'reading_streaks', 'reading_time',
         'author_aficionado', 'artist_appreciation', 'genre_explorer', 'character_collector',
@@ -151,10 +151,10 @@ describe('AchievementsService', () => {
         'decade_explorer', 'story_arc_explorer', 'format_variety', 'manga_international',
         'binge_reading', 'reading_pace', 'discovery', 'special_achievements',
         'age_rating', 'location_explorer', 'bookmarks_notes', 'sessions',
-        'collection_completion',
+        'collection_completion', 'ratings_engagement',
       ];
 
-      expect(Object.keys(CATEGORY_INFO)).toHaveLength(25);
+      expect(Object.keys(CATEGORY_INFO)).toHaveLength(26);
       expectedCategories.forEach(cat => {
         expect(CATEGORY_INFO).toHaveProperty(cat);
       });
@@ -506,7 +506,7 @@ describe('AchievementsService', () => {
 
       const result = await getCategoriesWithCounts();
 
-      expect(result).toHaveLength(25);
+      expect(result).toHaveLength(26);
       const pageMilestones = result.find(c => c.key === 'page_milestones');
       expect(pageMilestones).toEqual({
         key: 'page_milestones',
@@ -565,6 +565,16 @@ describe('AchievementsService', () => {
       maxPagesDay: 0,
       maxComicsDay: 0,
       maxTimeDay: 0,
+      // Rating stats
+      totalRatingsSubmitted: 0,
+      totalReviewsWritten: 0,
+      uniqueGenresRated: 0,
+      uniquePublishersRated: 0,
+      longestRatingStreak: 0,
+      longestReviewLength: 0,
+      seriesWithCompleteRatings: 0,
+      maxRatingsSameDay: 0,
+      maxReviewsSameDay: 0,
     };
 
     it('should unlock achievement when threshold is met', async () => {
@@ -746,6 +756,16 @@ describe('Achievement Types', () => {
       maxPagesDay: 200,
       maxComicsDay: 10,
       maxTimeDay: 480,
+      // Rating stats
+      totalRatingsSubmitted: 50,
+      totalReviewsWritten: 20,
+      uniqueGenresRated: 8,
+      uniquePublishersRated: 10,
+      longestRatingStreak: 14,
+      longestReviewLength: 500,
+      seriesWithCompleteRatings: 5,
+      maxRatingsSameDay: 10,
+      maxReviewsSameDay: 3,
     };
 
     expect(stats.pagesTotal).toBeGreaterThanOrEqual(0);

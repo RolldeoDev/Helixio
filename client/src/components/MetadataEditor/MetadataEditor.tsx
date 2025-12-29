@@ -572,16 +572,18 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
                       />
                     </div>
 
-                    {/* Private Notes */}
+                    {/* Private Notes - saves on blur to avoid excessive API calls */}
                     <div className="user-data-field full-width">
                       <label className="user-data-label">Private Notes</label>
                       <textarea
                         className="user-data-textarea"
-                        value={userData?.privateNotes ?? ''}
-                        onChange={(e) => {
+                        defaultValue={userData?.privateNotes ?? ''}
+                        onBlur={(e) => {
                           if (fileId) {
-                            const value = e.target.value || null;
-                            updateUserData.mutate({ fileId, input: { privateNotes: value } });
+                            const value = e.target.value.trim() || null;
+                            if (value !== (userData?.privateNotes ?? null)) {
+                              updateUserData.mutate({ fileId, input: { privateNotes: value } });
+                            }
                           }
                         }}
                         rows={3}
@@ -589,7 +591,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
                       />
                     </div>
 
-                    {/* Public Review */}
+                    {/* Public Review - saves on blur */}
                     <div className="user-data-field full-width">
                       <div className="user-data-label-row">
                         <label className="user-data-label">Review</label>
@@ -611,11 +613,13 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
                       </div>
                       <textarea
                         className="user-data-textarea"
-                        value={userData?.publicReview ?? ''}
-                        onChange={(e) => {
+                        defaultValue={userData?.publicReview ?? ''}
+                        onBlur={(e) => {
                           if (fileId) {
-                            const value = e.target.value || null;
-                            updateUserData.mutate({ fileId, input: { publicReview: value } });
+                            const value = e.target.value.trim() || null;
+                            if (value !== (userData?.publicReview ?? null)) {
+                              updateUserData.mutate({ fileId, input: { publicReview: value } });
+                            }
                           }
                         }}
                         rows={4}

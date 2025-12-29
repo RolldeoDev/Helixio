@@ -60,30 +60,16 @@
   border-radius: var(--collection-card-radius);
   border: var(--collection-card-border-width) solid var(--collection-card-border-color);
   cursor: pointer;
-  transition:
-    transform 150ms ease-out,
-    box-shadow 150ms ease-out;
+  transition: box-shadow 150ms ease-out;
   outline: none;
   box-shadow: var(--collection-card-shadow);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  animation: collection-card-enter 0.3s ease backwards;
+  animation-delay: calc(var(--animation-index, 0) * 30ms);
 }
 
-/* Hover buffer for stable hover state */
-.collection-cover-card::before {
-  content: '';
-  position: absolute;
-  top: -10px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  z-index: -1;
-}
 
 .collection-cover-card:hover {
-  transform: translateY(-3px) scale(1.03);
   box-shadow: var(--collection-card-shadow-hover);
-  will-change: transform;
 }
 
 .collection-cover-card:focus-visible {
@@ -223,15 +209,27 @@
   }
 }
 
+@keyframes collection-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 /* =============================================================================
    Progress Indicators (using shared Progress components)
    ============================================================================= */
 
 .collection-cover-card__progress-ring {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  top: 8px;
+  right: 8px;
   z-index: 5;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
 /* =============================================================================
@@ -309,6 +307,7 @@
 @media (prefers-reduced-motion: reduce) {
   .collection-cover-card {
     transition: none;
+    animation: none;
   }
 
   .collection-cover-card__image {
@@ -333,7 +332,5 @@
 }
 
 .scrolling .collection-cover-card:hover {
-  transform: none !important;
   box-shadow: var(--collection-card-shadow) !important;
-  will-change: auto !important;
 }

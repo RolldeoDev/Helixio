@@ -68,6 +68,7 @@ import downloadsRoutes from './routes/downloads.routes.js';
 import globalSearchRoutes from './routes/global-search.routes.js';
 import templatesRoutes from './routes/templates.routes.js';
 import userDataRoutes from './routes/user-data.routes.js';
+import externalRatingsRoutes from './routes/external-ratings.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -77,6 +78,9 @@ import { cleanupExpiredJobs } from './services/metadata-job.service.js';
 import { initializeScanQueue } from './services/library-scan-queue.service.js';
 import { cleanupOldScanJobs } from './services/library-scan-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
+import { startSimilarityScheduler, stopSimilarityScheduler } from './services/similarity/index.js';
+import { startSmartCollectionProcessor, stopSmartCollectionProcessor } from './services/smart-collection-dirty.service.js';
+import { startRatingSyncScheduler, stopRatingSyncScheduler } from './services/rating-sync-scheduler.service.js';
 import { ensureBundledPresets } from './services/reader-preset.service.js';
 import { runDownloadCleanup } from './services/download.service.js';
 import { logger, logError } from './services/logger.service.js';
@@ -453,6 +457,7 @@ app.use('/api/files', issueMetadataRoutes);  // Issue metadata routes (mounted o
 app.use('/api/downloads', downloadsRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/user-data', userDataRoutes);
+app.use('/api/external-ratings', externalRatingsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -533,6 +538,15 @@ async function startServer(): Promise<void> {
     // Start stats scheduler for background stat computation
     startStatsScheduler();
 
+    // Start similarity scheduler for recommendation engine
+    startSimilarityScheduler();
+
+    // Start rating sync scheduler for external ratings
+    startRatingSyncScheduler();
+
+    // Start smart collection processor for auto-refreshing smart collections
+    startSmartCollectionProcessor();
+
     // Queue mosaic generation for promoted collections with coverType='auto' and no coverHash
     // This runs after everything else so it doesn't delay startup
     setTimeout(async () => {
@@ -596,6 +610,15 @@ async function startServer(): Promise<void> {
 
       // Stop stats scheduler
       stopStatsScheduler();
+
+      // Stop similarity scheduler
+      stopSimilarityScheduler();
+
+      // Stop rating sync scheduler
+      stopRatingSyncScheduler();
+
+      // Stop smart collection processor
+      stopSmartCollectionProcessor();
 
       server.close(async () => {
         logger.info('HTTP server closed');

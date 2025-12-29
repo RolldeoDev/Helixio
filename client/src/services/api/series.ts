@@ -60,6 +60,7 @@ export interface Series {
   metronId: string | null;
   anilistId: string | null;
   malId: string | null;
+  gcdId: string | null;
   createdAt: string;
   updatedAt: string;
   lastSyncedAt: string | null;
@@ -641,6 +642,27 @@ export interface EntityDetails {
   relatedSeries: RelatedSeries[];
 }
 
+// Rating & Review stats
+export interface RatingStats {
+  totalSeriesRated: number;
+  totalIssuesRated: number;
+  totalReviewsWritten: number;
+  ratingDistribution: { rating: number; count: number }[];
+  averageRatingGiven: number | null;
+  highestRatedSeries: { id: string; name: string; rating: number } | null;
+  lowestRatedSeries: { id: string; name: string; rating: number } | null;
+  mostRatedGenre: { name: string; count: number } | null;
+  mostRatedPublisher: { name: string; count: number } | null;
+  uniqueGenresRated: number;
+  uniquePublishersRated: number;
+  currentRatingStreak: number;
+  longestRatingStreak: number;
+  longestReviewLength: number;
+  seriesWithCompleteRatings: number;
+  maxRatingsSameDay: number;
+  maxReviewsSameDay: number;
+}
+
 export interface StatsSummary extends AggregatedStats {
   topCreators: EntityStatResult[];
   topGenres: EntityStatResult[];
@@ -664,6 +686,13 @@ export interface StatsSummary extends AggregatedStats {
   oldestYear: number | null;
   newestYear: number | null;
   storyArcCount: number;
+  // Rating & Review stats (user-specific)
+  ratingStats?: RatingStats;
+  // Fun facts extended data (optional for backwards compatibility)
+  libraryOverview?: EnhancedLibraryOverview;
+  fileFormats?: FileFormatDistribution[];
+  publicationStatus?: PublicationStatusDistribution[];
+  dayOfWeekActivity?: DayOfWeekActivity[];
 }
 
 export interface SchedulerStatus {
@@ -673,6 +702,97 @@ export interface SchedulerStatus {
   lastWeeklyRun: string | null;
   pendingDirtyFlags: number;
 }
+
+// =============================================================================
+// Enhanced Stats Types
+// =============================================================================
+
+export type StatsTimeframe = 'this_week' | 'this_month' | 'this_year' | 'all_time';
+
+export interface EnhancedLibraryOverview {
+  totalSeries: number;
+  totalVolumes: number;
+  totalFiles: number;
+  totalSizeBytes: number;
+  totalGenres: number;
+  totalTags: number;
+  totalPeople: number;
+  totalReadTime: number;
+}
+
+export interface YearlySeriesCount {
+  year: number;
+  count: number;
+}
+
+export interface FileFormatDistribution {
+  extension: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PublicationStatusDistribution {
+  status: 'ongoing' | 'ended';
+  count: number;
+  percentage: number;
+}
+
+export interface DayOfWeekActivity {
+  dayOfWeek: number;
+  dayName: string;
+  readCount: number;
+  pagesRead: number;
+  readingTime: number;
+}
+
+export interface UserReadingRanking {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  readCount: number;
+  readingTime: number;
+  lastActiveAt: string | null;
+}
+
+export interface LibraryReadingRanking {
+  libraryId: string;
+  libraryName: string;
+  readCount: number;
+  userCount: number;
+  totalFiles: number;
+}
+
+export interface PopularSeriesItem {
+  seriesId: string;
+  seriesName: string;
+  publisher: string | null;
+  coverHash: string | null;
+  firstIssueId: string | null;
+  firstIssueCoverHash: string | null;
+  readCount: number;
+  userCount: number;
+}
+
+export interface RecentlyReadItem {
+  seriesId: string;
+  seriesName: string;
+  publisher: string | null;
+  coverHash: string | null;
+  firstIssueId: string | null;
+  firstIssueCoverHash: string | null;
+  lastReadAt: string;
+  lastReadByUsername: string;
+}
+
+export interface MediaTypeBreakdown {
+  comicsCount: number;
+  mangaCount: number;
+  comicsHours: number;
+  mangaHours: number;
+}
+
+export type TopReaderByMediaType = UserReadingRanking & MediaTypeBreakdown;
 
 // =============================================================================
 // Achievements Types
@@ -1921,6 +2041,133 @@ export async function triggerStatsRebuild(
  */
 export async function getSchedulerStatus(): Promise<SchedulerStatus> {
   return get<SchedulerStatus>('/stats/scheduler');
+}
+
+// =============================================================================
+// Enhanced Stats API
+// =============================================================================
+
+/**
+ * Get enhanced library overview stats
+ */
+export async function getEnhancedLibraryOverview(
+  libraryId?: string
+): Promise<EnhancedLibraryOverview> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<EnhancedLibraryOverview>(`/stats/library-overview${params}`);
+}
+
+/**
+ * Get series count by publication year
+ */
+export async function getSeriesByYear(
+  libraryId?: string
+): Promise<YearlySeriesCount[]> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<YearlySeriesCount[]>(`/stats/release-years${params}`);
+}
+
+/**
+ * Get file format distribution by extension
+ */
+export async function getFileFormatDistribution(
+  libraryId?: string
+): Promise<FileFormatDistribution[]> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<FileFormatDistribution[]>(`/stats/file-formats${params}`);
+}
+
+/**
+ * Get publication status distribution (ongoing vs ended)
+ */
+export async function getPublicationStatusDistribution(
+  libraryId?: string
+): Promise<PublicationStatusDistribution[]> {
+  const params = libraryId ? `?libraryId=${libraryId}` : '';
+  return get<PublicationStatusDistribution[]>(`/stats/publication-status${params}`);
+}
+
+/**
+ * Get reading activity by day of week
+ */
+export async function getDayOfWeekActivity(
+  userId?: string,
+  timeframe: StatsTimeframe = 'this_month'
+): Promise<DayOfWeekActivity[]> {
+  const queryParams = new URLSearchParams();
+  if (userId) queryParams.set('userId', userId);
+  queryParams.set('timeframe', timeframe);
+  const query = queryParams.toString();
+  return get<DayOfWeekActivity[]>(`/stats/day-of-week?${query}`);
+}
+
+// =============================================================================
+// Admin-Only Stats API
+// =============================================================================
+
+/**
+ * Get most active users (admin-only)
+ */
+export async function getMostActiveUsers(
+  timeframe: StatsTimeframe = 'this_month',
+  limit: number = 10
+): Promise<UserReadingRanking[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('timeframe', timeframe);
+  queryParams.set('limit', limit.toString());
+  return get<UserReadingRanking[]>(`/stats/admin/active-users?${queryParams}`);
+}
+
+/**
+ * Get popular libraries by read count (admin-only)
+ */
+export async function getPopularLibraries(
+  timeframe: StatsTimeframe = 'this_month',
+  limit: number = 10
+): Promise<LibraryReadingRanking[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('timeframe', timeframe);
+  queryParams.set('limit', limit.toString());
+  return get<LibraryReadingRanking[]>(`/stats/admin/popular-libraries?${queryParams}`);
+}
+
+/**
+ * Get popular series with cover images (admin-only)
+ */
+export async function getPopularSeries(
+  timeframe: StatsTimeframe = 'this_month',
+  limit: number = 10
+): Promise<PopularSeriesItem[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('timeframe', timeframe);
+  queryParams.set('limit', limit.toString());
+  return get<PopularSeriesItem[]>(`/stats/admin/popular-series?${queryParams}`);
+}
+
+/**
+ * Get recently read series with covers (admin-only)
+ */
+export async function getRecentlyReadAdmin(
+  timeframe: StatsTimeframe = 'this_month',
+  limit: number = 10
+): Promise<RecentlyReadItem[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('timeframe', timeframe);
+  queryParams.set('limit', limit.toString());
+  return get<RecentlyReadItem[]>(`/stats/admin/recently-read?${queryParams}`);
+}
+
+/**
+ * Get top readers with media type breakdown (admin-only)
+ */
+export async function getTopReadersByMediaType(
+  timeframe: StatsTimeframe = 'this_month',
+  limit: number = 10
+): Promise<TopReaderByMediaType[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.set('timeframe', timeframe);
+  queryParams.set('limit', limit.toString());
+  return get<TopReaderByMediaType[]>(`/stats/admin/media-type-readers?${queryParams}`);
 }
 
 // =============================================================================

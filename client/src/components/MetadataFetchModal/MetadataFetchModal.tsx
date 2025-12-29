@@ -60,6 +60,7 @@ export function MetadataFetchModal({
   const [logs, setLogs] = useState<MetadataFetchLogEntry[]>([]);
   const [apiCalls, setApiCalls] = useState<MetadataFetchAPICall[]>([]);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [fetchExternalRatings, setFetchExternalRatings] = useState(false);
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -230,7 +231,7 @@ export function MetadataFetchModal({
     try {
       setApplying(true);
       setError(null);
-      await applyMetadataBatch(toApply);
+      await applyMetadataBatch(toApply, { fetchExternalRatings });
       onComplete();
       onClose();
     } catch (err) {
@@ -577,22 +578,35 @@ export function MetadataFetchModal({
           </div>
 
           <div className="modal-footer">
-            <button
-              className="btn-secondary"
-              onClick={onClose}
-              disabled={applying}
-            >
-              Cancel
-            </button>
-            <button
-              className="btn-primary"
-              onClick={handleApply}
-              disabled={selectedCount === 0 || applying}
-            >
-              {applying
-                ? 'Applying...'
-                : `Apply Metadata (${selectedCount} files)`}
-            </button>
+            <label className="option-checkbox footer-option">
+              <input
+                type="checkbox"
+                checked={fetchExternalRatings}
+                onChange={(e) => setFetchExternalRatings(e.target.checked)}
+                disabled={applying}
+              />
+              <span className="option-label">
+                Get External Ratings
+              </span>
+            </label>
+            <div className="footer-buttons">
+              <button
+                className="btn-secondary"
+                onClick={onClose}
+                disabled={applying}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleApply}
+                disabled={selectedCount === 0 || applying}
+              >
+                {applying
+                  ? 'Applying...'
+                  : `Apply Metadata (${selectedCount} files)`}
+              </button>
+            </div>
           </div>
         </>
       )}

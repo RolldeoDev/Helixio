@@ -596,6 +596,7 @@ export async function createSessionWithProgress(
     libraryId,
     libraryType,
     useLLMCleanup,
+    options, // Store options for use in applyChanges (e.g., fetchExternalRatings)
     seriesGroups,
     currentSeriesIndex: allPreApproved ? seriesGroups.length : firstPendingIndex,
     fileChanges: [],

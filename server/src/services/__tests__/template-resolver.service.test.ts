@@ -708,6 +708,72 @@ describe('Template Resolver Service', () => {
   });
 
   // ==========================================================================
+  // Exact Format Tests (regression tests for literal offset bug)
+  // ==========================================================================
+
+  describe('exact format verification', () => {
+    it('produces exact format for template starting with token at position 0', () => {
+      const result = resolveTemplateString(
+        '{Series} - {Number}.{Extension}',
+        SAMPLE_CONTEXTS.complete
+      );
+
+      // Must match exactly - previous bug would produce " - Batman 1.cbz"
+      expect(result.result).toBe('Batman - 1.cbz');
+    });
+
+    it('produces exact format for default template with all fields', () => {
+      const result = resolveTemplateString(
+        '{Series} - {Type} {Number:000} - {Title} ({Year|}).{Extension}',
+        SAMPLE_CONTEXTS.complete
+      );
+
+      // Must match exactly - previous bug would misplace literals
+      expect(result.result).toBe('Batman - Issue 001 - Court of Owls (2011).cbz');
+    });
+
+    it('produces correct format when Title is missing with empty fallback', () => {
+      const result = resolveTemplateString(
+        '{Series} - {Type} {Number:000} - {Title|} ({Year|}).{Extension}',
+        SAMPLE_CONTEXTS.withEmpty
+      );
+
+      // Year is undefined in withEmpty context, Title is empty
+      // The " - " before Title remains (cleanup removes empty parens but not all separators)
+      // Key assertion: extension is correctly placed after the dot
+      expect(result.result).toBe('Batman - Issue 001 - .cbz');
+    });
+
+    it('correctly places extension after year', () => {
+      const result = resolveTemplateString(
+        '{Series} ({Year|}).{Extension}',
+        SAMPLE_CONTEXTS.complete
+      );
+
+      // Extension should be after the closing paren and dot
+      expect(result.result).toBe('Batman (2011).cbz');
+    });
+
+    it('handles template with prefix literal', () => {
+      const result = resolveTemplateString(
+        'Comics - {Series} - {Number}.{Extension}',
+        SAMPLE_CONTEXTS.complete
+      );
+
+      expect(result.result).toBe('Comics - Batman - 1.cbz');
+    });
+
+    it('handles template with suffix literal after extension', () => {
+      const result = resolveTemplateString(
+        '{Series}.{Extension}.backup',
+        SAMPLE_CONTEXTS.complete
+      );
+
+      expect(result.result).toBe('Batman.cbz.backup');
+    });
+  });
+
+  // ==========================================================================
   // Integration Tests
   // ==========================================================================
 

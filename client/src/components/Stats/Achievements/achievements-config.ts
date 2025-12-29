@@ -28,7 +28,8 @@ export type AchievementCategory =
   | 'location_explorer'
   | 'bookmarks_notes'
   | 'sessions'
-  | 'collection_completion';
+  | 'collection_completion'
+  | 'ratings_engagement';
 
 export type AchievementType =
   // Page & Comic totals
@@ -135,7 +136,17 @@ export type AchievementType =
   | 'focused_sessions'
   | 'morning_sessions'
   | 'evening_sessions'
-  | 'unique_hours';
+  | 'unique_hours'
+  // Ratings & Reviews
+  | 'ratings_total'
+  | 'reviews_total'
+  | 'genres_rated'
+  | 'publishers_rated'
+  | 'rating_streak'
+  | 'review_length'
+  | 'series_complete_rated'
+  | 'ratings_same_day'
+  | 'reviews_same_day';
 
 export interface Achievement {
   id: string;
@@ -177,6 +188,7 @@ export const CATEGORY_INFO: Record<AchievementCategory, { name: string; icon: st
   bookmarks_notes: { name: 'Bookmarks & Notes', icon: 'bookmark', description: 'Reader features' },
   sessions: { name: 'Sessions', icon: 'play', description: 'Reading session milestones' },
   collection_completion: { name: 'Collection Completion', icon: 'check-square', description: 'Reading your collection' },
+  ratings_engagement: { name: 'Ratings & Reviews', icon: 'star', description: 'Sharing your opinions on comics' },
 };
 
 // =============================================================================
@@ -866,6 +878,78 @@ export const COMPLETION_ACHIEVEMENTS: Achievement[] = [
   { id: 'cp-25', key: 'zero_waste', name: 'Zero Waste Reader', description: 'Read every comic added within 7 days for 30 days', category: 'collection_completion', type: 'read_rate', stars: 5, icon: 'zap', threshold: 30 },
 ];
 
+// =============================================================================
+// Category 26: RATINGS & REVIEWS ENGAGEMENT (50 achievements)
+// =============================================================================
+
+export const RATING_ENGAGEMENT_ACHIEVEMENTS: Achievement[] = [
+  // Rating Milestones (11)
+  { id: 're-1', key: 'ratings_1', name: 'First Opinion', description: 'Rate your first comic or series', category: 'ratings_engagement', type: 'ratings_total', stars: 1, icon: 'star', threshold: 1 },
+  { id: 're-2', key: 'ratings_10', name: 'Getting Started', description: 'Rate 10 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 1, icon: 'star', threshold: 10 },
+  { id: 're-3', key: 'ratings_25', name: 'Opinionated', description: 'Rate 25 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 1, icon: 'star', threshold: 25 },
+  { id: 're-4', key: 'ratings_50', name: 'Critical Eye', description: 'Rate 50 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 2, icon: 'star', threshold: 50 },
+  { id: 're-5', key: 'ratings_100', name: 'Century Critic', description: 'Rate 100 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 2, icon: 'star', threshold: 100 },
+  { id: 're-6', key: 'ratings_250', name: 'Rating Machine', description: 'Rate 250 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 3, icon: 'star', threshold: 250 },
+  { id: 're-7', key: 'ratings_500', name: 'Five Hundred Takes', description: 'Rate 500 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 3, icon: 'star', threshold: 500 },
+  { id: 're-8', key: 'ratings_1000', name: 'Thousand Opinions', description: 'Rate 1,000 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 4, icon: 'trophy', threshold: 1000 },
+  { id: 're-9', key: 'ratings_2500', name: 'Prolific Rater', description: 'Rate 2,500 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 4, icon: 'trophy', threshold: 2500 },
+  { id: 're-10', key: 'ratings_5000', name: 'Rating Legend', description: 'Rate 5,000 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 5, icon: 'crown', threshold: 5000 },
+  { id: 're-11', key: 'ratings_10000', name: 'Ultimate Critic', description: 'Rate 10,000 comics or series', category: 'ratings_engagement', type: 'ratings_total', stars: 5, icon: 'crown', threshold: 10000 },
+
+  // Review Milestones (8)
+  { id: 're-12', key: 'reviews_1', name: 'First Words', description: 'Write your first review', category: 'ratings_engagement', type: 'reviews_total', stars: 1, icon: 'message-square', threshold: 1 },
+  { id: 're-13', key: 'reviews_5', name: 'Finding Your Voice', description: 'Write 5 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 1, icon: 'message-square', threshold: 5 },
+  { id: 're-14', key: 'reviews_10', name: 'Ten Takes', description: 'Write 10 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 1, icon: 'message-square', threshold: 10 },
+  { id: 're-15', key: 'reviews_25', name: 'Critic Emerges', description: 'Write 25 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 2, icon: 'message-square', threshold: 25 },
+  { id: 're-16', key: 'reviews_50', name: 'Prolific Reviewer', description: 'Write 50 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 2, icon: 'edit', threshold: 50 },
+  { id: 're-17', key: 'reviews_100', name: 'Century of Reviews', description: 'Write 100 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 3, icon: 'edit', threshold: 100 },
+  { id: 're-18', key: 'reviews_250', name: 'Thoughtful Critic', description: 'Write 250 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 4, icon: 'edit-3', threshold: 250 },
+  { id: 're-19', key: 'reviews_500', name: 'Master Reviewer', description: 'Write 500 reviews', category: 'ratings_engagement', type: 'reviews_total', stars: 5, icon: 'award', threshold: 500 },
+
+  // Genre Diversity (5)
+  { id: 're-20', key: 'genres_rated_5', name: 'Genre Sampler', description: 'Rate comics from 5 different genres', category: 'ratings_engagement', type: 'genres_rated', stars: 1, icon: 'compass', threshold: 5 },
+  { id: 're-21', key: 'genres_rated_10', name: 'Genre Explorer', description: 'Rate comics from 10 different genres', category: 'ratings_engagement', type: 'genres_rated', stars: 2, icon: 'compass', threshold: 10 },
+  { id: 're-22', key: 'genres_rated_15', name: 'Genre Enthusiast', description: 'Rate comics from 15 different genres', category: 'ratings_engagement', type: 'genres_rated', stars: 3, icon: 'compass', threshold: 15 },
+  { id: 're-23', key: 'genres_rated_20', name: 'Genre Master', description: 'Rate comics from 20 different genres', category: 'ratings_engagement', type: 'genres_rated', stars: 4, icon: 'compass', threshold: 20 },
+  { id: 're-24', key: 'genres_rated_25', name: 'Genre Omnivore', description: 'Rate comics from 25 different genres', category: 'ratings_engagement', type: 'genres_rated', stars: 5, icon: 'globe', threshold: 25 },
+
+  // Publisher Diversity (5)
+  { id: 're-25', key: 'publishers_rated_5', name: 'Publisher Sampler', description: 'Rate comics from 5 different publishers', category: 'ratings_engagement', type: 'publishers_rated', stars: 1, icon: 'building', threshold: 5 },
+  { id: 're-26', key: 'publishers_rated_10', name: 'Publisher Explorer', description: 'Rate comics from 10 different publishers', category: 'ratings_engagement', type: 'publishers_rated', stars: 2, icon: 'building', threshold: 10 },
+  { id: 're-27', key: 'publishers_rated_20', name: 'Publisher Enthusiast', description: 'Rate comics from 20 different publishers', category: 'ratings_engagement', type: 'publishers_rated', stars: 3, icon: 'building', threshold: 20 },
+  { id: 're-28', key: 'publishers_rated_30', name: 'Publisher Connoisseur', description: 'Rate comics from 30 different publishers', category: 'ratings_engagement', type: 'publishers_rated', stars: 4, icon: 'building', threshold: 30 },
+  { id: 're-29', key: 'publishers_rated_50', name: 'Publisher Omnivore', description: 'Rate comics from 50 different publishers', category: 'ratings_engagement', type: 'publishers_rated', stars: 5, icon: 'globe', threshold: 50 },
+
+  // Series Completionist (5)
+  { id: 're-30', key: 'series_complete_rated_1', name: 'Thorough Reader', description: 'Rate all issues in a series', category: 'ratings_engagement', type: 'series_complete_rated', stars: 1, icon: 'check-circle', threshold: 1 },
+  { id: 're-31', key: 'series_complete_rated_5', name: 'Thorough Critic', description: 'Rate all issues in 5 series', category: 'ratings_engagement', type: 'series_complete_rated', stars: 2, icon: 'check-circle', threshold: 5 },
+  { id: 're-32', key: 'series_complete_rated_10', name: 'Completionist Critic', description: 'Rate all issues in 10 series', category: 'ratings_engagement', type: 'series_complete_rated', stars: 3, icon: 'check-circle', threshold: 10 },
+  { id: 're-33', key: 'series_complete_rated_25', name: 'Dedicated Rater', description: 'Rate all issues in 25 series', category: 'ratings_engagement', type: 'series_complete_rated', stars: 4, icon: 'award', threshold: 25 },
+  { id: 're-34', key: 'series_complete_rated_50', name: 'Rating Completionist', description: 'Rate all issues in 50 series', category: 'ratings_engagement', type: 'series_complete_rated', stars: 5, icon: 'award', threshold: 50 },
+
+  // Rating Streaks (6)
+  { id: 're-35', key: 'rating_streak_3', name: 'Rating Habit', description: 'Rate something 3 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 1, icon: 'flame', threshold: 3 },
+  { id: 're-36', key: 'rating_streak_7', name: 'Weekly Rater', description: 'Rate something 7 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 2, icon: 'flame', threshold: 7 },
+  { id: 're-37', key: 'rating_streak_14', name: 'Consistent Critic', description: 'Rate something 14 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 2, icon: 'flame', threshold: 14 },
+  { id: 're-38', key: 'rating_streak_30', name: 'Monthly Dedication', description: 'Rate something 30 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 3, icon: 'flame', threshold: 30 },
+  { id: 're-39', key: 'rating_streak_60', name: 'Rating Warrior', description: 'Rate something 60 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 4, icon: 'flame', threshold: 60 },
+  { id: 're-40', key: 'rating_streak_100', name: 'Rating Legend', description: 'Rate something 100 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 5, icon: 'crown', threshold: 100 },
+
+  // Review Quality (5)
+  { id: 're-41', key: 'review_length_50', name: 'Brief Thoughts', description: 'Write a review with 50+ characters', category: 'ratings_engagement', type: 'review_length', stars: 1, icon: 'file-text', threshold: 50 },
+  { id: 're-42', key: 'review_length_100', name: 'Detailed Opinion', description: 'Write a review with 100+ characters', category: 'ratings_engagement', type: 'review_length', stars: 1, icon: 'file-text', threshold: 100 },
+  { id: 're-43', key: 'review_length_250', name: 'Thoughtful Review', description: 'Write a review with 250+ characters', category: 'ratings_engagement', type: 'review_length', stars: 2, icon: 'file-text', threshold: 250 },
+  { id: 're-44', key: 'review_length_500', name: 'Essay Writer', description: 'Write a review with 500+ characters', category: 'ratings_engagement', type: 'review_length', stars: 3, icon: 'book-open', threshold: 500 },
+  { id: 're-45', key: 'review_length_1000', name: 'Critical Essay', description: 'Write a review with 1,000+ characters', category: 'ratings_engagement', type: 'review_length', stars: 4, icon: 'book-open', threshold: 1000 },
+
+  // Bonus Engagement (5)
+  { id: 're-46', key: 'ratings_same_day_5', name: 'Rating Spree', description: 'Rate 5 comics in one day', category: 'ratings_engagement', type: 'ratings_same_day', stars: 1, icon: 'zap', threshold: 5 },
+  { id: 're-47', key: 'ratings_same_day_10', name: 'Rating Marathon', description: 'Rate 10 comics in one day', category: 'ratings_engagement', type: 'ratings_same_day', stars: 2, icon: 'zap', threshold: 10 },
+  { id: 're-48', key: 'ratings_same_day_25', name: 'Rating Blitz', description: 'Rate 25 comics in one day', category: 'ratings_engagement', type: 'ratings_same_day', stars: 3, icon: 'zap', threshold: 25 },
+  { id: 're-49', key: 'reviews_same_day_3', name: 'Review Spree', description: 'Write 3 reviews in one day', category: 'ratings_engagement', type: 'reviews_same_day', stars: 2, icon: 'zap', threshold: 3 },
+  { id: 're-50', key: 'reviews_same_day_5', name: 'Review Marathon', description: 'Write 5 reviews in one day', category: 'ratings_engagement', type: 'reviews_same_day', stars: 3, icon: 'zap', threshold: 5 },
+];
+
 // Combined array of all achievements
 export const ALL_ACHIEVEMENTS: Achievement[] = [
   ...PAGE_MILESTONE_ACHIEVEMENTS,
@@ -893,6 +977,7 @@ export const ALL_ACHIEVEMENTS: Achievement[] = [
   ...BOOKMARK_ACHIEVEMENTS,
   ...SESSION_ACHIEVEMENTS,
   ...COMPLETION_ACHIEVEMENTS,
+  ...RATING_ENGAGEMENT_ACHIEVEMENTS,
 ];
 
 // Helper functions

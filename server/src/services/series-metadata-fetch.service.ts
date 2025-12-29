@@ -16,7 +16,7 @@ import { createServiceLogger } from './logger.service.js';
 import { getSeriesMetadata, type MetadataSource } from './metadata-search.service.js';
 import { writeSeriesJson, type SeriesMetadata } from './series-metadata.service.js';
 import { getSeries, updateSeries, type FieldSourceMap } from './series/index.js';
-import { onSeriesCoverChanged } from './collection.service.js';
+import { onSeriesCoverChanged, onSeriesMetadataChanged } from './collection.service.js';
 import type { Series } from '@prisma/client';
 
 const logger = createServiceLogger('series-metadata-fetch');
@@ -39,11 +39,14 @@ export interface SeriesMetadataPayload {
   metronSeriesId?: string;
   anilistId?: string;
   malId?: string;
+  gcdSeriesId?: string;
   characters?: string[];
   locations?: string[];
   storyArcs?: string[];
   creators?: string[];
   aliases?: string[];
+  genres?: string[];
+  tags?: string[];
 }
 
 export interface FetchMetadataResult {
@@ -97,11 +100,16 @@ const API_TO_SERIES_FIELD_MAP: Record<string, string> = {
   seriesType: 'type',
   comicVineSeriesId: 'comicVineId',
   metronSeriesId: 'metronId',
+  anilistId: 'anilistId',
+  malId: 'malId',
+  gcdSeriesId: 'gcdId',
   characters: 'characters',
   locations: 'locations',
   storyArcs: 'storyArcs',
   creators: 'creators',
   aliases: 'aliases',
+  genres: 'genres',
+  tags: 'tags',
 };
 
 /**
@@ -119,11 +127,16 @@ const FIELD_LABELS: Record<string, string> = {
   type: 'Type',
   comicVineId: 'ComicVine ID',
   metronId: 'Metron ID',
+  anilistId: 'AniList ID',
+  malId: 'MAL ID',
+  gcdId: 'GCD ID',
   characters: 'Characters',
   locations: 'Locations',
   storyArcs: 'Story Arcs',
   creators: 'Creators',
   aliases: 'Aliases',
+  genres: 'Genres',
+  tags: 'Tags',
 };
 
 // =============================================================================
@@ -154,6 +167,15 @@ export async function fetchSeriesMetadataById(seriesId: string): Promise<FetchMe
   } else if (series.metronId) {
     source = 'metron';
     externalId = series.metronId;
+  } else if (series.anilistId) {
+    source = 'anilist';
+    externalId = series.anilistId;
+  } else if (series.malId) {
+    source = 'mal';
+    externalId = series.malId;
+  } else if (series.gcdId) {
+    source = 'gcd';
+    externalId = series.gcdId;
   }
 
   if (!source || !externalId) {
@@ -393,6 +415,12 @@ export async function applyMetadataToSeries(
       if (!fieldsUpdated.includes('malId')) {
         fieldsUpdated.push('malId');
       }
+    } else if (source === 'gcd' && !lockedFields.includes('gcdId')) {
+      updateData.gcdId = externalId;
+      fieldSources.gcdId = { source: 'api' };
+      if (!fieldsUpdated.includes('gcdId')) {
+        fieldsUpdated.push('gcdId');
+      }
     }
   }
 
@@ -463,6 +491,11 @@ export async function applyMetadataToSeries(
       });
     }
 
+    // Trigger collection metadata recalculation for derived values (tags, genres, etc.)
+    onSeriesMetadataChanged(seriesId).catch((err) => {
+      logger.warn({ seriesId, error: err }, 'Failed to trigger collection metadata recalculation');
+    });
+
     return {
       success: true,
       series: updatedSeries,
@@ -494,6 +527,12 @@ export async function unlinkExternalId(
       updateData.comicVineId = null;
     } else if (source === 'metron') {
       updateData.metronId = null;
+    } else if (source === 'anilist') {
+      updateData.anilistId = null;
+    } else if (source === 'mal') {
+      updateData.malId = null;
+    } else if (source === 'gcd') {
+      updateData.gcdId = null;
     }
 
     await db.series.update({
@@ -535,6 +574,9 @@ export async function syncToSeriesJson(seriesId: string): Promise<void> {
     publisher: series.publisher ?? undefined,
     comicVineSeriesId: series.comicVineId ?? undefined,
     metronSeriesId: series.metronId ?? undefined,
+    anilistId: series.anilistId ?? undefined,
+    malId: series.malId ?? undefined,
+    gcdId: series.gcdId ?? undefined,
     issueCount: series.issueCount ?? undefined,
     deck: series.deck ?? undefined,
     summary: series.summary ?? undefined,
@@ -592,6 +634,15 @@ function convertRawMetadata(
   if (source === 'metron' && raw.metronSeriesId) {
     payload.metronSeriesId = String(raw.metronSeriesId);
   }
+  if (source === 'anilist' && raw.anilistId) {
+    payload.anilistId = String(raw.anilistId);
+  }
+  if (source === 'mal' && raw.malId) {
+    payload.malId = String(raw.malId);
+  }
+  if (source === 'gcd' && raw.gcdSeriesId) {
+    payload.gcdSeriesId = String(raw.gcdSeriesId);
+  }
 
   // Array fields (from extended ComicVine data)
   if (Array.isArray(raw.characters)) {
@@ -616,6 +667,12 @@ function convertRawMetadata(
   }
   if (Array.isArray(raw.aliases)) {
     payload.aliases = raw.aliases.map((a) => String(a));
+  }
+  if (Array.isArray(raw.genres)) {
+    payload.genres = raw.genres.map((g) => String(g));
+  }
+  if (Array.isArray(raw.tags)) {
+    payload.tags = raw.tags.map((t) => String(t));
   }
 
   return payload;

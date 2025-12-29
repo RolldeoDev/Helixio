@@ -44,6 +44,12 @@ export interface SeriesMetadata {
   comicVineSeriesId?: string;
   /** Metron series ID for API matching */
   metronSeriesId?: string;
+  /** AniList series ID for API matching */
+  anilistId?: string;
+  /** MyAnimeList ID for API matching */
+  malId?: string;
+  /** Grand Comics Database ID for API matching */
+  gcdId?: string;
   /** Total issue count in the series */
   issueCount?: number;
   /** Short description/deck */

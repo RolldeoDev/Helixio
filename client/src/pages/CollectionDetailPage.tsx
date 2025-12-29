@@ -49,6 +49,8 @@ import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useMenuActions, useApiToast } from '../hooks';
 import type { MenuContext } from '../components/UnifiedMenu/types';
 import { ProgressRing, CompletedBadge } from '../components/Progress';
+import { RatingStars } from '../components/RatingStars/RatingStars';
+import { useUpdateCollection } from '../hooks/queries/useCollections';
 import './CollectionDetailPage.css';
 
 // =============================================================================
@@ -321,6 +323,7 @@ export function CollectionDetailPage() {
   const { lastCompletedJobAt } = useMetadataJob();
   const { addToast } = useApiToast();
   const { getCollectionWithItems, refreshCollections } = useCollections();
+  const updateCollectionMutation = useUpdateCollection();
 
   // Data state - now using the optimized API
   const [data, setData] = useState<CollectionExpandedData | null>(null);
@@ -499,12 +502,15 @@ export function CollectionDetailPage() {
     const collection = data.collection;
 
     // Compute fallback from first item
+    // Priority: coverHash (API/custom) > coverFileId > first issue > file
     let fallback: string | null = null;
     const firstItem = collection.items[0];
-    if (firstItem?.series?.coverFileId) {
-      fallback = getCoverUrl(firstItem.series.coverFileId);
-    } else if (firstItem?.series?.coverHash) {
+    if (firstItem?.series?.coverHash) {
       fallback = getApiCoverUrl(firstItem.series.coverHash);
+    } else if (firstItem?.series?.coverFileId) {
+      fallback = getCoverUrl(firstItem.series.coverFileId);
+    } else if (firstItem?.series?.firstIssueId) {
+      fallback = getCoverUrl(firstItem.series.firstIssueId, firstItem.series.firstIssueCoverHash);
     } else if (firstItem?.file?.id) {
       fallback = getCoverUrl(firstItem.file.id);
     }
@@ -766,6 +772,28 @@ export function CollectionDetailPage() {
     }
   }, [collectionForModal, collectionId, getCollectionWithItems, addToast]);
 
+  // Handle refresh from modal (e.g., after smart collection conversion)
+  // This refreshes both the modal's items and the main page data
+  const handleModalRefresh = useCallback(async () => {
+    if (!collectionId) return;
+
+    try {
+      // Refresh the modal's collection data and items
+      const collectionData = await getCollectionWithItems(collectionId);
+      if (collectionData) {
+        const { items, ...collectionOnly } = collectionData;
+        setCollectionForModal(collectionOnly as Collection);
+        setCollectionItems(items ?? []);
+      }
+
+      // Also refresh the main page data
+      await fetchCollectionData();
+    } catch (err) {
+      // Silent fail - the main page refresh will show updates after modal close
+      await fetchCollectionData();
+    }
+  }, [collectionId, getCollectionWithItems, fetchCollectionData]);
+
   // Handle collection-level actions
   const handleCollectionAction = useCallback(
     async (actionId: string) => {
@@ -908,20 +936,6 @@ export function CollectionDetailPage() {
               <div className="collection-hero-info">
                 <h1 className="collection-title">{collection.name}</h1>
 
-                {/* Rating display */}
-                {collection.rating && (
-                  <div className="collection-rating">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <span
-                        key={star}
-                        className={`rating-star ${star <= collection.rating! ? 'filled' : ''}`}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                )}
-
                 {collection.deck && (
                   <p className="collection-deck">{collection.deck}</p>
                 )}
@@ -1014,6 +1028,32 @@ export function CollectionDetailPage() {
 
           {/* Sidebar column (25%) */}
           <aside className="collection-hero-sidebar">
+            {/* User Rating */}
+            <div className="collection-rating-section">
+              <div className="rating-header">
+                <span className="rating-label">Your Rating</span>
+              </div>
+              <RatingStars
+                value={collection.rating ?? null}
+                onChange={(rating) => {
+                  if (collection.id) {
+                    updateCollectionMutation.mutate(
+                      { id: collection.id, data: { rating } },
+                      {
+                        onSuccess: () => {
+                          // Refetch to update local state
+                          fetchCollectionData();
+                        },
+                      }
+                    );
+                  }
+                }}
+                size="large"
+                showEmpty
+                allowClear
+              />
+            </div>
+
             {/* Genres */}
             {genreList.length > 0 && (
               <ExpandablePillSection
@@ -1187,7 +1227,7 @@ export function CollectionDetailPage() {
           onSave={handleSettingsSave}
           onRemoveItems={handleRemoveItems}
           onReorderItems={handleReorderItems}
-          onRefresh={fetchCollectionData}
+          onRefresh={handleModalRefresh}
         />
       )}
     </div>

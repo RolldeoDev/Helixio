@@ -20,7 +20,14 @@ const logger = createServiceLogger('api-cache');
 // Types
 // =============================================================================
 
-export type CacheSource = 'comicvine' | 'metron' | 'gcd' | 'anilist' | 'mal';
+export type CacheSource =
+  | 'comicvine'
+  | 'metron'
+  | 'gcd'
+  | 'anilist'
+  | 'mal'
+  | 'comicbookroundup'
+  | 'leagueofcomicgeeks';
 
 export interface CacheOptions {
   /** Time-to-live in milliseconds */

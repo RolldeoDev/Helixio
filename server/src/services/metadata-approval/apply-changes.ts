@@ -36,9 +36,69 @@ import {
 import { getSession, setSession, deleteSessionFromStore } from './session-store.js';
 import { invalidateAfterApplyChanges } from '../metadata-invalidation.service.js';
 import { markDirtyForMetadataChange } from '../stats-dirty.service.js';
-import type { ApprovalSession, ApplyResult, ApplyChangesResult, ProgressCallback } from './types.js';
+import { syncSeriesRatings, syncSeriesIssueRatings } from '../rating-sync.service.js';
+import type { ApprovalSession, ApplyResult, ApplyChangesResult, ProgressCallback, FileChange } from './types.js';
 
 const logger = createServiceLogger('metadata-approval-apply');
+
+// =============================================================================
+// Publisher Normalization Helper
+// =============================================================================
+
+/**
+ * Determine the authoritative publisher for a session.
+ *
+ * Priority:
+ * 1. Provider's selected series publisher (authoritative)
+ * 2. Most common non-null publisher from file changes
+ * 3. null if all sources have no publisher
+ *
+ * Returns undefined only if there are no file changes with publisher fields.
+ */
+function determineAuthoritativePublisher(
+  session: ApprovalSession
+): string | null | undefined {
+  // Priority 1: Use provider's selected series publisher if available
+  for (const group of session.seriesGroups) {
+    if (group.selectedSeries?.publisher) {
+      return group.selectedSeries.publisher;
+    }
+  }
+
+  // Priority 2: Fall back to most common publisher from file changes
+  const publisherValues: (string | null)[] = [];
+
+  for (const fc of session.fileChanges) {
+    if (fc.status === 'rejected') continue;
+    const publisherField = fc.fields.publisher;
+    if (publisherField && publisherField.approved) {
+      const value = publisherField.edited && publisherField.editedValue !== undefined
+        ? publisherField.editedValue
+        : publisherField.proposed;
+      publisherValues.push(value as string | null);
+    }
+  }
+
+  if (publisherValues.length === 0) return undefined;
+
+  // Count occurrences of each publisher
+  const counts = new Map<string | null, number>();
+  for (const p of publisherValues) {
+    counts.set(p, (counts.get(p) ?? 0) + 1);
+  }
+
+  // Return the most common value (prefer non-null values in case of tie)
+  let mostCommon: string | null = null;
+  let maxCount = 0;
+  for (const [value, count] of counts) {
+    if (count > maxCount || (count === maxCount && value !== null && mostCommon === null)) {
+      maxCount = count;
+      mostCommon = value;
+    }
+  }
+
+  return mostCommon;
+}
 
 // =============================================================================
 // Apply Changes
@@ -158,6 +218,34 @@ export async function applyChanges(
   // ==========================================================================
 
   progress('Applying metadata changes', `${session.fileChanges.length} file(s) to process`);
+
+  // Normalize publisher across all files for consistency
+  // This prevents series splitting when files have different source publishers
+  // Priority: provider's selectedSeries.publisher > most common from files > null
+  const authoritativePublisher = determineAuthoritativePublisher(session);
+  if (authoritativePublisher !== undefined) {
+    logger.info(
+      { authoritativePublisher },
+      'Normalizing publisher across all files in session'
+    );
+
+    for (const fileChange of session.fileChanges) {
+      if (fileChange.fields.publisher) {
+        // Override the publisher to the authoritative value
+        fileChange.fields.publisher.proposed = authoritativePublisher;
+        fileChange.fields.publisher.approved = true;
+        fileChange.fields.publisher.edited = false;
+      } else {
+        // Add publisher field if it doesn't exist
+        fileChange.fields.publisher = {
+          current: null,
+          proposed: authoritativePublisher,
+          approved: true,
+          edited: false,
+        };
+      }
+    }
+  }
 
   let processedCount = 0;
   for (const fileChange of session.fileChanges) {
@@ -397,6 +485,46 @@ export async function applyChanges(
     'Cache refresh complete',
     `${invalidationResult.filesProcessed} files, ${invalidationResult.seriesProcessed} series updated`
   );
+
+  // ==========================================================================
+  // Phase 5: Sync External Ratings (if enabled)
+  // ==========================================================================
+
+  if (session.options?.fetchExternalRatings && affectedSeriesIds.size > 0) {
+    const seriesIds = Array.from(affectedSeriesIds);
+    progress('Syncing external ratings', `${seriesIds.length} series`);
+
+    for (let i = 0; i < seriesIds.length; i++) {
+      const seriesId = seriesIds[i]!;
+      const series = await prisma.series.findUnique({
+        where: { id: seriesId },
+        select: { name: true, anilistId: true },
+      });
+
+      try {
+        // Determine which sources to use based on available external IDs
+        const sources: Array<'comicbookroundup' | 'anilist'> = ['comicbookroundup'];
+        if (series?.anilistId) {
+          sources.push('anilist');
+        }
+
+        progress('Fetching series ratings', series?.name || seriesId);
+        await syncSeriesRatings(seriesId, {
+          sources,
+          forceRefresh: true,
+        });
+
+        // Only fetch issue ratings from CBR (AniList doesn't have issue-level ratings)
+        progress('Fetching issue ratings', `${i + 1} of ${seriesIds.length} series`);
+        await syncSeriesIssueRatings(seriesId, { forceRefresh: true });
+      } catch (error) {
+        // Silent skip - log but don't fail workflow
+        logger.warn({ seriesId, error }, 'Failed to sync external ratings (continuing)');
+      }
+    }
+
+    progress('External ratings sync complete', `${seriesIds.length} series processed`);
+  }
 
   session.status = 'complete';
   session.updatedAt = new Date();

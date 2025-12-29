@@ -277,6 +277,8 @@ export interface CreateApprovalSessionOptions {
   mixedSeries?: boolean;
   /** Search mode: 'quick' (primary source only) or 'full' (all sources with merge) */
   searchMode?: SearchMode;
+  /** Fetch external ratings from ComicBookRoundup after applying metadata */
+  fetchExternalRatings?: boolean;
 }
 
 /**
@@ -515,14 +517,21 @@ export async function applyMetadataBatch(
     source: MetadataSource;
     sourceId: string;
     type: 'issue' | 'series';
-  }>
+  }>,
+  options?: {
+    /** Fetch external ratings after applying metadata */
+    fetchExternalRatings?: boolean;
+  }
 ): Promise<{
   total: number;
   successful: number;
   failed: number;
   results: Array<{ fileId: string; success: boolean; error?: string }>;
 }> {
-  return post('/search/apply-batch', { matches });
+  return post('/search/apply-batch', {
+    matches,
+    fetchExternalRatings: options?.fetchExternalRatings,
+  });
 }
 
 // =============================================================================

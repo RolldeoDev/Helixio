@@ -298,6 +298,124 @@
   border-radius: 3px;
 }
 
+/* =============================================================================
+   User Data Section (Rating & Notes)
+   ============================================================================= */
+
+.reader-info-user-data {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.reader-info-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reader-info-saving {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+.reader-info-user-field {
+  margin-bottom: 12px;
+}
+
+.reader-info-user-field:last-child {
+  margin-bottom: 0;
+}
+
+.reader-info-user-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.reader-info-user-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 6px;
+}
+
+.reader-info-user-field-header .reader-info-user-field-label {
+  margin-bottom: 0;
+}
+
+.reader-info-user-field-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  opacity: 0.7;
+}
+
+.reader-info-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 50px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.reader-info-textarea:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.reader-info-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.reader-info-visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reader-info-visibility-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.reader-info-visibility-toggle.public {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+  color: #81c784;
+}
+
+.reader-info-visibility-toggle.public:hover {
+  background: rgba(76, 175, 80, 0.25);
+}
+
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
   .reader-info-panel {

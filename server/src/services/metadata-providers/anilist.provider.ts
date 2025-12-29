@@ -80,6 +80,15 @@ function mangaToSeriesMetadata(manga: anilist.AniListManga): SeriesMetadata {
     aliases.push(...manga.synonyms);
   }
 
+  // Extract genres
+  const genres = manga.genres.length > 0 ? manga.genres : undefined;
+
+  // Extract tags with rank > 75, excluding spoiler tags
+  const filteredTags = manga.tags
+    .filter((tag) => tag.rank > 75 && !tag.isMediaSpoiler)
+    .map((tag) => tag.name);
+  const tags = filteredTags.length > 0 ? filteredTags : undefined;
+
   return {
     source: 'anilist' as MetadataSource,
     sourceId: String(manga.id),
@@ -95,6 +104,10 @@ function mangaToSeriesMetadata(manga: anilist.AniListManga): SeriesMetadata {
     aliases: aliases.length > 0 ? aliases : undefined,
     seriesType: anilist.formatToSeriesType(manga.format),
     volume: undefined,
+
+    // Content classification
+    genres,
+    tags,
 
     // Rich data
     characters: characters.length > 0 ? characters : undefined,

@@ -39,6 +39,20 @@ function getModifierClasses(
   return classes.join(' ');
 }
 
+/**
+ * Format publication date from metadata fields (year, month, day)
+ * Returns M/D/YYYY, M/YYYY, or YYYY depending on available fields
+ */
+function formatPublishDate(metadata: { year?: number | null; month?: number | null; day?: number | null }): string | null {
+  const { year, month, day } = metadata;
+  if (!year && !month && !day) return null;
+
+  if (month && day && year) return `${month}/${day}/${year}`;
+  if (month && year) return `${month}/${year}`;
+  if (year) return String(year);
+  return null;
+}
+
 export function CoverCard({
   file,
   progress,
@@ -261,6 +275,12 @@ export function CoverCard({
             {!showSeriesAsSubtitle && showSeries && file.metadata?.series && (
               <span className="cover-card__series">
                 {file.metadata.series}
+              </span>
+            )}
+            {/* Publication date */}
+            {file.metadata && formatPublishDate(file.metadata) && (
+              <span className="cover-card__date">
+                {formatPublishDate(file.metadata)}
               </span>
             )}
           </div>

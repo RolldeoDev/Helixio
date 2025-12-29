@@ -323,6 +323,88 @@ export function createMockPrismaClient() {
       count: vi.fn().mockResolvedValue(0),
       groupBy: vi.fn().mockResolvedValue([]),
     },
+    smartCollectionDirtyFlag: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'flag-1',
+        userId: args.data.userId ?? null,
+        seriesId: args.data.seriesId ?? null,
+        fileId: args.data.fileId ?? null,
+        reason: args.data.reason,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    externalRating: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'rating-1',
+        seriesId: args.data.seriesId ?? null,
+        fileId: args.data.fileId ?? null,
+        source: args.data.source,
+        sourceId: args.data.sourceId ?? null,
+        ratingType: args.data.ratingType,
+        ratingValue: args.data.ratingValue,
+        ratingScale: args.data.ratingScale ?? 10,
+        originalValue: args.data.originalValue ?? args.data.ratingValue,
+        voteCount: args.data.voteCount ?? null,
+        reviewCount: args.data.reviewCount ?? null,
+        confidence: args.data.confidence ?? 1.0,
+        matchMethod: args.data.matchMethod ?? null,
+        lastSyncedAt: new Date(),
+        expiresAt: args.data.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...args.data,
+      })),
+      upsert: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'rating-1',
+        ...args.create,
+        ...args.update,
+      })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id ?? 'rating-1', ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+      aggregate: vi.fn().mockResolvedValue({ _avg: { ratingValue: null } }),
+    },
+    ratingSyncJob: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'job-1',
+        type: args.data.type,
+        seriesId: args.data.seriesId ?? null,
+        libraryId: args.data.libraryId ?? null,
+        status: args.data.status ?? 'pending',
+        totalItems: args.data.totalItems ?? 0,
+        processedItems: args.data.processedItems ?? 0,
+        successItems: args.data.successItems ?? 0,
+        failedItems: args.data.failedItems ?? 0,
+        unmatchedItems: args.data.unmatchedItems ?? 0,
+        sources: args.data.sources ?? '[]',
+        forceRefresh: args.data.forceRefresh ?? false,
+        error: args.data.error ?? null,
+        errorDetails: args.data.errorDetails ?? null,
+        unmatchedSeries: args.data.unmatchedSeries ?? null,
+        createdAt: new Date(),
+        startedAt: args.data.startedAt ?? null,
+        completedAt: args.data.completedAt ?? null,
+        ...args.data,
+      })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
     $transaction: vi.fn().mockImplementation((arg) => {
@@ -402,6 +484,30 @@ export function createMockComicFile(overrides: Partial<{
 /**
  * Create a mock series record.
  */
+export function createMockSeries(overrides: Partial<{
+  id: string;
+  name: string;
+  publisher: string | null;
+  startYear: number | null;
+  issueCount: number | null;
+  comicVineId: string | null;
+  metronId: string | null;
+  summary: string | null;
+  lockedFields: string | null;
+  aliases: string | null;
+  fieldSources: string | null;
+  type: string;
+  isHidden: boolean;
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}> = {}) {
+  return createMockSeriesRecord(overrides);
+}
+
+/**
+ * Create a mock series record.
+ */
 export function createMockSeriesRecord(overrides: Partial<{
   id: string;
   name: string;
@@ -414,6 +520,7 @@ export function createMockSeriesRecord(overrides: Partial<{
   lockedFields: string | null;
   aliases: string | null;
   fieldSources: string | null;
+  genres: string | null;
   type: string;
   isHidden: boolean;
   deletedAt: Date | null;
@@ -432,6 +539,7 @@ export function createMockSeriesRecord(overrides: Partial<{
     lockedFields: null,
     aliases: null,
     fieldSources: null,
+    genres: null,
     type: 'western',
     isHidden: false,
     deletedAt: null,
@@ -850,6 +958,96 @@ export function createMockApiKeyUsageLog(overrides: Partial<{
     ipAddress: '127.0.0.1',
     userAgent: 'Mozilla/5.0',
     createdAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock external rating record.
+ */
+export function createMockExternalRating(overrides: Partial<{
+  id: string;
+  seriesId: string | null;
+  fileId: string | null;
+  source: string;
+  sourceId: string | null;
+  ratingType: string;
+  ratingValue: number;
+  ratingScale: number;
+  originalValue: number;
+  voteCount: number | null;
+  reviewCount: number | null;
+  confidence: number;
+  matchMethod: string | null;
+  lastSyncedAt: Date;
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}> = {}) {
+  return {
+    id: 'rating-1',
+    seriesId: 'series-1',
+    fileId: null,
+    source: 'comicbookroundup',
+    sourceId: 'cbr-123',
+    ratingType: 'community',
+    ratingValue: 8.5,
+    ratingScale: 10,
+    originalValue: 8.5,
+    voteCount: 150,
+    reviewCount: null,
+    confidence: 1.0,
+    matchMethod: 'name_year',
+    lastSyncedAt: new Date('2024-01-01'),
+    expiresAt: new Date('2024-01-08'),
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock rating sync job record.
+ */
+export function createMockRatingSyncJob(overrides: Partial<{
+  id: string;
+  type: string;
+  seriesId: string | null;
+  libraryId: string | null;
+  status: string;
+  totalItems: number;
+  processedItems: number;
+  successItems: number;
+  failedItems: number;
+  unmatchedItems: number;
+  sources: string;
+  forceRefresh: boolean;
+  error: string | null;
+  errorDetails: string | null;
+  unmatchedSeries: string | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+}> = {}) {
+  return {
+    id: 'job-1',
+    type: 'library',
+    seriesId: null,
+    libraryId: 'lib-1',
+    status: 'pending',
+    totalItems: 10,
+    processedItems: 0,
+    successItems: 0,
+    failedItems: 0,
+    unmatchedItems: 0,
+    sources: '["comicbookroundup"]',
+    forceRefresh: false,
+    error: null,
+    errorDetails: null,
+    unmatchedSeries: null,
+    createdAt: new Date('2024-01-01'),
+    startedAt: null,
+    completedAt: null,
     ...overrides,
   };
 }

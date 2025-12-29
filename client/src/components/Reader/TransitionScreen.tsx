@@ -3,9 +3,14 @@
  *
  * Shows when navigating past the first/last page of a comic.
  * Displays next/previous issue info or a completion message.
+ * On end screens, shows rating and review options for the current issue.
  */
 
+import { useState } from 'react';
 import { getCoverUrl } from '../../services/api.service';
+import { RatingStars } from '../RatingStars';
+import { IssueReviewModal } from './IssueReviewModal';
+import { useIssueUserData, useUpdateIssueUserData } from '../../hooks/queries';
 import './TransitionScreen.css';
 
 interface AdjacentFile {
@@ -22,6 +27,8 @@ interface TransitionScreenProps {
     currentIndex: number;
     totalInSeries: number;
   };
+  /** The current file being read (for rating on end screens) */
+  currentFileId: string;
   onNavigate: (fileId: string) => void;
   onReturn: () => void;
   onClose: () => void;
@@ -31,6 +38,7 @@ export function TransitionScreen({
   type,
   adjacentFile,
   seriesInfo,
+  currentFileId,
   onNavigate,
   onReturn,
   onClose,
@@ -38,8 +46,19 @@ export function TransitionScreen({
   const isEnd = type === 'end';
   const hasAdjacentIssue = adjacentFile !== null;
 
-  // Handle keyboard navigation
+  // Rating and review state (only used on end screens)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // User data for the current issue
+  const { data: userDataResponse } = useIssueUserData(isEnd ? currentFileId : undefined);
+  const updateUserData = useUpdateIssueUserData();
+  const userData = userDataResponse?.data;
+
+  // Handle keyboard navigation (disabled when modal is open)
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Don't handle keyboard shortcuts when review modal is open
+    if (isReviewModalOpen) return;
+
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (hasAdjacentIssue) {
@@ -51,6 +70,49 @@ export function TransitionScreen({
       onReturn();
     }
   };
+
+  // Handle rating change
+  const handleRatingChange = (rating: number | null) => {
+    updateUserData.mutate({
+      fileId: currentFileId,
+      input: { rating },
+    });
+  };
+
+  // Handle review save
+  const handleReviewSave = (data: {
+    privateNotes: string | null;
+    publicReview: string | null;
+    reviewVisibility: 'private' | 'public';
+  }) => {
+    updateUserData.mutate({
+      fileId: currentFileId,
+      input: data,
+    });
+    setIsReviewModalOpen(false);
+  };
+
+  // Rating section component (shared between both end screen types)
+  const RatingSection = () => (
+    <div className="transition-rating-section">
+      <span className="transition-rating-label">Rate this issue</span>
+      <RatingStars
+        value={userData?.rating ?? null}
+        onChange={handleRatingChange}
+        size="large"
+        showEmpty
+        allowClear
+        ariaLabel="Rate this issue"
+      />
+      <button
+        type="button"
+        className="transition-review-btn"
+        onClick={() => setIsReviewModalOpen(true)}
+      >
+        Write Review
+      </button>
+    </div>
+  );
 
   // End screen with no next issue - show completion message
   if (isEnd && !hasAdjacentIssue) {
@@ -80,7 +142,21 @@ export function TransitionScreen({
               Close Reader
             </button>
           </div>
+
+          {/* Rating section for completed issue */}
+          <RatingSection />
         </div>
+
+        {/* Review modal */}
+        <IssueReviewModal
+          isOpen={isReviewModalOpen}
+          initialNotes={userData?.privateNotes ?? null}
+          initialReview={userData?.publicReview ?? null}
+          initialVisibility={(userData?.reviewVisibility as 'private' | 'public') ?? 'private'}
+          onClose={() => setIsReviewModalOpen(false)}
+          onSave={handleReviewSave}
+          isSaving={updateUserData.isPending}
+        />
       </div>
     );
   }
@@ -141,10 +217,26 @@ export function TransitionScreen({
           </button>
         </div>
 
+        {/* Rating section only on end screens */}
+        {isEnd && <RatingSection />}
+
         <p className="transition-hint">
           Press <kbd>{isEnd ? 'Next' : 'Previous'}</kbd> or <kbd>Enter</kbd> to continue
         </p>
       </div>
+
+      {/* Review modal (only on end screens) */}
+      {isEnd && (
+        <IssueReviewModal
+          isOpen={isReviewModalOpen}
+          initialNotes={userData?.privateNotes ?? null}
+          initialReview={userData?.publicReview ?? null}
+          initialVisibility={(userData?.reviewVisibility as 'private' | 'public') ?? 'private'}
+          onClose={() => setIsReviewModalOpen(false)}
+          onSave={handleReviewSave}
+          isSaving={updateUserData.isPending}
+        />
+      )}
     </div>
   );
 }

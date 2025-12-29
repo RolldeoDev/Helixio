@@ -30,6 +30,7 @@ export const CATEGORY_INFO: Record<string, { name: string; icon: string; descrip
   bookmarks_notes: { name: 'Bookmarks & Notes', icon: 'bookmark', description: 'Reader features' },
   sessions: { name: 'Sessions', icon: 'play', description: 'Reading session milestones' },
   collection_completion: { name: 'Collection Completion', icon: 'check-square', description: 'Reading your collection' },
+  ratings_engagement: { name: 'Ratings & Reviews', icon: 'star', description: 'Sharing your opinions on comics' },
 };
 
 // Types for the achievements service
@@ -91,6 +92,17 @@ export interface UserStats {
   maxPagesDay: number;
   maxComicsDay: number;
   maxTimeDay: number;
+
+  // Rating & Review stats
+  totalRatingsSubmitted: number;
+  totalReviewsWritten: number;
+  uniqueGenresRated: number;
+  uniquePublishersRated: number;
+  longestRatingStreak: number;
+  longestReviewLength: number;
+  seriesWithCompleteRatings: number;
+  maxRatingsSameDay: number;
+  maxReviewsSameDay: number;
 }
 
 /**
@@ -478,6 +490,37 @@ function getRelevantStat(achievement: AchievementRecord, stats: UserStats): numb
   }
   if (category === 'sessions') {
     return stats.sessionsTotal;
+  }
+
+  // Rating & Review achievements
+  if (category === 'ratings_engagement') {
+    if (key.startsWith('ratings_same_day')) {
+      return stats.maxRatingsSameDay;
+    }
+    if (key.startsWith('reviews_same_day')) {
+      return stats.maxReviewsSameDay;
+    }
+    if (key.startsWith('ratings_')) {
+      return stats.totalRatingsSubmitted;
+    }
+    if (key.startsWith('reviews_') || key.startsWith('review_length')) {
+      if (key.startsWith('review_length')) {
+        return stats.longestReviewLength;
+      }
+      return stats.totalReviewsWritten;
+    }
+    if (key.startsWith('genres_rated_')) {
+      return stats.uniqueGenresRated;
+    }
+    if (key.startsWith('publishers_rated_')) {
+      return stats.uniquePublishersRated;
+    }
+    if (key.startsWith('rating_streak_')) {
+      return stats.longestRatingStreak;
+    }
+    if (key.startsWith('series_complete_rated_')) {
+      return stats.seriesWithCompleteRatings;
+    }
   }
 
   return 0;

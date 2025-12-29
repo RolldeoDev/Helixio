@@ -10,7 +10,7 @@ import { RatingStars } from '../RatingStars';
 import './UserDataPanel.css';
 
 export interface UserDataPanelProps {
-  /** Current rating (1-5 or null) */
+  /** Current rating (0.5-5.0 or null) */
   rating: number | null;
   /** Private notes content */
   privateNotes: string | null;
@@ -128,11 +128,17 @@ export function UserDataPanel({
             <span className="user-data-summary">
               {rating !== null && (
                 <span className="summary-rating">
-                  {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+                  <RatingStars value={rating} readonly size="small" showEmpty />
                 </span>
               )}
               {(privateNotes || publicReview) && (
-                <span className="summary-notes">has notes</span>
+                <span className="summary-notes">
+                  {privateNotes && publicReview
+                    ? 'has notes & review'
+                    : privateNotes
+                    ? 'has notes'
+                    : 'has review'}
+                </span>
               )}
             </span>
           )}
@@ -156,6 +162,16 @@ export function UserDataPanel({
                 showEmpty
                 allowClear
               />
+              {rating !== null && !isReadonly && onRatingChange && (
+                <button
+                  className="clear-rating-button"
+                  onClick={() => onRatingChange(null)}
+                  type="button"
+                  title="Clear rating"
+                >
+                  ✕
+                </button>
+              )}
               {isSaving && <span className="saving-indicator">Saving...</span>}
             </div>
           </div>

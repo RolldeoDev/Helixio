@@ -35,6 +35,11 @@ vi.mock('../logger.service.js', () => ({
   })),
 }));
 
+// Mock collection service (for recalculateCollectionMetadata)
+vi.mock('../collection.service.js', () => ({
+  recalculateCollectionMetadata: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Import types
 import type { FilterField, FilterComparison, SmartFilter } from '../smart-collection.service.js';
 
@@ -112,8 +117,8 @@ describe('Smart Collection Service', () => {
       const result = await getSmartCollections('user-1');
 
       expect(result).toHaveLength(1);
-      expect(result[0].id).toBe('smart-col-1');
-      expect(result[0].smartScope).toBe('series');
+      expect(result[0]!.id).toBe('smart-col-1');
+      expect(result[0]!.smartScope).toBe('series');
     });
 
     it('should return empty array if no smart collections exist', async () => {
@@ -146,8 +151,8 @@ describe('Smart Collection Service', () => {
 
       const result = await getSmartCollections('user-1');
 
-      expect(result[0].filterDefinition.groups).toHaveLength(1);
-      expect(result[0].filterDefinition.groups[0].conditions[0].value).toBe('Marvel');
+      expect(result[0]!.filterDefinition.groups).toHaveLength(1);
+      expect(result[0]!.filterDefinition.groups[0]!.conditions[0]!.value).toBe('Marvel');
     });
   });
 
@@ -204,8 +209,8 @@ describe('Smart Collection Service', () => {
 
       // Mock series that match
       const matchingSeries = [
-        { id: 'series-1', name: 'Spider-Man', publisher: 'Marvel', deletedAt: null, isHidden: false, progress: [] },
-        { id: 'series-2', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [] },
+        { id: 'series-1', name: 'Spider-Man', publisher: 'Marvel', deletedAt: null, isHidden: false, progress: [], userData: [] },
+        { id: 'series-2', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [], userData: [] },
       ];
       mockPrisma.series.findMany.mockResolvedValue(matchingSeries);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
@@ -241,7 +246,7 @@ describe('Smart Collection Service', () => {
 
       // No series match
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-dc', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [] },
+        { id: 'series-dc', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [], userData: [] },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 1 });
@@ -271,7 +276,7 @@ describe('Smart Collection Service', () => {
       mockPrisma.collection.findUnique.mockResolvedValue(col);
 
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-dc', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [] },
+        { id: 'series-dc', name: 'Batman', publisher: 'DC', deletedAt: null, isHidden: false, progress: [], userData: [] },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -302,7 +307,7 @@ describe('Smart Collection Service', () => {
       mockPrisma.collection.findUnique.mockResolvedValue(col);
 
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-marvel', name: 'Spider-Man', publisher: 'Marvel', deletedAt: null, isHidden: false, progress: [] },
+        { id: 'series-marvel', name: 'Spider-Man', publisher: 'Marvel', deletedAt: null, isHidden: false, progress: [], userData: [] },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -378,7 +383,7 @@ describe('Smart Collection Service', () => {
       });
       mockPrisma.collection.findUnique.mockResolvedValue(col);
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], ...seriesData },
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], ...seriesData },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -503,7 +508,7 @@ describe('Smart Collection Service', () => {
       });
       mockPrisma.collection.findUnique.mockResolvedValue(col);
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], ...seriesData },
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], ...seriesData },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -592,7 +597,7 @@ describe('Smart Collection Service', () => {
       });
       mockPrisma.collection.findUnique.mockResolvedValue(col);
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], ...seriesData },
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], ...seriesData },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -665,7 +670,7 @@ describe('Smart Collection Service', () => {
       });
       mockPrisma.collection.findUnique.mockResolvedValue(col);
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], ...seriesData },
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], ...seriesData },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
       mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
@@ -1183,7 +1188,7 @@ describe('Smart Collection Service', () => {
 
       // Changed series that matches
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', publisher: 'Marvel', progress: [] },
+        { id: 'series-1', publisher: 'Marvel', progress: [], userData: [] },
       ]);
       mockPrisma.collectionItem.findMany.mockResolvedValue([]);
       mockPrisma.collectionItem.aggregate.mockResolvedValue({ _max: { position: 0 } });
@@ -1239,7 +1244,7 @@ describe('Smart Collection Service', () => {
 
       // Series that no longer matches (was Marvel, now DC)
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', publisher: 'DC', progress: [] },
+        { id: 'series-1', publisher: 'DC', progress: [], userData: [] },
       ]);
       // Item exists in collection
       const existingItem = createMockCollectionItem({
@@ -1270,7 +1275,7 @@ describe('Smart Collection Service', () => {
 
       // Series that no longer matches but is whitelisted
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1', publisher: 'DC', progress: [] },
+        { id: 'series-1', publisher: 'DC', progress: [], userData: [] },
       ]);
       const whitelistedItem = createMockCollectionItem({
         id: 'item-1',
@@ -1308,6 +1313,7 @@ describe('Smart Collection Service', () => {
           deletedAt: null,
           isHidden: false,
           progress: [progress],
+          userData: [],
         },
       ]);
       mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));

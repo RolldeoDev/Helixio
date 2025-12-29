@@ -18,6 +18,7 @@ import type {
   IssueListResult,
 } from './types.js';
 import * as metron from '../metron.service.js';
+import { isMetronAvailable } from '../metron.service.js';
 
 // =============================================================================
 // Helper Functions
@@ -116,16 +117,26 @@ export const MetronProvider: MetadataProvider = {
   displayName: 'Metron',
 
   async checkAvailability(): Promise<AvailabilityResult> {
+    // First check if credentials are configured
+    if (!isMetronAvailable()) {
+      return {
+        available: false,
+        configured: false,
+        error: 'Metron credentials not configured. Add metronUsername and metronPassword in settings.',
+      };
+    }
+
+    // Then check if the API is reachable
     const result = await metron.checkApiAvailability();
     return {
       available: result.available,
-      configured: true, // Metron doesn't require API key
+      configured: true,
       error: result.error,
     };
   },
 
   async searchSeries(query: SearchQuery, options?: SearchOptions): Promise<SeriesSearchResult> {
-    if (!query.series) {
+    if (!query.series || !isMetronAvailable()) {
       return { results: [], total: 0, hasMore: false };
     }
 
@@ -147,6 +158,8 @@ export const MetronProvider: MetadataProvider = {
   },
 
   async getSeriesById(sourceId: string, sessionId?: string): Promise<SeriesMetadata | null> {
+    if (!isMetronAvailable()) return null;
+
     const id = parseInt(sourceId, 10);
     const series = await metron.getSeries(id, sessionId);
     if (!series) return null;
@@ -154,6 +167,10 @@ export const MetronProvider: MetadataProvider = {
   },
 
   async getSeriesIssues(sourceId: string, options?: PaginationOptions): Promise<IssueListResult> {
+    if (!isMetronAvailable()) {
+      return { results: [], total: 0, hasMore: false };
+    }
+
     const id = parseInt(sourceId, 10);
 
     const result = await metron.getSeriesIssues(id, {
@@ -172,6 +189,8 @@ export const MetronProvider: MetadataProvider = {
   },
 
   async getIssueById(sourceId: string, sessionId?: string): Promise<IssueMetadata | null> {
+    if (!isMetronAvailable()) return null;
+
     const id = parseInt(sourceId, 10);
     const issue = await metron.getIssue(id, sessionId);
     if (!issue) return null;

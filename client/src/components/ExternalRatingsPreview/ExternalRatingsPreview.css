@@ -1,0 +1,117 @@
+/**
+ * ExternalRatingsPreview Styles
+ *
+ * Compact display for series hero sidebar.
+ */
+
+.external-ratings-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+.external-ratings-preview:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.external-ratings-preview:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Title */
+.external-ratings-preview__title {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Loading state */
+.external-ratings-preview--loading {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.external-ratings-preview__loading {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+/* Empty state */
+.external-ratings-preview--empty .external-ratings-preview__empty-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+/* Ratings rows */
+.external-ratings-preview__ratings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.external-ratings-preview__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.external-ratings-preview__label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.external-ratings-preview__value {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.external-ratings-preview__stars {
+  font-size: var(--font-size-sm);
+  color: var(--color-warning, #f59e0b);
+  letter-spacing: -0.05em;
+}
+
+.external-ratings-preview__number {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 2ch;
+}
+
+/* Source badges */
+.external-ratings-preview__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.external-ratings-preview__source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}

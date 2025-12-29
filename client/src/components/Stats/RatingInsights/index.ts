@@ -1,0 +1,1 @@
+export { RatingInsights } from './RatingInsights';

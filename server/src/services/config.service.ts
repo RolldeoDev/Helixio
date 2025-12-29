@@ -100,12 +100,39 @@ export interface NamingConventions {
   specialFile: string;
 }
 
+/** Rating source for external community/critic ratings */
+export type ExternalRatingSource =
+  | 'comicbookroundup'
+  | 'leagueofcomicgeeks'
+  | 'comicvine'
+  | 'metron'
+  | 'anilist';
+
+export interface ExternalRatingsSettings {
+  /** Which rating sources are enabled */
+  enabledSources: ExternalRatingSource[];
+  /** Sync schedule: "daily" | "weekly" | "manual" */
+  syncSchedule: 'daily' | 'weekly' | 'manual';
+  /** Hour of day for scheduled sync (0-23, in server timezone) */
+  syncHour: number;
+  /** Series rating TTL in days before refresh */
+  ratingTTLDays: number;
+  /** Issue rating TTL in days before refresh (issues change less often) */
+  issueRatingTTLDays: number;
+  /** Rate limit for scraping sources (requests per minute) */
+  scrapingRateLimit: number;
+  /** Minimum confidence for fuzzy matching (0.0-1.0) */
+  minMatchConfidence: number;
+}
+
 export interface AppConfig {
   version: string;
   apiKeys: ApiKeys;
   metadata: MetadataSettings;
   cache: CacheSettings;
   naming: NamingConventions;
+  /** External rating sync settings */
+  externalRatings: ExternalRatingsSettings;
   /** Operation log retention in days */
   logRetentionDays: number;
 }
@@ -153,6 +180,15 @@ const DEFAULT_CONFIG: AppConfig = {
     volumeFile: 'Volume {Number:2} - {Title} ({Year}).cbz',
     bookFile: 'Book {Number:2} - {Title} ({Year}).cbz',
     specialFile: 'Special - {Title} ({Year}).cbz',
+  },
+  externalRatings: {
+    enabledSources: ['comicbookroundup', 'leagueofcomicgeeks'],
+    syncSchedule: 'weekly',
+    syncHour: 3, // 3 AM
+    ratingTTLDays: 7,
+    issueRatingTTLDays: 14, // Issues change less often than series
+    scrapingRateLimit: 10, // requests per minute
+    minMatchConfidence: 0.7,
   },
   logRetentionDays: 10,
 };
@@ -227,6 +263,7 @@ export function updateConfig(updates: Partial<AppConfig>): AppConfig {
     metadata: { ...current.metadata, ...updates.metadata },
     cache: { ...current.cache, ...updates.cache },
     naming: { ...current.naming, ...updates.naming },
+    externalRatings: { ...current.externalRatings, ...updates.externalRatings },
     logRetentionDays: updates.logRetentionDays ?? current.logRetentionDays,
   };
   saveConfig(updated);
@@ -302,6 +339,24 @@ export function getCacheSettings(): CacheSettings {
 export function updateCacheSettings(settings: Partial<CacheSettings>): void {
   const config = loadConfig();
   config.cache = { ...config.cache, ...settings };
+  saveConfig(config);
+}
+
+/**
+ * Get external ratings settings
+ */
+export function getExternalRatingsSettings(): ExternalRatingsSettings {
+  return loadConfig().externalRatings;
+}
+
+/**
+ * Update external ratings settings
+ */
+export function updateExternalRatingsSettings(
+  settings: Partial<ExternalRatingsSettings>
+): void {
+  const config = loadConfig();
+  config.externalRatings = { ...config.externalRatings, ...settings };
   saveConfig(config);
 }
 
@@ -417,12 +472,23 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     },
   };
 
+  // External ratings settings
+  const mergedExternalRatings: ExternalRatingsSettings = {
+    ...DEFAULT_CONFIG.externalRatings,
+    ...(partial.externalRatings || {}),
+    // Ensure arrays have defaults if not provided
+    enabledSources:
+      partial.externalRatings?.enabledSources ||
+      DEFAULT_CONFIG.externalRatings.enabledSources,
+  };
+
   return {
     version: partial.version ?? DEFAULT_CONFIG.version,
     apiKeys: { ...DEFAULT_CONFIG.apiKeys, ...partial.apiKeys },
     metadata: mergedMetadata,
     cache: { ...DEFAULT_CONFIG.cache, ...partial.cache },
     naming: { ...DEFAULT_CONFIG.naming, ...partial.naming },
+    externalRatings: mergedExternalRatings,
     logRetentionDays: partial.logRetentionDays ?? DEFAULT_CONFIG.logRetentionDays,
   };
 }

@@ -1,5 +1,5 @@
 /* =============================================================================
-   Rating Stars Component
+   Rating Stars Component - Half-Star Support
    ============================================================================= */
 
 .rating-stars {
@@ -14,20 +14,42 @@
   gap: 0.125rem;
 }
 
-/* Star Base Styles */
+/* Star Base Styles - Overlay Technique for Half-Star Support */
 .rating-star {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease, color 0.15s ease;
+  transition: transform 0.15s ease;
 }
 
-.rating-star-empty {
+/* Background star (empty outline) */
+.star-background {
   color: var(--text-tertiary, rgba(255, 255, 255, 0.3));
 }
 
-.rating-star-filled {
+/* Foreground star (filled) - positioned absolutely on top */
+.star-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
   color: var(--rating-star-color, #fbbf24);
+  width: 0%;
+  white-space: nowrap;
+}
+
+/* Fill states */
+.rating-star-empty .star-fill {
+  width: 0%;
+}
+
+.rating-star-half .star-fill {
+  width: 50%;
+}
+
+.rating-star-full .star-fill {
+  width: 100%;
 }
 
 /* Interactive States */
@@ -39,7 +61,7 @@
   transform: scale(1.15);
 }
 
-.rating-star-hovered {
+.rating-star-hovered .star-fill {
   color: var(--rating-star-hover-color, #f59e0b);
 }
 
@@ -101,13 +123,14 @@
   }
 }
 
-.rating-star-filled.rating-star-interactive:active {
+.rating-star-full.rating-star-interactive:active,
+.rating-star-half.rating-star-interactive:active {
   animation: star-pulse 0.2s ease;
 }
 
 /* Dark theme adjustments */
 @media (prefers-color-scheme: dark) {
-  .rating-star-empty {
+  .star-background {
     color: rgba(255, 255, 255, 0.25);
   }
 }

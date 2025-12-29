@@ -210,9 +210,14 @@ export async function approveSeries(
   // Move to next series
   session.currentSeriesIndex++;
 
-  // If applyToRemaining is true, auto-approve all remaining series
+  // If applyToRemaining is true, apply the SAME selected series to all remaining groups
   if (applyToRemaining) {
-    await autoApproveRemainingSeries(session, onProgress);
+    await autoApproveRemainingSeries(
+      session,
+      selected, // The series user selected for metadata
+      group.issueMatchingSeries, // The series for issue matching (may be null)
+      onProgress
+    );
   }
 
   // Check if there are more series to approve
@@ -238,54 +243,49 @@ export async function approveSeries(
 }
 
 /**
- * Auto-approve all remaining series using their top search results.
- * Series without high-confidence matches will be skipped.
+ * Apply the selected series to all remaining series groups.
+ * Used when the user knows all files belong to the same series.
  */
 async function autoApproveRemainingSeries(
   session: ApprovalSession,
+  selectedSeries: SeriesMatch,
+  issueMatchingSeries: SeriesMatch | null,
   onProgress?: ProgressCallback
 ): Promise<void> {
   const progress = onProgress || (() => {});
   const totalRemaining = session.seriesGroups.length - session.currentSeriesIndex;
 
-  progress(`Auto-approving ${totalRemaining} remaining series...`);
+  progress(
+    `Applying "${selectedSeries.name}" to ${totalRemaining} remaining series groups...`
+  );
 
   while (session.currentSeriesIndex < session.seriesGroups.length) {
     const currentGroup = session.seriesGroups[session.currentSeriesIndex];
     if (!currentGroup) break;
 
-    // Search for the current series if no results yet
-    if (currentGroup.searchResults.length === 0) {
-      await searchForCurrentSeries(session, onProgress);
-    }
+    // Apply the same selected series to this group
+    currentGroup.selectedSeries = selectedSeries;
+    currentGroup.issueMatchingSeries = issueMatchingSeries;
+    currentGroup.status = 'approved';
 
-    // Check if there's a high-confidence match
-    const topResult = currentGroup.searchResults[0];
-    if (topResult && topResult.confidence >= 0.6) {
-      // Approve with top result
-      currentGroup.selectedSeries = topResult;
-      currentGroup.issueMatchingSeries = null;
-      currentGroup.status = 'approved';
-      progress(
-        `Auto-approved: "${currentGroup.displayName}"`,
-        `Matched to "${topResult.name}" (${Math.round(topResult.confidence * 100)}%)`
-      );
-    } else {
-      // Skip series without good match
-      currentGroup.status = 'skipped';
-      progress(
-        `Skipped: "${currentGroup.displayName}"`,
-        topResult
-          ? `Best match only ${Math.round(topResult.confidence * 100)}% confidence`
-          : 'No search results found'
-      );
-    }
+    // Clear existing search results (now irrelevant)
+    currentGroup.searchResults = [];
+    currentGroup.searchPagination = undefined;
+
+    // Clear pre-approval flags since user explicitly chose a series
+    currentGroup.preApprovedFromSeriesJson = false;
+    currentGroup.preApprovedFromDatabase = false;
+
+    progress(
+      `Applied to: "${currentGroup.displayName}"`,
+      `${currentGroup.fileIds.length} files will use "${selectedSeries.name}"`
+    );
 
     session.currentSeriesIndex++;
     session.updatedAt = new Date();
   }
 
-  progress(`Finished auto-approval of ${totalRemaining} series`);
+  progress(`Finished applying series to ${totalRemaining} groups`);
 }
 
 /**

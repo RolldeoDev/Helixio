@@ -146,3 +146,29 @@ export {
   useInvalidateUserData,
 } from './useUserData';
 export type { UpdateUserDataInput, LocalStorageNote } from './useUserData';
+
+// External Ratings (community/critic ratings)
+export {
+  useSeriesExternalRatings,
+  useSyncSeriesRatings,
+  useDeleteSeriesExternalRatings,
+  useIssueExternalRatings,
+  useSyncLibraryRatings,
+  useSyncJobs,
+  useSyncJobStatus,
+  useCancelSyncJob,
+  useRatingSources,
+  useExternalRatingsSettings,
+  useUpdateExternalRatingsSettings,
+  useInvalidateExternalRatings,
+  useHasExternalRatings,
+} from './useExternalRatings';
+export type {
+  RatingSource,
+  ExternalRatingsResponse,
+  SyncResult,
+  SyncJobStatus,
+  RatingSourceStatus,
+  ExternalRatingsSettings,
+  ExternalRatingDisplay,
+} from './useExternalRatings';

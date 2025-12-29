@@ -140,11 +140,12 @@ async function searchSeries(
   return series.map((s) => {
     // Determine thumbnail source
     let thumbnailId: string | null = null;
-    let thumbnailType: 'file' | 'series' | 'none' = 'none';
+    let thumbnailType: 'file' | 'series' | 'custom' | 'none' = 'none';
 
     if (s.coverHash) {
-      thumbnailId = s.id;
-      thumbnailType = 'series';
+      // API-downloaded covers use the series covers endpoint with coverHash
+      thumbnailId = s.coverHash;
+      thumbnailType = 'custom';
     } else if (s.coverFileId) {
       thumbnailId = s.coverFileId;
       thumbnailType = 'file';
@@ -361,6 +362,35 @@ async function searchCollections(
     take: limit * 2,
   });
 
+  // Batch fetch series cover data for collections with coverType = 'series'
+  const seriesIdsForCovers = collections
+    .filter(c => c.coverType === 'series' && c.coverSeriesId)
+    .map(c => c.coverSeriesId!);
+
+  const seriesCoverMap = new Map<string, { coverHash: string | null; coverFileId: string | null; firstIssueId: string | null }>();
+  if (seriesIdsForCovers.length > 0) {
+    const seriesWithCovers = await db.series.findMany({
+      where: { id: { in: seriesIdsForCovers } },
+      select: {
+        id: true,
+        coverHash: true,
+        coverFileId: true,
+        issues: {
+          take: 1,
+          orderBy: { filename: 'asc' },
+          select: { id: true },
+        },
+      },
+    });
+    for (const s of seriesWithCovers) {
+      seriesCoverMap.set(s.id, {
+        coverHash: s.coverHash,
+        coverFileId: s.coverFileId,
+        firstIssueId: s.issues[0]?.id ?? null,
+      });
+    }
+  }
+
   // Get issue counts for collections that need it
   const collectionsNeedingCounts = collections.filter(c => c.derivedIssueCount === null || c.derivedIssueCount === 0);
   const issueCountsMap = new Map<string, number>();
@@ -426,8 +456,20 @@ async function searchCollections(
       thumbnailId = c.coverFileId;
       thumbnailType = 'file';
     } else if (c.coverType === 'series' && c.coverSeriesId) {
-      thumbnailId = c.coverSeriesId;
-      thumbnailType = 'series';
+      // Series cover: resolve the actual cover from the series data
+      const seriesCover = seriesCoverMap.get(c.coverSeriesId);
+      if (seriesCover) {
+        if (seriesCover.coverHash) {
+          thumbnailId = seriesCover.coverHash;
+          thumbnailType = 'custom';
+        } else if (seriesCover.coverFileId) {
+          thumbnailId = seriesCover.coverFileId;
+          thumbnailType = 'file';
+        } else if (seriesCover.firstIssueId) {
+          thumbnailId = seriesCover.firstIssueId;
+          thumbnailType = 'file';
+        }
+      }
     }
     // 'auto' mode without coverHash = empty or not yet generated, stays 'none'
 

@@ -32,9 +32,11 @@ import {
   parseFilename as llmParseFilename,
   isLLMAvailable,
 } from '../services/filename-parser.service.js';
-import { logError, logDebug } from '../services/logger.service.js';
+import { logError, logDebug, createServiceLogger } from '../services/logger.service.js';
+import { syncSeriesRatings, syncSeriesIssueRatings } from '../services/rating-sync.service.js';
 
 const router = Router();
+const logger = createServiceLogger('search-routes');
 
 // =============================================================================
 // Search Endpoints
@@ -491,11 +493,14 @@ router.post('/apply/:fileId', async (req: Request, res: Response): Promise<void>
 /**
  * POST /api/search/apply-batch
  * Apply metadata to multiple files.
- * Body: { matches: Array<{ fileId: string, source: string, sourceId: string, type: string }> }
+ * Body: {
+ *   matches: Array<{ fileId: string, source: string, sourceId: string, type: string }>,
+ *   fetchExternalRatings?: boolean
+ * }
  */
 router.post('/apply-batch', async (req: Request, res: Response): Promise<void> => {
   try {
-    const { matches } = req.body;
+    const { matches, fetchExternalRatings } = req.body;
 
     if (!Array.isArray(matches) || matches.length === 0) {
       res.status(400).json({
@@ -627,6 +632,38 @@ router.post('/apply-batch', async (req: Request, res: Response): Promise<void> =
     for (const r of results) {
       if (r.warnings && r.warnings.length > 0) {
         allWarnings.push(...r.warnings);
+      }
+    }
+
+    // Sync external ratings if requested
+    if (fetchExternalRatings && successful > 0) {
+      try {
+        // Get unique series IDs from successfully processed files
+        const successfulFileIds = results.filter((r) => r.success).map((r) => r.fileId);
+        const files = await prisma.comicFile.findMany({
+          where: { id: { in: successfulFileIds } },
+          select: { seriesId: true },
+        });
+        const seriesIds = [...new Set(files.map((f) => f.seriesId).filter(Boolean))] as string[];
+
+        logger.info({ seriesCount: seriesIds.length }, 'Syncing external ratings for applied metadata');
+
+        for (const seriesId of seriesIds) {
+          try {
+            await syncSeriesRatings(seriesId, {
+              sources: ['comicbookroundup'],
+              forceRefresh: true,
+            });
+            await syncSeriesIssueRatings(seriesId, { forceRefresh: true });
+          } catch (err) {
+            // Silent skip - don't fail the overall operation
+            logger.warn({ seriesId, error: err }, 'Failed to sync external ratings (continuing)');
+          }
+        }
+
+        // TODO: Add AniList/MAL rating sync for manga libraries when implemented
+      } catch (err) {
+        logger.warn({ error: err }, 'Failed to sync external ratings (continuing)');
       }
     }
 

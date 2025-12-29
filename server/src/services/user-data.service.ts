@@ -2,7 +2,7 @@
  * User Data Service
  *
  * Manages user-specific data for series and issues:
- * - Ratings (1-5 stars)
+ * - Ratings (0.5-5.0 stars in 0.5 increments)
  * - Private notes (visible only to author)
  * - Public reviews (visible to other users)
  * - Review visibility toggle
@@ -11,6 +11,8 @@
  */
 
 import { getDatabase } from './database.service.js';
+import { markSmartCollectionsDirty } from './smart-collection-dirty.service.js';
+import { markDirtyForRatingChange } from './stats-dirty.service.js';
 
 // =============================================================================
 // Types
@@ -125,9 +127,15 @@ export async function updateSeriesUserData(
   const now = new Date();
 
   if (input.rating !== undefined) {
-    // Validate rating is 1-5 or null
-    if (input.rating !== null && (input.rating < 1 || input.rating > 5)) {
-      throw new Error('Rating must be between 1 and 5');
+    // Validate rating is 0.5-5.0 in 0.5 increments, or null
+    if (input.rating !== null) {
+      if (input.rating < 0.5 || input.rating > 5) {
+        throw new Error('Rating must be between 0.5 and 5');
+      }
+      // Validate 0.5 increments: multiply by 2, check if integer
+      if ((input.rating * 2) % 1 !== 0) {
+        throw new Error('Rating must be in 0.5 increments');
+      }
     }
     updateData.rating = input.rating;
     updateData.ratedAt = input.rating !== null ? now : null;
@@ -163,6 +171,29 @@ export async function updateSeriesUserData(
     },
     update: updateData,
   });
+
+  // Mark smart collections dirty if rating changed (for rating-based filters)
+  if (input.rating !== undefined) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds: [seriesId],
+      reason: 'user_data',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
+
+    // Mark rating stats as dirty for recomputation
+    markDirtyForRatingChange().catch(() => {
+      // Non-critical
+    });
+  }
+
+  // Also mark dirty if review was added/changed
+  if (input.publicReview !== undefined || input.privateNotes !== undefined) {
+    markDirtyForRatingChange().catch(() => {
+      // Non-critical
+    });
+  }
 
   return {
     ...data,
@@ -250,9 +281,15 @@ export async function updateIssueUserData(
   const now = new Date();
 
   if (input.rating !== undefined) {
-    // Validate rating is 1-5 or null
-    if (input.rating !== null && (input.rating < 1 || input.rating > 5)) {
-      throw new Error('Rating must be between 1 and 5');
+    // Validate rating is 0.5-5.0 in 0.5 increments, or null
+    if (input.rating !== null) {
+      if (input.rating < 0.5 || input.rating > 5) {
+        throw new Error('Rating must be between 0.5 and 5');
+      }
+      // Validate 0.5 increments: multiply by 2, check if integer
+      if ((input.rating * 2) % 1 !== 0) {
+        throw new Error('Rating must be in 0.5 increments');
+      }
     }
     updateData.rating = input.rating;
     updateData.ratedAt = input.rating !== null ? now : null;
@@ -292,6 +329,30 @@ export async function updateIssueUserData(
     },
     update: updateData,
   });
+
+  // Mark smart collections dirty if rating changed (for rating-based filters)
+  if (input.rating !== undefined && file.seriesId) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds: [file.seriesId],
+      fileIds: [fileId],
+      reason: 'user_data',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
+
+    // Mark rating stats as dirty for recomputation
+    markDirtyForRatingChange().catch(() => {
+      // Non-critical
+    });
+  }
+
+  // Also mark dirty if review was added/changed
+  if (input.publicReview !== undefined || input.privateNotes !== undefined) {
+    markDirtyForRatingChange().catch(() => {
+      // Non-critical
+    });
+  }
 
   return {
     id: progress.id,

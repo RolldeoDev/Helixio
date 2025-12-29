@@ -5,7 +5,7 @@
  * Supports theming via CSS custom properties.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getCoverUrl, getApiCoverUrl, type Series } from '../../services/api.service';
 import { UnifiedMenu, buildMenuItems, MENU_PRESETS, MENU_ITEM_DEFINITIONS } from '../UnifiedMenu';
 import type { MenuState, MenuContext, MenuItem } from '../UnifiedMenu/types';
@@ -103,7 +103,60 @@ export interface SeriesCoverCardProps {
 // Component
 // =============================================================================
 
-export function SeriesCoverCard({
+/**
+ * Custom comparison function for React.memo
+ * Only re-renders when props that affect display actually change
+ */
+function arePropsEqual(
+  prevProps: SeriesCoverCardProps,
+  nextProps: SeriesCoverCardProps
+): boolean {
+  // Check selection state first (most common change during scroll)
+  if (prevProps.isSelected !== nextProps.isSelected) return false;
+  if (prevProps.selectable !== nextProps.selectable) return false;
+
+  // Check series identity and display fields
+  const prevSeries = prevProps.series;
+  const nextSeries = nextProps.series;
+  if (prevSeries.id !== nextSeries.id) return false;
+  if (prevSeries.name !== nextSeries.name) return false;
+  if (prevSeries.coverHash !== nextSeries.coverHash) return false;
+  if (prevSeries.coverSource !== nextSeries.coverSource) return false;
+  if (prevSeries.coverFileId !== nextSeries.coverFileId) return false;
+  if (prevSeries.isHidden !== nextSeries.isHidden) return false;
+
+  // Check progress (displayed in badge and ring)
+  const prevProgress = prevSeries.progress;
+  const nextProgress = nextSeries.progress;
+  if (prevProgress?.totalRead !== nextProgress?.totalRead) return false;
+  if (prevProgress?.totalOwned !== nextProgress?.totalOwned) return false;
+
+  // Check issue count (fallback for progress)
+  if (prevSeries._count?.issues !== nextSeries._count?.issues) return false;
+
+  // Check metadata display fields
+  if (prevSeries.startYear !== nextSeries.startYear) return false;
+  if (prevSeries.publisher !== nextSeries.publisher) return false;
+
+  // Check relationship display props
+  if (prevProps.relationshipType !== nextProps.relationshipType) return false;
+  if (prevProps.showRelationshipBadge !== nextProps.showRelationshipBadge) return false;
+  if (prevProps.isParentRelationship !== nextProps.isParentRelationship) return false;
+  if (prevProps.showRemoveButton !== nextProps.showRemoveButton) return false;
+
+  // Check display options
+  if (prevProps.size !== nextProps.size) return false;
+  if (prevProps.showYear !== nextProps.showYear) return false;
+  if (prevProps.showPublisher !== nextProps.showPublisher) return false;
+  if (prevProps.className !== nextProps.className) return false;
+
+  // Callbacks don't need deep comparison if parent memoizes them
+  // (which SeriesGrid does via useCallback)
+
+  return true;
+}
+
+export const SeriesCoverCard = React.memo(function SeriesCoverCard({
   series,
   size = 'medium',
   onClick,
@@ -622,4 +675,4 @@ export function SeriesCoverCard({
       />
     </div>
   );
-}
+}, arePropsEqual);

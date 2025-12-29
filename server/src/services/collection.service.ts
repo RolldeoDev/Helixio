@@ -71,6 +71,11 @@ export interface Collection {
   overrideStartYear?: number | null;
   overrideEndYear?: number | null;
   overrideGenres?: string | null;
+  // Smart collection fields
+  isSmart?: boolean;
+  smartScope?: string | null;
+  filterDefinition?: string | null;
+  lastEvaluatedAt?: Date | null;
 }
 
 // Type alias for cover type
@@ -506,6 +511,48 @@ export async function onSeriesCoverChanged(seriesId: string): Promise<void> {
   }
 }
 
+/**
+ * Recalculate derived metadata for all collections containing a series.
+ * Called when a series' metadata (tags, genres, publisher, etc.) changes.
+ * This ensures collections that don't have overridden fields get updated values.
+ */
+export async function onSeriesMetadataChanged(seriesId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Find all collections containing this series (via CollectionItem)
+  const collectionItems = await db.collectionItem.findMany({
+    where: {
+      seriesId,
+      isAvailable: true,
+    },
+    select: {
+      collectionId: true,
+      collection: {
+        select: {
+          userId: true,
+        },
+      },
+    },
+    distinct: ['collectionId'],
+  });
+
+  // Recalculate metadata for each affected collection (fire-and-forget)
+  for (const item of collectionItems) {
+    recalculateCollectionMetadata(item.collectionId, item.collection.userId).catch((err) => {
+      logError('collection', err, {
+        action: 'recalculate-metadata-on-series-change',
+        collectionId: item.collectionId,
+        seriesId,
+      });
+    });
+  }
+
+  logDebug('collection', `Triggered metadata recalculation for ${collectionItems.length} collections after series ${seriesId} metadata changed`, {
+    seriesId,
+    collectionCount: collectionItems.length,
+  });
+}
+
 // =============================================================================
 // Collection CRUD
 // =============================================================================
@@ -568,6 +615,11 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     derivedEndYear: c.derivedEndYear,
     derivedGenres: c.derivedGenres,
     derivedTags: c.derivedTags,
+    // Smart collection fields
+    isSmart: c.isSmart,
+    smartScope: c.smartScope,
+    filterDefinition: c.filterDefinition,
+    lastEvaluatedAt: c.lastEvaluatedAt,
   }));
 }
 
@@ -714,6 +766,11 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     visibility: collection.visibility,
     readingMode: collection.readingMode,
     tags: collection.tags,
+    // Smart collection fields
+    isSmart: collection.isSmart,
+    smartScope: collection.smartScope,
+    filterDefinition: collection.filterDefinition,
+    lastEvaluatedAt: collection.lastEvaluatedAt,
     items,
   };
 }

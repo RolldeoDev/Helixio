@@ -107,6 +107,9 @@ import {
 import { processExistingFiles } from '../services/scanner.service.js';
 import { onSeriesCoverChanged } from '../services/collection.service.js';
 import { createServiceLogger } from '../services/logger.service.js';
+import { getSimilarSeriesRecommendations } from '../services/recommendation-engine.service.js';
+import { getCachedSimilarSeries, setCachedSimilarSeries } from '../services/recommendation-cache.service.js';
+import { markSmartCollectionsDirty } from '../services/smart-collection-dirty.service.js';
 import {
   sendSuccess,
   sendBadRequest,
@@ -440,6 +443,44 @@ router.get('/:id', optionalAuth, asyncHandler(async (req: Request, res: Response
   };
 
   sendSuccess(res, { series: transformedSeries });
+}));
+
+/**
+ * GET /api/series/:id/similar
+ * Get similar series recommendations
+ *
+ * Query params:
+ * - limit (optional): Number of similar series (default: 10)
+ * - userId (optional): User ID to exclude already-read series
+ * - noCache (optional): Skip cache if 'true'
+ */
+router.get('/:id/similar', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+  const seriesId = req.params.id!;
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+  const userId = req.query.userId as string | undefined ?? req.user?.id;
+  const noCache = req.query.noCache === 'true';
+
+  // Check cache first
+  if (!noCache) {
+    const cached = getCachedSimilarSeries(seriesId, userId);
+    if (cached) {
+      return sendSuccess(res, { similar: cached, cached: true });
+    }
+  }
+
+  try {
+    // Get similar series
+    const similar = await getSimilarSeriesRecommendations(seriesId, limit, userId);
+
+    // Cache the results
+    setCachedSimilarSeries(seriesId, userId, similar);
+
+    sendSuccess(res, { similar, cached: false });
+  } catch (error) {
+    logger.error({ error, seriesId }, 'Failed to get similar series');
+    // Return empty results instead of 500 error - similarity data may not exist yet
+    sendSuccess(res, { similar: [], cached: false });
+  }
 }));
 
 /**
@@ -1929,6 +1970,18 @@ router.post('/bulk-mark-read', requireAuth, asyncHandler(async (req: Request, re
 
   const result = await bulkMarkSeriesRead(seriesIds, userId);
   logger.info({ userId, count: seriesIds.length, successful: result.successful }, 'Bulk marked series as read');
+
+  // Mark smart collections dirty for reading progress changes
+  if (result.successful > 0) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds,
+      reason: 'reading_progress',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
+  }
+
   sendSuccess(res, result);
 }));
 
@@ -1946,6 +1999,18 @@ router.post('/bulk-mark-unread', requireAuth, asyncHandler(async (req: Request, 
 
   const result = await bulkMarkSeriesUnread(seriesIds, userId);
   logger.info({ userId, count: seriesIds.length, successful: result.successful }, 'Bulk marked series as unread');
+
+  // Mark smart collections dirty for reading progress changes
+  if (result.successful > 0) {
+    markSmartCollectionsDirty({
+      userId,
+      seriesIds,
+      reason: 'reading_progress',
+    }).catch(() => {
+      // Non-critical, errors logged inside
+    });
+  }
+
   sendSuccess(res, result);
 }));
 

@@ -73,6 +73,10 @@
   grid-template-columns: 1fr 1fr;
 }
 
+.stats-page__row--three-col {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 /* =============================================================================
    Error State
    ============================================================================= */
@@ -166,11 +170,19 @@
   .stats-page__row--two-col {
     grid-template-columns: 1fr;
   }
+
+  .stats-page__row--three-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
   .stats-page {
     padding: var(--spacing-md);
     gap: var(--spacing-md);
+  }
+
+  .stats-page__row--three-col {
+    grid-template-columns: 1fr;
   }
 }
