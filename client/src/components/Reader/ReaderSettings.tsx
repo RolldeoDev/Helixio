@@ -29,6 +29,7 @@ export function ReaderSettings() {
     setColorCorrection,
     togglePageShadow,
     toggleAutoHideUI,
+    setUsePhysicalNavigation,
     saveSettings,
     setWebtoonGap,
     setWebtoonMaxWidth,
@@ -233,6 +234,35 @@ export function ReaderSettings() {
               </label>
             </div>
           </div>
+
+          {/* Navigation Behavior - Only shown when direction is RTL */}
+          {state.direction === 'rtl' && (
+            <div className="reader-settings-section">
+              <h4>Navigation Behavior</h4>
+              <div className="reader-settings-options">
+                <label className={`reader-settings-option ${state.usePhysicalNavigation !== true ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="navBehavior"
+                    checked={state.usePhysicalNavigation !== true}
+                    onChange={() => setUsePhysicalNavigation(null)}
+                  />
+                  <span className="option-label">Logical (Manga-style)</span>
+                  <span className="option-hint">Right arrow = Previous</span>
+                </label>
+                <label className={`reader-settings-option ${state.usePhysicalNavigation === true ? 'selected' : ''}`}>
+                  <input
+                    type="radio"
+                    name="navBehavior"
+                    checked={state.usePhysicalNavigation === true}
+                    onChange={() => setUsePhysicalNavigation(true)}
+                  />
+                  <span className="option-label">Physical (Western-style)</span>
+                  <span className="option-hint">Right arrow = Next</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Image Scaling */}
           <div className="reader-settings-section">

@@ -47,7 +47,7 @@ export function IssueReviewModal({
       setNotes(initialNotes || '');
       setReview(initialReview || '');
       setVisibility(initialVisibility);
-      setActiveTab('notes');
+      setActiveTab('review');
     }
   }, [isOpen, initialNotes, initialReview, initialVisibility]);
 

@@ -144,31 +144,11 @@
   width: 100%;
 }
 
-/* Virtual grid item wrapper */
+/* Virtual grid item wrapper - positioning container only */
+/* All visual styling is handled by the child card component (SeriesCoverCard) */
 .series-grid-item {
-  /* Positioned absolutely by useVirtualGrid with explicit width/height */
-  display: flex;
-  flex-direction: column;
-  cursor: pointer;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-card);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-  outline: none;
-}
-
-/* Force child cards to fill the grid item's calculated width */
-.series-grid-item > * {
-  width: 100% !important;
-  max-width: 100%;
-}
-
-.series-grid-item:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg), var(--shadow-glow);
-}
-
-.series-grid-item:focus {
-  box-shadow: 0 0 0 2px var(--color-focus-ring);
+  /* Position and dimensions set inline by useVirtualGrid via style prop */
+  /* No styling here to avoid conflicts with virtualization transforms */
 }
 
 /* Cover Container */

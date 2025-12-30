@@ -6,6 +6,7 @@
  * - Quick stats row (comics read, pages, streaks)
  */
 
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCoverUrl, ContinueReadingItem, AllTimeStats } from '../../services/api.service';
 import './HomeHero.css';
@@ -75,6 +76,12 @@ function StatCard({ icon, value, label, color }: StatCardProps) {
 
 export function HomeHero({ featuredItem, stats, isLoading }: HomeHeroProps) {
   const navigate = useNavigate();
+  const [coverError, setCoverError] = useState(false);
+
+  // Reset cover error state when featured item changes
+  useEffect(() => {
+    setCoverError(false);
+  }, [featuredItem?.fileId]);
 
   const handleContinueReading = () => {
     if (featuredItem) {
@@ -100,11 +107,20 @@ export function HomeHero({ featuredItem, stats, isLoading }: HomeHeroProps) {
               }
             }}
           >
-            <img
-              src={getCoverUrl(featuredItem.fileId)}
-              alt={featuredItem.filename}
-              loading="eager"
-            />
+            {coverError ? (
+              <div className="hero-featured-placeholder">
+                <span className="hero-featured-placeholder-initial">
+                  {featuredItem.filename.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            ) : (
+              <img
+                src={getCoverUrl(featuredItem.fileId)}
+                alt={featuredItem.filename}
+                loading="eager"
+                onError={() => setCoverError(true)}
+              />
+            )}
             <div className="hero-featured-overlay">
               <div className="hero-featured-play">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

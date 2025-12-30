@@ -1362,4 +1362,803 @@ describe('Smart Collection Service', () => {
       expect(result.added).toBe(0);
     });
   });
+
+  // =============================================================================
+  // NaN Handling in Numeric Comparisons (Bug Fix Tests)
+  // =============================================================================
+
+  describe('NaN Handling in Numeric Comparisons', () => {
+    async function testFilter(filter: ReturnType<typeof createFilter>, seriesData: Record<string, unknown>) {
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+      mockPrisma.series.findMany.mockResolvedValue([
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], externalRatings: [], ...seriesData },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      return refreshSmartCollection('smart-col-1', 'user-1');
+    }
+
+    it('should not match "greater_than" when field value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'greater_than', value: '2000' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 'not-a-number' });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "greater_than" when compare value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'greater_than', value: 'invalid' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 2010 });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "less_than" when field value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'less_than', value: '2000' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: undefined });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "less_than" when compare value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'less_than', value: 'xyz' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 1990 });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "between" when field value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'between', value: '2000', value2: '2010' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: null });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "between" when min value is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'between', value: 'start', value2: '2010' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 2005 });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "between" when max value (value2) is NaN', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'between', value: '2000', value2: 'end' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 2005 });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "between" when value2 is undefined', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'between', value: '2000' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 2005 });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "between" when value2 is empty string', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'year', comparison: 'between', value: '2000', value2: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { startYear: 2005 });
+      expect(result.added).toBe(0);
+    });
+  });
+
+  // =============================================================================
+  // Date Validation in Comparisons (Bug Fix Tests)
+  // =============================================================================
+
+  describe('Date Validation in Comparisons', () => {
+    async function testFilter(filter: ReturnType<typeof createFilter>, seriesData: Record<string, unknown>) {
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+      mockPrisma.series.findMany.mockResolvedValue([
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], externalRatings: [], ...seriesData },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      return refreshSmartCollection('smart-col-1', 'user-1');
+    }
+
+    it('should not match "before" when compare date is invalid', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'dateAdded', comparison: 'before', value: 'not-a-date' }] },
+      ]);
+
+      const result = await testFilter(filter, { createdAt: new Date('2023-06-01') });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "after" when compare date is invalid', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'dateAdded', comparison: 'after', value: 'invalid-date' }] },
+      ]);
+
+      const result = await testFilter(filter, { createdAt: new Date('2024-06-01') });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "within_days" when days value is invalid', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'dateAdded', comparison: 'within_days', value: 'seven' }] },
+      ]);
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+
+      const result = await testFilter(filter, { createdAt: threeDaysAgo });
+      expect(result.added).toBe(0);
+    });
+
+    it('should handle ISO date strings correctly in "before" comparison', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'dateAdded', comparison: 'before', value: '2024-01-15T00:00:00.000Z' }] },
+      ]);
+
+      const result = await testFilter(filter, { createdAt: new Date('2023-12-01') });
+      expect(result.added).toBe(1);
+    });
+
+    it('should handle ISO date strings correctly in "after" comparison', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'dateAdded', comparison: 'after', value: '2023-01-15T00:00:00.000Z' }] },
+      ]);
+
+      const result = await testFilter(filter, { createdAt: new Date('2024-06-01') });
+      expect(result.added).toBe(1);
+    });
+  });
+
+  // =============================================================================
+  // is_empty/is_not_empty Null/Undefined Distinction (Bug Fix Tests)
+  // =============================================================================
+
+  describe('is_empty/is_not_empty Null/Undefined Distinction', () => {
+    async function testFilter(filter: ReturnType<typeof createFilter>, seriesData: Record<string, unknown>) {
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+      mockPrisma.series.findMany.mockResolvedValue([
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], externalRatings: [], ...seriesData },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      return refreshSmartCollection('smart-col-1', 'user-1');
+    }
+
+    it('should match "is_empty" for null value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: null });
+      expect(result.added).toBe(1);
+    });
+
+    it('should match "is_empty" for undefined value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, {}); // publisher is undefined
+      expect(result.added).toBe(1);
+    });
+
+    it('should match "is_empty" for empty string value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: '' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should not match "is_empty" for non-empty value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: 'Marvel' });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "is_not_empty" for null value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_not_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: null });
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "is_not_empty" for undefined value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_not_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, {}); // publisher is undefined
+      expect(result.added).toBe(0);
+    });
+
+    it('should not match "is_not_empty" for empty string value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_not_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: '' });
+      expect(result.added).toBe(0);
+    });
+
+    it('should match "is_not_empty" for non-empty value', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'publisher', comparison: 'is_not_empty', value: '' }] },
+      ]);
+
+      const result = await testFilter(filter, { publisher: 'Marvel' });
+      expect(result.added).toBe(1);
+    });
+  });
+
+  // =============================================================================
+  // External Ratings in File-Scope Queries (Bug Fix Tests)
+  // =============================================================================
+
+  describe('External Ratings in File-Scope Queries', () => {
+    it('should filter files by externalRating field', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'externalRating', comparison: 'greater_than', value: '7' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'files',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      // Mock files with external ratings
+      const files = [
+        {
+          id: 'file-1',
+          status: 'indexed',
+          metadata: { publisher: 'Marvel' },
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 8.5 },
+            { ratingType: 'critic', ratingValue: 7.0 },
+          ],
+        },
+        {
+          id: 'file-2',
+          status: 'indexed',
+          metadata: { publisher: 'DC' },
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 6.0 },
+          ],
+        },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only file-1 has max external rating > 7 (8.5)
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by communityRating field', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'communityRating', comparison: 'greater_than', value: '7' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'files',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      const files = [
+        {
+          id: 'file-1',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 8.0 },
+            { ratingType: 'critic', ratingValue: 6.0 },
+          ],
+        },
+        {
+          id: 'file-2',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'critic', ratingValue: 9.0 }, // High critic, but no community
+          ],
+        },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only file-1 has community rating > 7
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by criticRating field', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'criticRating', comparison: 'greater_than', value: '8' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'files',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      const files = [
+        {
+          id: 'file-1',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 9.0 },
+            { ratingType: 'critic', ratingValue: 7.0 },
+          ],
+        },
+        {
+          id: 'file-2',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [
+            { ratingType: 'critic', ratingValue: 8.5 },
+          ],
+        },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only file-2 has critic rating > 8
+      expect(result.added).toBe(1);
+    });
+
+    it('should handle files with no external ratings', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'externalRating', comparison: 'is_not_empty', value: '' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'files',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      const files = [
+        {
+          id: 'file-1',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [{ ratingType: 'community', ratingValue: 8.0 }],
+        },
+        {
+          id: 'file-2',
+          status: 'indexed',
+          metadata: {},
+          userReadingProgress: [],
+          externalRatings: [],
+        },
+      ];
+      mockPrisma.comicFile.findMany.mockResolvedValue(files);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only file-1 has external rating
+      expect(result.added).toBe(1);
+    });
+  });
+
+  // =============================================================================
+  // New Metadata Fields Filtering (Bug Fix Tests)
+  // =============================================================================
+
+  describe('New Metadata Fields Filtering', () => {
+    async function testSeriesFilter(filter: ReturnType<typeof createFilter>, seriesData: Record<string, unknown>) {
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+      mockPrisma.series.findMany.mockResolvedValue([
+        { id: 'series-1', deletedAt: null, isHidden: false, progress: [], userData: [], externalRatings: [], ...seriesData },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      return refreshSmartCollection('smart-col-1', 'user-1');
+    }
+
+    async function testFileFilter(filter: ReturnType<typeof createFilter>, fileData: Record<string, unknown>) {
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'files',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+      mockPrisma.comicFile.findMany.mockResolvedValue([
+        { id: 'file-1', status: 'indexed', userReadingProgress: [], externalRatings: [], ...fileData },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      return refreshSmartCollection('smart-col-1', 'user-1');
+    }
+
+    it('should filter series by ageRating', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'ageRating', comparison: 'equals', value: 'mature' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { ageRating: 'Mature' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by language (languageISO)', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'language', comparison: 'equals', value: 'en' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { languageISO: 'en' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by inker', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'inker', comparison: 'contains', value: 'smith' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { inker: 'John Smith' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by colorist', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'colorist', comparison: 'contains', value: 'dave' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { colorist: 'Dave Stewart' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by letterer', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'letterer', comparison: 'contains', value: 'comicraft' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { letterer: 'Comicraft' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by editor', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'editor', comparison: 'contains', value: 'tom' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { editor: 'Tom Brevoort' });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by count (issueCount)', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'count', comparison: 'greater_than', value: '50' }] },
+      ]);
+
+      const result = await testSeriesFilter(filter, { issueCount: 100 });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by imprint', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'imprint', comparison: 'equals', value: 'vertigo' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { imprint: 'Vertigo' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by format', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'format', comparison: 'equals', value: 'trade paperback' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { format: 'Trade Paperback' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by ageRating in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'ageRating', comparison: 'equals', value: 'teen+' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { ageRating: 'Teen+' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by language (languageISO) in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'language', comparison: 'equals', value: 'ja' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { languageISO: 'ja' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by inker in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'inker', comparison: 'contains', value: 'jones' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { inker: 'Mike Jones' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by colorist in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'colorist', comparison: 'contains', value: 'laura' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { colorist: 'Laura Martin' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by letterer in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'letterer', comparison: 'equals', value: 'vc joe caramagna' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { letterer: 'VC Joe Caramagna' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by editor in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'editor', comparison: 'contains', value: 'axel' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { editor: 'Axel Alonso' } });
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter files by count in metadata', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'count', comparison: 'between', value: '1', value2: '5' }] },
+      ]);
+
+      const result = await testFileFilter(filter, { metadata: { count: 3 } });
+      expect(result.added).toBe(1);
+    });
+  });
+
+  // =============================================================================
+  // External Ratings in Series-Scope Queries (Bug Fix Tests)
+  // =============================================================================
+
+  describe('External Ratings in Series-Scope Queries', () => {
+    it('should filter series by externalRating field', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'externalRating', comparison: 'greater_than', value: '8' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      mockPrisma.series.findMany.mockResolvedValue([
+        {
+          id: 'series-1',
+          name: 'High Rated',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 8.5 },
+            { ratingType: 'critic', ratingValue: 9.0 },
+          ],
+        },
+        {
+          id: 'series-2',
+          name: 'Low Rated',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 6.0 },
+          ],
+        },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only series-1 has max external rating > 8 (9.0)
+      expect(result.added).toBe(1);
+    });
+
+    it('should filter series by communityRating field', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'communityRating', comparison: 'greater_than', value: '7' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      mockPrisma.series.findMany.mockResolvedValue([
+        {
+          id: 'series-1',
+          name: 'High Community',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 8.0 },
+          ],
+        },
+        {
+          id: 'series-2',
+          name: 'Low Community',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [
+            { ratingType: 'community', ratingValue: 5.0 },
+          ],
+        },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      expect(result.added).toBe(1);
+    });
+
+    it('should handle series with no external ratings', async () => {
+      const filter = createFilter([
+        { operator: 'AND', conditions: [{ field: 'externalRating', comparison: 'is_empty', value: '' }] },
+      ]);
+      const col = createSmartCollection({
+        filterDefinition: JSON.stringify(filter),
+        smartScope: 'series',
+        items: [],
+      });
+      mockPrisma.collection.findUnique.mockResolvedValue(col);
+
+      mockPrisma.series.findMany.mockResolvedValue([
+        {
+          id: 'series-1',
+          name: 'Rated',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [{ ratingType: 'community', ratingValue: 8.0 }],
+        },
+        {
+          id: 'series-2',
+          name: 'Unrated',
+          deletedAt: null,
+          isHidden: false,
+          progress: [],
+          userData: [],
+          externalRatings: [],
+        },
+      ]);
+      mockPrisma.$transaction.mockImplementation((fn) => fn(mockPrisma));
+      mockPrisma.collectionItem.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.collectionItem.create.mockImplementation((args) =>
+        Promise.resolve(createMockCollectionItem({ ...args.data }))
+      );
+      mockPrisma.collection.update.mockResolvedValue(col);
+
+      const result = await refreshSmartCollection('smart-col-1', 'user-1');
+
+      // Only series-2 has no external rating
+      expect(result.added).toBe(1);
+    });
+  });
 });

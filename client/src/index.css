@@ -6397,3 +6397,265 @@ body {
     left: calc(50% + 24px); /* Half of sidebar rail width */
   }
 }
+
+/* =============================================================================
+   Library Reader Profile (Settings Page)
+   ============================================================================= */
+
+.library-reader-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.reader-profile-label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.reader-profile-value {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.reader-profile-value.muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.reader-profile-select {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.reader-profile-select:hover {
+  border-color: var(--color-primary);
+}
+
+.reader-profile-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-alpha);
+}
+
+/* =============================================================================
+   Reader Settings Modal - Refined Compact Design
+   ============================================================================= */
+
+.reader-settings-modal.modal-content {
+  max-width: 340px;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+/* Header - Compact with integrated close */
+.reader-settings-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+  margin: 0;
+}
+
+.reader-settings-modal .modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.01em;
+}
+
+/* Close button - Proper styling */
+.reader-settings-modal .modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.reader-settings-modal .modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+}
+
+.reader-settings-modal .modal-close:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.95);
+}
+
+/* Body - Tight padding */
+.reader-settings-modal .modal-body {
+  padding: 16px;
+}
+
+/* Status indicator - Compact pill design */
+.reader-settings-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.reader-settings-status-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--color-primary);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.reader-settings-status-icon svg {
+  width: 14px;
+  height: 14px;
+  color: var(--color-surface);
+}
+
+.reader-settings-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.reader-settings-status-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.reader-settings-status-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Profile Selector - Compact field */
+.reader-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reader-settings-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.reader-settings-field select {
+  width: 100%;
+  padding: 10px 12px;
+  padding-right: 36px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.reader-settings-field select:hover {
+  border-color: var(--color-primary);
+}
+
+.reader-settings-field select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-alpha);
+}
+
+.reader-settings-field select option {
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 8px;
+}
+
+.reader-settings-field select optgroup {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* Footer - Compact with single action */
+.reader-settings-modal .modal-footer {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.15);
+  border-top: 1px solid var(--color-border);
+}
+
+.reader-settings-modal .modal-footer .btn-primary {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.reader-settings-modal .modal-footer .btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--color-primary-alpha);
+}
+
+.reader-settings-modal .modal-footer .btn-primary:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Loading state */
+.reader-settings-modal .modal-body--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}

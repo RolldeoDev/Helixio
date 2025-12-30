@@ -557,102 +557,12 @@ router.patch('/:fileId/comicinfo', async (req: Request, res: Response) => {
 
 /**
  * GET /api/archives/:fileId/cover
- * Extract and return optimized cover image.
- * Supports WebP (default) with JPEG fallback based on Accept header.
- * Returns X-Blur-Placeholder header with base64 blur placeholder for instant load.
+ * @deprecated Use /api/covers/:fileId instead.
+ * Redirects to the canonical cover endpoint to eliminate duplicate implementations.
  */
-router.get('/:fileId/cover', async (req: Request, res: Response) => {
-  try {
-    const db = getDatabase();
-    const { getCoverData, extractCover, getSeriesCoverData } = await import('../services/cover.service.js');
-
-    const file = await db.comicFile.findUnique({
-      where: { id: req.params.fileId! },
-      include: { library: true },
-    });
-
-    if (!file) {
-      res.status(404).json({ error: 'File not found' });
-      return;
-    }
-
-    const fileHash = file.hash || file.id;
-
-    // Check Accept header for WebP support
-    const acceptHeader = req.get('Accept') || '';
-    const acceptWebP = acceptHeader.includes('image/webp');
-
-    let coverData;
-
-    // If a custom cover (page or custom URL) is set, use coverHash from series covers cache
-    if ((file.coverSource === 'page' || file.coverSource === 'custom') && file.coverHash) {
-      coverData = await getSeriesCoverData(file.coverHash, acceptWebP);
-    }
-
-    // If no custom cover or not found, try default file cover
-    if (!coverData) {
-      coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
-
-      // If not cached, extract and optimize
-      if (!coverData) {
-        const extractResult = await extractCover(file.path, file.libraryId, fileHash);
-
-        if (!extractResult.success) {
-          res.status(500).json({
-            error: 'Failed to extract cover',
-            message: extractResult.error,
-          });
-          return;
-        }
-
-        // Get the newly extracted cover
-        coverData = await getCoverData(file.libraryId, fileHash, acceptWebP);
-
-        if (!coverData) {
-          res.status(500).json({ error: 'Failed to load extracted cover' });
-          return;
-        }
-      }
-    }
-
-    // Use coverHash for ETag when custom cover exists, otherwise use fileHash
-    // This ensures browsers revalidate when covers change
-    const etagBase = file.coverHash || fileHash;
-    const etag = `"${etagBase}-${acceptWebP ? 'webp' : 'jpeg'}"`;
-
-    // Check If-None-Match for conditional requests
-    const ifNoneMatch = req.get('If-None-Match');
-    if (ifNoneMatch === etag) {
-      res.status(304).end();
-      return;
-    }
-
-    // Set response headers
-    // Use must-revalidate since the same URL can serve different covers
-    // when coverHash changes. The ?v=timestamp query param from client
-    // will also help bypass cached versions.
-    res.set({
-      'Content-Type': coverData.contentType,
-      'Content-Length': coverData.data.length.toString(),
-      'Cache-Control': 'public, max-age=86400, must-revalidate',
-      'ETag': etag,
-      'Vary': 'Accept', // Important: response varies by Accept header
-    });
-
-    // Include blur placeholder in header for instant perceived load
-    if (coverData.blurPlaceholder) {
-      res.set('X-Blur-Placeholder', coverData.blurPlaceholder);
-    }
-
-    // Send the cover data
-    res.send(coverData.data);
-  } catch (error) {
-    logError('archive', error, { action: 'extract-cover' });
-    res.status(500).json({
-      error: 'Failed to extract cover',
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
+router.get('/:fileId/cover', (req: Request, res: Response) => {
+  // Permanent redirect to canonical endpoint
+  res.redirect(301, `/api/covers/${req.params.fileId}`);
 });
 
 // =============================================================================

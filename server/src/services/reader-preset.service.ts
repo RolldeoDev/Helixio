@@ -43,6 +43,7 @@ export interface ReaderPreset {
   preloadCount: number;
   webtoonGap: number;
   webtoonMaxWidth: number;
+  usePhysicalNavigation: boolean | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +66,7 @@ export interface CreatePresetInput {
   preloadCount?: number;
   webtoonGap?: number;
   webtoonMaxWidth?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 export interface UpdatePresetInput {
@@ -84,6 +86,7 @@ export interface UpdatePresetInput {
   preloadCount?: number;
   webtoonGap?: number;
   webtoonMaxWidth?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 // =============================================================================
@@ -107,6 +110,7 @@ const BUNDLED_PRESETS: Array<{
   preloadCount: number;
   webtoonGap: number;
   webtoonMaxWidth: number;
+  usePhysicalNavigation: boolean | null;
 }> = [
   {
     name: 'Western Comics',
@@ -125,6 +129,7 @@ const BUNDLED_PRESETS: Array<{
     preloadCount: 3,
     webtoonGap: 0,
     webtoonMaxWidth: 800,
+    usePhysicalNavigation: null,
   },
   {
     name: 'Manga',
@@ -143,6 +148,7 @@ const BUNDLED_PRESETS: Array<{
     preloadCount: 3,
     webtoonGap: 0,
     webtoonMaxWidth: 800,
+    usePhysicalNavigation: null,
   },
   {
     name: 'Webtoon',
@@ -161,6 +167,7 @@ const BUNDLED_PRESETS: Array<{
     preloadCount: 5,
     webtoonGap: 8,
     webtoonMaxWidth: 800,
+    usePhysicalNavigation: null,
   },
 ];
 
@@ -218,6 +225,7 @@ export async function ensureBundledPresets(): Promise<void> {
           preloadCount: preset.preloadCount,
           webtoonGap: preset.webtoonGap,
           webtoonMaxWidth: preset.webtoonMaxWidth,
+          usePhysicalNavigation: preset.usePhysicalNavigation,
         },
       });
     }
@@ -315,6 +323,7 @@ export async function createPreset(
       preloadCount: input.preloadCount ?? 3,
       webtoonGap: input.webtoonGap ?? 8,
       webtoonMaxWidth: input.webtoonMaxWidth ?? 800,
+      usePhysicalNavigation: input.usePhysicalNavigation ?? null,
     },
   });
 
@@ -387,6 +396,7 @@ export async function updatePreset(
       preloadCount: input.preloadCount,
       webtoonGap: input.webtoonGap,
       webtoonMaxWidth: input.webtoonMaxWidth,
+      usePhysicalNavigation: input.usePhysicalNavigation,
     },
   });
 
@@ -495,6 +505,7 @@ export function extractSettingsFromPreset(preset: ReaderPreset): {
   preloadCount: number;
   webtoonGap: number;
   webtoonMaxWidth: number;
+  usePhysicalNavigation: boolean | null;
 } {
   return {
     mode: preset.mode,
@@ -510,5 +521,6 @@ export function extractSettingsFromPreset(preset: ReaderPreset): {
     preloadCount: preset.preloadCount,
     webtoonGap: preset.webtoonGap,
     webtoonMaxWidth: preset.webtoonMaxWidth,
+    usePhysicalNavigation: preset.usePhysicalNavigation,
   };
 }

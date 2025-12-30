@@ -10,9 +10,10 @@ import {
   useContext,
   useState,
   useCallback,
-  useEffect,
+  useMemo,
   ReactNode,
 } from 'react';
+import { useFilterPresets, type FilterPreset } from './FilterPresetContext';
 
 // =============================================================================
 // Types
@@ -36,7 +37,28 @@ export type FilterField =
   | 'storyArc'
   | 'status'
   | 'path'
-  | 'rating';
+  | 'rating'
+  // Smart collection fields
+  | 'readStatus'
+  | 'dateAdded'
+  | 'lastReadAt'
+  | 'pageCount'
+  | 'fileSize'
+  | 'libraryId'
+  // External rating fields
+  | 'externalRating'
+  | 'communityRating'
+  | 'criticRating'
+  // Additional metadata fields
+  | 'imprint'
+  | 'ageRating'
+  | 'format'
+  | 'language'
+  | 'inker'
+  | 'colorist'
+  | 'letterer'
+  | 'editor'
+  | 'count';
 
 export type FilterComparison =
   | 'contains'
@@ -49,7 +71,25 @@ export type FilterComparison =
   | 'is_not_empty'
   | 'greater_than'
   | 'less_than'
-  | 'between';
+  | 'between'
+  // Date comparisons
+  | 'within_days'
+  | 'before'
+  | 'after';
+
+// Sorting types
+export type SortField =
+  | 'name'
+  | 'title'
+  | 'year'
+  | 'dateAdded'
+  | 'lastReadAt'
+  | 'number'
+  | 'publisher'
+  | 'rating'
+  | 'externalRating';
+
+export type SortOrder = 'asc' | 'desc';
 
 export interface FilterCondition {
   id: string;
@@ -70,6 +110,9 @@ export interface SmartFilter {
   name: string;
   rootOperator: FilterOperator;
   groups: FilterGroup[];
+  // Sorting options
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
   createdAt: string;
   updatedAt: string;
 }
@@ -84,6 +127,17 @@ export interface FilterableFile {
   relativePath: string;
   status: string;
   rating?: number | null;
+  // File-level fields
+  libraryId?: string | null;
+  size?: number | null;
+  createdAt?: string | null;
+  // Reading progress fields (augmented from progress)
+  readStatus?: 'unread' | 'reading' | 'completed' | null;
+  lastReadAt?: string | null;
+  // External ratings (aggregated)
+  externalRating?: number | null;
+  communityRating?: number | null;
+  criticRating?: number | null;
   metadata?: {
     series?: string | null;
     title?: string | null;
@@ -98,6 +152,17 @@ export interface FilterableFile {
     teams?: string | null;
     locations?: string | null;
     storyArc?: string | null;
+    // Additional metadata fields
+    pageCount?: number | null;
+    imprint?: string | null;
+    ageRating?: string | null;
+    format?: string | null;
+    languageISO?: string | null;
+    inker?: string | null;
+    colorist?: string | null;
+    letterer?: string | null;
+    editor?: string | null;
+    count?: number | null;
   } | null;
 }
 
@@ -129,11 +194,15 @@ export interface SmartFilterContextValue extends SmartFilterState {
   removeGroup: (groupId: string) => void;
   setRootOperator: (operator: FilterOperator) => void;
 
+  // Sorting actions
+  setSortBy: (sortBy: SortField | undefined) => void;
+  setSortOrder: (sortOrder: SortOrder) => void;
+
   // Preset management
-  saveFilter: (name: string) => void;
+  saveFilter: (name: string) => Promise<void>;
   loadFilter: (filterId: string) => void;
-  deleteFilter: (filterId: string) => void;
-  renameFilter: (filterId: string, newName: string) => void;
+  deleteFilter: (filterId: string) => Promise<void>;
+  renameFilter: (filterId: string, newName: string) => Promise<void>;
 
   // UI actions
   toggleFilterPanel: () => void;
@@ -148,24 +217,45 @@ export interface SmartFilterContextValue extends SmartFilterState {
 // Constants
 // =============================================================================
 
-export const FILTER_FIELDS: { value: FilterField; label: string; type: 'string' | 'number' }[] = [
+export const FILTER_FIELDS: { value: FilterField; label: string; type: 'string' | 'number' | 'date' }[] = [
+  // String fields
   { value: 'filename', label: 'Filename', type: 'string' },
   { value: 'series', label: 'Series', type: 'string' },
   { value: 'title', label: 'Title', type: 'string' },
-  { value: 'number', label: 'Issue Number', type: 'string' },
-  { value: 'volume', label: 'Volume', type: 'number' },
-  { value: 'year', label: 'Year', type: 'number' },
   { value: 'publisher', label: 'Publisher', type: 'string' },
+  { value: 'imprint', label: 'Imprint', type: 'string' },
   { value: 'writer', label: 'Writer', type: 'string' },
   { value: 'penciller', label: 'Artist', type: 'string' },
+  { value: 'inker', label: 'Inker', type: 'string' },
+  { value: 'colorist', label: 'Colorist', type: 'string' },
+  { value: 'letterer', label: 'Letterer', type: 'string' },
+  { value: 'editor', label: 'Editor', type: 'string' },
   { value: 'genre', label: 'Genre', type: 'string' },
   { value: 'characters', label: 'Characters', type: 'string' },
   { value: 'teams', label: 'Teams', type: 'string' },
   { value: 'locations', label: 'Locations', type: 'string' },
   { value: 'storyArc', label: 'Story Arc', type: 'string' },
+  { value: 'ageRating', label: 'Age Rating', type: 'string' },
+  { value: 'format', label: 'Format', type: 'string' },
+  { value: 'language', label: 'Language', type: 'string' },
   { value: 'status', label: 'File Status', type: 'string' },
+  { value: 'readStatus', label: 'Read Status', type: 'string' },
   { value: 'path', label: 'File Path', type: 'string' },
+  { value: 'libraryId', label: 'Library', type: 'string' },
+  // Number fields
+  { value: 'number', label: 'Issue Number', type: 'number' },
+  { value: 'volume', label: 'Volume', type: 'number' },
+  { value: 'year', label: 'Year', type: 'number' },
+  { value: 'pageCount', label: 'Page Count', type: 'number' },
+  { value: 'fileSize', label: 'File Size (MB)', type: 'number' },
+  { value: 'count', label: 'Total Issues', type: 'number' },
   { value: 'rating', label: 'Your Rating', type: 'number' },
+  { value: 'externalRating', label: 'External Rating', type: 'number' },
+  { value: 'communityRating', label: 'Community Rating', type: 'number' },
+  { value: 'criticRating', label: 'Critic Rating', type: 'number' },
+  // Date fields
+  { value: 'dateAdded', label: 'Date Added', type: 'date' },
+  { value: 'lastReadAt', label: 'Last Read', type: 'date' },
 ];
 
 export const STRING_COMPARISONS: { value: FilterComparison; label: string }[] = [
@@ -189,7 +279,25 @@ export const NUMBER_COMPARISONS: { value: FilterComparison; label: string }[] = 
   { value: 'is_not_empty', label: 'is not empty' },
 ];
 
-const STORAGE_KEY = 'helixio-smart-filters';
+export const DATE_COMPARISONS: { value: FilterComparison; label: string }[] = [
+  { value: 'within_days', label: 'within last N days' },
+  { value: 'before', label: 'before date' },
+  { value: 'after', label: 'after date' },
+  { value: 'is_empty', label: 'is empty' },
+  { value: 'is_not_empty', label: 'is not empty' },
+];
+
+export const SORT_FIELDS: { value: SortField; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'title', label: 'Title' },
+  { value: 'year', label: 'Year' },
+  { value: 'dateAdded', label: 'Date Added' },
+  { value: 'lastReadAt', label: 'Last Read' },
+  { value: 'number', label: 'Issue Number' },
+  { value: 'publisher', label: 'Publisher' },
+  { value: 'rating', label: 'Your Rating' },
+  { value: 'externalRating', label: 'External Rating' },
+];
 
 // =============================================================================
 // Helper Functions
@@ -229,6 +337,7 @@ function createEmptyFilter(): SmartFilter {
 
 function getFieldValue(file: FilterableFile, field: FilterField): string | number | null {
   switch (field) {
+    // File-level fields
     case 'filename':
       return file.filename;
     case 'path':
@@ -237,32 +346,72 @@ function getFieldValue(file: FilterableFile, field: FilterField): string | numbe
       return file.status;
     case 'rating':
       return file.rating ?? null;
+    case 'libraryId':
+      return file.libraryId ?? null;
+    case 'fileSize':
+      return file.size ?? null;
+    case 'dateAdded':
+      return file.createdAt ?? null;
+    // Reading progress fields
+    case 'readStatus':
+      return file.readStatus ?? null;
+    case 'lastReadAt':
+      return file.lastReadAt ?? null;
+    // External rating fields
+    case 'externalRating':
+      return file.externalRating ?? null;
+    case 'communityRating':
+      return file.communityRating ?? null;
+    case 'criticRating':
+      return file.criticRating ?? null;
+    // Metadata fields
     case 'series':
-      return (file.metadata?.series as string) ?? null;
+      return file.metadata?.series ?? null;
     case 'title':
-      return (file.metadata?.title as string) ?? null;
+      return file.metadata?.title ?? null;
     case 'number':
-      return (file.metadata?.number as string) ?? null;
+      return file.metadata?.number ?? null;
     case 'volume':
-      return (file.metadata?.volume as number) ?? null;
+      return file.metadata?.volume ?? null;
     case 'year':
-      return (file.metadata?.year as number) ?? null;
+      return file.metadata?.year ?? null;
     case 'publisher':
-      return (file.metadata?.publisher as string) ?? null;
+      return file.metadata?.publisher ?? null;
     case 'writer':
-      return (file.metadata?.writer as string) ?? null;
+      return file.metadata?.writer ?? null;
     case 'penciller':
-      return (file.metadata?.penciller as string) ?? null;
+      return file.metadata?.penciller ?? null;
     case 'genre':
-      return (file.metadata?.genre as string) ?? null;
+      return file.metadata?.genre ?? null;
     case 'characters':
-      return (file.metadata?.characters as string) ?? null;
+      return file.metadata?.characters ?? null;
     case 'teams':
-      return (file.metadata?.teams as string) ?? null;
+      return file.metadata?.teams ?? null;
     case 'locations':
-      return (file.metadata?.locations as string) ?? null;
+      return file.metadata?.locations ?? null;
     case 'storyArc':
-      return (file.metadata?.storyArc as string) ?? null;
+      return file.metadata?.storyArc ?? null;
+    // Additional metadata fields
+    case 'pageCount':
+      return file.metadata?.pageCount ?? null;
+    case 'imprint':
+      return file.metadata?.imprint ?? null;
+    case 'ageRating':
+      return file.metadata?.ageRating ?? null;
+    case 'format':
+      return file.metadata?.format ?? null;
+    case 'language':
+      return file.metadata?.languageISO ?? null;
+    case 'inker':
+      return file.metadata?.inker ?? null;
+    case 'colorist':
+      return file.metadata?.colorist ?? null;
+    case 'letterer':
+      return file.metadata?.letterer ?? null;
+    case 'editor':
+      return file.metadata?.editor ?? null;
+    case 'count':
+      return file.metadata?.count ?? null;
     default:
       return null;
   }
@@ -273,6 +422,7 @@ function evaluateCondition(
   condition: FilterCondition
 ): boolean {
   const fieldValue = getFieldValue(file, condition.field);
+  const fieldConfig = FILTER_FIELDS.find(f => f.value === condition.field);
   const searchValue = condition.value.toLowerCase();
 
   // Handle is_empty and is_not_empty
@@ -286,6 +436,34 @@ function evaluateCondition(
   // If field is empty, it doesn't match most conditions
   if (fieldValue === null || fieldValue === undefined) {
     return false;
+  }
+
+  // Handle date fields
+  if (fieldConfig?.type === 'date') {
+    const dateValue = new Date(fieldValue as string);
+    if (isNaN(dateValue.getTime())) return false;
+
+    switch (condition.comparison) {
+      case 'within_days': {
+        const daysAgo = parseInt(condition.value);
+        if (isNaN(daysAgo)) return false;
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - daysAgo);
+        return dateValue >= cutoff;
+      }
+      case 'before': {
+        const compareDate = new Date(condition.value);
+        if (isNaN(compareDate.getTime())) return false;
+        return dateValue < compareDate;
+      }
+      case 'after': {
+        const compareDate = new Date(condition.value);
+        if (isNaN(compareDate.getTime())) return false;
+        return dateValue > compareDate;
+      }
+      default:
+        return false;
+    }
   }
 
   const stringValue = String(fieldValue).toLowerCase();
@@ -351,6 +529,21 @@ function evaluateFilter(
   }
 }
 
+/**
+ * Convert a FilterPreset (from API) to SmartFilter (for internal use)
+ */
+function presetToSmartFilter(preset: FilterPreset): SmartFilter {
+  return {
+    ...preset.filterDefinition,
+    id: preset.id,
+    name: preset.name,
+    sortBy: preset.sortBy ?? undefined,
+    sortOrder: preset.sortOrder ?? undefined,
+    createdAt: preset.createdAt,
+    updatedAt: preset.updatedAt,
+  };
+}
+
 // =============================================================================
 // Context
 // =============================================================================
@@ -374,26 +567,20 @@ interface SmartFilterProviderProps {
 }
 
 export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
-  // Load saved filters from localStorage
-  const [savedFilters, setSavedFilters] = useState<SmartFilter[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch {
-      // Ignore parse errors
-    }
-    return [];
-  });
+  const {
+    presets,
+    createPreset,
+    updatePreset,
+    deletePreset: deletePresetApi,
+  } = useFilterPresets();
 
   const [activeFilter, setActiveFilterState] = useState<SmartFilter | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
-  // Save filters to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedFilters));
-  }, [savedFilters]);
+  // Convert presets to SmartFilter format
+  const savedFilters = useMemo(() => {
+    return presets.map(presetToSmartFilter);
+  }, [presets]);
 
   // ---------------------------------------------------------------------------
   // Filter Actions
@@ -537,22 +724,62 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Sorting Actions
+  // ---------------------------------------------------------------------------
+
+  const setSortBy = useCallback((sortBy: SortField | undefined) => {
+    setActiveFilterState(prev => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        sortBy,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  }, []);
+
+  const setSortOrder = useCallback((sortOrder: SortOrder) => {
+    setActiveFilterState(prev => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        sortOrder,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Preset Management
   // ---------------------------------------------------------------------------
 
-  const saveFilter = useCallback((name: string) => {
+  const saveFilter = useCallback(async (name: string) => {
     if (!activeFilter) return;
 
-    const savedFilter: SmartFilter = {
-      ...activeFilter,
-      id: generateId(),
-      name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    // Create filter definition without the id, name, timestamps (those are stored separately)
+    const filterDefinition = {
+      id: activeFilter.id,
+      name: activeFilter.name,
+      rootOperator: activeFilter.rootOperator,
+      groups: activeFilter.groups,
+      createdAt: activeFilter.createdAt,
+      updatedAt: activeFilter.updatedAt,
     };
 
-    setSavedFilters(prev => [...prev, savedFilter]);
-  }, [activeFilter]);
+    try {
+      await createPreset({
+        name,
+        filterDefinition,
+        sortBy: activeFilter.sortBy,
+        sortOrder: activeFilter.sortOrder,
+      });
+    } catch (error) {
+      console.error('Failed to save filter:', error);
+      throw error;
+    }
+  }, [activeFilter, createPreset]);
 
   const loadFilter = useCallback((filterId: string) => {
     const filter = savedFilters.find(f => f.id === filterId);
@@ -565,17 +792,23 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
     }
   }, [savedFilters]);
 
-  const deleteFilter = useCallback((filterId: string) => {
-    setSavedFilters(prev => prev.filter(f => f.id !== filterId));
-  }, []);
+  const deleteFilter = useCallback(async (filterId: string) => {
+    try {
+      await deletePresetApi(filterId);
+    } catch (error) {
+      console.error('Failed to delete filter:', error);
+      throw error;
+    }
+  }, [deletePresetApi]);
 
-  const renameFilter = useCallback((filterId: string, newName: string) => {
-    setSavedFilters(prev => prev.map(f =>
-      f.id === filterId
-        ? { ...f, name: newName, updatedAt: new Date().toISOString() }
-        : f
-    ));
-  }, []);
+  const renameFilter = useCallback(async (filterId: string, newName: string) => {
+    try {
+      await updatePreset(filterId, { name: newName });
+    } catch (error) {
+      console.error('Failed to rename filter:', error);
+      throw error;
+    }
+  }, [updatePreset]);
 
   // ---------------------------------------------------------------------------
   // UI Actions
@@ -654,6 +887,10 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
     updateGroupOperator,
     removeGroup,
     setRootOperator,
+
+    // Sorting actions
+    setSortBy,
+    setSortOrder,
 
     // Preset management
     saveFilter,

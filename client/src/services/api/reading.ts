@@ -114,6 +114,7 @@ export interface AdjacentFiles {
   currentIndex: number;
   totalInSeries: number;
   seriesName: string | null;
+  seriesId: string | null;
 }
 
 // =============================================================================
@@ -150,6 +151,7 @@ export interface ReaderSettings {
   showPageShadow: boolean;
   autoHideUI: boolean;
   preloadCount: number;
+  usePhysicalNavigation: boolean | null; // null = auto (RTL uses logical), true = always physical, false = always logical
   updatedAt: string;
 }
 
@@ -165,6 +167,7 @@ export interface UpdateReaderSettingsInput {
   showPageShadow?: boolean;
   autoHideUI?: boolean;
   preloadCount?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 export interface PartialReaderSettings {
@@ -178,6 +181,7 @@ export interface PartialReaderSettings {
   showPageShadow?: boolean | null;
   autoHideUI?: boolean | null;
   preloadCount?: number | null;
+  usePhysicalNavigation?: boolean | null;
 }
 
 export type SettingsSource = 'global' | 'library' | 'series' | 'issue';
@@ -213,6 +217,7 @@ export interface ReaderPreset {
   preloadCount: number;
   webtoonGap: number;
   webtoonMaxWidth: number;
+  usePhysicalNavigation: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -235,6 +240,7 @@ export interface CreatePresetInput {
   preloadCount?: number;
   webtoonGap?: number;
   webtoonMaxWidth?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 export interface UpdatePresetInput {
@@ -254,6 +260,7 @@ export interface UpdatePresetInput {
   preloadCount?: number;
   webtoonGap?: number;
   webtoonMaxWidth?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 export interface PresetsGrouped {
@@ -807,6 +814,46 @@ export async function deleteSeriesReaderSettings(
   return del<{ success: boolean }>(
     `/reader-settings/series/${encodeURIComponent(series)}`
   );
+}
+
+// =============================================================================
+// Series Reader Settings (ID-based - preferred)
+// =============================================================================
+
+/**
+ * Get series-level reader settings by ID
+ */
+export async function getSeriesReaderSettingsById(
+  seriesId: string
+): Promise<PartialReaderSettings> {
+  return get<PartialReaderSettings>(`/reader-settings/series-by-id/${seriesId}`);
+}
+
+/**
+ * Update series-level reader settings by ID
+ */
+export async function updateSeriesReaderSettingsById(
+  seriesId: string,
+  settings: PartialReaderSettings
+): Promise<PartialReaderSettings> {
+  const response = await fetch(
+    `${API_BASE}/reader-settings/series-by-id/${seriesId}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    }
+  );
+  return handleResponse<PartialReaderSettings>(response);
+}
+
+/**
+ * Delete series-level reader settings by ID (revert to library/global defaults)
+ */
+export async function deleteSeriesReaderSettingsById(
+  seriesId: string
+): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/reader-settings/series-by-id/${seriesId}`);
 }
 
 // =============================================================================

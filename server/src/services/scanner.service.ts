@@ -311,11 +311,20 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
   }
 
   // Check affected series for soft-delete (series with 0 issues)
+  // and recalculate covers for series that aren't deleted
   for (const seriesId of affectedSeriesIds) {
     try {
       const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
       if (wasDeleted) {
         logInfo('scanner', `Soft-deleted empty series: ${seriesId}`, { seriesId });
+      } else {
+        // Series still has issues - recalculate cover (first issue may have changed)
+        try {
+          const { recalculateSeriesCover } = await import('./cover.service.js');
+          await recalculateSeriesCover(seriesId);
+        } catch {
+          // Non-critical
+        }
       }
     } catch (err) {
       logError('scanner', err, { action: 'soft-delete-check', seriesId });
@@ -347,10 +356,19 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
       orphaned++;
     }
 
-    // Check newly affected series for soft-delete
+    // Check newly affected series for soft-delete and recalculate covers
     for (const seriesId of affectedSeriesIds) {
       try {
-        await checkAndSoftDeleteEmptySeries(seriesId);
+        const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
+        if (!wasDeleted) {
+          // Series still has issues - recalculate cover
+          try {
+            const { recalculateSeriesCover } = await import('./cover.service.js');
+            await recalculateSeriesCover(seriesId);
+          } catch {
+            // Non-critical
+          }
+        }
       } catch (err) {
         logError('scanner', err, { action: 'soft-delete-check', seriesId });
       }

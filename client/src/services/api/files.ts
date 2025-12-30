@@ -286,11 +286,12 @@ export function getPageThumbnailUrl(fileId: string, pagePath: string): string {
 
 /**
  * Get cover URL for a file with optional cache-busting parameter.
+ * Uses the canonical /api/covers endpoint.
  * @param fileId - The file ID
  * @param version - Optional version string (e.g., coverHash or timestamp) for cache-busting
  */
 export function getCoverUrl(fileId: string, version?: string | null): string {
-  const baseUrl = `${API_BASE}/archives/${fileId}/cover`;
+  const baseUrl = `${API_BASE}/covers/${fileId}`;
   if (version) {
     return `${baseUrl}?v=${encodeURIComponent(version)}`;
   }
@@ -324,8 +325,10 @@ export interface SeriesCoverData {
  * Resolve cover URL for a series with full fallback chain
  * Priority: API cover (coverHash) > User-set cover (coverFileId) > First issue cover
  *
- * This is the canonical implementation - use this function instead of
- * duplicating the fallback logic in components.
+ * @deprecated Use getSeriesCoverUrl(seriesId) from services/api/series.ts instead.
+ * Server now handles all cover resolution via /api/series/:id/cover-image endpoint.
+ * This function is kept for backwards compatibility during migration but will be
+ * removed in a future release.
  *
  * Note: This is different from getSeriesCoverUrl(seriesId) in series.ts which
  * returns a server endpoint URL. This function resolves the URL client-side

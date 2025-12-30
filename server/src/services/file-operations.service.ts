@@ -266,6 +266,7 @@ export async function deleteFile(
   }
 
   const sourcePath = file.path;
+  const seriesId = file.seriesId; // Capture before deletion
 
   try {
     // Check file exists
@@ -278,6 +279,23 @@ export async function deleteFile(
     await db.comicFile.delete({
       where: { id: fileId },
     });
+
+    // Recalculate covers for affected series
+    // This handles: 1) the file's series (first issue may have changed)
+    //               2) any other series using this file as their cover
+    try {
+      const { onCoverSourceChanged, recalculateSeriesCover } = await import('./cover.service.js');
+
+      // Handle series that were using this file as a custom cover
+      await onCoverSourceChanged('file', fileId);
+
+      // Also recalculate the file's own series (first issue may have changed)
+      if (seriesId) {
+        await recalculateSeriesCover(seriesId);
+      }
+    } catch {
+      // Non-critical - cover recalculation failure shouldn't fail the delete
+    }
 
     // Log the operation (not reversible after deletion)
     const logId = await logOperation({

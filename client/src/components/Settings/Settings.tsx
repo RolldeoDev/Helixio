@@ -15,6 +15,13 @@ import {
   updateLibrary,
   Library,
 } from '../../services/api.service';
+import {
+  getReaderPresetsGrouped,
+  applyPresetToLibrary,
+  deleteLibraryReaderSettings,
+  getLibraryReaderSettings,
+  PresetsGrouped,
+} from '../../services/api/reading';
 import { FolderBrowser } from '../FolderBrowser/FolderBrowser';
 import { AccountSettings } from './AccountSettings';
 import { AdminSettings } from './AdminSettings';
@@ -74,6 +81,11 @@ export function Settings() {
 
   // Library scan context
   const { startScan, hasActiveScan } = useLibraryScan();
+
+  // Library reader profile state
+  const [readerPresets, setReaderPresets] = useState<PresetsGrouped | null>(null);
+  const [libraryReaderSettings, setLibraryReaderSettings] = useState<Record<string, { presetId?: string; presetName?: string } | null>>({});
+  const [loadingLibraryReaderSettings, setLoadingLibraryReaderSettings] = useState<Record<string, boolean>>({});
 
   // Settings state
   const [metadataSourcePriority, setMetadataSourcePriority] = useState<string[]>(['comicvine', 'metron']);
@@ -149,6 +161,40 @@ export function Settings() {
 
     loadConfiguration();
   }, []);
+
+  // Fetch reader presets when Libraries tab is active
+  useEffect(() => {
+    if (activeTab === 'libraries' && !readerPresets) {
+      getReaderPresetsGrouped().then(setReaderPresets).catch(console.error);
+    }
+  }, [activeTab, readerPresets]);
+
+  // Fetch reader settings for each library when Libraries tab is active
+  useEffect(() => {
+    if (activeTab === 'libraries' && libraries.length > 0) {
+      libraries.forEach(async (lib) => {
+        if (libraryReaderSettings[lib.id] === undefined) {
+          setLoadingLibraryReaderSettings(prev => ({ ...prev, [lib.id]: true }));
+          try {
+            const settings = await getLibraryReaderSettings(lib.id);
+            // Settings response includes basedOnPresetId/Name if a preset was applied
+            const settingsWithPreset = settings as { basedOnPresetId?: string; basedOnPresetName?: string };
+            setLibraryReaderSettings(prev => ({
+              ...prev,
+              [lib.id]: settingsWithPreset.basedOnPresetId ? {
+                presetId: settingsWithPreset.basedOnPresetId,
+                presetName: settingsWithPreset.basedOnPresetName
+              } : null
+            }));
+          } catch {
+            setLibraryReaderSettings(prev => ({ ...prev, [lib.id]: null }));
+          } finally {
+            setLoadingLibraryReaderSettings(prev => ({ ...prev, [lib.id]: false }));
+          }
+        }
+      });
+    }
+  }, [activeTab, libraries, libraryReaderSettings]);
 
   // Save general settings
   const handleSaveSettings = async () => {
@@ -538,6 +584,57 @@ export function Settings() {
                           <span className="library-type badge">
                             {library.type === 'manga' ? 'Manga' : 'Western'}
                           </span>
+                          {/* Reader Profile */}
+                          <div className="library-reader-profile">
+                            <span className="reader-profile-label">Reader:</span>
+                            {loadingLibraryReaderSettings[library.id] ? (
+                              <span className="reader-profile-value muted">Loading...</span>
+                            ) : libraryReaderSettings[library.id]?.presetName ? (
+                              <span className="reader-profile-value">{libraryReaderSettings[library.id]?.presetName}</span>
+                            ) : (
+                              <span className="reader-profile-value muted">Global Defaults</span>
+                            )}
+                            <select
+                              className="reader-profile-select"
+                              value={libraryReaderSettings[library.id]?.presetId || ''}
+                              onChange={async (e) => {
+                                const presetId = e.target.value;
+                                if (presetId === '') {
+                                  // Clear to use global defaults
+                                  await deleteLibraryReaderSettings(library.id);
+                                  setLibraryReaderSettings(prev => ({ ...prev, [library.id]: null }));
+                                } else {
+                                  // Find preset name for display
+                                  const allPresets = [...(readerPresets?.bundled || []), ...(readerPresets?.system || []), ...(readerPresets?.user || [])];
+                                  const preset = allPresets.find(p => p.id === presetId);
+                                  await applyPresetToLibrary(presetId, library.id);
+                                  setLibraryReaderSettings(prev => ({
+                                    ...prev,
+                                    [library.id]: { presetId, presetName: preset?.name || 'Custom' }
+                                  }));
+                                }
+                              }}
+                            >
+                              <option value="">Use Global Defaults</option>
+                              {readerPresets?.bundled?.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                              ))}
+                              {readerPresets?.system && readerPresets.system.length > 0 && (
+                                <optgroup label="System">
+                                  {readerPresets.system.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {readerPresets?.user && readerPresets.user.length > 0 && (
+                                <optgroup label="My Presets">
+                                  {readerPresets.user.map(p => (
+                                    <option key={p.id} value={p.id}>{p.name}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                            </select>
+                          </div>
                         </div>
                         <div className="library-actions">
                           <button

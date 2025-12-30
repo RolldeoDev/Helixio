@@ -125,8 +125,16 @@ function getTokenValue(tokenName: string, context: ResolverContext): string | un
       return comicInfo.Imprint;
 
     // Date tokens
-    case 'Year':
-      return comicInfo.Year?.toString();
+    case 'Year': {
+      // Sanitize year value - extract only numeric 4-digit year
+      // Fixes bug where year could contain extension artifact like "1990cbz"
+      const rawYear = comicInfo.Year?.toString();
+      if (rawYear) {
+        const match = rawYear.match(/^(\d{4})/);
+        return match ? match[1] : undefined;
+      }
+      return undefined;
+    }
     case 'Month':
       return comicInfo.Month?.toString();
     case 'Day':

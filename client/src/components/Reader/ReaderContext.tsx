@@ -21,7 +21,7 @@ import {
   getArchiveContents,
   getReadingProgress,
   updateReadingProgress,
-  getReaderSettings,
+  getResolvedReaderSettings,
   updateReaderSettings,
   addBookmark as apiAddBookmark,
   removeBookmark as apiRemoveBookmark,
@@ -91,6 +91,7 @@ export interface ReaderState {
   showPageShadow: boolean;
   autoHideUI: boolean;
   preloadCount: number;
+  usePhysicalNavigation: boolean | null; // null = auto (RTL uses logical), true = always physical, false = always logical
 
   // Webtoon mode settings
   webtoonGap: number; // Gap between pages in webtoon mode (px)
@@ -144,6 +145,7 @@ type ReaderAction =
   | { type: 'SET_COLOR_CORRECTION'; payload: ColorCorrection }
   | { type: 'TOGGLE_PAGE_SHADOW' }
   | { type: 'TOGGLE_AUTO_HIDE_UI' }
+  | { type: 'SET_USE_PHYSICAL_NAVIGATION'; payload: boolean | null }
   | { type: 'TOGGLE_FULLSCREEN' }
   | { type: 'SET_FULLSCREEN'; payload: boolean }
   | { type: 'TOGGLE_UI' }
@@ -204,6 +206,7 @@ const createInitialState = (fileId: string, filename: string): ReaderState => ({
   showPageShadow: true,
   autoHideUI: true,
   preloadCount: 3,
+  usePhysicalNavigation: null,
   webtoonGap: 8,
   webtoonMaxWidth: 800,
   isFullscreen: false,
@@ -398,7 +401,11 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
         showPageShadow: action.payload.showPageShadow,
         autoHideUI: action.payload.autoHideUI,
         preloadCount: action.payload.preloadCount,
+        usePhysicalNavigation: action.payload.usePhysicalNavigation ?? null,
       };
+
+    case 'SET_USE_PHYSICAL_NAVIGATION':
+      return { ...state, usePhysicalNavigation: action.payload };
 
     case 'SET_PAGE_DIMENSIONS': {
       const newDimensions = new Map(state.pageDimensions);
@@ -488,6 +495,7 @@ interface ReaderContextValue {
   setColorCorrection: (colorCorrection: ColorCorrection) => void;
   togglePageShadow: () => void;
   toggleAutoHideUI: () => void;
+  setUsePhysicalNavigation: (value: boolean | null) => void;
   saveSettings: () => Promise<void>;
   // Webtoon settings
   setWebtoonGap: (gap: number) => void;
@@ -558,7 +566,7 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
       try {
         // Load settings, archive contents, progress, adjacent files, and file metadata in parallel
         const [settingsResponse, contentsResponse, progressResponse, adjacentResponse, fileResponse] = await Promise.all([
-          getReaderSettings(),
+          getResolvedReaderSettings(fileId),
           getArchiveContents(fileId),
           getReadingProgress(fileId),
           getAdjacentFiles(fileId),
@@ -797,6 +805,10 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     dispatch({ type: 'TOGGLE_AUTO_HIDE_UI' });
   }, []);
 
+  const setUsePhysicalNavigation = useCallback((value: boolean | null) => {
+    dispatch({ type: 'SET_USE_PHYSICAL_NAVIGATION', payload: value });
+  }, []);
+
   const saveSettings = useCallback(async () => {
     try {
       // Convert webtoon mode to continuous for saving (API doesn't know about webtoon)
@@ -813,6 +825,7 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
         showPageShadow: state.showPageShadow,
         autoHideUI: state.autoHideUI,
         preloadCount: state.preloadCount,
+        usePhysicalNavigation: state.usePhysicalNavigation,
       });
     } catch (err) {
       console.error('Failed to save reader settings:', err);
@@ -1061,6 +1074,7 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     setColorCorrection,
     togglePageShadow,
     toggleAutoHideUI,
+    setUsePhysicalNavigation,
     saveSettings,
     setWebtoonGap,
     setWebtoonMaxWidth,

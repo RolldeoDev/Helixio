@@ -405,6 +405,30 @@ export function createMockPrismaClient() {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       count: vi.fn().mockResolvedValue(0),
     },
+    filterPreset: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({
+        id: 'preset-1',
+        userId: args.data.userId ?? null,
+        isGlobal: args.data.isGlobal ?? false,
+        name: args.data.name,
+        description: args.data.description ?? null,
+        icon: args.data.icon ?? null,
+        filterDefinition: args.data.filterDefinition,
+        schemaVersion: args.data.schemaVersion ?? 1,
+        sortBy: args.data.sortBy ?? null,
+        sortOrder: args.data.sortOrder ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...args.data,
+      })),
+      update: vi.fn().mockImplementation((args) => Promise.resolve({ id: args.where.id, ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      count: vi.fn().mockResolvedValue(0),
+    },
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
     $transaction: vi.fn().mockImplementation((arg) => {
@@ -678,6 +702,7 @@ export function createMockCollection(overrides: Partial<{
   isSmart: boolean;
   smartScope: string | null;
   filterDefinition: string | null;
+  filterPresetId: string | null;
   lastEvaluatedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -714,6 +739,7 @@ export function createMockCollection(overrides: Partial<{
     isSmart: false,
     smartScope: null,
     filterDefinition: null,
+    filterPresetId: null,
     lastEvaluatedAt: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
@@ -1048,6 +1074,56 @@ export function createMockRatingSyncJob(overrides: Partial<{
     createdAt: new Date('2024-01-01'),
     startedAt: null,
     completedAt: null,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a mock filter preset record.
+ */
+export function createMockFilterPreset(overrides: Partial<{
+  id: string;
+  userId: string | null;
+  isGlobal: boolean;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  filterDefinition: string;
+  schemaVersion: number;
+  sortBy: string | null;
+  sortOrder: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  linkedCollections: Array<{ id: string; name: string; userId: string; _count: { items: number } }>;
+}> = {}) {
+  return {
+    id: 'preset-1',
+    userId: 'user-1',
+    isGlobal: false,
+    name: 'Test Preset',
+    description: null,
+    icon: null,
+    filterDefinition: JSON.stringify({
+      id: 'filter-1',
+      name: 'Test Preset',
+      rootOperator: 'AND',
+      groups: [{
+        id: 'group-1',
+        operator: 'AND',
+        conditions: [{
+          id: 'cond-1',
+          field: 'publisher',
+          comparison: 'equals',
+          value: 'Marvel',
+        }],
+      }],
+    }),
+    schemaVersion: 1,
+    sortBy: null,
+    sortOrder: null,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+    linkedCollections: [],
     ...overrides,
   };
 }

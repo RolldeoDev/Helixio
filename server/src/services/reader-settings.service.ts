@@ -37,6 +37,7 @@ export interface ReaderSettings {
   preloadCount: number;
   webtoonGap: number;
   webtoonMaxWidth: number;
+  usePhysicalNavigation: boolean | null; // null = auto (RTL uses logical), true = always physical, false = always logical
   updatedAt: Date;
 }
 
@@ -54,6 +55,7 @@ export interface UpdateReaderSettingsInput {
   preloadCount?: number;
   webtoonGap?: number;
   webtoonMaxWidth?: number;
+  usePhysicalNavigation?: boolean | null;
 }
 
 // =============================================================================
@@ -74,6 +76,7 @@ const DEFAULT_SETTINGS: Omit<ReaderSettings, 'id' | 'updatedAt'> = {
   preloadCount: 3,
   webtoonGap: 8,
   webtoonMaxWidth: 800,
+  usePhysicalNavigation: null,
 };
 
 // =============================================================================
@@ -206,6 +209,7 @@ export interface PartialReaderSettings {
   preloadCount?: number | null;
   webtoonGap?: number | null;
   webtoonMaxWidth?: number | null;
+  usePhysicalNavigation?: boolean | null;
   basedOnPresetId?: string | null;
   basedOnPresetName?: string | null;
 }
@@ -236,6 +240,7 @@ export async function getLibrarySettings(libraryId: string): Promise<PartialRead
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -276,6 +281,7 @@ export async function updateLibrarySettings(
       preloadCount: input.preloadCount,
       webtoonGap: input.webtoonGap,
       webtoonMaxWidth: input.webtoonMaxWidth,
+      usePhysicalNavigation: input.usePhysicalNavigation,
       basedOnPresetId: input.basedOnPresetId,
       basedOnPresetName: input.basedOnPresetName,
     },
@@ -296,6 +302,7 @@ export async function updateLibrarySettings(
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -340,6 +347,7 @@ export async function getSeriesSettingsById(seriesId: string): Promise<PartialRe
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -407,6 +415,7 @@ export async function updateSeriesSettingsById(
       preloadCount: input.preloadCount,
       webtoonGap: input.webtoonGap,
       webtoonMaxWidth: input.webtoonMaxWidth,
+      usePhysicalNavigation: input.usePhysicalNavigation,
       basedOnPresetId: input.basedOnPresetId,
       basedOnPresetName: input.basedOnPresetName,
     },
@@ -427,6 +436,7 @@ export async function updateSeriesSettingsById(
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -531,6 +541,7 @@ export async function getIssueSettings(fileId: string): Promise<PartialReaderSet
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -571,6 +582,7 @@ export async function updateIssueSettings(
       preloadCount: input.preloadCount,
       webtoonGap: input.webtoonGap,
       webtoonMaxWidth: input.webtoonMaxWidth,
+      usePhysicalNavigation: input.usePhysicalNavigation,
       basedOnPresetId: input.basedOnPresetId,
       basedOnPresetName: input.basedOnPresetName,
     },
@@ -591,6 +603,7 @@ export async function updateIssueSettings(
     preloadCount: settings.preloadCount,
     webtoonGap: settings.webtoonGap,
     webtoonMaxWidth: settings.webtoonMaxWidth,
+    usePhysicalNavigation: settings.usePhysicalNavigation,
     basedOnPresetId: settings.basedOnPresetId,
     basedOnPresetName: settings.basedOnPresetName,
   };
@@ -640,6 +653,7 @@ function partialToFull(partial: PartialReaderSettings, defaults: ReaderSettings)
     preloadCount: partial.preloadCount ?? defaults.preloadCount,
     webtoonGap: partial.webtoonGap ?? defaults.webtoonGap,
     webtoonMaxWidth: partial.webtoonMaxWidth ?? defaults.webtoonMaxWidth,
+    usePhysicalNavigation: partial.usePhysicalNavigation ?? defaults.usePhysicalNavigation,
     updatedAt: defaults.updatedAt,
   };
 }

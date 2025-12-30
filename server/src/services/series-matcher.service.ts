@@ -23,7 +23,7 @@ import {
   restoreSeries,
 } from './series/index.js';
 import { restoreSeriesItems } from './collection.service.js';
-import { logInfo } from './logger.service.js';
+import { logInfo, logError } from './logger.service.js';
 
 // =============================================================================
 // Types
@@ -362,6 +362,15 @@ export async function linkFileToSeries(
 
   // Update series progress
   await updateSeriesProgress(seriesId);
+
+  // Recalculate series cover (first issue may have changed)
+  try {
+    const { recalculateSeriesCover } = await import('./cover.service.js');
+    await recalculateSeriesCover(seriesId);
+  } catch (err) {
+    // Non-critical, don't fail the link operation
+    logError('series-matcher', err, { action: 'recalculate-cover', seriesId });
+  }
 }
 
 /**
@@ -386,6 +395,15 @@ export async function unlinkFileFromSeries(fileId: string): Promise<void> {
   // Update previous series progress
   if (previousSeriesId) {
     await updateSeriesProgress(previousSeriesId);
+
+    // Recalculate series cover (first issue may have changed)
+    try {
+      const { recalculateSeriesCover } = await import('./cover.service.js');
+      await recalculateSeriesCover(previousSeriesId);
+    } catch (err) {
+      // Non-critical, don't fail the unlink operation
+      logError('series-matcher', err, { action: 'recalculate-cover', seriesId: previousSeriesId });
+    }
   }
 }
 

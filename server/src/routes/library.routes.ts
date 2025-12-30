@@ -21,6 +21,8 @@ import { getLibraryCoverDir } from '../services/app-paths.service.js';
 import { renameFolder } from '../services/file-operations.service.js';
 import { createScanJob } from '../services/library-scan-job.service.js';
 import { enqueueScanJob } from '../services/library-scan-queue.service.js';
+import { applyPresetToLibrary } from '../services/reader-settings.service.js';
+import { extractSettingsFromPreset } from '../services/reader-preset.service.js';
 import { mkdir } from 'fs/promises';
 import { createServiceLogger, logError } from '../services/logger.service.js';
 import { validateBody, validateQuery } from '../middleware/validation.middleware.js';
@@ -313,6 +315,23 @@ router.post('/',
       // Ignore if already exists
     }
 
+    // Auto-apply Manga preset for manga libraries
+    if (type === 'manga') {
+      try {
+        const mangaPreset = await db.readerPreset.findFirst({
+          where: { name: 'Manga', isBundled: true },
+        });
+        if (mangaPreset) {
+          const settings = extractSettingsFromPreset(mangaPreset as Parameters<typeof extractSettingsFromPreset>[0]);
+          await applyPresetToLibrary(library.id, mangaPreset.id, mangaPreset.name, settings);
+          logger.info({ libraryId: library.id }, 'Auto-applied Manga preset to new manga library');
+        }
+      } catch (presetError) {
+        // Log but don't fail library creation if preset application fails
+        logger.warn({ libraryId: library.id, err: presetError }, 'Failed to auto-apply Manga preset');
+      }
+    }
+
     // Auto-start a full scan for the new library
     let scanJobId: string | null = null;
     try {
@@ -367,6 +386,22 @@ router.patch('/:id',
         ...(type && { type }),
       },
     });
+
+    // Auto-apply Manga preset when type changes to 'manga'
+    if (type === 'manga' && existing.type !== 'manga') {
+      try {
+        const mangaPreset = await db.readerPreset.findFirst({
+          where: { name: 'Manga', isBundled: true },
+        });
+        if (mangaPreset) {
+          const settings = extractSettingsFromPreset(mangaPreset as Parameters<typeof extractSettingsFromPreset>[0]);
+          await applyPresetToLibrary(library.id, mangaPreset.id, mangaPreset.name, settings);
+          logger.info({ libraryId: library.id }, 'Auto-applied Manga preset after type change to manga');
+        }
+      } catch (presetError) {
+        logger.warn({ libraryId: library.id, err: presetError }, 'Failed to auto-apply Manga preset on type change');
+      }
+    }
 
     const stats = await getLibraryStats(library.id);
 

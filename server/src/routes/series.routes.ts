@@ -21,6 +21,7 @@ import {
   createSeries,
   getSeries,
   getSeriesList,
+  getSeriesBrowseList,
   getUnifiedGridItems,
   updateSeries,
   deleteSeries,
@@ -59,6 +60,7 @@ import {
   type UnifiedGridOptions,
   type DuplicateConfidence,
   type BulkSeriesUpdateInput,
+  type SeriesBrowseOptions,
 } from '../services/series/index.js';
 import {
   linkFileToSeries,
@@ -237,6 +239,40 @@ router.get('/grid', requireAuth, asyncHandler(async (req: Request, res: Response
       pages: result.totalPages,
     },
   });
+}));
+
+/**
+ * GET /api/series/browse
+ * Cursor-based paginated series list for infinite scroll.
+ * Optimized for large datasets (5000+ series) with minimal payload.
+ */
+router.get('/browse', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+  const options: SeriesBrowseOptions = {
+    cursor: req.query.cursor as string | undefined,
+    limit: Math.min(parseInt(req.query.limit as string) || 100, 200),
+    sortBy: (req.query.sortBy as SeriesBrowseOptions['sortBy']) || 'name',
+    sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'asc',
+    libraryId: req.query.libraryId as string | undefined,
+    userId: req.user?.id,
+    // Filter options
+    search: req.query.search as string | undefined,
+    publisher: req.query.publisher as string | undefined,
+    type: (req.query.type as 'western' | 'manga') || undefined,
+    genres: req.query.genres ? (req.query.genres as string).split(',') : undefined,
+    readStatus: (req.query.readStatus as 'unread' | 'reading' | 'completed') || undefined,
+  };
+
+  const result = await getSeriesBrowseList(options);
+
+  logger.debug({
+    cursor: options.cursor ? '[cursor]' : undefined,
+    limit: options.limit,
+    hasMore: result.hasMore,
+    itemCount: result.items.length,
+    totalCount: result.totalCount,
+  }, 'Browse series');
+
+  sendSuccess(res, result);
 }));
 
 /**
@@ -729,6 +765,107 @@ router.get('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 /**
+ * GET /api/series/:id/cover-image
+ * Returns the actual cover image (not JSON) using pre-computed resolution.
+ * This is the primary endpoint for series covers - all client code should use this.
+ */
+router.get('/:id/cover-image', asyncHandler(async (req: Request, res: Response) => {
+  const db = getDatabase();
+  const seriesId = req.params.id!;
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+    select: {
+      resolvedCoverHash: true,
+      resolvedCoverSource: true,
+      resolvedCoverFileId: true,
+      resolvedCoverUpdatedAt: true,
+      // Fallback fields for when resolved cover isn't set yet
+      coverSource: true,
+      coverHash: true,
+      coverFileId: true,
+    },
+  });
+
+  if (!series) {
+    return res.status(404).json({ error: 'Series not found' });
+  }
+
+  // If resolved cover exists, use it
+  let coverSource = series.resolvedCoverSource;
+  let coverHash = series.resolvedCoverHash;
+  let coverFileId = series.resolvedCoverFileId;
+
+  // Fallback to legacy resolution if no resolved cover (for backward compatibility)
+  if (!coverSource) {
+    if (series.coverSource === 'api' && series.coverHash) {
+      coverSource = 'api';
+      coverHash = series.coverHash;
+    } else if (series.coverSource === 'user' && series.coverFileId) {
+      coverSource = 'user';
+      coverFileId = series.coverFileId;
+    } else if (series.coverHash) {
+      coverSource = 'api';
+      coverHash = series.coverHash;
+    } else if (series.coverFileId) {
+      coverSource = 'user';
+      coverFileId = series.coverFileId;
+    } else {
+      coverSource = 'none';
+    }
+  }
+
+  // No cover available
+  if (coverSource === 'none' || (!coverHash && !coverFileId)) {
+    return res.status(404).json({ error: 'No cover available' });
+  }
+
+  // Determine format preference from Accept header
+  const acceptWebP = req.headers.accept?.includes('image/webp') ?? false;
+
+  if (coverSource === 'api' && coverHash) {
+    // Serve from series-covers cache
+    const { getSeriesCoverData } = await import('../services/cover.service.js');
+    const coverData = await getSeriesCoverData(coverHash, acceptWebP);
+
+    if (!coverData) {
+      return res.status(404).json({ error: 'Cover file not found' });
+    }
+
+    res.setHeader('Content-Type', coverData.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('ETag', `"${coverHash}"`);
+    if (coverData.blurPlaceholder) {
+      res.setHeader('X-Blur-Placeholder', coverData.blurPlaceholder);
+    }
+
+    return res.send(coverData.data);
+  }
+
+  if (coverSource === 'user' || coverSource === 'firstIssue') {
+    // Validate the file still exists before redirecting
+    if (coverFileId) {
+      const fileExists = await db.comicFile.findUnique({
+        where: { id: coverFileId },
+        select: { id: true },
+      });
+
+      if (!fileExists) {
+        // File was deleted - trigger cover recalculation for next request
+        const { recalculateSeriesCover } = await import('../services/cover.service.js');
+        await recalculateSeriesCover(req.params.id!);
+        return res.status(404).json({ error: 'Cover file no longer available' });
+      }
+    }
+
+    // Redirect to file cover endpoint (preserves existing caching)
+    return res.redirect(302, `/api/covers/${coverFileId}`);
+  }
+
+  return res.status(404).json({ error: 'No cover available' });
+}));
+
+/**
  * POST /api/series/:id/cover
  * Set series cover from issue, URL, or reset to API cover
  *
@@ -775,6 +912,9 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
         where: { id: seriesId },
         data: { coverSource: 'api', coverFileId: null },
       });
+      // Recalculate resolved cover
+      const { onCoverSourceChanged } = await import('../services/cover.service.js');
+      await onCoverSourceChanged('series', seriesId);
     }
   } else if (source === 'user' && fileId) {
     // User selected an issue cover
@@ -792,6 +932,9 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
       where: { id: seriesId },
       data: { coverSource: 'auto', coverFileId: null },
     });
+    // Recalculate resolved cover
+    const { onCoverSourceChanged } = await import('../services/cover.service.js');
+    await onCoverSourceChanged('series', seriesId);
   } else if (fileId) {
     // Legacy: just fileId provided (backwards compatibility)
     await setSeriesCoverFromIssue(seriesId, fileId);
@@ -874,6 +1017,10 @@ router.post('/:id/cover/upload', coverUpload.single('cover'), asyncHandler(async
       coverFileId: null,
     },
   });
+
+  // Recalculate resolved cover
+  const { onCoverSourceChanged } = await import('../services/cover.service.js');
+  await onCoverSourceChanged('series', seriesId);
 
   const cover = await getSeriesCover(seriesId);
   logger.info({ seriesId, coverHash: result.coverHash }, 'Uploaded custom series cover');

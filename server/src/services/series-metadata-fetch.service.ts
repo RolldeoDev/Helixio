@@ -485,7 +485,16 @@ export async function applyMetadataToSeries(
     }
 
     // Trigger cascade refresh for collection mosaics if cover was updated
-    if (updateData.coverHash) {
+    if (updateData.coverHash || updateData.coverSource) {
+      // Recalculate resolved cover fields
+      try {
+        const { recalculateSeriesCover } = await import('./cover.service.js');
+        await recalculateSeriesCover(seriesId);
+      } catch (err) {
+        logger.warn({ seriesId, error: err }, 'Failed to recalculate series cover');
+      }
+
+      // Refresh collection mosaics
       onSeriesCoverChanged(seriesId).catch((err) => {
         logger.warn({ seriesId, error: err }, 'Failed to trigger collection mosaic refresh');
       });

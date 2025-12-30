@@ -163,8 +163,14 @@ export function HomeWelcome({
 
   const [funFact, setFunFact] = useState<FunFact | null>(null);
   const [factKey, setFactKey] = useState(0);
+  const [coverError, setCoverError] = useState(false);
 
   const greeting = useMemo(() => getGreeting(), []);
+
+  // Reset cover error state when featured item changes
+  useEffect(() => {
+    setCoverError(false);
+  }, [featuredItem?.fileId]);
 
   // Generate initial fun fact
   useEffect(() => {
@@ -380,11 +386,20 @@ export function HomeWelcome({
                   }}
                 >
                   <div className="welcome-featured-cover">
-                    <img
-                      src={getCoverUrl(featuredItem.fileId)}
-                      alt={featuredItem.filename}
-                      loading="eager"
-                    />
+                    {coverError ? (
+                      <div className="welcome-featured-cover-placeholder">
+                        <span className="welcome-featured-cover-initial">
+                          {(featuredItem.series || featuredItem.filename).charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    ) : (
+                      <img
+                        src={getCoverUrl(featuredItem.fileId)}
+                        alt={featuredItem.filename}
+                        loading="eager"
+                        onError={() => setCoverError(true)}
+                      />
+                    )}
                     <div className="welcome-featured-overlay" />
                     {/* Issue number badge */}
                     {featuredItem.number && (

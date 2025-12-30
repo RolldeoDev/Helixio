@@ -38,6 +38,8 @@ import {
   updateCollectionMetadata,
   getCollectionReadingProgress,
   regenerateMosaicSync,
+  linkCollectionToPreset,
+  unlinkCollectionFromPreset,
 } from '../services/collection.service.js';
 import {
   refreshSmartCollection,
@@ -187,7 +189,13 @@ router.get('/:id/expanded', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const data = await getCollectionExpanded(userId, id!);
+    const { sortBy, sortOrder } = req.query as {
+      sortBy?: 'name' | 'title' | 'year' | 'dateAdded' | 'lastReadAt' | 'number' | 'publisher' | 'rating' | 'externalRating';
+      sortOrder?: 'asc' | 'desc';
+    };
+
+    const sortOptions = sortBy ? { sortBy, sortOrder } : undefined;
+    const data = await getCollectionExpanded(userId, id!, sortOptions);
 
     if (!data) {
       res.status(404).json({ error: 'Collection not found' });
@@ -1177,6 +1185,82 @@ router.get('/:id/smart/overrides', async (req: Request, res: Response) => {
     }
     return res.status(500).json({
       error: 'Failed to get smart collection overrides',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Filter Preset Linking
+// =============================================================================
+
+/**
+ * POST /api/collections/:id/smart/link-preset
+ * Link a smart collection to a filter preset
+ */
+router.post('/:id/smart/link-preset', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const collectionId = req.params.id!;
+    const { presetId } = req.body;
+
+    if (!presetId) {
+      res.status(400).json({ error: 'Preset ID is required' });
+      return;
+    }
+
+    const collection = await linkCollectionToPreset(collectionId, userId, presetId);
+
+    logInfo('collections', 'Linked collection to preset', {
+      collectionId,
+      presetId,
+      userId,
+    });
+
+    res.json({ success: true, collection });
+  } catch (error) {
+    logError('collections', error, { action: 'link-preset' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({
+      error: 'Failed to link collection to preset',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/collections/:id/smart/unlink-preset
+ * Unlink a smart collection from its filter preset
+ * Copies the preset's filter to the collection as an embedded filter
+ */
+router.post('/:id/smart/unlink-preset', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user!.id;
+    const collectionId = req.params.id!;
+
+    const collection = await unlinkCollectionFromPreset(collectionId, userId);
+
+    logInfo('collections', 'Unlinked collection from preset', {
+      collectionId,
+      userId,
+    });
+
+    res.json({ success: true, collection });
+  } catch (error) {
+    logError('collections', error, { action: 'unlink-preset' });
+    if (error instanceof Error && error.message.includes('not found')) {
+      res.status(404).json({ error: error.message });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('not linked')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    res.status(500).json({
+      error: 'Failed to unlink collection from preset',
       message: error instanceof Error ? error.message : String(error),
     });
   }

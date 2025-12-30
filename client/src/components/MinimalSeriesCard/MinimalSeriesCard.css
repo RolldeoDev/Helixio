@@ -1,0 +1,241 @@
+/**
+ * MinimalSeriesCard Styles
+ *
+ * Performance-optimized card for virtual grid rendering.
+ * - GPU-accelerated transforms
+ * - CSS containment for layout isolation
+ * - Skeleton animation disabled during scroll
+ * - Minimal hover effects
+ */
+
+/* =============================================================================
+   Base Card
+   ============================================================================= */
+
+.minimal-series-card {
+  /* Transitions - faster in, slower out for natural feel */
+  --card-transition-in: 200ms ease;
+  --card-transition-out: 350ms ease;
+
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  will-change: transform;
+  contain: layout style paint;
+  outline: none;
+  background: var(--color-surface-card, var(--color-bg-secondary));
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  /* Slower transition for hover-out */
+  transition:
+    box-shadow var(--card-transition-out),
+    border-color var(--card-transition-out);
+  border: 2px solid transparent;
+}
+
+.minimal-series-card:hover {
+  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.5), 0 0 20px rgba(99, 102, 241, 0.15);
+  border-color: var(--color-primary, #6366f1);
+  /* Faster transition for hover-in */
+  transition:
+    box-shadow var(--card-transition-in),
+    border-color var(--card-transition-in);
+}
+
+/* Disable hover effects during scroll */
+.scrolling .minimal-series-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  border-color: transparent;
+}
+
+.minimal-series-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Cover Container
+   ============================================================================= */
+
+.minimal-series-card__cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  overflow: hidden;
+}
+
+/* =============================================================================
+   Skeleton Loading
+   ============================================================================= */
+
+.minimal-series-card__skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 25%,
+    var(--color-bg-tertiary) 50%,
+    var(--color-bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: minimal-card-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes minimal-card-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Static skeleton during scroll (no animation) */
+.minimal-series-card__skeleton--static {
+  animation: none;
+  background: var(--color-bg-tertiary);
+}
+
+/* Also disable shimmer during scroll via parent class */
+.scrolling .minimal-series-card__skeleton {
+  animation: none;
+  background: var(--color-bg-tertiary);
+}
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .minimal-series-card__skeleton {
+    animation: none;
+    background: var(--color-bg-tertiary);
+  }
+}
+
+/* =============================================================================
+   Cover Image
+   ============================================================================= */
+
+.minimal-series-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  /* No transform on base - only on --loaded to avoid flash */
+}
+
+.minimal-series-card__image--loaded {
+  opacity: 1;
+  transform: scale(1); /* Explicit base state */
+  /* Slower transition for hover-out - must be on --loaded class too */
+  transition:
+    opacity 150ms ease,
+    transform 350ms ease;
+}
+
+/* Hover state: scale up with faster transition */
+.minimal-series-card:hover .minimal-series-card__image--loaded {
+  transform: scale(1.08);
+  /* Faster transition for hover-in */
+  transition:
+    opacity 150ms ease,
+    transform 200ms ease;
+}
+
+/* Disable image zoom during scroll */
+.scrolling .minimal-series-card__image {
+  transition: none !important;
+  transform: scale(1) !important;
+}
+
+.scrolling .minimal-series-card:hover .minimal-series-card__image--loaded {
+  transform: scale(1) !important;
+}
+
+/* =============================================================================
+   Placeholder (no cover)
+   ============================================================================= */
+
+.minimal-series-card__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+}
+
+/* =============================================================================
+   Progress Ring (upper right)
+   ============================================================================= */
+
+.minimal-series-card__progress-ring {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+}
+
+/* =============================================================================
+   Info Section
+   ============================================================================= */
+
+.minimal-series-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  min-width: 0;
+  /* Fixed height to match virtual grid's infoHeight: 56 */
+  height: 56px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.minimal-series-card__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.minimal-series-card__publisher {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.minimal-series-card__year {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (hover: none), (pointer: coarse) {
+  .minimal-series-card:active .minimal-series-card__cover {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}

@@ -774,6 +774,70 @@ describe('Template Resolver Service', () => {
   });
 
   // ==========================================================================
+  // Bug Fix Tests - Year Token Validation
+  // ==========================================================================
+
+  describe('Year token validation', () => {
+    it('should strip non-numeric suffix from year (bug fix for .1990cbz pattern)', () => {
+      // This reproduces a bug where year contained extension artifact like "1990cbz"
+      const context = createTestContext('complete', {
+        comicInfo: { Year: '1990cbz' as unknown as number },
+      });
+      const result = resolveTemplateString('{Year}', context);
+
+      // Year should only contain the numeric year, not the extension
+      expect(result.result).toBe('1990');
+    });
+
+    it('should handle numeric year correctly', () => {
+      const context = createTestContext('complete', {
+        comicInfo: { Year: 1990 },
+      });
+      const result = resolveTemplateString('{Year}', context);
+
+      expect(result.result).toBe('1990');
+    });
+
+    it('should handle year as string correctly', () => {
+      const context = createTestContext('complete', {
+        comicInfo: { Year: '2011' as unknown as number },
+      });
+      const result = resolveTemplateString('{Year}', context);
+
+      expect(result.result).toBe('2011');
+    });
+
+    it('should return empty for malformed year with no digits', () => {
+      const context = createTestContext('complete', {
+        comicInfo: { Year: 'unknown' as unknown as number },
+      });
+      const result = resolveTemplateString('{Year}', context);
+
+      // Malformed year should result in missing value
+      expect(result.hadMissingValues).toBe(true);
+    });
+
+    it('should not let year bleed into extension in full template', () => {
+      const context = createTestContext('complete', {
+        comicInfo: {
+          Series: 'Battle Angel Alita',
+          Year: '1990cbz' as unknown as number,
+        },
+        file: {
+          filename: 'test.cbz',
+          extension: '.cbz'
+        },
+      });
+      const result = resolveTemplateString('{Series} ({Year|}).{Extension}', context);
+
+      // Should not produce patterns like ".1990cbz.cbz"
+      expect(result.result).not.toContain('.1990cbz');
+      expect(result.result).not.toContain('cbz.cbz');
+      expect(result.result).toBe('Battle Angel Alita (1990).cbz');
+    });
+  });
+
+  // ==========================================================================
   // Integration Tests
   // ==========================================================================
 

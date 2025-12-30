@@ -39,7 +39,7 @@ export type FilterField =
   | 'storyArc'
   | 'status'
   | 'path'
-  // New fields for smart collections
+  // Smart collection fields
   | 'readStatus'
   | 'dateAdded'
   | 'lastReadAt'
@@ -50,7 +50,17 @@ export type FilterField =
   // External rating fields
   | 'externalRating'    // Any external rating (max across sources)
   | 'communityRating'   // Community ratings only (max across sources)
-  | 'criticRating';     // Critic ratings only (max across sources)
+  | 'criticRating'      // Critic ratings only (max across sources)
+  // Additional metadata fields
+  | 'imprint'           // Publisher sub-brand (Vertigo, MAX, etc.)
+  | 'ageRating'         // Content rating
+  | 'format'            // Issue/TPB/Omnibus/etc.
+  | 'language'          // Language code (maps to languageISO)
+  | 'inker'             // Inker creator role
+  | 'colorist'          // Colorist creator role
+  | 'letterer'          // Letterer creator role
+  | 'editor'            // Editor creator role
+  | 'count';            // Total issues in series
 
 export type FilterComparison =
   | 'contains'
@@ -88,7 +98,24 @@ export interface SmartFilter {
   name?: string;
   rootOperator: FilterOperator;
   groups: FilterGroup[];
+  // Sorting options
+  sortBy?: SortField;
+  sortOrder?: SortOrder;
 }
+
+// Sorting types for smart collections
+export type SortField =
+  | 'name'
+  | 'title'
+  | 'year'
+  | 'dateAdded'
+  | 'lastReadAt'
+  | 'number'
+  | 'publisher'
+  | 'rating'
+  | 'externalRating';
+
+export type SortOrder = 'asc' | 'desc';
 
 export type SmartScope = 'series' | 'files';
 
@@ -125,7 +152,7 @@ function evaluateCondition(
 
   // Convert to string/number for comparison
   const stringValue = fieldValue?.toString()?.toLowerCase() ?? '';
-  const numericValue = typeof fieldValue === 'number' ? fieldValue : parseFloat(stringValue) || 0;
+  const numericValue = typeof fieldValue === 'number' ? fieldValue : parseFloat(stringValue);
   const compareValue = value?.toLowerCase() ?? '';
   const compareValue2 = value2?.toLowerCase() ?? '';
 
@@ -143,33 +170,49 @@ function evaluateCondition(
     case 'ends_with':
       return stringValue.endsWith(compareValue);
     case 'is_empty':
-      return !fieldValue || stringValue === '';
+      return fieldValue === null || fieldValue === undefined || stringValue === '';
     case 'is_not_empty':
-      return !!fieldValue && stringValue !== '';
-    case 'greater_than':
-      return numericValue > parseFloat(compareValue);
-    case 'less_than':
-      return numericValue < parseFloat(compareValue);
-    case 'between':
-      return numericValue >= parseFloat(compareValue) && numericValue <= parseFloat(compareValue2);
+      return fieldValue !== null && fieldValue !== undefined && stringValue !== '';
+    case 'greater_than': {
+      const compareNum = parseFloat(compareValue);
+      if (isNaN(numericValue) || isNaN(compareNum)) return false;
+      return numericValue > compareNum;
+    }
+    case 'less_than': {
+      const compareNum = parseFloat(compareValue);
+      if (isNaN(numericValue) || isNaN(compareNum)) return false;
+      return numericValue < compareNum;
+    }
+    case 'between': {
+      const minNum = parseFloat(compareValue);
+      const maxNum = parseFloat(compareValue2);
+      if (isNaN(numericValue) || isNaN(minNum) || isNaN(maxNum)) return false;
+      return numericValue >= minNum && numericValue <= maxNum;
+    }
     case 'within_days': {
       // For date fields - check if within N days of now
-      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(stringValue);
+      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(String(fieldValue));
       if (isNaN(dateValue.getTime())) return false;
+      const daysNum = parseInt(value ?? '0', 10);
+      if (isNaN(daysNum)) return false;
       const now = new Date();
-      const daysAgo = new Date(now.getTime() - parseInt(compareValue) * 24 * 60 * 60 * 1000);
+      const daysAgo = new Date(now.getTime() - daysNum * 24 * 60 * 60 * 1000);
       return dateValue >= daysAgo;
     }
     case 'before': {
-      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(stringValue);
+      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(String(fieldValue));
       if (isNaN(dateValue.getTime())) return false;
-      const compareDate = new Date(compareValue);
+      // Use original value for date parsing to preserve proper formatting
+      const compareDate = new Date(value ?? '');
+      if (isNaN(compareDate.getTime())) return false;
       return dateValue < compareDate;
     }
     case 'after': {
-      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(stringValue);
+      const dateValue = fieldValue instanceof Date ? fieldValue : new Date(String(fieldValue));
       if (isNaN(dateValue.getTime())) return false;
-      const compareDate = new Date(compareValue);
+      // Use original value for date parsing to preserve proper formatting
+      const compareDate = new Date(value ?? '');
+      if (isNaN(compareDate.getTime())) return false;
       return dateValue > compareDate;
     }
     default:
@@ -223,6 +266,25 @@ function getSeriesFieldValue(series: Record<string, unknown>, field: FilterField
     case 'criticRating':
       // Max of critic ratings only
       return series.criticRatingMax;
+    // Additional metadata fields
+    case 'imprint':
+      return null; // Series doesn't have imprint directly
+    case 'ageRating':
+      return series.ageRating;
+    case 'format':
+      return null; // Series doesn't have format directly
+    case 'language':
+      return series.languageISO;
+    case 'inker':
+      return series.inker;
+    case 'colorist':
+      return series.colorist;
+    case 'letterer':
+      return series.letterer;
+    case 'editor':
+      return series.editor;
+    case 'count':
+      return series.issueCount;
     default:
       return series[field];
   }
@@ -282,6 +344,32 @@ function getFileFieldValue(file: Record<string, unknown>, field: FilterField): u
       return file.lastReadAt;
     case 'rating':
       return file.rating;
+    // Additional metadata fields
+    case 'imprint':
+      return metadata?.imprint;
+    case 'ageRating':
+      return metadata?.ageRating;
+    case 'format':
+      return metadata?.format;
+    case 'language':
+      return metadata?.languageISO;
+    case 'inker':
+      return metadata?.inker;
+    case 'colorist':
+      return metadata?.colorist;
+    case 'letterer':
+      return metadata?.letterer;
+    case 'editor':
+      return metadata?.editor;
+    case 'count':
+      return metadata?.count;
+    // External ratings for files
+    case 'externalRating':
+      return file.externalRatingMax;
+    case 'communityRating':
+      return file.communityRatingMax;
+    case 'criticRating':
+      return file.criticRatingMax;
     default:
       return metadata?.[field] ?? file[field];
   }
@@ -335,28 +423,42 @@ function evaluateFilter(
 export async function getSmartCollections(userId: string): Promise<SmartCollectionInfo[]> {
   const db = getDatabase();
 
+  // Get smart collections that have either embedded filter or linked preset
   const collections = await db.collection.findMany({
     where: {
       userId,
       isSmart: true,
-      filterDefinition: { not: null },
+      OR: [
+        { filterDefinition: { not: null } },
+        { filterPresetId: { not: null } },
+      ],
     },
     select: {
       id: true,
       userId: true,
       smartScope: true,
       filterDefinition: true,
+      filterPresetId: true,
+      filterPreset: {
+        select: {
+          filterDefinition: true,
+        },
+      },
     },
   });
 
   return collections
-    .filter((c) => c.filterDefinition && c.smartScope)
-    .map((c) => ({
-      id: c.id,
-      userId: c.userId,
-      smartScope: c.smartScope as SmartScope,
-      filterDefinition: JSON.parse(c.filterDefinition!) as SmartFilter,
-    }));
+    .filter((c) => c.smartScope && (c.filterDefinition || c.filterPreset?.filterDefinition))
+    .map((c) => {
+      // Resolve filter from preset or embedded definition
+      const filterJson = c.filterPreset?.filterDefinition || c.filterDefinition!;
+      return {
+        id: c.id,
+        userId: c.userId,
+        smartScope: c.smartScope as SmartScope,
+        filterDefinition: JSON.parse(filterJson) as SmartFilter,
+      };
+    });
 }
 
 /**
@@ -369,11 +471,12 @@ export async function refreshSmartCollection(
 ): Promise<{ added: number; removed: number }> {
   const db = getDatabase();
 
-  // Get the collection with its filter
+  // Get the collection with its filter (include linked preset if any)
   const collection = await db.collection.findUnique({
     where: { id: collectionId },
     include: {
       items: true,
+      filterPreset: true, // Include linked preset
     },
   });
 
@@ -381,12 +484,21 @@ export async function refreshSmartCollection(
     throw new Error('Smart collection not found');
   }
 
-  if (!collection.filterDefinition || !collection.smartScope) {
+  // Resolve filter from preset or embedded definition
+  let filter: SmartFilter;
+  let scope: SmartScope;
+
+  if (collection.filterPresetId && collection.filterPreset) {
+    // Using linked preset
+    filter = JSON.parse(collection.filterPreset.filterDefinition) as SmartFilter;
+    scope = (collection.smartScope || 'series') as SmartScope;
+  } else if (collection.filterDefinition && collection.smartScope) {
+    // Using embedded filter
+    filter = JSON.parse(collection.filterDefinition) as SmartFilter;
+    scope = collection.smartScope as SmartScope;
+  } else {
     throw new Error('Smart collection has no filter definition');
   }
-
-  const filter = JSON.parse(collection.filterDefinition) as SmartFilter;
-  const scope = collection.smartScope as SmartScope;
 
   // Get current items (for whitelist/blacklist tracking)
   const currentItems = collection.items;
@@ -459,7 +571,7 @@ export async function refreshSmartCollection(
         .map((s) => s.id)
     );
   } else {
-    // Get all files with metadata and reading progress
+    // Get all files with metadata, reading progress, and external ratings
     const files = await db.comicFile.findMany({
       where: { status: 'indexed' },
       include: {
@@ -468,6 +580,7 @@ export async function refreshSmartCollection(
           where: { userId },
           take: 1,
         },
+        externalRatings: true,
       },
     });
 
@@ -476,6 +589,22 @@ export async function refreshSmartCollection(
       files
         .filter((f) => {
           const progress = f.userReadingProgress[0];
+
+          // Compute max external ratings for files
+          const externalRatings = f.externalRatings || [];
+          const communityRatings = externalRatings.filter((r) => r.ratingType === 'community');
+          const criticRatings = externalRatings.filter((r) => r.ratingType === 'critic');
+
+          const externalRatingMax = externalRatings.length > 0
+            ? Math.max(...externalRatings.map((r) => r.ratingValue))
+            : null;
+          const communityRatingMax = communityRatings.length > 0
+            ? Math.max(...communityRatings.map((r) => r.ratingValue))
+            : null;
+          const criticRatingMax = criticRatings.length > 0
+            ? Math.max(...criticRatings.map((r) => r.ratingValue))
+            : null;
+
           const augmentedFile = {
             ...f,
             readStatus: progress
@@ -487,6 +616,9 @@ export async function refreshSmartCollection(
               : 'unread',
             lastReadAt: progress?.lastReadAt,
             rating: progress?.rating,
+            externalRatingMax,
+            communityRatingMax,
+            criticRatingMax,
           };
           return evaluateFilter(filter, augmentedFile as unknown as Record<string, unknown>, scope);
         })
@@ -624,7 +756,7 @@ export async function evaluateChangedItems(
     const fileCollections = smartCollections.filter((c) => c.smartScope === 'files');
 
     if (fileCollections.length > 0) {
-      // Get the changed files with metadata and progress
+      // Get the changed files with metadata, progress, and external ratings
       const changedFiles = await db.comicFile.findMany({
         where: { id: { in: changedFileIds } },
         include: {
@@ -633,6 +765,7 @@ export async function evaluateChangedItems(
             where: { userId },
             take: 1,
           },
+          externalRatings: true,
         },
       });
 
@@ -746,6 +879,7 @@ async function evaluateFilesAgainstCollection(
     id: string;
     metadata: { [key: string]: unknown } | null;
     userReadingProgress: Array<{ completed: boolean; currentPage: number; lastReadAt: Date | null; rating: number | null }>;
+    externalRatings?: Array<{ ratingType: string; ratingValue: number }>;
     [key: string]: unknown;
   }>,
   userId: string
@@ -768,7 +902,22 @@ async function evaluateFilesAgainstCollection(
     const existing = existingMap.get(f.id);
     const progress = f.userReadingProgress[0];
 
-    // Augment file with read status
+    // Compute max external ratings for files
+    const externalRatings = f.externalRatings || [];
+    const communityRatings = externalRatings.filter((r) => r.ratingType === 'community');
+    const criticRatings = externalRatings.filter((r) => r.ratingType === 'critic');
+
+    const externalRatingMax = externalRatings.length > 0
+      ? Math.max(...externalRatings.map((r) => r.ratingValue))
+      : null;
+    const communityRatingMax = communityRatings.length > 0
+      ? Math.max(...communityRatings.map((r) => r.ratingValue))
+      : null;
+    const criticRatingMax = criticRatings.length > 0
+      ? Math.max(...criticRatings.map((r) => r.ratingValue))
+      : null;
+
+    // Augment file with read status and external ratings
     const augmentedFile = {
       ...f,
       readStatus: progress
@@ -780,6 +929,9 @@ async function evaluateFilesAgainstCollection(
         : 'unread',
       lastReadAt: progress?.lastReadAt,
       rating: progress?.rating,
+      externalRatingMax,
+      communityRatingMax,
+      criticRatingMax,
     };
 
     const matches = evaluateFilter(

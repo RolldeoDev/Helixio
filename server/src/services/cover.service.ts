@@ -25,6 +25,7 @@ import {
 } from './archive.service.js';
 import { getDatabase } from './database.service.js';
 import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
+import { logDebug, logWarn } from './logger.service.js';
 
 // =============================================================================
 // Cover Optimization Config
@@ -492,6 +493,7 @@ export async function getCoverData(
       coverPath = legacyPath;
       contentType = 'image/jpeg';
     } else {
+      logDebug('covers', 'No cover found in cache', { libraryId, fileHash });
       return null;
     }
   }
@@ -513,7 +515,13 @@ export async function getCoverData(
     }
 
     return { data, contentType, blurPlaceholder };
-  } catch {
+  } catch (err) {
+    logWarn('covers', 'Failed to read cover file', {
+      coverPath,
+      libraryId,
+      fileHash,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -1977,4 +1985,185 @@ export async function generateMosaicPreview(
   return sharp(result.buffer)
     .webp({ quality: COVER_QUALITY_WEBP })
     .toBuffer();
+}
+
+// =============================================================================
+// Series Cover Resolution (Pre-computed)
+// =============================================================================
+
+/**
+ * Get the effective cover hash for a file.
+ * Handles custom covers (stored in series-covers cache) and auto covers (stored in covers cache).
+ */
+export async function getFileCoverHash(fileId: string): Promise<string | null> {
+  const db = getDatabase();
+
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: {
+      coverSource: true,
+      coverHash: true,
+      coverPageIndex: true,
+      hash: true,
+    },
+  });
+
+  if (!file) {
+    return null;
+  }
+
+  // Custom cover uses coverHash from series-covers cache
+  if (file.coverSource === 'custom' && file.coverHash) {
+    return file.coverHash;
+  }
+
+  // Auto or page cover uses hash (stored in covers/{libraryId} cache)
+  return file.hash;
+}
+
+/**
+ * Recalculate and store the resolved cover for a series.
+ * Called when any cover-related data changes.
+ * Applies the resolution priority: API > User > First Issue > None
+ */
+export async function recalculateSeriesCover(seriesId: string): Promise<void> {
+  const db = getDatabase();
+
+  // Get series cover settings
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+    select: {
+      id: true,
+      coverSource: true,
+      coverHash: true,
+      coverFileId: true,
+    },
+  });
+
+  if (!series) {
+    return;
+  }
+
+  // Get first issue for fallback (separate query to avoid include/select conflict)
+  const firstIssue = await db.comicFile.findFirst({
+    where: { seriesId },
+    orderBy: [
+      { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+      { filename: 'asc' },
+    ],
+    select: { id: true, coverHash: true, hash: true, libraryId: true },
+  });
+
+  let resolvedSource: 'api' | 'user' | 'firstIssue' | 'none' = 'none';
+  let resolvedHash: string | null = null;
+  let resolvedFileId: string | null = null;
+
+  // Apply resolution priority based on coverSource preference
+  if (series.coverSource === 'api' && series.coverHash) {
+    resolvedSource = 'api';
+    resolvedHash = series.coverHash;
+  } else if (series.coverSource === 'user' && series.coverFileId) {
+    // Verify the file still exists before using it
+    const fileExists = await db.comicFile.findUnique({
+      where: { id: series.coverFileId },
+      select: { id: true },
+    });
+    if (fileExists) {
+      resolvedSource = 'user';
+      resolvedFileId = series.coverFileId;
+      resolvedHash = await getFileCoverHash(series.coverFileId);
+    }
+    // If file deleted, fall through - resolvedSource stays 'none'
+  } else if (series.coverSource === 'auto') {
+    // Auto fallback chain: API > User > First Issue
+    if (series.coverHash) {
+      resolvedSource = 'api';
+      resolvedHash = series.coverHash;
+    } else if (series.coverFileId) {
+      // Verify the file still exists before using it
+      const fileExists = await db.comicFile.findUnique({
+        where: { id: series.coverFileId },
+        select: { id: true },
+      });
+      if (fileExists) {
+        resolvedSource = 'user';
+        resolvedFileId = series.coverFileId;
+        resolvedHash = await getFileCoverHash(series.coverFileId);
+      }
+    }
+    // Fall through to first issue if no valid user cover
+    if (resolvedSource === 'none' && firstIssue) {
+      resolvedSource = 'firstIssue';
+      resolvedFileId = firstIssue.id;
+      // For first issue, use coverHash if it has a custom cover, otherwise hash
+      resolvedHash = firstIssue.coverHash || firstIssue.hash;
+    }
+  }
+
+  await db.series.update({
+    where: { id: seriesId },
+    data: {
+      resolvedCoverHash: resolvedHash,
+      resolvedCoverSource: resolvedSource,
+      resolvedCoverFileId: resolvedFileId,
+      resolvedCoverUpdatedAt: new Date(),
+    },
+  });
+}
+
+/**
+ * Trigger cover recalculation when source data changes.
+ * Call this after modifying cover-related fields on series or files.
+ */
+export async function onCoverSourceChanged(
+  entityType: 'series' | 'file',
+  entityId: string
+): Promise<void> {
+  const db = getDatabase();
+
+  if (entityType === 'series') {
+    await recalculateSeriesCover(entityId);
+  } else if (entityType === 'file') {
+    // Find series that use this file as cover or have it as first issue
+    const affectedSeries = await db.series.findMany({
+      where: {
+        OR: [
+          { coverFileId: entityId },
+          { resolvedCoverFileId: entityId },
+        ],
+      },
+      select: { id: true },
+    });
+
+    for (const series of affectedSeries) {
+      await recalculateSeriesCover(series.id);
+    }
+  }
+}
+
+/**
+ * Recalculate resolved covers for all series.
+ * Used for initial backfill or after schema changes.
+ */
+export async function recalculateAllSeriesCovers(): Promise<{ processed: number; errors: number }> {
+  const db = getDatabase();
+
+  const allSeries = await db.series.findMany({
+    select: { id: true },
+  });
+
+  let processed = 0;
+  let errors = 0;
+
+  for (const series of allSeries) {
+    try {
+      await recalculateSeriesCover(series.id);
+      processed++;
+    } catch (error) {
+      console.error(`Failed to recalculate cover for series ${series.id}:`, error);
+      errors++;
+    }
+  }
+
+  return { processed, errors };
 }

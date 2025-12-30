@@ -596,8 +596,11 @@ export async function generateFilenameFromTemplate(
   );
 
   // Ensure extension is included
+  // Check if template already handles extension - if so, trust the template
+  // This prevents double-extension bugs like ".cbz.cbz"
+  const templateHasExtension = template.filePattern.includes('{Extension}');
   let filename = filenameResult.result;
-  if (!filename.toLowerCase().endsWith(ext.toLowerCase())) {
+  if (!templateHasExtension && !filename.toLowerCase().endsWith(ext.toLowerCase())) {
     filename = `${filename}${ext.toLowerCase()}`;
   }
 

@@ -581,4 +581,265 @@ describe('Cover Service', () => {
       expect(mockFsPromises.unlink).not.toHaveBeenCalled();
     });
   });
+
+  // ===========================================================================
+  // Series Cover Resolution (Pre-computed)
+  // ===========================================================================
+
+  describe('getFileCoverHash', () => {
+    it('should return coverHash for custom cover', async () => {
+      const { getFileCoverHash } = await import('../cover.service.js');
+
+      mockPrisma.comicFile.findUnique.mockResolvedValue({
+        ...createMockComicFile(),
+        coverSource: 'custom',
+        coverHash: 'customhash123',
+        hash: 'filehash456',
+      });
+
+      const result = await getFileCoverHash('file-1');
+
+      expect(result).toBe('customhash123');
+    });
+
+    it('should return hash for auto cover', async () => {
+      const { getFileCoverHash } = await import('../cover.service.js');
+
+      mockPrisma.comicFile.findUnique.mockResolvedValue({
+        ...createMockComicFile(),
+        coverSource: 'auto',
+        coverHash: null,
+        hash: 'filehash456',
+      });
+
+      const result = await getFileCoverHash('file-1');
+
+      expect(result).toBe('filehash456');
+    });
+
+    it('should return null when file not found', async () => {
+      const { getFileCoverHash } = await import('../cover.service.js');
+
+      mockPrisma.comicFile.findUnique.mockResolvedValue(null);
+
+      const result = await getFileCoverHash('nonexistent');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('recalculateSeriesCover', () => {
+    it('should set api cover when coverSource=api and coverHash exists', async () => {
+      const { recalculateSeriesCover } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'api',
+        coverHash: 'apihash123',
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      await recalculateSeriesCover('series-1');
+
+      expect(mockPrisma.series.update).toHaveBeenCalledWith({
+        where: { id: 'series-1' },
+        data: expect.objectContaining({
+          resolvedCoverHash: 'apihash123',
+          resolvedCoverSource: 'api',
+          resolvedCoverFileId: null,
+        }),
+      });
+    });
+
+    it('should set user cover when coverSource=user and coverFileId exists', async () => {
+      const { recalculateSeriesCover } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'user',
+        coverHash: null,
+        coverFileId: 'file-1',
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      // Mock getFileCoverHash call
+      mockPrisma.comicFile.findUnique.mockResolvedValue({
+        ...createMockComicFile(),
+        coverSource: 'auto',
+        hash: 'userhash456',
+      });
+
+      await recalculateSeriesCover('series-1');
+
+      expect(mockPrisma.series.update).toHaveBeenCalledWith({
+        where: { id: 'series-1' },
+        data: expect.objectContaining({
+          resolvedCoverHash: 'userhash456',
+          resolvedCoverSource: 'user',
+          resolvedCoverFileId: 'file-1',
+        }),
+      });
+    });
+
+    it('should fallback to first issue when coverSource=auto and no other covers', async () => {
+      const { recalculateSeriesCover } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'auto',
+        coverHash: null,
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue({
+        id: 'issue-1',
+        coverHash: null,
+        hash: 'issuehash789',
+        libraryId: 'lib-1',
+      });
+
+      await recalculateSeriesCover('series-1');
+
+      expect(mockPrisma.series.update).toHaveBeenCalledWith({
+        where: { id: 'series-1' },
+        data: expect.objectContaining({
+          resolvedCoverHash: 'issuehash789',
+          resolvedCoverSource: 'firstIssue',
+          resolvedCoverFileId: 'issue-1',
+        }),
+      });
+    });
+
+    it('should set none when no cover sources available', async () => {
+      const { recalculateSeriesCover } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'auto',
+        coverHash: null,
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      await recalculateSeriesCover('series-1');
+
+      expect(mockPrisma.series.update).toHaveBeenCalledWith({
+        where: { id: 'series-1' },
+        data: expect.objectContaining({
+          resolvedCoverHash: null,
+          resolvedCoverSource: 'none',
+          resolvedCoverFileId: null,
+        }),
+      });
+    });
+
+    it('should not update when series not found', async () => {
+      const { recalculateSeriesCover } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue(null);
+
+      await recalculateSeriesCover('nonexistent');
+
+      expect(mockPrisma.series.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onCoverSourceChanged', () => {
+    it('should recalculate when series cover changes', async () => {
+      const { onCoverSourceChanged } = await import('../cover.service.js');
+
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'api',
+        coverHash: 'hash123',
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      await onCoverSourceChanged('series', 'series-1');
+
+      expect(mockPrisma.series.update).toHaveBeenCalled();
+    });
+
+    it('should recalculate affected series when file cover changes', async () => {
+      const { onCoverSourceChanged } = await import('../cover.service.js');
+
+      // Mock finding affected series
+      mockPrisma.series.findMany.mockResolvedValue([
+        { id: 'series-1' },
+        { id: 'series-2' },
+      ]);
+
+      // Mock series lookups for recalculation
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'auto',
+        coverHash: null,
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      await onCoverSourceChanged('file', 'file-1');
+
+      // Should find affected series
+      expect(mockPrisma.series.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { coverFileId: 'file-1' },
+            { resolvedCoverFileId: 'file-1' },
+          ],
+        },
+        select: { id: true },
+      });
+
+      // Should recalculate each affected series
+      expect(mockPrisma.series.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('recalculateAllSeriesCovers', () => {
+    it('should recalculate covers for all series', async () => {
+      const { recalculateAllSeriesCovers } = await import('../cover.service.js');
+
+      mockPrisma.series.findMany
+        .mockResolvedValueOnce([{ id: 'series-1' }, { id: 'series-2' }]);
+
+      // Mock series lookups
+      mockPrisma.series.findUnique.mockResolvedValue({
+        id: 'series-1',
+        coverSource: 'auto',
+        coverHash: null,
+        coverFileId: null,
+      });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      const result = await recalculateAllSeriesCovers();
+
+      expect(result.processed).toBe(2);
+      expect(result.errors).toBe(0);
+    });
+
+    it('should count errors but continue processing', async () => {
+      const { recalculateAllSeriesCovers } = await import('../cover.service.js');
+
+      mockPrisma.series.findMany
+        .mockResolvedValueOnce([{ id: 'series-1' }, { id: 'series-2' }]);
+
+      // First series throws error
+      mockPrisma.series.findUnique
+        .mockRejectedValueOnce(new Error('DB error'))
+        .mockResolvedValueOnce({
+          id: 'series-2',
+          coverSource: 'auto',
+          coverHash: null,
+          coverFileId: null,
+        });
+      mockPrisma.comicFile.findFirst.mockResolvedValue(null);
+
+      const result = await recalculateAllSeriesCovers();
+
+      expect(result.processed).toBe(1);
+      expect(result.errors).toBe(1);
+    });
+  });
 });

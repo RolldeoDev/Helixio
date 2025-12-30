@@ -51,6 +51,10 @@ export interface Series {
   coverUrl: string | null;
   coverHash: string | null;
   coverFileId: string | null;
+  // Pre-computed resolved cover (populated by server)
+  resolvedCoverHash: string | null;
+  resolvedCoverSource: 'api' | 'user' | 'firstIssue' | 'none' | null;
+  resolvedCoverFileId: string | null;
   primaryFolder: string | null;
   userNotes: string | null;
   aliases: string | null;
@@ -226,6 +230,68 @@ export interface UnifiedGridResult {
     total: number;
     pages: number;
   };
+}
+
+// =============================================================================
+// Browse Types (Cursor-based Pagination)
+// =============================================================================
+
+/**
+ * Options for cursor-based series browsing.
+ * Optimized for infinite scroll with large datasets (5000+ series).
+ */
+export interface SeriesBrowseOptions {
+  /** Base64-encoded cursor for pagination */
+  cursor?: string;
+  /** Number of items per page (default 100, max 200) */
+  limit?: number;
+  /** Sort field */
+  sortBy?: 'name' | 'startYear' | 'updatedAt' | 'issueCount';
+  /** Sort direction */
+  sortOrder?: 'asc' | 'desc';
+  /** Filter to series with issues in this library */
+  libraryId?: string;
+  /** Search filter (case-insensitive contains match on name) */
+  search?: string;
+  /** Filter by publisher */
+  publisher?: string;
+  /** Filter by series type */
+  type?: 'western' | 'manga';
+  /** Filter by genres (OR logic - matches if any genre matches) */
+  genres?: string[];
+  /** Filter by read status */
+  readStatus?: 'unread' | 'reading' | 'completed';
+}
+
+/**
+ * Minimal series data for browse grid.
+ * Only includes fields needed for card display.
+ */
+export interface SeriesBrowseItem {
+  id: string;
+  name: string;
+  startYear: number | null;
+  publisher: string | null;
+  coverHash: string | null;
+  coverSource: string;
+  coverFileId: string | null;
+  firstIssueId: string | null;
+  firstIssueCoverHash: string | null;
+  issueCount: number;
+  readCount: number;
+}
+
+/**
+ * Result from cursor-based browse query.
+ */
+export interface SeriesBrowseResult {
+  items: SeriesBrowseItem[];
+  /** Cursor for next page, null if no more pages */
+  nextCursor: string | null;
+  /** Whether there are more items after this page */
+  hasMore: boolean;
+  /** Total count (only provided on first page, -1 otherwise) */
+  totalCount: number;
 }
 
 // =============================================================================
@@ -1383,6 +1449,28 @@ export async function getUnifiedGridItems(
   }
   if (options.includeHidden) params.set('includeHidden', 'true');
   return get<UnifiedGridResult>(`/series/grid?${params}`);
+}
+
+/**
+ * Get series for browse page with cursor-based pagination.
+ * Optimized for infinite scroll with large datasets (5000+ series).
+ */
+export async function getSeriesBrowse(
+  options: SeriesBrowseOptions = {}
+): Promise<SeriesBrowseResult> {
+  const params = new URLSearchParams();
+  if (options.cursor) params.set('cursor', options.cursor);
+  if (options.limit) params.set('limit', options.limit.toString());
+  if (options.sortBy) params.set('sortBy', options.sortBy);
+  if (options.sortOrder) params.set('sortOrder', options.sortOrder);
+  if (options.libraryId) params.set('libraryId', options.libraryId);
+  // Filter options
+  if (options.search) params.set('search', options.search);
+  if (options.publisher) params.set('publisher', options.publisher);
+  if (options.type) params.set('type', options.type);
+  if (options.genres && options.genres.length > 0) params.set('genres', options.genres.join(','));
+  if (options.readStatus) params.set('readStatus', options.readStatus);
+  return get<SeriesBrowseResult>(`/series/browse?${params}`);
 }
 
 /**

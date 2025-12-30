@@ -27,9 +27,10 @@ import './Reader.css';
 interface ReaderProps {
   onClose: () => void;
   onNavigateToFile?: (fileId: string, options?: { startPage?: number }) => void;
+  onNavigateToSeries?: (seriesId: string) => void;
 }
 
-export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
+export function Reader({ onClose, onNavigateToFile, onNavigateToSeries }: ReaderProps) {
   const {
     state,
     showUI,
@@ -80,6 +81,16 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
   // Device detection for mobile/tablet UI
   const { isTouchDevice } = useDeviceDetection();
 
+  // Determine if navigation should be reversed based on RTL direction and physical navigation setting
+  const shouldReverseNavigation = useCallback(() => {
+    // If usePhysicalNavigation is explicitly true, never reverse
+    if (state.usePhysicalNavigation === true) return false;
+    // If usePhysicalNavigation is explicitly false, reverse when RTL
+    if (state.usePhysicalNavigation === false) return state.direction === 'rtl';
+    // null = auto: reverse for RTL (manga-style navigation)
+    return state.direction === 'rtl';
+  }, [state.usePhysicalNavigation, state.direction]);
+
   const openJumpToPage = useCallback(() => {
     setIsJumpToPageOpen(true);
   }, []);
@@ -100,23 +111,59 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
   const handleShortcutAction = useCallback(
     (action: ShortcutAction) => {
       switch (action) {
-        // Navigation
-        case 'nextPage':
-          // If on end screen, navigate to next issue
-          if (state.transitionScreen === 'end' && state.adjacentFiles?.next && onNavigateToFile) {
-            onNavigateToFile(state.adjacentFiles.next.fileId, { startPage: 0 });
+        // Navigation - respects RTL direction and usePhysicalNavigation setting
+        case 'nextPage': {
+          const reversed = shouldReverseNavigation();
+          if (state.transitionScreen !== 'none') {
+            // On transition screens, account for RTL reversal
+            // In RTL: Right key (nextPage) = backward = previous issue (START screen)
+            // In LTR: Right key (nextPage) = forward = next issue (END screen)
+            if (reversed) {
+              if (state.transitionScreen === 'start' && state.adjacentFiles?.previous && onNavigateToFile) {
+                onNavigateToFile(state.adjacentFiles.previous.fileId, { startPage: 0 });
+              } else if (state.transitionScreen === 'end') {
+                // RTL + END screen: Right key = backward = return to last page
+                exitTransitionScreen();
+              }
+            } else {
+              if (state.transitionScreen === 'end' && state.adjacentFiles?.next && onNavigateToFile) {
+                onNavigateToFile(state.adjacentFiles.next.fileId, { startPage: 0 });
+              } else if (state.transitionScreen === 'start') {
+                // LTR + START screen: Right key = forward = return to first page
+                exitTransitionScreen();
+              }
+            }
           } else {
-            nextPage();
+            reversed ? prevPage() : nextPage();
           }
           break;
-        case 'prevPage':
-          // If on start screen, navigate to previous issue
-          if (state.transitionScreen === 'start' && state.adjacentFiles?.previous && onNavigateToFile) {
-            onNavigateToFile(state.adjacentFiles.previous.fileId, { startPage: 0 });
+        }
+        case 'prevPage': {
+          const reversed = shouldReverseNavigation();
+          if (state.transitionScreen !== 'none') {
+            // On transition screens, account for RTL reversal
+            // In RTL: Left key (prevPage) = forward = next issue (END screen)
+            // In LTR: Left key (prevPage) = backward = previous issue (START screen)
+            if (reversed) {
+              if (state.transitionScreen === 'end' && state.adjacentFiles?.next && onNavigateToFile) {
+                onNavigateToFile(state.adjacentFiles.next.fileId, { startPage: 0 });
+              } else if (state.transitionScreen === 'start') {
+                // RTL + START screen: Left key = forward = return to first page
+                exitTransitionScreen();
+              }
+            } else {
+              if (state.transitionScreen === 'start' && state.adjacentFiles?.previous && onNavigateToFile) {
+                onNavigateToFile(state.adjacentFiles.previous.fileId, { startPage: 0 });
+              } else if (state.transitionScreen === 'end') {
+                // LTR + END screen: Left key = backward = return to last page
+                exitTransitionScreen();
+              }
+            }
           } else {
-            prevPage();
+            reversed ? nextPage() : prevPage();
           }
           break;
+        }
         case 'firstPage':
           firstPage();
           break;
@@ -244,7 +291,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       state.transitionScreen, state.adjacentFiles, toggleFullscreen, toggleUI,
       toggleSettings, toggleInfo, closeInfo, toggleThumbnailStrip, toggleQueue,
       closeQueue, onClose, zoomIn, zoomOut, resetZoom, isBookmarked, removeBookmark,
-      addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen,
+      addBookmark, rotatePageCW, rotatePageCCW, isQueueOpen, shouldReverseNavigation,
     ]
   );
 
@@ -259,11 +306,12 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     onSwipe: (direction) => {
       if (state.mode === 'continuous' || state.mode === 'webtoon') return; // No swipe in scroll modes
 
-      // Swipe direction always matches physical direction regardless of RTL setting
+      // Swipe direction respects RTL direction and usePhysicalNavigation setting
+      const reversed = shouldReverseNavigation();
       if (direction === 'left') {
-        nextPage();
+        reversed ? prevPage() : nextPage();
       } else if (direction === 'right') {
-        prevPage();
+        reversed ? nextPage() : prevPage();
       }
     },
     onDoubleTap: () => {
@@ -301,13 +349,14 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
       const rect = container.getBoundingClientRect();
       const relativeX = (x - rect.left) / rect.width;
 
-      // Tap zones always match physical position regardless of RTL setting
+      // Tap zones respect RTL direction and usePhysicalNavigation setting
+      const reversed = shouldReverseNavigation();
       if (relativeX > 0.33 && relativeX < 0.67) {
         toggleUI();
       } else if (relativeX <= 0.33) {
-        prevPage();
+        reversed ? nextPage() : prevPage();
       } else {
-        nextPage();
+        reversed ? prevPage() : nextPage();
       }
     },
   }, {
@@ -382,7 +431,7 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
     };
   }, [resetHideTimer, showUI]);
 
-  // Click zones for navigation - always match physical position regardless of RTL setting
+  // Click zones for navigation - respects RTL direction and usePhysicalNavigation setting
   const handlePageClick = useCallback(
     (e: React.MouseEvent) => {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -396,16 +445,18 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
         return;
       }
 
-      // Click in left third = previous page
+      // Click zones respect RTL direction and usePhysicalNavigation setting
+      const reversed = shouldReverseNavigation();
+      // Click in left third
       if (clickPosition <= 0.33) {
-        prevPage();
+        reversed ? nextPage() : prevPage();
       }
-      // Click in right third = next page
+      // Click in right third
       else {
-        nextPage();
+        reversed ? prevPage() : nextPage();
       }
     },
-    [toggleUI, nextPage, prevPage]
+    [toggleUI, nextPage, prevPage, shouldReverseNavigation]
   );
 
   // Background color class
@@ -519,7 +570,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
               className={`reader-edge-zone reader-edge-left ${hoveredEdge === 'left' ? 'active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                prevPage();
+                // Respects RTL direction and usePhysicalNavigation setting
+                shouldReverseNavigation() ? nextPage() : prevPage();
               }}
             >
               <div className="reader-edge-arrow">
@@ -532,7 +584,8 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
               className={`reader-edge-zone reader-edge-right ${hoveredEdge === 'right' ? 'active' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
-                nextPage();
+                // Respects RTL direction and usePhysicalNavigation setting
+                shouldReverseNavigation() ? prevPage() : nextPage();
               }}
             >
               <div className="reader-edge-arrow">
@@ -594,9 +647,12 @@ export function Reader({ onClose, onNavigateToFile }: ReaderProps) {
             totalInSeries: state.adjacentFiles?.totalInSeries ?? 0,
           }}
           currentFileId={state.fileId}
+          seriesId={state.adjacentFiles?.seriesId ?? null}
+          direction={state.direction}
           onNavigate={(fileId) => onNavigateToFile?.(fileId, { startPage: 0 })}
           onReturn={exitTransitionScreen}
           onClose={onClose}
+          onNavigateToSeries={(seriesId) => onNavigateToSeries?.(seriesId)}
         />
       )}
     </div>

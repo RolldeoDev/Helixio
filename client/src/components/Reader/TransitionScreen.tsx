@@ -29,9 +29,14 @@ interface TransitionScreenProps {
   };
   /** The current file being read (for rating on end screens) */
   currentFileId: string;
+  /** Series ID for navigation (null if file isn't in a series entity) */
+  seriesId: string | null;
+  /** Reading direction - affects button order (RTL swaps buttons) */
+  direction?: 'ltr' | 'rtl' | 'vertical';
   onNavigate: (fileId: string) => void;
   onReturn: () => void;
   onClose: () => void;
+  onNavigateToSeries: (seriesId: string) => void;
 }
 
 export function TransitionScreen({
@@ -39,9 +44,12 @@ export function TransitionScreen({
   adjacentFile,
   seriesInfo,
   currentFileId,
+  seriesId,
+  direction = 'ltr',
   onNavigate,
   onReturn,
   onClose,
+  onNavigateToSeries,
 }: TransitionScreenProps) {
   const isEnd = type === 'end';
   const hasAdjacentIssue = adjacentFile !== null;
@@ -114,10 +122,29 @@ export function TransitionScreen({
     </div>
   );
 
+  // Handle exit button click
+  const handleExitClick = () => {
+    if (seriesId) {
+      onNavigateToSeries(seriesId);
+    } else {
+      onClose();
+    }
+  };
+
   // End screen with no next issue - show completion message
   if (isEnd && !hasAdjacentIssue) {
     return (
       <div className="transition-screen" onKeyDown={handleKeyDown} tabIndex={0}>
+        {/* Exit button */}
+        <button
+          className="transition-exit-btn"
+          onClick={handleExitClick}
+          aria-label="Exit reader"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
         <div className="transition-screen-content transition-complete">
           <div className="transition-complete-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -135,12 +162,26 @@ export function TransitionScreen({
             You've reached the end of this {seriesInfo.seriesName ? 'series' : 'comic'}.
           </p>
           <div className="transition-actions">
-            <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
-              Back to Last Page
-            </button>
-            <button className="transition-btn transition-btn-primary" onClick={onClose}>
-              Close Reader
-            </button>
+            {/* Completion screen is always END - swap for RTL (forward action on left) */}
+            {direction === 'rtl' ? (
+              <>
+                <button className="transition-btn transition-btn-primary" onClick={onClose}>
+                  Close Reader
+                </button>
+                <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
+                  Back to Last Page
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
+                  Back to Last Page
+                </button>
+                <button className="transition-btn transition-btn-primary" onClick={onClose}>
+                  Close Reader
+                </button>
+              </>
+            )}
           </div>
 
           {/* Rating section for completed issue */}
@@ -168,6 +209,16 @@ export function TransitionScreen({
 
   return (
     <div className="transition-screen" onKeyDown={handleKeyDown} tabIndex={0}>
+      {/* Exit button */}
+      <button
+        className="transition-exit-btn"
+        onClick={handleExitClick}
+        aria-label="Exit reader"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
       <div className="transition-screen-content">
         <span className="transition-label">{label}</span>
 
@@ -206,15 +257,38 @@ export function TransitionScreen({
         </div>
 
         <div className="transition-actions">
-          <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
-            {returnText}
-          </button>
-          <button
-            className="transition-btn transition-btn-primary"
-            onClick={() => onNavigate(adjacentFile!.fileId)}
-          >
-            {actionText}
-          </button>
+          {/*
+            Button order for RTL:
+            - END screen (forward action): Primary on LEFT → swap buttons
+            - START screen (backward action): Primary on RIGHT → don't swap
+            Button order for LTR:
+            - Always: Primary on RIGHT → don't swap
+          */}
+          {direction === 'rtl' && isEnd ? (
+            <>
+              <button
+                className="transition-btn transition-btn-primary"
+                onClick={() => onNavigate(adjacentFile!.fileId)}
+              >
+                {actionText}
+              </button>
+              <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
+                {returnText}
+              </button>
+            </>
+          ) : (
+            <>
+              <button className="transition-btn transition-btn-secondary" onClick={onReturn}>
+                {returnText}
+              </button>
+              <button
+                className="transition-btn transition-btn-primary"
+                onClick={() => onNavigate(adjacentFile!.fileId)}
+              >
+                {actionText}
+              </button>
+            </>
+          )}
         </div>
 
         {/* Rating section only on end screens */}

@@ -87,6 +87,12 @@ model Series {
   coverHash     String?                   // Hash of downloaded API cover (for local cache lookup)
   coverFileId   String?                   // User-selected cover from owned issue
 
+  // Pre-computed resolved cover (populated by recalculateSeriesCover)
+  resolvedCoverHash      String?          // Hash pointing to actual cover file
+  resolvedCoverSource    String?          // "api" | "user" | "firstIssue" | "none"
+  resolvedCoverFileId    String?          // File ID if source is "user" or "firstIssue"
+  resolvedCoverUpdatedAt DateTime?        // Timestamp for cache invalidation
+
   // External IDs
   comicVineId   String?
   metronId      String?
@@ -258,6 +264,7 @@ model SeriesReaderSettingsNew {
   preloadCount    Int?
   webtoonGap      Int?
   webtoonMaxWidth Int?
+  usePhysicalNavigation Boolean?  // null = auto (RTL uses logical), true = always physical, false = always logical
 
   // Origin tracking (informational - tracks which preset these settings came from)
   basedOnPresetId   String?
@@ -791,6 +798,7 @@ model ReaderSettings {
   preloadCount    Int     @default(3)        // Number of pages to preload ahead
   webtoonGap      Int     @default(8)        // Gap between pages in webtoon mode (px)
   webtoonMaxWidth Int     @default(800)      // Max width for webtoon images (px)
+  usePhysicalNavigation Boolean?             // null = auto (RTL uses logical), true = always physical, false = always logical
   updatedAt       DateTime @updatedAt
 }
 
@@ -817,6 +825,7 @@ model LibraryReaderSettings {
   preloadCount    Int?
   webtoonGap      Int?
   webtoonMaxWidth Int?
+  usePhysicalNavigation Boolean?  // null = auto (RTL uses logical), true = always physical, false = always logical
 
   // Origin tracking (informational - tracks which preset these settings came from)
   basedOnPresetId   String?
@@ -938,6 +947,7 @@ model User {
   trackerTokens   TrackerToken[]
   syncTokens      SyncToken[]
   readerPresets   ReaderPreset[]
+  filterPresets   FilterPreset[]
   apiKeys         ApiKey[]
 
   @@index([username])
@@ -1398,8 +1408,12 @@ model Collection {
   // ===========================================
   isSmart           Boolean   @default(false)  // Whether this is a smart/dynamic collection
   smartScope        String?                     // "series" | "files" - what entities the filter applies to
-  filterDefinition  String?                     // JSON string containing the SmartFilter definition
+  filterDefinition  String?                     // JSON string containing the SmartFilter definition (legacy/embedded)
   lastEvaluatedAt   DateTime?                   // When the smart collection was last refreshed
+
+  // Filter Preset reference (if using linked preset instead of embedded filter)
+  filterPresetId    String?
+  filterPreset      FilterPreset? @relation(fields: [filterPresetId], references: [id], onDelete: SetNull)
 
   // Timestamps
   createdAt   DateTime @default(now())
@@ -1416,6 +1430,7 @@ model Collection {
   @@index([promotedOrder])
   @@index([userId, isPromoted])  // Efficient query for promoted collections per user
   @@index([isSmart])             // Efficient query for smart collections
+  @@index([filterPresetId])      // Efficient query for preset-linked collections
 }
 
 model CollectionItem {
@@ -1450,6 +1465,43 @@ model CollectionItem {
 }
 
 // =============================================================================
+// Filter Presets (Saved SmartFilter Configurations)
+// =============================================================================
+
+model FilterPreset {
+  id               String   @id @default(cuid())
+
+  // Ownership & Visibility
+  userId           String?  // null = global preset (admin-created)
+  user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isGlobal         Boolean  @default(false)  // true = visible to all users
+
+  // Metadata
+  name             String
+  description      String?
+  icon             String?  // Optional emoji/icon identifier
+
+  // Filter Definition (JSON)
+  filterDefinition String   // JSON string containing SmartFilter structure
+  schemaVersion    Int      @default(1)  // For future schema migrations
+
+  // Sorting options (stored with preset)
+  sortBy           String?  // Optional default sort field
+  sortOrder        String?  // "asc" | "desc"
+
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  linkedCollections Collection[]
+
+  @@unique([userId, name])  // Unique name per user (null userId = global namespace)
+  @@index([userId])
+  @@index([isGlobal])
+}
+
+// =============================================================================
 // Reader Presets (Named Settings Configurations)
 // =============================================================================
 
@@ -1478,6 +1530,7 @@ model ReaderPreset {
   preloadCount    Int      @default(3)            // Number of pages to preload
   webtoonGap      Int      @default(8)            // Gap between pages in webtoon mode (px)
   webtoonMaxWidth Int      @default(800)          // Max width for webtoon images (px)
+  usePhysicalNavigation Boolean?                  // null = auto (RTL uses logical), true = always physical, false = always logical
 
   // Timestamps
   createdAt       DateTime @default(now())
@@ -1565,6 +1618,7 @@ model IssueReaderSettings {
   preloadCount     Int?
   webtoonGap       Int?
   webtoonMaxWidth  Int?
+  usePhysicalNavigation Boolean?  // null = auto (RTL uses logical), true = always physical, false = always logical
 
   // Origin tracking (informational - tracks which preset these settings came from)
   basedOnPresetId   String?

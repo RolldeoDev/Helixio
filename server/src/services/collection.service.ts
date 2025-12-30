@@ -17,6 +17,11 @@ import {
   type SeriesCoverForMosaic,
 } from './cover.service.js';
 import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+import {
+  type SmartFilter,
+  type SortField,
+  type SortOrder,
+} from './smart-collection.service.js';
 
 const logger = createServiceLogger('collection');
 
@@ -2495,17 +2500,22 @@ export interface ExpandedIssue {
   seriesId: string;
   seriesName: string;
   collectionPosition: number;
+  createdAt: string;
   metadata: {
     number: string | null;
     title: string | null;
     writer: string | null;
+    year: number | null;
+    publisher: string | null;
   } | null;
   readingProgress: {
     currentPage: number;
     totalPages: number;
     completed: boolean;
     lastReadAt: string | null;
+    rating: number | null;
   } | null;
+  externalRating: number | null;
 }
 
 /**
@@ -2546,14 +2556,45 @@ export interface CollectionExpandedData {
  */
 export async function getCollectionExpanded(
   userId: string,
-  collectionId: string
+  collectionId: string,
+  sortOptions?: { sortBy?: SortField; sortOrder?: SortOrder }
 ): Promise<CollectionExpandedData | null> {
   const db = getDatabase();
 
-  // Get collection with items
+  // Get collection with items (need full collection data for smart filter)
+  const fullCollection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+    include: {
+      items: {
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+  if (!fullCollection) {
+    return null;
+  }
+
+  // Get the formatted collection for the response
   const collection = await getCollection(userId, collectionId);
   if (!collection) {
     return null;
+  }
+
+  // Determine effective sort options
+  let effectiveSortBy = sortOptions?.sortBy;
+  let effectiveSortOrder: SortOrder = sortOptions?.sortOrder ?? 'asc';
+
+  // If collection is smart, parse filter definition for sort options
+  if (fullCollection.isSmart && fullCollection.filterDefinition && !sortOptions?.sortBy) {
+    try {
+      const filter = JSON.parse(fullCollection.filterDefinition) as SmartFilter;
+      if (filter.sortBy) {
+        effectiveSortBy = filter.sortBy;
+        effectiveSortOrder = filter.sortOrder ?? 'asc';
+      }
+    } catch {
+      // Ignore parse errors, use default sorting
+    }
   }
 
   // Collect series IDs and individual file IDs
@@ -2580,6 +2621,8 @@ export async function getCollectionExpanded(
                 number: true,
                 title: true,
                 writer: true,
+                year: true,
+                publisher: true,
               },
             },
             userReadingProgress: {
@@ -2589,12 +2632,20 @@ export async function getCollectionExpanded(
                 totalPages: true,
                 completed: true,
                 lastReadAt: true,
+                rating: true,
               },
             },
             series: {
               select: {
                 name: true,
               },
+            },
+            externalRatings: {
+              select: {
+                ratingValue: true,
+              },
+              take: 1,
+              orderBy: { ratingValue: 'desc' },
             },
           },
           orderBy: [
@@ -2612,6 +2663,8 @@ export async function getCollectionExpanded(
                 number: true,
                 title: true,
                 writer: true,
+                year: true,
+                publisher: true,
               },
             },
             userReadingProgress: {
@@ -2621,12 +2674,20 @@ export async function getCollectionExpanded(
                 totalPages: true,
                 completed: true,
                 lastReadAt: true,
+                rating: true,
               },
             },
             series: {
               select: {
                 name: true,
               },
+            },
+            externalRatings: {
+              select: {
+                ratingValue: true,
+              },
+              take: 1,
+              orderBy: { ratingValue: 'desc' },
             },
           },
         })
@@ -2662,6 +2723,7 @@ export async function getCollectionExpanded(
   // Add series issues
   for (const issue of allSeriesIssues) {
     const progress = issue.userReadingProgress[0] ?? null;
+    const topRating = issue.externalRatings?.[0]?.ratingValue ?? null;
     expandedIssues.push({
       id: issue.id,
       filename: issue.filename,
@@ -2670,19 +2732,29 @@ export async function getCollectionExpanded(
       seriesId: issue.seriesId!,
       seriesName: issue.series?.name ?? 'Unknown Series',
       collectionPosition: seriesPositionMap.get(issue.seriesId!) ?? 999,
-      metadata: issue.metadata,
+      createdAt: issue.createdAt.toISOString(),
+      metadata: issue.metadata ? {
+        number: issue.metadata.number,
+        title: issue.metadata.title,
+        writer: issue.metadata.writer,
+        year: issue.metadata.year,
+        publisher: issue.metadata.publisher,
+      } : null,
       readingProgress: progress ? {
         currentPage: progress.currentPage,
         totalPages: progress.totalPages,
         completed: progress.completed,
         lastReadAt: progress.lastReadAt?.toISOString() ?? null,
+        rating: progress.rating,
       } : null,
+      externalRating: topRating,
     });
   }
 
   // Add individual files
   for (const file of individualFiles) {
     const progress = file.userReadingProgress[0] ?? null;
+    const topRating = file.externalRatings?.[0]?.ratingValue ?? null;
     expandedIssues.push({
       id: file.id,
       filename: file.filename,
@@ -2691,30 +2763,101 @@ export async function getCollectionExpanded(
       seriesId: file.seriesId ?? '',
       seriesName: file.series?.name ?? 'Unknown Series',
       collectionPosition: filePositionMap.get(file.id) ?? 999,
-      metadata: file.metadata,
+      createdAt: file.createdAt.toISOString(),
+      metadata: file.metadata ? {
+        number: file.metadata.number,
+        title: file.metadata.title,
+        writer: file.metadata.writer,
+        year: file.metadata.year,
+        publisher: file.metadata.publisher,
+      } : null,
       readingProgress: progress ? {
         currentPage: progress.currentPage,
         totalPages: progress.totalPages,
         completed: progress.completed,
         lastReadAt: progress.lastReadAt?.toISOString() ?? null,
+        rating: progress.rating,
       } : null,
+      externalRating: topRating,
     });
   }
 
-  // Sort by collection position, then by issue number
-  expandedIssues.sort((a, b) => {
-    if (a.collectionPosition !== b.collectionPosition) {
-      return a.collectionPosition - b.collectionPosition;
-    }
-    // Within same series, sort by issue number
-    const numA = parseIssueNum(a.metadata?.number);
-    const numB = parseIssueNum(b.metadata?.number);
-    if (numA !== numB) {
-      return numA - numB;
-    }
-    // Fallback to filename
-    return a.filename.localeCompare(b.filename);
-  });
+  // Apply sorting
+  if (effectiveSortBy) {
+    // Custom sorting based on sortBy field
+    expandedIssues.sort((a, b) => {
+      let valueA: string | number | null;
+      let valueB: string | number | null;
+
+      switch (effectiveSortBy) {
+        case 'name':
+        case 'title':
+          valueA = a.metadata?.title ?? a.filename;
+          valueB = b.metadata?.title ?? b.filename;
+          break;
+        case 'year':
+          valueA = a.metadata?.year ?? null;
+          valueB = b.metadata?.year ?? null;
+          break;
+        case 'dateAdded':
+          valueA = a.createdAt;
+          valueB = b.createdAt;
+          break;
+        case 'lastReadAt':
+          valueA = a.readingProgress?.lastReadAt ?? null;
+          valueB = b.readingProgress?.lastReadAt ?? null;
+          break;
+        case 'number':
+          valueA = parseIssueNum(a.metadata?.number);
+          valueB = parseIssueNum(b.metadata?.number);
+          break;
+        case 'publisher':
+          valueA = a.metadata?.publisher ?? '';
+          valueB = b.metadata?.publisher ?? '';
+          break;
+        case 'rating':
+          valueA = a.readingProgress?.rating ?? null;
+          valueB = b.readingProgress?.rating ?? null;
+          break;
+        case 'externalRating':
+          valueA = a.externalRating;
+          valueB = b.externalRating;
+          break;
+        default:
+          return 0;
+      }
+
+      // Handle null values (push to end)
+      if (valueA === null && valueB === null) return 0;
+      if (valueA === null) return 1;
+      if (valueB === null) return -1;
+
+      // Compare values
+      let comparison = 0;
+      if (typeof valueA === 'string' && typeof valueB === 'string') {
+        comparison = valueA.localeCompare(valueB);
+      } else {
+        comparison = (valueA as number) - (valueB as number);
+      }
+
+      return effectiveSortOrder === 'desc' ? -comparison : comparison;
+    });
+  } else {
+    // Default: Sort by collection position, then by issue number
+    expandedIssues.sort((a, b) => {
+      if (a.collectionPosition !== b.collectionPosition) {
+        return a.collectionPosition - b.collectionPosition;
+      }
+      // Within same series, sort by issue number
+      const numA = parseIssueNum(a.metadata?.number);
+      const numB = parseIssueNum(b.metadata?.number);
+      if (numA !== numB) {
+        return numA - numB;
+      }
+      // Fallback to filename
+      return a.filename.localeCompare(b.filename);
+    });
+  }
 
   // Calculate aggregate stats
   let totalPages = 0;
@@ -2766,4 +2909,93 @@ export async function getCollectionExpanded(
     aggregateStats,
     nextIssue,
   };
+}
+
+// =============================================================================
+// Filter Preset Linking
+// =============================================================================
+
+/**
+ * Link a collection to a filter preset
+ * The collection will use the preset's filter instead of an embedded filter
+ */
+export async function linkCollectionToPreset(
+  collectionId: string,
+  userId: string,
+  presetId: string
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Verify collection exists and belongs to user
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  // Verify preset exists and is accessible (user's own or global)
+  const preset = await db.filterPreset.findFirst({
+    where: {
+      id: presetId,
+      OR: [{ userId }, { isGlobal: true }],
+    },
+  });
+
+  if (!preset) {
+    throw new Error('Preset not found or not accessible');
+  }
+
+  // Update collection to use preset
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      filterPresetId: presetId,
+      filterDefinition: null, // Clear embedded filter
+      isSmart: true,
+    },
+  });
+
+  logger.info(`Linked collection ${collectionId} to preset ${presetId}`);
+
+  return updated as unknown as Collection;
+}
+
+/**
+ * Unlink a collection from its filter preset
+ * Copies the preset's filter definition to the collection as an embedded filter
+ */
+export async function unlinkCollectionFromPreset(
+  collectionId: string,
+  userId: string
+): Promise<Collection> {
+  const db = getDatabase();
+
+  // Get collection with its preset
+  const collection = await db.collection.findFirst({
+    where: { id: collectionId, userId },
+    include: { filterPreset: true },
+  });
+
+  if (!collection) {
+    throw new Error('Collection not found');
+  }
+
+  if (!collection.filterPresetId || !collection.filterPreset) {
+    throw new Error('Collection is not linked to a preset');
+  }
+
+  // Copy preset's filter to embedded filter
+  const updated = await db.collection.update({
+    where: { id: collectionId },
+    data: {
+      filterPresetId: null,
+      filterDefinition: collection.filterPreset.filterDefinition, // Copy filter
+    },
+  });
+
+  logger.info(`Unlinked collection ${collectionId} from preset ${collection.filterPresetId}`);
+
+  return updated as unknown as Collection;
 }

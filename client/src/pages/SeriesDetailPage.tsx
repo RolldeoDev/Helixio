@@ -70,6 +70,14 @@ import { SeriesUserDataPanel } from '../components/UserDataPanel';
 import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
 import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
 import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings } from '../hooks/queries';
+import {
+  getReaderPresetsGrouped,
+  applyPresetToSeries,
+  deleteSeriesReaderSettingsById,
+  getSeriesReaderSettingsById,
+  getLibraryReaderSettings,
+  PresetsGrouped,
+} from '../services/api/reading';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -226,6 +234,7 @@ export function SeriesDetailPage() {
       { id: 'fetchAllIssuesMetadata', label: 'Fetch Metadata (All Issues)' },
       { id: 'markAllRead', label: 'Mark All as Read', dividerBefore: true },
       { id: 'markAllUnread', label: 'Mark All as Unread' },
+      { id: 'readerSettings', label: 'Reader Settings...' },
       { id: 'downloadAll', label: 'Download All Issues', dividerBefore: true },
       { id: 'linkSeries', label: 'Link Series...', dividerBefore: true },
       ...(hasRelationships ? [{ id: 'manageRelationships', label: 'Manage Relationships' }] : []),
@@ -245,6 +254,13 @@ export function SeriesDetailPage() {
 
   // External ratings modal state
   const [showRatingsModal, setShowRatingsModal] = useState(false);
+
+  // Reader settings modal state
+  const [showReaderSettingsModal, setShowReaderSettingsModal] = useState(false);
+  const [readerPresets, setReaderPresets] = useState<PresetsGrouped | null>(null);
+  const [seriesReaderSettings, setSeriesReaderSettings] = useState<{ presetId?: string; presetName?: string } | null>(null);
+  const [libraryReaderSettingsInfo, setLibraryReaderSettingsInfo] = useState<{ presetId?: string; presetName?: string } | null>(null);
+  const [loadingReaderSettings, setLoadingReaderSettings] = useState(false);
 
   // Description expand/collapse state
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -707,6 +723,33 @@ export function SeriesDetailPage() {
         setShowManageRelationshipsModal(true);
         return;
       }
+      if (actionId === 'readerSettings') {
+        setShowReaderSettingsModal(true);
+        // Fetch presets and current settings
+        // Get libraryId from first issue (issues have libraryId, series doesn't)
+        const libraryId = issues?.[0]?.libraryId ?? null;
+        setLoadingReaderSettings(true);
+        Promise.all([
+          getReaderPresetsGrouped(),
+          getSeriesReaderSettingsById(seriesId),
+          libraryId ? getLibraryReaderSettings(libraryId) : Promise.resolve(null)
+        ]).then(([presets, seriesSettings, libSettings]) => {
+          setReaderPresets(presets);
+          // Extract preset info from series settings
+          const seriesWithPreset = seriesSettings as { basedOnPresetId?: string; basedOnPresetName?: string };
+          setSeriesReaderSettings(seriesWithPreset?.basedOnPresetId ? {
+            presetId: seriesWithPreset.basedOnPresetId,
+            presetName: seriesWithPreset.basedOnPresetName
+          } : null);
+          // Extract preset info from library settings
+          const libWithPreset = libSettings as { basedOnPresetId?: string; basedOnPresetName?: string } | null;
+          setLibraryReaderSettingsInfo(libWithPreset?.basedOnPresetId ? {
+            presetId: libWithPreset.basedOnPresetId,
+            presetName: libWithPreset.basedOnPresetName
+          } : null);
+        }).catch(console.error).finally(() => setLoadingReaderSettings(false));
+        return;
+      }
 
       const context: MenuContext = {
         entityType: 'series',
@@ -716,7 +759,7 @@ export function SeriesDetailPage() {
       };
       handleMenuActionFromHook(actionId, context);
     },
-    [seriesId, handleMenuActionFromHook]
+    [seriesId, issues, handleMenuActionFromHook]
   );
 
   // Handle bulk issue actions from ActionMenu - delegates to centralized hook
@@ -1546,6 +1589,98 @@ export function SeriesDetailPage() {
           issueCount={series?._count?.issues ?? issues.length}
           onClose={() => setShowRatingsModal(false)}
         />
+      )}
+
+      {/* Reader Settings Modal */}
+      {showReaderSettingsModal && seriesId && (
+        <div className="modal-overlay" onClick={() => setShowReaderSettingsModal(false)}>
+          <div className="modal-content reader-settings-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Reader Settings</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowReaderSettingsModal(false)}
+                aria-label="Close"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className={`modal-body${loadingReaderSettings ? ' modal-body--loading' : ''}`}>
+              {loadingReaderSettings ? (
+                <span>Loading...</span>
+              ) : (
+                <>
+                  {/* Status indicator */}
+                  <div className="reader-settings-status">
+                    <div className="reader-settings-status-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
+                    <div className="reader-settings-status-text">
+                      <span className="reader-settings-status-label">Active Profile</span>
+                      <span className="reader-settings-status-value">
+                        {seriesReaderSettings?.presetName
+                          ? `Series: ${seriesReaderSettings.presetName}`
+                          : libraryReaderSettingsInfo?.presetName
+                            ? `Library: ${libraryReaderSettingsInfo.presetName}`
+                            : 'Global Defaults'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Profile selector */}
+                  <div className="reader-settings-field">
+                    <label htmlFor="preset-select">Reader Profile</label>
+                    <select
+                      id="preset-select"
+                      value={seriesReaderSettings?.presetId || ''}
+                      onChange={async (e) => {
+                        const presetId = e.target.value;
+                        if (presetId === '') {
+                          await deleteSeriesReaderSettingsById(seriesId);
+                          setSeriesReaderSettings(null);
+                        } else {
+                          const allPresets = [...(readerPresets?.bundled || []), ...(readerPresets?.system || []), ...(readerPresets?.user || [])];
+                          const preset = allPresets.find(p => p.id === presetId);
+                          await applyPresetToSeries(presetId, seriesId);
+                          setSeriesReaderSettings({ presetId, presetName: preset?.name || 'Custom' });
+                        }
+                      }}
+                    >
+                      <option value="">Use Inherited Settings</option>
+                      <optgroup label="Bundled">
+                        {readerPresets?.bundled?.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </optgroup>
+                      {readerPresets?.system && readerPresets.system.length > 0 && (
+                        <optgroup label="System">
+                          {readerPresets.system.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {readerPresets?.user && readerPresets.user.length > 0 && (
+                        <optgroup label="My Presets">
+                          {readerPresets.user.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={() => setShowReaderSettingsModal(false)}>Done</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

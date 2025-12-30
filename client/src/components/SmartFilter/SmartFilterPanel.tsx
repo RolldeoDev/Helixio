@@ -11,10 +11,14 @@ import {
   FilterCondition,
   FilterGroup,
   FilterOperator,
+  SortField,
   FILTER_FIELDS,
   STRING_COMPARISONS,
   NUMBER_COMPARISONS,
+  DATE_COMPARISONS,
+  SORT_FIELDS,
 } from '../../contexts/SmartFilterContext';
+import { useFilterPresets } from '../../contexts/FilterPresetContext';
 import './SmartFilter.css';
 
 // =============================================================================
@@ -36,10 +40,19 @@ function FilterConditionRow({
 }: FilterConditionRowProps) {
   const fieldConfig = FILTER_FIELDS.find(f => f.value === condition.field);
   const isNumberField = fieldConfig?.type === 'number';
-  const comparisons = isNumberField ? NUMBER_COMPARISONS : STRING_COMPARISONS;
+  const isDateField = fieldConfig?.type === 'date';
+
+  // Select appropriate comparisons based on field type
+  const comparisons = isDateField
+    ? DATE_COMPARISONS
+    : isNumberField
+      ? NUMBER_COMPARISONS
+      : STRING_COMPARISONS;
 
   const needsValue = condition.comparison !== 'is_empty' && condition.comparison !== 'is_not_empty';
   const needsSecondValue = condition.comparison === 'between';
+  const isWithinDays = condition.comparison === 'within_days';
+  const isDateComparison = condition.comparison === 'before' || condition.comparison === 'after';
 
   return (
     <div className="filter-condition">
@@ -71,16 +84,26 @@ function FilterConditionRow({
         ))}
       </select>
 
-      {/* Value input */}
+      {/* Value input - different types based on field */}
       {needsValue && (
-        <input
-          type={isNumberField ? 'number' : 'text'}
-          className="filter-value-input"
-          value={condition.value}
-          onChange={(e) => onUpdate({ value: e.target.value })}
-          placeholder={isNumberField ? '0' : 'Value...'}
-          aria-label="Filter value"
-        />
+        isDateField && isDateComparison ? (
+          <input
+            type="date"
+            className="filter-value-input"
+            value={condition.value}
+            onChange={(e) => onUpdate({ value: e.target.value })}
+            aria-label="Filter date value"
+          />
+        ) : (
+          <input
+            type={isNumberField || isWithinDays ? 'number' : 'text'}
+            className="filter-value-input"
+            value={condition.value}
+            onChange={(e) => onUpdate({ value: e.target.value })}
+            placeholder={isWithinDays ? 'days' : isNumberField ? '0' : 'Value...'}
+            aria-label="Filter value"
+          />
+        )
       )}
 
       {/* Second value for 'between' */}
@@ -239,6 +262,8 @@ export function SmartFilterPanel() {
     clearFilter,
     addGroup,
     setRootOperator,
+    setSortBy,
+    setSortOrder,
     saveFilter,
     loadFilter,
     deleteFilter,
@@ -246,15 +271,28 @@ export function SmartFilterPanel() {
     closeFilterPanel,
   } = useSmartFilter();
 
+  const { presets, isLoading: presetsLoading } = useFilterPresets();
+
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [presetsOpen, setPresetsOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (filterName.trim()) {
-      saveFilter(filterName.trim());
-      setFilterName('');
-      setSaveDialogOpen(false);
+      setIsSaving(true);
+      setSaveError(null);
+      try {
+        await saveFilter(filterName.trim());
+        setFilterName('');
+        setSaveDialogOpen(false);
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : 'Failed to save filter');
+      } finally {
+        setIsSaving(false);
+      }
     }
   }, [filterName, saveFilter]);
 
@@ -263,10 +301,24 @@ export function SmartFilterPanel() {
     setPresetsOpen(false);
   }, [loadFilter]);
 
-  const handleDeletePreset = useCallback((filterId: string, e: React.MouseEvent) => {
+  const handleDeletePreset = useCallback(async (filterId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteFilter(filterId);
-  }, [deleteFilter]);
+    if (deletingId) return; // Prevent multiple concurrent deletes
+
+    setDeletingId(filterId);
+    try {
+      await deleteFilter(filterId);
+    } catch (error) {
+      console.error('Failed to delete preset:', error);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [deleteFilter, deletingId]);
+
+  // Find preset info to check if it's global
+  const getPresetById = useCallback((filterId: string) => {
+    return presets.find(p => p.id === filterId);
+  }, [presets]);
 
   // Collapsed view - just a toggle button
   if (!isFilterPanelOpen) {
@@ -330,29 +382,46 @@ export function SmartFilterPanel() {
             </button>
             {presetsOpen && (
               <div className="filter-presets-menu">
-                {savedFilters.length === 0 ? (
+                {presetsLoading ? (
+                  <div className="filter-presets-empty">Loading...</div>
+                ) : savedFilters.length === 0 ? (
                   <div className="filter-presets-empty">No saved filters</div>
                 ) : (
-                  savedFilters.map(filter => (
-                    <div
-                      key={filter.id}
-                      className="filter-preset-item"
-                      onClick={() => handleLoadPreset(filter.id)}
-                    >
-                      <span className="preset-name">{filter.name}</span>
-                      <button
-                        type="button"
-                        className="preset-delete-btn"
-                        onClick={(e) => handleDeletePreset(filter.id, e)}
-                        title="Delete preset"
+                  savedFilters.map(filter => {
+                    const preset = getPresetById(filter.id);
+                    const isGlobal = preset?.isGlobal ?? false;
+                    return (
+                      <div
+                        key={filter.id}
+                        className="filter-preset-item"
+                        onClick={() => handleLoadPreset(filter.id)}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))
+                        <span className="preset-name">
+                          {filter.name}
+                          {isGlobal && <span className="preset-global-badge">Global</span>}
+                        </span>
+                        {!isGlobal && (
+                          <button
+                            type="button"
+                            className={`preset-delete-btn ${deletingId === filter.id ? 'deleting' : ''}`}
+                            onClick={(e) => handleDeletePreset(filter.id, e)}
+                            disabled={deletingId !== null}
+                            title={deletingId === filter.id ? 'Deleting...' : 'Delete preset'}
+                            aria-busy={deletingId === filter.id}
+                          >
+                            {deletingId === filter.id ? (
+                              <span className="preset-delete-spinner" />
+                            ) : (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -363,7 +432,11 @@ export function SmartFilterPanel() {
             <button
               type="button"
               className="filter-save-btn"
-              onClick={() => setSaveDialogOpen(true)}
+              onClick={() => {
+                setFilterName('');
+                setSaveError(null);
+                setSaveDialogOpen(true);
+              }}
               title="Save filter as preset"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -406,6 +479,45 @@ export function SmartFilterPanel() {
       <div className="smart-filter-content">
         {activeFilter && (
           <>
+            {/* Sorting controls */}
+            <div className="filter-sort-controls">
+              <label className="filter-sort-label">Sort by:</label>
+              <select
+                className="filter-sort-select"
+                value={activeFilter.sortBy || ''}
+                onChange={(e) => setSortBy((e.target.value || undefined) as SortField | undefined)}
+                aria-label="Sort field"
+              >
+                <option value="">Default Order</option>
+                {SORT_FIELDS.map(field => (
+                  <option key={field.value} value={field.value}>
+                    {field.label}
+                  </option>
+                ))}
+              </select>
+
+              {activeFilter.sortBy && (
+                <div className="filter-sort-order">
+                  <button
+                    type="button"
+                    className={`sort-order-btn ${activeFilter.sortOrder !== 'desc' ? 'active' : ''}`}
+                    onClick={() => setSortOrder('asc')}
+                    title="Ascending"
+                  >
+                    A-Z ↑
+                  </button>
+                  <button
+                    type="button"
+                    className={`sort-order-btn ${activeFilter.sortOrder === 'desc' ? 'active' : ''}`}
+                    onClick={() => setSortOrder('desc')}
+                    title="Descending"
+                  >
+                    Z-A ↓
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Root operator toggle (only show if multiple groups) */}
             {activeFilter.groups.length > 1 && (
               <div className="filter-root-toggle">
@@ -461,31 +573,45 @@ export function SmartFilterPanel() {
 
       {/* Save dialog */}
       {saveDialogOpen && (
-        <div className="filter-save-dialog-overlay" onClick={() => setSaveDialogOpen(false)}>
-          <div className="filter-save-dialog" onClick={(e) => e.stopPropagation()}>
-            <h4>Save Filter Preset</h4>
+        <div
+          className="filter-save-dialog-overlay"
+          onClick={() => !isSaving && setSaveDialogOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="filter-save-dialog"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="save-dialog-title"
+          >
+            <h4 id="save-dialog-title">Save Filter Preset</h4>
             <input
               type="text"
               value={filterName}
               onChange={(e) => setFilterName(e.target.value)}
               placeholder="Enter preset name..."
               autoFocus
+              disabled={isSaving}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSave();
-                if (e.key === 'Escape') setSaveDialogOpen(false);
+                if (e.key === 'Enter' && !isSaving) handleSave();
+                if (e.key === 'Escape' && !isSaving) setSaveDialogOpen(false);
               }}
             />
+            {saveError && (
+              <div className="filter-save-error">{saveError}</div>
+            )}
             <div className="filter-save-dialog-actions">
-              <button type="button" onClick={() => setSaveDialogOpen(false)}>
+              <button type="button" onClick={() => setSaveDialogOpen(false)} disabled={isSaving}>
                 Cancel
               </button>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={handleSave}
-                disabled={!filterName.trim()}
+                disabled={!filterName.trim() || isSaving}
               >
-                Save
+                {isSaving ? 'Saving...' : 'Save'}
               </button>
             </div>
           </div>

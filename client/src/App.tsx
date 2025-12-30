@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { MetadataJobProvider, useMetadataJob } from './contexts/MetadataJobContext';
 import { LibraryScanProvider } from './contexts/LibraryScanContext';
 import { SmartFilterProvider, useSmartFilter } from './contexts/SmartFilterContext';
+import { FilterPresetProvider } from './contexts/FilterPresetContext';
 import { CollectionsProvider } from './contexts/CollectionsContext';
 import { WantToReadProvider } from './contexts/WantToReadContext';
 import { AnnotationsProvider } from './contexts/AnnotationsContext';
@@ -48,6 +49,7 @@ import type { GroupField } from './components/SortGroup/SortGroupPanel';
 import { LoginPage } from './pages/LoginPage';
 import { HomePage } from './pages/HomePage';
 import { SeriesPage } from './pages/SeriesPage';
+import { SeriesBrowserPage } from './pages/SeriesBrowserPage';
 import { SeriesDetailPage } from './pages/SeriesDetailPage';
 import { IssueDetailPage } from './pages/IssueDetailPage';
 import { DuplicatesPage } from './pages/DuplicatesPage';
@@ -380,6 +382,7 @@ function AppContent() {
           <Route path="/library/:libraryId" element={<LibraryView />} />
           <Route path="/folders" element={<FoldersPage />} />
           <Route path="/series" element={<SeriesPage />} />
+          <Route path="/series-v2" element={<SeriesBrowserPage />} />
           <Route path="/series/duplicates" element={<DuplicatesPage />} />
           <Route path="/series/:seriesId" element={<SeriesDetailPage />} />
           <Route path="/issue/:fileId" element={<IssueDetailPage />} />
@@ -430,6 +433,7 @@ function App() {
           <AppProvider>
             <BreadcrumbProvider>
               <LibraryScanProvider>
+              <FilterPresetProvider>
               <SmartFilterProvider>
                 <CollectionsProvider>
                   <WantToReadProvider>
@@ -458,6 +462,7 @@ function App() {
                   </WantToReadProvider>
                 </CollectionsProvider>
               </SmartFilterProvider>
+              </FilterPresetProvider>
               </LibraryScanProvider>
             </BreadcrumbProvider>
           </AppProvider>

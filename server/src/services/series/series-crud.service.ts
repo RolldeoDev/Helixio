@@ -30,6 +30,9 @@ import type {
   SeriesCoverResult,
   BulkSeriesUpdateInput,
   BulkOperationResult,
+  SeriesBrowseOptions,
+  SeriesBrowseItem,
+  SeriesBrowseResult,
 } from './series.types.js';
 import { getSeriesByIdentity } from './series-lookup.service.js';
 import { onSeriesMetadataChanged } from '../collection.service.js';
@@ -308,6 +311,305 @@ export async function getSeriesList(
 }
 
 /**
+ * Get cursor-based paginated list of Series for browse page.
+ * Optimized for infinite scroll with large datasets (5000+ series).
+ *
+ * Uses keyset pagination for stable results across pages.
+ * Returns minimal data per series to reduce payload size.
+ */
+export async function getSeriesBrowseList(
+  options: SeriesBrowseOptions = {}
+): Promise<SeriesBrowseResult> {
+  const db = getDatabase();
+  const {
+    cursor,
+    limit = 100,
+    sortBy = 'name',
+    sortOrder = 'asc',
+    libraryId,
+    userId,
+    search,
+    publisher,
+    type,
+    genres,
+    readStatus,
+  } = options;
+
+  // Cap limit at 200 for performance
+  const effectiveLimit = Math.min(limit, 200);
+
+  // Decode cursor if provided (format: "sortValue|id")
+  let cursorData: { sortValue: string; id: string } | null = null;
+  if (cursor) {
+    try {
+      const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+      const separatorIndex = decoded.lastIndexOf('|');
+      if (separatorIndex > -1) {
+        cursorData = {
+          sortValue: decoded.substring(0, separatorIndex),
+          id: decoded.substring(separatorIndex + 1),
+        };
+      }
+    } catch {
+      // Invalid cursor, ignore and start from beginning
+    }
+  }
+
+  // Build base where clause
+  const baseWhere: Prisma.SeriesWhereInput = {
+    deletedAt: null,
+    isHidden: false,
+  };
+
+  // Filter by library if provided
+  if (libraryId) {
+    baseWhere.issues = {
+      some: { libraryId },
+    };
+  }
+
+  // Search filter (contains on name - SQLite LIKE is case-insensitive by default)
+  if (search && search.trim()) {
+    baseWhere.name = {
+      contains: search.trim(),
+    };
+  }
+
+  // Publisher filter
+  if (publisher) {
+    baseWhere.publisher = publisher;
+  }
+
+  // Type filter
+  if (type) {
+    baseWhere.type = type;
+  }
+
+  // Genre filter (OR logic - match if any genre in the list)
+  // SQLite LIKE is case-insensitive by default
+  if (genres && genres.length > 0) {
+    baseWhere.OR = genres.map(genre => ({
+      genres: {
+        contains: genre,
+      },
+    }));
+  }
+
+  // Read status filter (requires userId)
+  // Note: SeriesProgress tracks totalRead (issues read) and totalOwned (total issues)
+  // unread: no progress record OR totalRead = 0
+  // reading: 0 < totalRead < totalOwned
+  // completed: totalRead >= totalOwned AND totalOwned > 0
+  if (readStatus && userId) {
+    const existingAnd = Array.isArray(baseWhere.AND) ? baseWhere.AND : [];
+
+    if (readStatus === 'unread') {
+      // Series with no progress for this user, or totalRead = 0
+      baseWhere.AND = [
+        ...existingAnd,
+        {
+          OR: [
+            { progress: { none: { userId } } },
+            { progress: { some: { userId, totalRead: 0 } } },
+          ],
+        },
+      ];
+    } else if (readStatus === 'reading') {
+      // Series where user has started but not finished
+      // A series is "reading" if:
+      // - User has read at least one issue (totalRead > 0)
+      // - There are still unread issues (nextUnreadFileId is not null)
+      baseWhere.AND = [
+        ...existingAnd,
+        {
+          progress: {
+            some: {
+              userId,
+              totalRead: { gt: 0 },
+              nextUnreadFileId: { not: null },
+            },
+          },
+        },
+      ];
+    } else if (readStatus === 'completed') {
+      // Series where user has read all owned issues
+      // A series is "completed" if:
+      // - User owns at least one issue (totalOwned > 0)
+      // - No next unread file (all issues read)
+      // - No issues currently in progress
+      baseWhere.AND = [
+        ...existingAnd,
+        {
+          progress: {
+            some: {
+              userId,
+              totalOwned: { gt: 0 },
+              nextUnreadFileId: null,
+              totalInProgress: 0,
+            },
+          },
+        },
+      ];
+    }
+  }
+
+  // Build cursor condition for keyset pagination
+  // (sortValue > cursor) OR (sortValue = cursor AND id > cursorId)
+  // Note: issueCount sorting uses _count which doesn't support direct cursor comparison
+  let cursorCondition: Prisma.SeriesWhereInput | undefined;
+  if (cursorData && sortBy !== 'issueCount') {
+    const sortValue = sortBy === 'name'
+      ? cursorData.sortValue
+      : sortBy === 'startYear'
+        ? (cursorData.sortValue === 'null' ? null : parseInt(cursorData.sortValue, 10))
+        : new Date(cursorData.sortValue);
+
+    if (sortOrder === 'asc') {
+      cursorCondition = {
+        OR: [
+          { [sortBy]: { gt: sortValue } },
+          {
+            AND: [
+              { [sortBy]: sortValue },
+              { id: { gt: cursorData.id } },
+            ],
+          },
+        ],
+      };
+    } else {
+      cursorCondition = {
+        OR: [
+          { [sortBy]: { lt: sortValue } },
+          {
+            AND: [
+              { [sortBy]: sortValue },
+              { id: { lt: cursorData.id } },
+            ],
+          },
+        ],
+      };
+    }
+  }
+
+  // For issueCount sorting, we use skip-based pagination with the cursor as offset
+  // The cursor format for issueCount is "offset|id" where offset is the number to skip
+  let skipCount = 0;
+  if (cursorData && sortBy === 'issueCount') {
+    skipCount = parseInt(cursorData.sortValue, 10) || 0;
+  }
+
+  // Combine where conditions
+  const where: Prisma.SeriesWhereInput = cursorCondition
+    ? { AND: [baseWhere, cursorCondition] }
+    : baseWhere;
+
+  // Build orderBy with tie-breaker
+  // For issueCount, use relation count ordering
+  const orderBy: Prisma.SeriesOrderByWithRelationInput[] = sortBy === 'issueCount'
+    ? [
+        { issues: { _count: sortOrder } },
+        { id: sortOrder }, // Tie-breaker
+      ]
+    : [
+        { [sortBy]: sortOrder },
+        { id: sortOrder }, // Tie-breaker for stable pagination
+      ];
+
+  // Fetch one extra to determine hasMore
+  const fetchLimit = effectiveLimit + 1;
+
+  // Query with minimal includes for performance
+  const series = await db.series.findMany({
+    where,
+    orderBy,
+    take: fetchLimit,
+    ...(skipCount > 0 && { skip: skipCount }),
+    select: {
+      id: true,
+      name: true,
+      startYear: true,
+      publisher: true,
+      coverHash: true,
+      coverSource: true,
+      coverFileId: true,
+      _count: { select: { issues: true } },
+      issues: {
+        take: 1,
+        orderBy: [
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+          { filename: 'asc' },
+        ],
+        select: { id: true, coverHash: true },
+      },
+      ...(userId && {
+        progress: {
+          where: { userId },
+          select: { totalRead: true },
+        },
+      }),
+    },
+  });
+
+  // Determine if there are more results
+  const hasMore = series.length > effectiveLimit;
+  const items = series.slice(0, effectiveLimit);
+
+  // Build next cursor from last item
+  let nextCursor: string | null = null;
+  if (hasMore && items.length > 0) {
+    const lastItem = items[items.length - 1]!;
+    let sortValue: string;
+
+    if (sortBy === 'issueCount') {
+      // For issueCount, cursor contains the offset for next page
+      sortValue = String(skipCount + effectiveLimit);
+    } else if (sortBy === 'name') {
+      sortValue = lastItem.name;
+    } else if (sortBy === 'startYear') {
+      sortValue = lastItem.startYear?.toString() ?? 'null';
+    } else {
+      sortValue = (lastItem as { updatedAt?: Date }).updatedAt?.toISOString() ?? '';
+    }
+
+    nextCursor = Buffer.from(`${sortValue}|${lastItem.id}`).toString('base64');
+  }
+
+  // Transform to SeriesBrowseItem format
+  const browseItems: SeriesBrowseItem[] = items.map((s) => {
+    // Handle progress which may be array or undefined
+    const progressArray = (s as { progress?: Array<{ totalRead: number }> }).progress;
+    const readCount = progressArray?.[0]?.totalRead ?? 0;
+
+    return {
+      id: s.id,
+      name: s.name,
+      startYear: s.startYear,
+      publisher: s.publisher,
+      coverHash: s.coverHash,
+      coverSource: s.coverSource,
+      coverFileId: s.coverFileId,
+      firstIssueId: s.issues[0]?.id ?? null,
+      firstIssueCoverHash: s.issues[0]?.coverHash ?? null,
+      issueCount: s._count.issues,
+      readCount,
+    };
+  });
+
+  // Get total count only on first page (no cursor) for display purposes
+  let totalCount = -1;
+  if (!cursor) {
+    totalCount = await db.series.count({ where: baseWhere });
+  }
+
+  return {
+    items: browseItems,
+    nextCursor,
+    hasMore,
+    totalCount,
+  };
+}
+
+/**
  * Update a Series record.
  * Respects locked fields - will not update fields that are locked.
  */
@@ -470,6 +772,10 @@ export async function setSeriesCoverFromIssue(
       coverFileId: fileId,
     },
   });
+
+  // Recalculate resolved cover
+  const { onCoverSourceChanged } = await import('../cover.service.js');
+  await onCoverSourceChanged('series', seriesId);
 }
 
 /**
@@ -516,6 +822,10 @@ export async function setSeriesCoverFromUrl(
       coverHash: downloadResult.coverHash,
     },
   });
+
+  // Recalculate resolved cover
+  const { onCoverSourceChanged } = await import('../cover.service.js');
+  await onCoverSourceChanged('series', seriesId);
 
   return {
     success: true,

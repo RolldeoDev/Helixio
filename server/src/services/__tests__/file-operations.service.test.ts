@@ -72,6 +72,14 @@ vi.mock('../collection.service.js', () => ({
   markFileItemsUnavailable: mockMarkFileItemsUnavailable,
 }));
 
+// Mock cover service
+const mockRecalculateSeriesCover = vi.fn().mockResolvedValue(undefined);
+const mockOnCoverSourceChanged = vi.fn().mockResolvedValue(undefined);
+vi.mock('../cover.service.js', () => ({
+  recalculateSeriesCover: mockRecalculateSeriesCover,
+  onCoverSourceChanged: mockOnCoverSourceChanged,
+}));
+
 // Import service after mocking
 const {
   moveFile,
@@ -419,6 +427,47 @@ describe('File Operations Service', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toBe('Permission denied');
+    });
+
+    it('should recalculate series cover after deletion if file belonged to series', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        seriesId: 'series-1',
+        path: '/comics/Batman 001.cbz',
+        filename: 'Batman 001.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockRecalculateSeriesCover.mockClear();
+      mockOnCoverSourceChanged.mockClear();
+
+      await deleteFile('file-1');
+
+      // Should call onCoverSourceChanged to update any series using this file as cover
+      expect(mockOnCoverSourceChanged).toHaveBeenCalledWith('file', 'file-1');
+      // Should recalculate the file's own series cover
+      expect(mockRecalculateSeriesCover).toHaveBeenCalledWith('series-1');
+    });
+
+    it('should not recalculate cover if file had no series', async () => {
+      const file = {
+        ...createMockComicFile({ id: 'file-1' }),
+        seriesId: null,
+        path: '/comics/standalone.cbz',
+      };
+      mockPrisma.comicFile.findUnique.mockResolvedValue(file);
+      mockPrisma.comicFile.delete.mockResolvedValue({});
+      mockPrisma.operationLog.create.mockResolvedValue({ id: 'log-1' });
+      mockRecalculateSeriesCover.mockClear();
+      mockOnCoverSourceChanged.mockClear();
+
+      await deleteFile('file-1');
+
+      // Should still call onCoverSourceChanged (in case file was used as cover for other series)
+      expect(mockOnCoverSourceChanged).toHaveBeenCalledWith('file', 'file-1');
+      // Should not call recalculateSeriesCover since file had no series
+      expect(mockRecalculateSeriesCover).not.toHaveBeenCalled();
     });
   });
 

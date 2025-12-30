@@ -66,6 +66,7 @@ export interface AdjacentFiles {
   currentIndex: number;
   totalInSeries: number;
   seriesName: string | null;
+  seriesId: string | null;
 }
 
 // =============================================================================
@@ -642,6 +643,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
       currentIndex: 0,
       totalInSeries: 1,
       seriesName: null,
+      seriesId: null,
     };
   }
 
@@ -684,6 +686,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
       currentIndex,
       totalInSeries: seriesFiles.length,
       seriesName: currentFile.series.name,
+      seriesId: currentFile.seriesId,
     };
   }
 
@@ -731,6 +734,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
       currentIndex,
       totalInSeries: seriesFiles.length,
       seriesName,
+      seriesId: null,
     };
   }
 
@@ -788,6 +792,7 @@ export async function getAdjacentFiles(fileId: string): Promise<AdjacentFiles> {
     currentIndex,
     totalInSeries: sameLevel.length,
     seriesName: null,
+    seriesId: null,
   };
 }
 

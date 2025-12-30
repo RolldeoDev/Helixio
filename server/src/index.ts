@@ -69,6 +69,7 @@ import globalSearchRoutes from './routes/global-search.routes.js';
 import templatesRoutes from './routes/templates.routes.js';
 import userDataRoutes from './routes/user-data.routes.js';
 import externalRatingsRoutes from './routes/external-ratings.routes.js';
+import filterPresetsRoutes from './routes/filter-presets.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -458,6 +459,7 @@ app.use('/api/downloads', downloadsRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/user-data', userDataRoutes);
 app.use('/api/external-ratings', externalRatingsRoutes);
+app.use('/api/filter-presets', filterPresetsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
@@ -497,6 +499,35 @@ async function startServer(): Promise<void> {
     // Ensure bundled reader presets exist (Western, Manga, Webtoon)
     logger.info('Initializing reader presets...');
     await ensureBundledPresets();
+
+    // One-time migration: Apply Manga preset to existing manga libraries without reader settings
+    try {
+      const db = getDatabase();
+      const mangaLibraries = await db.library.findMany({ where: { type: 'manga' } });
+      const mangaPreset = await db.readerPreset.findFirst({
+        where: { name: 'Manga', isBundled: true },
+      });
+      if (mangaPreset && mangaLibraries.length > 0) {
+        const { applyPresetToLibrary } = await import('./services/reader-settings.service.js');
+        const { extractSettingsFromPreset } = await import('./services/reader-preset.service.js');
+        let migrated = 0;
+        for (const lib of mangaLibraries) {
+          const existingSettings = await db.libraryReaderSettings.findUnique({
+            where: { libraryId: lib.id },
+          });
+          if (!existingSettings) {
+            const settings = extractSettingsFromPreset(mangaPreset as Parameters<typeof extractSettingsFromPreset>[0]);
+            await applyPresetToLibrary(lib.id, mangaPreset.id, mangaPreset.name, settings);
+            migrated++;
+          }
+        }
+        if (migrated > 0) {
+          logger.info({ count: migrated }, 'Applied Manga preset to existing manga libraries');
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Failed to migrate manga libraries to Manga preset');
+    }
 
     // Startup tasks
     logger.info('Running startup tasks...');
@@ -571,6 +602,29 @@ async function startServer(): Promise<void> {
         logError('server', err, { action: 'startup-mosaic-generation' });
       }
     }, 2000); // Delay 2s after startup
+
+    // Backfill resolved covers for series that don't have them yet
+    setTimeout(async () => {
+      try {
+        const { recalculateAllSeriesCovers } = await import('./services/cover.service.js');
+        const db = getDatabase();
+
+        // Check if any series need resolved covers
+        const seriesWithoutResolvedCover = await db.series.count({
+          where: {
+            resolvedCoverSource: null,
+          },
+        });
+
+        if (seriesWithoutResolvedCover > 0) {
+          logger.info({ count: seriesWithoutResolvedCover }, 'Backfilling resolved covers for series');
+          const result = await recalculateAllSeriesCovers();
+          logger.info({ processed: result.processed, errors: result.errors }, 'Completed resolved cover backfill');
+        }
+      } catch (err) {
+        logError('server', err, { action: 'startup-resolved-cover-backfill' });
+      }
+    }, 3000); // Delay 3s after startup
 
     // Get initial stats
     const stats = await getDatabaseStats();

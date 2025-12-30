@@ -44,9 +44,17 @@ export function ReaderPage() {
     navigate(`/read/${newFileId}${pageParam}`, { replace: true });
   };
 
+  const handleNavigateToSeries = (seriesId: string) => {
+    navigate(`/series/${seriesId}`);
+  };
+
   return (
     <ReaderProvider fileId={fileId} filename={filename} startPage={startPage}>
-      <Reader onClose={handleClose} onNavigateToFile={handleNavigateToFile} />
+      <Reader
+        onClose={handleClose}
+        onNavigateToFile={handleNavigateToFile}
+        onNavigateToSeries={handleNavigateToSeries}
+      />
     </ReaderProvider>
   );
 }
