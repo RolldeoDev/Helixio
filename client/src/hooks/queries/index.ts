@@ -39,17 +39,6 @@ export type {
   SeriesCover,
 } from './useSeries';
 
-// Series Browse (Cursor-based Pagination)
-export {
-  useSeriesBrowse,
-  flattenSeriesBrowsePages,
-} from './useSeriesBrowse';
-export type {
-  SeriesBrowseItem,
-  SeriesBrowseResult,
-  SeriesBrowseOptions,
-} from './useSeriesBrowse';
-
 // Collections
 export {
   useCollections,

@@ -93,11 +93,6 @@ export const queryKeys = {
     all: ['series'] as const,
     list: (options?: object) => [...queryKeys.series.all, 'list', options] as const,
     grid: (options?: object) => [...queryKeys.series.all, 'grid', options] as const,
-    browse: (options?: object) => [
-    ...queryKeys.series.all,
-    'browse',
-    options ? JSON.stringify(options, Object.keys(options as Record<string, unknown>).sort()) : '',
-  ] as const,
     detail: (id: string) => [...queryKeys.series.all, 'detail', id] as const,
     issues: (id: string, options?: object) => [...queryKeys.series.all, 'issues', id, options] as const,
     cover: (id: string) => [...queryKeys.series.all, 'cover', id] as const,
