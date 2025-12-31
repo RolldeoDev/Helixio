@@ -214,14 +214,15 @@ export function HomeWelcome({
     }
   };
 
-  // Determine what stats to show
-  const stats = statsSummary || (allTimeStats ? {
-    totalFiles: 0,
+  // Determine what stats to show - always use allTimeStats for reading metrics
+  // since it's computed from actual reading history (same source as Stats page)
+  const stats = allTimeStats ? {
+    totalFiles: statsSummary?.totalFiles ?? 0,
     filesRead: allTimeStats.totalComicsRead,
     pagesRead: allTimeStats.totalPagesRead,
     readingTime: allTimeStats.totalReadingTime,
     currentStreak: allTimeStats.currentStreak,
-  } : null);
+  } : null;
 
   return (
     <section className="welcome-section">

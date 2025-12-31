@@ -64,6 +64,9 @@ interface SeriesBrowserCardProps {
   /** Context menu handler - receives event and seriesId for menu positioning */
   onContextMenu?: (e: React.MouseEvent, seriesId: string) => void;
 
+  /** Compact mode: hide progress ring and simplify badge for better performance at small sizes */
+  compact?: boolean;
+
   /** Additional CSS class */
   className?: string;
 }
@@ -117,6 +120,9 @@ function arePropsEqual(
   // Context menu
   if (prevProps.contextMenuEnabled !== nextProps.contextMenuEnabled) return false;
 
+  // Compact mode
+  if (prevProps.compact !== nextProps.compact) return false;
+
   return true;
 }
 
@@ -131,6 +137,7 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
   onSelectionChange,
   contextMenuEnabled = false,
   onContextMenu,
+  compact = false,
   className = '',
 }: SeriesBrowserCardProps) {
   // Build cover data for the hook
@@ -309,8 +316,8 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
           />
         )}
 
-        {/* Progress ring */}
-        {showProgress && (
+        {/* Progress ring - hidden in compact mode for performance */}
+        {showProgress && !compact && (
           <ProgressRing
             progress={isComplete ? 100 : progressPercent}
             size="md"
@@ -320,7 +327,14 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
         )}
 
         {/* Issue count badge */}
-        <div className="series-browser-card__count-badge">
+        <div
+          className={[
+            'series-browser-card__count-badge',
+            compact && 'series-browser-card__count-badge--compact',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
           {totalRead}/{totalOwned}
         </div>
       </div>

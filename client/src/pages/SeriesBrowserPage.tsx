@@ -263,6 +263,23 @@ function SeriesBrowserPageContent() {
     return [...collectionItems, ...filteredSeriesItems];
   }, [rawItems, isSmartFilterActive, applyFilterToSeries]);
 
+  // Calculate dynamic overscan based on estimated column count
+  // More columns = more items per row = fewer overscan rows needed
+  const dynamicOverscan = useMemo(() => {
+    // Configuration for dynamic overscan calculation
+    const TARGET_BUFFER_ITEMS = 20; // Items to buffer off-screen for smooth scrolling
+    const MIN_COLUMNS = 2; // Minimum column estimate
+    const COLUMN_MULTIPLIER = 1.33; // Derived from slider-to-column ratio in useVirtualGrid
+
+    // Estimate columns from coverSize (slider 1-10 maps to ~2-14 columns)
+    const estimatedCols = Math.max(
+      MIN_COLUMNS,
+      Math.round(MIN_COLUMNS + (coverSize - 1) * COLUMN_MULTIPLIER)
+    );
+    // Calculate rows needed to maintain target buffer items
+    return Math.max(1, Math.ceil(TARGET_BUFFER_ITEMS / estimatedCols));
+  }, [coverSize]);
+
   // Use virtual grid hook for performant rendering
   const {
     virtualItems,
@@ -275,7 +292,7 @@ function SeriesBrowserPageContent() {
   } = useVirtualGrid(items, {
     sliderValue: coverSize,
     gap: 16,
-    overscan: 2,
+    overscan: dynamicOverscan,
     aspectRatio: 1.5,
     infoHeight: 60,
     minCoverWidth: 80,
@@ -285,6 +302,10 @@ function SeriesBrowserPageContent() {
     paddingLeft: 24, // Match var(--spacing-lg) - left spacing for grid content
     paddingTop: 12, // Match var(--spacing-md)
   });
+
+  // Compact mode for smaller card sizes (slider >= 7)
+  // Hides ProgressRing and simplifies badge styling for better performance
+  const compactMode = coverSize >= 7;
 
   // Retry handler for error state
   const handleRetry = useCallback(() => {
@@ -911,6 +932,7 @@ function SeriesBrowserPageContent() {
                       onSelectionChange={handleSelectionChange}
                       contextMenuEnabled={true}
                       onContextMenu={handleSeriesCardContextMenu}
+                      compact={compactMode}
                     />
                   ) : (
                     <CollectionCoverCard
@@ -946,6 +968,8 @@ function SeriesBrowserPageContent() {
           Visible: {visibleRange.start}-{visibleRange.end} of {items.length} |
           Rendered: {virtualItems.length} items |
           Columns: {columns} |
+          Overscan: {dynamicOverscan} rows |
+          Compact: {compactMode ? 'Yes' : 'No'} |
           Scrolling: {isScrolling ? 'Yes' : 'No'}
         </div>
       )}

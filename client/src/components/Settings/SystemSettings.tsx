@@ -560,6 +560,44 @@ export function SystemSettings() {
     <div className="system-settings">
       <h2>System Settings</h2>
 
+      {/* Support Section */}
+      <SectionCard
+        title="Support Helixio"
+        description="If Helixio has helped organize your collection, consider supporting its development. Every contribution helps fuel the developer's ever-growing comic addiction (it's for testing purposes, obviously)."
+      >
+        <div className="support-buttons">
+          <a
+            href="https://ko-fi.com/helixiodev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="support-button kofi"
+          >
+            <img src="https://storage.ko-fi.com/cdn/cup-border.png" alt="" className="support-icon" />
+            <span>Ko-fi</span>
+          </a>
+          <a
+            href="https://buymeacoffee.com/HelixioDev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="support-button buymeacoffee"
+          >
+            <img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="" className="support-icon" />
+            <span>Buy Me a Coffee</span>
+          </a>
+          <a
+            href="https://paypal.me/HelixioDev"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="support-button paypal"
+          >
+            <svg className="support-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h6.724c2.228 0 3.948.483 5.107 1.433 1.159.95 1.611 2.37 1.343 4.218-.088.611-.236 1.18-.442 1.706a6.762 6.762 0 0 1-.876 1.528c-.364.454-.808.843-1.328 1.165-.522.323-1.136.573-1.84.751-.704.178-1.502.267-2.392.267h-2.04a.77.77 0 0 0-.757.63l-.789 4.776a.77.77 0 0 1-.757.63H7.076v-.008zm2.338-7.816l.835-5.05a.616.616 0 0 1 .609-.517h1.162c1.57 0 2.783-.199 3.637-.598.855-.399 1.283-1.056 1.283-1.97 0-.631-.226-1.089-.677-1.375-.452-.286-1.197-.429-2.234-.429h-1.993a.616.616 0 0 0-.609.517l-.013.063-1 6.359z"/>
+            </svg>
+            <span>PayPal</span>
+          </a>
+        </div>
+      </SectionCard>
+
       {/* API Keys Section */}
       <SectionCard
         title="API Keys"
@@ -1184,44 +1222,6 @@ export function SystemSettings() {
 
       {/* Helixio API Keys Section */}
       <ApiKeySettings />
-
-      {/* Support Section */}
-      <SectionCard
-        title="Support Helixio"
-        description="If Helixio has helped organize your collection, consider supporting its development. Every contribution helps fuel the developer's ever-growing comic addiction (it's for testing purposes, obviously)."
-      >
-        <div className="support-buttons">
-          <a
-            href="https://ko-fi.com/helixiodev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="support-button kofi"
-          >
-            <img src="https://storage.ko-fi.com/cdn/cup-border.png" alt="" className="support-icon" />
-            <span>Ko-fi</span>
-          </a>
-          <a
-            href="https://buymeacoffee.com/HelixioDev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="support-button buymeacoffee"
-          >
-            <img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="" className="support-icon" />
-            <span>Buy Me a Coffee</span>
-          </a>
-          <a
-            href="https://paypal.me/HelixioDev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="support-button paypal"
-          >
-            <svg className="support-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.72a.77.77 0 0 1 .757-.629h6.724c2.228 0 3.948.483 5.107 1.433 1.159.95 1.611 2.37 1.343 4.218-.088.611-.236 1.18-.442 1.706a6.762 6.762 0 0 1-.876 1.528c-.364.454-.808.843-1.328 1.165-.522.323-1.136.573-1.84.751-.704.178-1.502.267-2.392.267h-2.04a.77.77 0 0 0-.757.63l-.789 4.776a.77.77 0 0 1-.757.63H7.076v-.008zm2.338-7.816l.835-5.05a.616.616 0 0 1 .609-.517h1.162c1.57 0 2.783-.199 3.637-.598.855-.399 1.283-1.056 1.283-1.97 0-.631-.226-1.089-.677-1.375-.452-.286-1.197-.429-2.234-.429h-1.993a.616.616 0 0 0-.609.517l-.013.063-1 6.359z"/>
-            </svg>
-            <span>PayPal</span>
-          </a>
-        </div>
-      </SectionCard>
 
       {/* Factory Reset Section */}
       <SectionCard

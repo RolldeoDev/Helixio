@@ -152,6 +152,12 @@
   letter-spacing: 0.02em;
 }
 
+/* Compact mode: remove expensive blur effect for better performance at small sizes */
+.series-browser-card__count-badge--compact {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.85); /* Slightly more opaque to compensate for no blur */
+}
+
 /* =============================================================================
    Info Section
    ============================================================================= */
