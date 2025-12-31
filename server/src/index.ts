@@ -5,6 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import open from 'open';
 
+// Middleware
+import { requireAdmin } from './middleware/auth.middleware.js';
+
 // Services
 import { ensureAppDirectories, getAllPaths } from './services/app-paths.service.js';
 import {
@@ -13,12 +16,15 @@ import {
   updateConfig,
   setApiKey,
   getApiKey,
+  getApiKeySource,
+  isApiKeyReadOnly,
   updateMetadataSettings,
   updateCacheSettings,
   getMangaClassificationSettings,
   updateMangaClassificationSettings,
   getComicClassificationSettings,
   updateComicClassificationSettings,
+  type ApiKeys,
 } from './services/config.service.js';
 import { checkApiAvailability as checkMetronAvailability } from './services/metron.service.js';
 import { checkApiAvailability as checkComicVineAvailability } from './services/comicvine.service.js';
@@ -69,6 +75,7 @@ import globalSearchRoutes from './routes/global-search.routes.js';
 import templatesRoutes from './routes/templates.routes.js';
 import userDataRoutes from './routes/user-data.routes.js';
 import externalRatingsRoutes from './routes/external-ratings.routes.js';
+import externalReviewsRoutes from './routes/external-reviews.routes.js';
 import filterPresetsRoutes from './routes/filter-presets.routes.js';
 
 // Services for startup tasks
@@ -138,52 +145,103 @@ app.get('/api/paths', (_req, res) => {
 // Get configuration (excluding API keys)
 app.get('/api/config', (_req, res) => {
   const config = loadConfig();
-  // Don't expose API keys in the response
+  // Don't expose API keys in the response, but show sources
   const safeConfig = {
     ...config,
     apiKeys: {
-      comicVine: config.apiKeys.comicVine ? '***configured***' : undefined,
-      anthropic: config.apiKeys.anthropic ? '***configured***' : undefined,
+      comicVine: getApiKey('comicVine') ? '***configured***' : undefined,
+      anthropic: getApiKey('anthropic') ? '***configured***' : undefined,
+      metronUsername: getApiKey('metronUsername') ? '***configured***' : undefined,
+      metronPassword: getApiKey('metronPassword') ? '***configured***' : undefined,
+      gcdEmail: getApiKey('gcdEmail') ? '***configured***' : undefined,
+      gcdPassword: getApiKey('gcdPassword') ? '***configured***' : undefined,
+    },
+    // Show credential sources for debugging
+    credentialSources: {
+      comicVine: getApiKeySource('comicVine'),
+      anthropic: getApiKeySource('anthropic'),
+      metronUsername: getApiKeySource('metronUsername'),
+      metronPassword: getApiKeySource('metronPassword'),
+      gcdEmail: getApiKeySource('gcdEmail'),
+      gcdPassword: getApiKeySource('gcdPassword'),
     },
   };
   res.json(safeConfig);
 });
 
-// Get API keys (actual values for settings UI - this is a local app)
-app.get('/api/config/api-keys', (_req, res) => {
-  const config = loadConfig();
-  res.json({
-    comicVine: config.apiKeys.comicVine || '',
-    anthropic: config.apiKeys.anthropic || '',
-    metronUsername: config.apiKeys.metronUsername || '',
-    metronPassword: config.apiKeys.metronPassword || '',
-  });
+// Get API keys (actual values for settings UI)
+// Requires admin auth - these are sensitive credentials
+app.get('/api/config/api-keys', requireAdmin, (_req, res) => {
+  const keys: (keyof ApiKeys)[] = [
+    'comicVine',
+    'anthropic',
+    'metronUsername',
+    'metronPassword',
+    'gcdEmail',
+    'gcdPassword',
+  ];
+
+  const result: Record<string, { value: string; source: string; readOnly: boolean }> = {};
+  for (const key of keys) {
+    result[key] = {
+      value: getApiKey(key) || '',
+      source: getApiKeySource(key),
+      readOnly: isApiKeyReadOnly(key),
+    };
+  }
+
+  res.json(result);
 });
 
 // Update API keys
-app.put('/api/config/api-keys', (req, res) => {
+// Requires admin auth. Keys set via environment variables cannot be overwritten.
+app.put('/api/config/api-keys', requireAdmin, (req, res) => {
   try {
-    const { comicVine, anthropic, metronUsername, metronPassword } = req.body as {
-      comicVine?: string;
-      anthropic?: string;
-      metronUsername?: string;
-      metronPassword?: string;
+    const { comicVine, anthropic, metronUsername, metronPassword, gcdEmail, gcdPassword } =
+      req.body as {
+        comicVine?: string;
+        anthropic?: string;
+        metronUsername?: string;
+        metronPassword?: string;
+        gcdEmail?: string;
+        gcdPassword?: string;
+      };
+
+    const updates: { key: keyof ApiKeys; value: string }[] = [];
+    const skipped: string[] = [];
+
+    // Helper to update key if not read-only
+    const tryUpdate = (key: keyof ApiKeys, value: string | undefined) => {
+      if (value === undefined) return;
+      if (isApiKeyReadOnly(key)) {
+        skipped.push(key);
+      } else {
+        setApiKey(key, value);
+        updates.push({ key, value: value ? '***' : '' });
+      }
     };
 
-    if (comicVine !== undefined) {
-      setApiKey('comicVine', comicVine);
-    }
-    if (anthropic !== undefined) {
-      setApiKey('anthropic', anthropic);
-    }
-    if (metronUsername !== undefined) {
-      setApiKey('metronUsername', metronUsername);
-    }
-    if (metronPassword !== undefined) {
-      setApiKey('metronPassword', metronPassword);
-    }
+    tryUpdate('comicVine', comicVine);
+    tryUpdate('anthropic', anthropic);
+    tryUpdate('metronUsername', metronUsername);
+    tryUpdate('metronPassword', metronPassword);
+    tryUpdate('gcdEmail', gcdEmail);
+    tryUpdate('gcdPassword', gcdPassword);
 
-    res.json({ success: true, message: 'API keys updated' });
+    if (skipped.length > 0) {
+      res.json({
+        success: true,
+        message: `API keys updated. Note: ${skipped.join(', ')} were skipped because they are set via environment variables.`,
+        updated: updates.map((u) => u.key),
+        skipped,
+      });
+    } else {
+      res.json({
+        success: true,
+        message: 'API keys updated',
+        updated: updates.map((u) => u.key),
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -459,6 +517,7 @@ app.use('/api/downloads', downloadsRoutes);
 app.use('/api/templates', templatesRoutes);
 app.use('/api/user-data', userDataRoutes);
 app.use('/api/external-ratings', externalRatingsRoutes);
+app.use('/api/external-reviews', externalReviewsRoutes);
 app.use('/api/filter-presets', filterPresetsRoutes);
 
 // OPDS routes (at root level, not under /api)

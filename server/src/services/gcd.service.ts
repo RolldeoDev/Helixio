@@ -8,7 +8,7 @@
  * License: CC-BY 3.0 (attribution required)
  */
 
-import { getMetadataSettings, loadConfig } from './config.service.js';
+import { getMetadataSettings, getApiKey, hasApiKey } from './config.service.js';
 import { MetadataFetchLogger } from './metadata-fetch-logger.service.js';
 import { APICache, type CacheOptions } from './api-cache.service.js';
 import { logError, logInfo, logDebug, logWarn, createServiceLogger } from './logger.service.js';
@@ -227,8 +227,8 @@ function updateRateLimitState(success: boolean): void {
  * Get Basic auth header if credentials are configured
  */
 function getAuthHeader(): string | null {
-  const config = loadConfig();
-  const { gcdEmail, gcdPassword } = config.apiKeys;
+  const gcdEmail = getApiKey('gcdEmail');
+  const gcdPassword = getApiKey('gcdPassword');
 
   if (!gcdEmail || !gcdPassword) {
     return null;
@@ -242,8 +242,7 @@ function getAuthHeader(): string | null {
  * Check if GCD credentials are configured
  */
 export function hasGCDCredentials(): boolean {
-  const config = loadConfig();
-  return !!(config.apiKeys.gcdEmail && config.apiKeys.gcdPassword);
+  return hasApiKey('gcdEmail') && hasApiKey('gcdPassword');
 }
 
 // =============================================================================

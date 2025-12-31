@@ -1,0 +1,99 @@
+/**
+ * SpoilerText Styles
+ *
+ * Blurred text with reveal/hide functionality for spoiler content.
+ */
+
+.spoiler-text {
+  position: relative;
+}
+
+.spoiler-text__content {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Hidden state - blur and overlay */
+.spoiler-text__content--hidden {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+  max-height: 100px;
+  overflow: hidden;
+}
+
+/* Overlay with reveal button */
+.spoiler-text__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--color-background-rgb, 0, 0, 0), 0.3) 0%,
+    rgba(var(--color-background-rgb, 0, 0, 0), 0.8) 100%
+  );
+  border-radius: var(--radius-md);
+}
+
+.spoiler-text__reveal-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  font-family: inherit;
+}
+
+.spoiler-text__reveal-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.spoiler-text__reveal-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.spoiler-text__reveal-btn svg {
+  flex-shrink: 0;
+}
+
+/* Hide button */
+.spoiler-text__hide-btn {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  font-family: inherit;
+}
+
+.spoiler-text__hide-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.spoiler-text__hide-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

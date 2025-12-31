@@ -5,7 +5,6 @@
  * Falls back to config file storage if keychain is unavailable.
  */
 
-import keytar from 'keytar';
 import { configLogger } from './logger.service.js';
 
 // =============================================================================
@@ -24,26 +23,33 @@ export const API_KEY_ANTHROPIC = 'anthropic-api-key';
 // =============================================================================
 
 /**
- * Check if keychain is available
+ * Dynamically loaded keytar module (null if unavailable)
  */
-let keychainAvailable: boolean | null = null;
+let keytar: typeof import('keytar') | null = null;
+let keychainChecked = false;
 
+/**
+ * Check if keychain is available and load keytar dynamically
+ */
 async function isKeychainAvailable(): Promise<boolean> {
-  if (keychainAvailable !== null) {
-    return keychainAvailable;
+  if (keychainChecked) {
+    return keytar !== null;
   }
+
+  keychainChecked = true;
 
   try {
+    // Dynamic import to avoid crash if libsecret is missing
+    keytar = await import('keytar');
     // Try a simple operation to test keychain access
     await keytar.findCredentials(SERVICE_NAME);
-    keychainAvailable = true;
     configLogger.debug('OS keychain is available for secure storage');
+    return true;
   } catch (error) {
-    keychainAvailable = false;
+    keytar = null;
     configLogger.warn({ error }, 'OS keychain not available, falling back to config file storage');
+    return false;
   }
-
-  return keychainAvailable;
 }
 
 // =============================================================================
@@ -54,7 +60,7 @@ async function isKeychainAvailable(): Promise<boolean> {
  * Store an API key securely
  */
 export async function setSecureApiKey(keyId: string, value: string): Promise<boolean> {
-  if (await isKeychainAvailable()) {
+  if (await isKeychainAvailable() && keytar) {
     try {
       await keytar.setPassword(SERVICE_NAME, keyId, value);
       configLogger.info({ keyId }, 'API key stored securely in OS keychain');
@@ -71,7 +77,7 @@ export async function setSecureApiKey(keyId: string, value: string): Promise<boo
  * Retrieve an API key from secure storage
  */
 export async function getSecureApiKey(keyId: string): Promise<string | null> {
-  if (await isKeychainAvailable()) {
+  if (await isKeychainAvailable() && keytar) {
     try {
       const value = await keytar.getPassword(SERVICE_NAME, keyId);
       if (value) {
@@ -90,7 +96,7 @@ export async function getSecureApiKey(keyId: string): Promise<string | null> {
  * Delete an API key from secure storage
  */
 export async function deleteSecureApiKey(keyId: string): Promise<boolean> {
-  if (await isKeychainAvailable()) {
+  if (await isKeychainAvailable() && keytar) {
     try {
       const deleted = await keytar.deletePassword(SERVICE_NAME, keyId);
       if (deleted) {
@@ -109,7 +115,7 @@ export async function deleteSecureApiKey(keyId: string): Promise<boolean> {
  * List all stored API key identifiers
  */
 export async function listSecureApiKeys(): Promise<string[]> {
-  if (await isKeychainAvailable()) {
+  if (await isKeychainAvailable() && keytar) {
     try {
       const credentials = await keytar.findCredentials(SERVICE_NAME);
       return credentials.map((c) => c.account);

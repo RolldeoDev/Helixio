@@ -17,7 +17,8 @@ export type RatingSource =
   | 'leagueofcomicgeeks'
   | 'comicvine'
   | 'metron'
-  | 'anilist';
+  | 'anilist'
+  | 'myanimelist';
 
 /**
  * Type of rating (community average vs critic score)
@@ -303,6 +304,7 @@ export function getSourceDisplayName(source: RatingSource): string {
     comicvine: 'ComicVine',
     metron: 'Metron',
     anilist: 'AniList',
+    myanimelist: 'MyAnimeList',
   };
   return displayNames[source] || source;
 }

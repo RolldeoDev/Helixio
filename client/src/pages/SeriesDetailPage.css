@@ -365,6 +365,21 @@
   color: var(--color-primary);
 }
 
+/* Dot indicator for tabs with content (Reviews) */
+.series-content-tab .tab-count-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 0.375rem;
+  border-radius: 50%;
+  background: var(--color-primary);
+  opacity: 0.6;
+}
+
+.series-content-tab.active .tab-count-dot {
+  opacity: 1;
+}
+
 /* Tab content area */
 .series-tab-content {
   min-height: 200px;

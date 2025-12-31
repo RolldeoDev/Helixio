@@ -106,11 +106,14 @@ export type ExternalRatingSource =
   | 'leagueofcomicgeeks'
   | 'comicvine'
   | 'metron'
-  | 'anilist';
+  | 'anilist'
+  | 'myanimelist';
 
 export interface ExternalRatingsSettings {
   /** Which rating sources are enabled */
   enabledSources: ExternalRatingSource[];
+  /** Which review sources are enabled (subset of rating sources that support reviews) */
+  enabledReviewSources: ExternalRatingSource[];
   /** Sync schedule: "daily" | "weekly" | "manual" */
   syncSchedule: 'daily' | 'weekly' | 'manual';
   /** Hour of day for scheduled sync (0-23, in server timezone) */
@@ -119,6 +122,8 @@ export interface ExternalRatingsSettings {
   ratingTTLDays: number;
   /** Issue rating TTL in days before refresh (issues change less often) */
   issueRatingTTLDays: number;
+  /** Review TTL in days before refresh */
+  reviewTTLDays: number;
   /** Rate limit for scraping sources (requests per minute) */
   scrapingRateLimit: number;
   /** Minimum confidence for fuzzy matching (0.0-1.0) */
@@ -183,10 +188,12 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   externalRatings: {
     enabledSources: ['comicbookroundup', 'leagueofcomicgeeks'],
+    enabledReviewSources: ['anilist'],
     syncSchedule: 'weekly',
     syncHour: 3, // 3 AM
     ratingTTLDays: 7,
     issueRatingTTLDays: 14, // Issues change less often than series
+    reviewTTLDays: 14, // Reviews don't change often
     scrapingRateLimit: 10, // requests per minute
     minMatchConfidence: 0.7,
   },
@@ -282,15 +289,77 @@ export function clearConfigCache(): void {
 // =============================================================================
 
 /**
- * Get an API key by name
+ * Environment variable names for each API key.
+ * These take highest priority over OS keychain and config file.
+ */
+export const ENV_VAR_MAP: Record<keyof ApiKeys, string> = {
+  comicVine: 'HELIXIO_COMICVINE_API_KEY',
+  anthropic: 'HELIXIO_ANTHROPIC_API_KEY',
+  metronUsername: 'HELIXIO_METRON_USERNAME',
+  metronPassword: 'HELIXIO_METRON_PASSWORD',
+  gcdEmail: 'HELIXIO_GCD_EMAIL',
+  gcdPassword: 'HELIXIO_GCD_PASSWORD',
+};
+
+/**
+ * Get the source of an API key (for debugging/UI)
+ */
+export type ApiKeySource = 'environment' | 'config' | 'none';
+
+/**
+ * Get an API key by name with priority lookup.
+ *
+ * Priority order:
+ * 1. Environment variable (HELIXIO_*)
+ * 2. Config file (~/.helixio/config.json)
+ *
+ * Note: OS keychain support is available via secure-storage.service.ts
+ * but not integrated here to keep getApiKey synchronous.
  */
 export function getApiKey(name: keyof ApiKeys): string | undefined {
+  // 1. Check environment variable (highest priority)
+  const envVar = ENV_VAR_MAP[name];
+  const envValue = process.env[envVar];
+  if (envValue && envValue.trim().length > 0) {
+    return envValue.trim();
+  }
+
+  // 2. Fall back to config file (lowest priority)
   const config = loadConfig();
   return config.apiKeys[name];
 }
 
 /**
- * Set an API key
+ * Get the source of an API key value.
+ * Useful for UI to show where credentials are coming from.
+ */
+export function getApiKeySource(name: keyof ApiKeys): ApiKeySource {
+  const envVar = ENV_VAR_MAP[name];
+  const envValue = process.env[envVar];
+  if (envValue && envValue.trim().length > 0) {
+    return 'environment';
+  }
+
+  const config = loadConfig();
+  const configValue = config.apiKeys[name];
+  if (configValue && configValue.trim().length > 0) {
+    return 'config';
+  }
+
+  return 'none';
+}
+
+/**
+ * Check if an API key is read-only (set via environment variable).
+ * Keys set via environment variables cannot be changed via the UI.
+ */
+export function isApiKeyReadOnly(name: keyof ApiKeys): boolean {
+  return getApiKeySource(name) === 'environment';
+}
+
+/**
+ * Set an API key in the config file.
+ * Note: If an environment variable is set for this key, it will take priority.
  */
 export function setApiKey(name: keyof ApiKeys, value: string): void {
   const config = loadConfig();
@@ -299,7 +368,7 @@ export function setApiKey(name: keyof ApiKeys, value: string): void {
 }
 
 /**
- * Check if an API key is configured
+ * Check if an API key is configured (from any source)
  */
 export function hasApiKey(name: keyof ApiKeys): boolean {
   const key = getApiKey(name);
@@ -480,6 +549,9 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     enabledSources:
       partial.externalRatings?.enabledSources ||
       DEFAULT_CONFIG.externalRatings.enabledSources,
+    enabledReviewSources:
+      partial.externalRatings?.enabledReviewSources ||
+      DEFAULT_CONFIG.externalRatings.enabledReviewSources,
   };
 
   return {
