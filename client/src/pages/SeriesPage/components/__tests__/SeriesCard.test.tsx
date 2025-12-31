@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { SeriesCard } from '../SeriesCard';
-import { SeriesGridItem } from '../../../../services/api/series';
+import { SeriesGridItem, Series } from '../../../../services/api/series';
 
 // Mock the cover image hook
 vi.mock('../useCardCoverImage', () => ({
@@ -17,6 +17,24 @@ vi.mock('../useCardCoverImage', () => ({
 
 // Helper to create mock series item
 function createMockSeriesItem(overrides: Partial<SeriesGridItem> = {}): SeriesGridItem {
+  // Create minimal mock Series with only fields used by SeriesCard
+  const mockSeries = {
+    id: 'series-1',
+    name: 'Batman',
+    startYear: 2020,
+    endYear: null,
+    publisher: 'DC Comics',
+    genres: 'Action',
+    coverSource: 'api',
+    coverHash: 'abc123',
+    coverFileId: null,
+    resolvedCoverSource: 'api',
+    resolvedCoverHash: 'abc123',
+    resolvedCoverFileId: null,
+    type: 'western',
+    isHidden: false,
+  } as Series;
+
   return {
     itemType: 'series',
     id: 'series-1',
@@ -28,29 +46,7 @@ function createMockSeriesItem(overrides: Partial<SeriesGridItem> = {}): SeriesGr
     readCount: 5,
     updatedAt: '2024-01-01T00:00:00Z',
     createdAt: '2024-01-01T00:00:00Z',
-    series: {
-      id: 'series-1',
-      name: 'Batman',
-      startYear: 2020,
-      endYear: null,
-      publisher: 'DC Comics',
-      genres: 'Action',
-      description: null,
-      coverSource: 'api',
-      coverHash: 'abc123',
-      coverFileId: null,
-      resolvedCoverSource: 'api',
-      resolvedCoverHash: 'abc123',
-      resolvedCoverFileId: null,
-      comicVineId: null,
-      metronId: null,
-      gcdId: null,
-      aniListId: null,
-      malId: null,
-      libraryId: 'lib-1',
-      type: 'western',
-      isHidden: false,
-    },
+    series: mockSeries,
     ...overrides,
   };
 }

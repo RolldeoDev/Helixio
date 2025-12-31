@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { SeriesVirtualGrid } from '../SeriesVirtualGrid';
-import { SeriesGridItem } from '../../../../services/api/series';
+import { SeriesGridItem, Series } from '../../../../services/api/series';
 
 // Mock the hooks
 vi.mock('../../hooks/useStableGridLayout', () => ({
@@ -50,41 +50,39 @@ vi.mock('../useCardCoverImage', () => ({
 
 // Helper to create mock series items
 function createMockSeriesItems(count: number): SeriesGridItem[] {
-  return Array.from({ length: count }, (_, i) => ({
-    itemType: 'series' as const,
-    id: `series-${i}`,
-    name: `Series ${i}`,
-    startYear: 2020 + i,
-    publisher: 'Test Publisher',
-    genres: 'Action',
-    issueCount: 10,
-    readCount: 5,
-    updatedAt: '2024-01-01T00:00:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
-    series: {
+  return Array.from({ length: count }, (_, i) => {
+    // Create minimal mock Series with only fields used by the grid
+    const mockSeries = {
       id: `series-${i}`,
       name: `Series ${i}`,
       startYear: 2020 + i,
       endYear: null,
       publisher: 'Test Publisher',
       genres: 'Action',
-      description: null,
-      coverSource: 'api' as const,
+      coverSource: 'api',
       coverHash: `hash-${i}`,
       coverFileId: null,
-      resolvedCoverSource: 'api' as const,
+      resolvedCoverSource: 'api',
       resolvedCoverHash: `hash-${i}`,
       resolvedCoverFileId: null,
-      comicVineId: null,
-      metronId: null,
-      gcdId: null,
-      aniListId: null,
-      malId: null,
-      libraryId: 'lib-1',
-      type: 'western' as const,
+      type: 'western',
       isHidden: false,
-    },
-  }));
+    } as Series;
+
+    return {
+      itemType: 'series' as const,
+      id: `series-${i}`,
+      name: `Series ${i}`,
+      startYear: 2020 + i,
+      publisher: 'Test Publisher',
+      genres: 'Action',
+      issueCount: 10,
+      readCount: 5,
+      updatedAt: '2024-01-01T00:00:00Z',
+      createdAt: '2024-01-01T00:00:00Z',
+      series: mockSeries,
+    };
+  });
 }
 
 const defaultProps = {
