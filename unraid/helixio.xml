@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
   <Name>Helixio</Name>
-  <Repository>ghcr.io/rolldedev/helixio:latest</Repository>
+  <Repository>ghcr.io/rolldeodev/helixio:latest</Repository>
   <Registry>https://github.com/RolldeoDev/Helixio/pkgs/container/helixio</Registry>
   <Branch>
     <Tag>latest</Tag>
