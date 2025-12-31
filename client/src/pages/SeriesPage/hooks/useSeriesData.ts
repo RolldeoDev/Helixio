@@ -22,18 +22,12 @@ export interface UseSeriesDataReturn {
  * Convert filter state to API options.
  */
 function filtersToApiOptions(filters: SeriesFilterState): UnifiedGridOptions {
-  // If using preset, only include preset ID and sorting
-  if (filters.presetId) {
-    return {
-      all: true,
-      sortBy: filters.sortBy,
-      sortOrder: filters.sortOrder,
-      preset: filters.presetId,
-      includePromotedCollections: true,
-    };
-  }
+  // TODO: Phase 9 - Add preset support when API is extended
+  // For now, presets are stored in state but not sent to API
+  // if (filters.presetId) {
+  //   return { all: true, preset: filters.presetId, ... };
+  // }
 
-  // Manual filter mode
   return {
     all: true,
     sortBy: filters.sortBy,

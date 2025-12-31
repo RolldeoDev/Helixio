@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  SeriesFilterState,
   DEFAULT_FILTERS,
   parseUrlToFilters,
   filtersToUrl,
