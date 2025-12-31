@@ -20,8 +20,12 @@ import {
   sendInternalError,
   asyncHandler,
 } from '../middleware/response.middleware.js';
+import { requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// All factory reset routes require admin authentication
+router.use(requireAdmin);
 const logger = createServiceLogger('factory-reset-routes');
 
 // =============================================================================

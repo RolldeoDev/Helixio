@@ -440,3 +440,67 @@ export async function opdsAuth(req: Request, res: Response, next: NextFunction):
   res.setHeader('WWW-Authenticate', 'Basic realm="Helixio OPDS"');
   res.status(401).json({ error: 'Authentication required' });
 }
+
+// =============================================================================
+// IP-Based Rate Limiting for Auth Endpoints
+// =============================================================================
+
+interface IPRateLimitEntry {
+  count: number;
+  windowStart: number;
+}
+
+const ipRateLimits = new Map<string, IPRateLimitEntry>();
+const IP_RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const IP_RATE_LIMIT_MAX = 10; // 10 attempts per window
+
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of ipRateLimits) {
+    if (now - entry.windowStart > IP_RATE_LIMIT_WINDOW * 2) {
+      ipRateLimits.delete(key);
+    }
+  }
+}, 60000).unref(); // Cleanup every minute, don't prevent exit
+
+/**
+ * Rate limit middleware for auth endpoints
+ * Limits attempts by IP address to prevent brute force attacks
+ */
+export function rateLimitByIP(req: Request, res: Response, next: NextFunction): void {
+  const clientIp = getClientIp(req);
+  const key = `auth:${clientIp}`;
+  const now = Date.now();
+
+  let entry = ipRateLimits.get(key);
+
+  if (!entry || now - entry.windowStart >= IP_RATE_LIMIT_WINDOW) {
+    // New window
+    entry = { count: 1, windowStart: now };
+    ipRateLimits.set(key, entry);
+  } else {
+    entry.count++;
+  }
+
+  // Set rate limit headers
+  const remaining = Math.max(0, IP_RATE_LIMIT_MAX - entry.count);
+  const resetAt = Math.ceil((entry.windowStart + IP_RATE_LIMIT_WINDOW) / 1000);
+
+  res.setHeader('X-RateLimit-Limit', IP_RATE_LIMIT_MAX.toString());
+  res.setHeader('X-RateLimit-Remaining', remaining.toString());
+  res.setHeader('X-RateLimit-Reset', resetAt.toString());
+
+  if (entry.count > IP_RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((entry.windowStart + IP_RATE_LIMIT_WINDOW - now) / 1000);
+    res.setHeader('Retry-After', retryAfter.toString());
+    res.status(429).json({
+      error: 'Too many attempts',
+      message: `Too many authentication attempts. Try again in ${retryAfter} seconds.`,
+      retryAfter,
+    });
+    return;
+  }
+
+  next();
+}

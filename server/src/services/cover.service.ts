@@ -1138,6 +1138,42 @@ export async function downloadApiCover(url: string): Promise<DownloadCoverResult
     };
   }
 
+  // SECURITY: Block internal/private IP addresses to prevent SSRF attacks
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const blockedHostnames = ['localhost', '127.0.0.1', '::1', '0.0.0.0', 'metadata.google.internal', 'metadata'];
+  if (blockedHostnames.includes(hostname)) {
+    return {
+      success: false,
+      error: 'URLs pointing to internal/private addresses are not allowed',
+    };
+  }
+
+  // Block private IP ranges
+  const privateIPv4Patterns = [
+    /^10\./,                       // 10.0.0.0/8
+    /^172\.(1[6-9]|2\d|3[01])\./,  // 172.16.0.0/12
+    /^192\.168\./,                 // 192.168.0.0/16
+    /^127\./,                      // 127.0.0.0/8 (loopback)
+    /^169\.254\./,                 // 169.254.0.0/16 (link-local, AWS metadata)
+    /^0\./,                        // 0.0.0.0/8
+  ];
+  for (const pattern of privateIPv4Patterns) {
+    if (pattern.test(hostname)) {
+      return {
+        success: false,
+        error: 'URLs pointing to internal/private addresses are not allowed',
+      };
+    }
+  }
+
+  // Block IPv6 private addresses
+  if (hostname.startsWith('fe80:') || hostname.startsWith('fc') || hostname.startsWith('fd')) {
+    return {
+      success: false,
+      error: 'URLs pointing to internal/private addresses are not allowed',
+    };
+  }
+
   // Generate hash from URL
   const coverHash = generateCoverHash(trimmedUrl);
   const paths = getSeriesCoverPaths(coverHash);

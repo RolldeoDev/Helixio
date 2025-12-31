@@ -8,7 +8,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import * as authService from '../services/auth.service.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
+import { requireAuth, requireAdmin, rateLimitByIP } from '../middleware/auth.middleware.js';
 import { getAvatarsDir } from '../services/app-paths.service.js';
 import { logError } from '../services/logger.service.js';
 
@@ -52,7 +52,7 @@ router.get('/setup-required', async (_req: Request, res: Response) => {
  * Create initial admin account
  * POST /api/auth/setup
  */
-router.post('/setup', async (req: Request, res: Response) => {
+router.post('/setup', rateLimitByIP, async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -103,7 +103,7 @@ router.post('/setup', async (req: Request, res: Response) => {
  * Login
  * POST /api/auth/login
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', rateLimitByIP, async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -612,7 +612,7 @@ router.get('/registration-allowed', async (_req: Request, res: Response) => {
  * Self-register (public, if enabled)
  * POST /api/auth/register
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', rateLimitByIP, async (req: Request, res: Response) => {
   try {
     const { username, password, email, displayName } = req.body;
 

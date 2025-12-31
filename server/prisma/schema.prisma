@@ -935,10 +935,14 @@ model User {
   profilePrivate    Boolean @default(false)
   hideReadingStats  Boolean @default(false)
 
+  // Permissions (JSON object: {"login": true, "changePassword": true, ...})
+  permissions   String   @default("{}")
+
   // Timestamps
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   lastLoginAt   DateTime?
+  lastActiveAt  DateTime?  // For online status tracking
 
   // Relations
   sessions        UserSession[]

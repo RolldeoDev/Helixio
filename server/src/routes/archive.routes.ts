@@ -39,9 +39,23 @@ import {
 import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
 import { mkdir, stat, access } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
+import path from 'path';
 import { archiveLogger, logError, logWarn } from '../services/logger.service.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// All archive routes require authentication
+router.use(requireAuth);
+
+/**
+ * Validate that a path stays within a base directory (prevents path traversal)
+ */
+function isPathWithinBase(basePath: string, targetPath: string): boolean {
+  const resolvedBase = path.resolve(basePath);
+  const resolvedTarget = path.resolve(basePath, targetPath);
+  return resolvedTarget.startsWith(resolvedBase + path.sep) || resolvedTarget === resolvedBase;
+}
 
 // =============================================================================
 // Archive Extraction Lock
@@ -608,6 +622,15 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
     // Use a persistent extraction cache per archive
     const cacheDir = `/tmp/helixio-archive-cache-${file.id}`;
     const decodedPagePath = decodeURIComponent(pagePath);
+
+    // SECURITY: Validate that the decoded path doesn't escape the cache directory
+    if (!isPathWithinBase(cacheDir, decodedPagePath)) {
+      res.status(400).json({
+        error: 'Invalid page path',
+        message: 'Path traversal detected',
+      });
+      return;
+    }
 
     // Check if the file is already in the cache
     const cachedFilePath = `${cacheDir}/${decodedPagePath}`;

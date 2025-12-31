@@ -30,6 +30,7 @@ import {
 } from '../services/cover.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { loadConfig } from '../services/config.service.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -314,7 +315,7 @@ router.get('/:fileId/info', async (req: Request, res: Response): Promise<void> =
  * DELETE /api/covers/:fileId
  * Delete a cached cover.
  */
-router.delete('/:fileId', async (req: Request, res: Response): Promise<void> => {
+router.delete('/:fileId', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const { fileId } = req.params;
     const prisma = getDatabase();
@@ -359,7 +360,7 @@ router.delete('/:fileId', async (req: Request, res: Response): Promise<void> => 
  * Extract covers for multiple files.
  * Body: { fileIds: string[] }
  */
-router.post('/batch/extract', async (req: Request, res: Response): Promise<void> => {
+router.post('/batch/extract', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const { fileIds } = req.body;
 
@@ -424,7 +425,7 @@ router.get('/cache/summary', async (_req: Request, res: Response): Promise<void>
  * DELETE /api/covers/cache/library/:libraryId
  * Delete all cached covers for a library.
  */
-router.delete('/cache/library/:libraryId', async (req: Request, res: Response): Promise<void> => {
+router.delete('/cache/library/:libraryId', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { libraryId } = req.params;
 
@@ -444,7 +445,7 @@ router.delete('/cache/library/:libraryId', async (req: Request, res: Response): 
  * POST /api/covers/cache/cleanup
  * Clean up orphaned covers (covers for files no longer in database).
  */
-router.post('/cache/cleanup', async (_req: Request, res: Response): Promise<void> => {
+router.post('/cache/cleanup', requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await cleanupOrphanedCovers();
 
@@ -463,7 +464,7 @@ router.post('/cache/cleanup', async (_req: Request, res: Response): Promise<void
  * Enforce cache size limit by deleting oldest covers.
  * Body: { maxSizeMB?: number } - uses config default if not specified
  */
-router.post('/cache/enforce-limit', async (req: Request, res: Response): Promise<void> => {
+router.post('/cache/enforce-limit', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     let { maxSizeMB } = req.body;
 
@@ -534,7 +535,7 @@ router.get('/optimization/status', async (req: Request, res: Response): Promise<
  * Body: { libraryId?: string }
  * This is a synchronous operation that may take a while for large libraries.
  */
-router.post('/optimization/rebuild', async (req: Request, res: Response): Promise<void> => {
+router.post('/optimization/rebuild', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   try {
     const { libraryId } = req.body;
 
@@ -595,7 +596,7 @@ router.get('/memory-cache/stats', async (_req: Request, res: Response): Promise<
  * POST /api/covers/memory-cache/clear
  * Clear the memory cache.
  */
-router.post('/memory-cache/clear', async (_req: Request, res: Response): Promise<void> => {
+router.post('/memory-cache/clear', requireAdmin, async (_req: Request, res: Response): Promise<void> => {
   try {
     clearMemoryCache();
     res.json({ success: true, message: 'Memory cache cleared' });

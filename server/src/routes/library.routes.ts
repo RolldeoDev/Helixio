@@ -41,8 +41,12 @@ import {
   ListFilesQuerySchema,
   RenameFolderSchema,
 } from '../schemas/library.schemas.js';
+import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// All library routes require authentication
+router.use(requireAuth);
 const logger = createServiceLogger('library-routes');
 
 // Store pending scan results for confirmation workflow
@@ -271,6 +275,7 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
  * Create a new library
  */
 router.post('/',
+  requireAdmin,
   validateBody(CreateLibrarySchema),
   asyncHandler(async (req: Request, res: Response) => {
     const { name, rootPath, type } = req.body;
@@ -414,7 +419,7 @@ router.patch('/:id',
  * DELETE /api/libraries/:id
  * Delete a library (files remain on disk, only DB records removed)
  */
-router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', requireAdmin, asyncHandler(async (req: Request, res: Response) => {
   const db = getDatabase();
 
   // Check library exists

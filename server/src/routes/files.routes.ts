@@ -11,8 +11,10 @@
 
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import path from 'path';
 import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   moveFile,
   renameFile,
@@ -31,6 +33,9 @@ import {
 } from '../services/cover.service.js';
 
 const router = Router();
+
+// All file routes require authentication
+router.use(requireAuth);
 
 // Configure multer for cover image uploads
 const coverUpload = multer({
@@ -146,6 +151,28 @@ router.post('/:id/move', async (req: Request, res: Response) => {
       res.status(400).json({
         error: 'Missing required field',
         required: ['destinationPath'],
+      });
+      return;
+    }
+
+    // SECURITY: Validate destination is within library root
+    const db = getDatabase();
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.id },
+      include: { library: { select: { rootPath: true } } },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    const resolvedRoot = path.resolve(file.library.rootPath);
+    const resolvedDest = path.resolve(destinationPath);
+    if (!resolvedDest.startsWith(resolvedRoot + path.sep) && resolvedDest !== resolvedRoot) {
+      res.status(400).json({
+        error: 'Invalid destination',
+        message: 'Destination must be within the library root path',
       });
       return;
     }

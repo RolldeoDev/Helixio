@@ -67,7 +67,7 @@ router.get('/status', (_req: Request, res: Response) => {
  * Body: { useWebSearch?: boolean }
  * Returns: { description: string, deck?: string }
  */
-router.post('/series/:id/generate-description', asyncHandler(async (req: Request, res: Response) => {
+router.post('/series/:id/generate-description', requireAuth, asyncHandler(async (req: Request, res: Response) => {
   const seriesId = req.params.id!;
   const { useWebSearch } = req.body as { useWebSearch?: boolean };
 
@@ -140,7 +140,7 @@ router.post('/series/:id/generate-description', asyncHandler(async (req: Request
  * Body: { useWebSearch?: boolean }
  * Returns: { metadata: GeneratedMetadata, webSearchUsed: boolean, tokensUsed?: number }
  */
-router.post('/series/:id/generate-metadata', asyncHandler(async (req: Request, res: Response) => {
+router.post('/series/:id/generate-metadata', requireAuth, asyncHandler(async (req: Request, res: Response) => {
   const seriesId = req.params.id!;
   const { useWebSearch } = req.body as { useWebSearch?: boolean };
 
@@ -210,7 +210,7 @@ router.post('/series/:id/generate-metadata', asyncHandler(async (req: Request, r
  * Body: { useWebSearch?: boolean }
  * Returns: { summary: string }
  */
-router.post('/files/:id/generate-summary', asyncHandler(async (req: Request, res: Response) => {
+router.post('/files/:id/generate-summary', requireAuth, asyncHandler(async (req: Request, res: Response) => {
   const fileId = req.params.id!;
   const { useWebSearch } = req.body as { useWebSearch?: boolean };
 

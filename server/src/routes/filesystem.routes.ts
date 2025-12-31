@@ -10,8 +10,12 @@ import { readdir, stat } from 'fs/promises';
 import { homedir, platform } from 'os';
 import path from 'path';
 import { logError } from '../services/logger.service.js';
+import { requireAdmin } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// All filesystem browsing routes require admin authentication
+router.use(requireAdmin);
 
 interface DirectoryEntry {
   name: string;
