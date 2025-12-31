@@ -133,6 +133,8 @@ export function useVirtualGrid<T>(
     minCoverWidth = 80,
     maxCoverWidth = 350,
     horizontalPadding = 32,
+    paddingLeft = 0,
+    paddingTop = 0,
     gap,
     overscan = 5, // Increased for smoother fast scrolling
   } = config;
@@ -193,20 +195,23 @@ export function useVirtualGrid<T>(
   const rows = Math.ceil(items.length / columns);
 
   // Calculate total grid dimensions (using actualGap for proper spacing)
-  const totalWidth = columns * (itemWidth + actualGap) - actualGap;
-  const totalHeight = rows * (itemHeight + actualGap) - actualGap;
+  // Include padding offsets for proper sizing
+  const totalWidth = paddingLeft + columns * (itemWidth + actualGap) - actualGap;
+  const totalHeight = paddingTop + rows * (itemHeight + actualGap) - actualGap;
 
   // Calculate visible range from scroll position
   const calculateVisibleRange = useCallback((scrollTop: number) => {
     const rowHeight = itemHeight + actualGap;
-    const startRow = Math.floor(scrollTop / rowHeight);
+    // Account for paddingTop when calculating which row is at the top
+    const adjustedScrollTop = Math.max(0, scrollTop - paddingTop);
+    const startRow = Math.floor(adjustedScrollTop / rowHeight);
     const visibleRows = Math.ceil(containerHeight / rowHeight);
 
     const startRowWithOverscan = Math.max(0, startRow - overscan);
     const endRowWithOverscan = Math.min(rows - 1, startRow + visibleRows + overscan);
 
     return { startRow: startRowWithOverscan, endRow: endRowWithOverscan };
-  }, [containerHeight, itemHeight, actualGap, rows, overscan]);
+  }, [containerHeight, itemHeight, actualGap, rows, overscan, paddingTop]);
 
   // Handle scroll with RAF throttling
   const handleScroll = useCallback(() => {
@@ -265,8 +270,9 @@ export function useVirtualGrid<T>(
       const col = i % columns;
 
       // Use actualGap for proper spacing between items
-      const x = col * (itemWidth + actualGap);
-      const y = row * (itemHeight + actualGap);
+      // Apply paddingLeft and paddingTop offsets to position within container
+      const x = paddingLeft + col * (itemWidth + actualGap);
+      const y = paddingTop + row * (itemHeight + actualGap);
 
       result.push({
         item,
@@ -282,7 +288,7 @@ export function useVirtualGrid<T>(
     }
 
     return result;
-  }, [items, visibleRange, columns, itemWidth, itemHeight, actualGap]);
+  }, [items, visibleRange, columns, itemWidth, itemHeight, actualGap, paddingLeft, paddingTop]);
 
   // Handle resize events
   useEffect(() => {
@@ -302,7 +308,9 @@ export function useVirtualGrid<T>(
       if (height > 0) {
         const rowHeight = itemHeight + actualGap;
         const scrollTop = scrollTopRef.current;
-        const startRow = Math.floor(scrollTop / rowHeight);
+        // Account for paddingTop when calculating which row is at the top
+        const adjustedScrollTop = Math.max(0, scrollTop - paddingTop);
+        const startRow = Math.floor(adjustedScrollTop / rowHeight);
         const visibleRows = Math.ceil(height / rowHeight);
         const startRowWithOverscan = Math.max(0, startRow - overscan);
         const endRowWithOverscan = Math.min(rows - 1, startRow + visibleRows + overscan);
@@ -330,20 +338,21 @@ export function useVirtualGrid<T>(
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [handleScroll, horizontalPadding, itemHeight, actualGap, rows, overscan]);
+  }, [handleScroll, horizontalPadding, itemHeight, actualGap, rows, overscan, paddingTop]);
 
   // Scroll to a specific item index
   const scrollTo = useCallback((index: number) => {
     if (!containerRef.current) return;
 
     const row = Math.floor(index / columns);
-    const top = row * (itemHeight + actualGap);
+    // Include paddingTop offset when scrolling to an item
+    const top = paddingTop + row * (itemHeight + actualGap);
 
     containerRef.current.scrollTo({
       top,
       behavior: 'smooth',
     });
-  }, [columns, itemHeight, actualGap]);
+  }, [columns, itemHeight, actualGap, paddingTop]);
 
   return {
     virtualItems,

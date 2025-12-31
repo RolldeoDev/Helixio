@@ -280,7 +280,9 @@ function SeriesBrowserPageContent() {
     infoHeight: 60,
     minCoverWidth: 80,
     maxCoverWidth: 350,
-    paddingLeft: 24, // Match var(--spacing-lg)
+    // Total horizontal padding: paddingLeft (24) + paddingRight for sidebar (48) = 72
+    horizontalPadding: 72,
+    paddingLeft: 24, // Match var(--spacing-lg) - left spacing for grid content
     paddingTop: 12, // Match var(--spacing-md)
   });
 

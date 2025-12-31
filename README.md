@@ -2,6 +2,14 @@
 
 A web-based comic book library platform for managing and reading digital comic collections. Helixio combines powerful library management with a full-featured reader, tracking your reading progress, achievements, and statistics across your entire collection.
 
+## Support Helixio
+
+If Helixio has helped organize your collection, consider supporting its development. Every contribution helps fuel the developer's ever-growing comic addiction (it's for testing purposes, obviously).
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/helixiodev)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/HelixioDev)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/HelixioDev)
+
 ## Features at a Glance
 
 - **Read comics** - Full-featured reader with multiple viewing modes, gestures, and progress tracking
@@ -228,14 +236,6 @@ Special - One Shot Title (YYYY).cbz
 - **CBR** (RAR-based comic archives) - Read support, can convert to CBZ
 - **CB7** (7-Zip archives) - Read support
 - **PDF** - Read support
-
-## Support Helixio
-
-If Helixio has helped organize your collection, consider supporting its development. Every contribution helps fuel the developer's ever-growing comic addiction (it's for testing purposes, obviously).
-
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/helixiodev)
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/HelixioDev)
-[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/HelixioDev)
 
 ## Development
 
