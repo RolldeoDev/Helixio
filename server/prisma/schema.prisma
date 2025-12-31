@@ -139,6 +139,7 @@ model Series {
   readerSettings SeriesReaderSettingsNew?
   userData      UserSeriesData[]
   externalRatings ExternalRating[]
+  externalReviews ExternalReview[]
 
   // Parent/Child relationships (many-to-many)
   parentRelationships  SeriesRelationship[] @relation("ChildSeries")   // Series where this is the child
@@ -302,6 +303,10 @@ model ComicFile {
   seriesId     String?
   series       Series?  @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
+  // Raw series name extracted during scan (before series creation)
+  // Used to decouple metadata extraction from series linking
+  seriesNameRaw  String?
+
   // Cover management (auto = first page, page = specific page, custom = URL/upload)
   coverSource    String  @default("auto")  // "auto" | "page" | "custom"
   coverPageIndex Int?                       // Page index if source is "page" (0-indexed)
@@ -317,6 +322,7 @@ model ComicFile {
   readingHistory      ReadingHistory[]
   readerSettings      IssueReaderSettings?
   externalRatings     ExternalRating[]
+  externalReviews     ExternalReview[]
 
   @@index([libraryId])
   @@index([hash])
@@ -1835,6 +1841,113 @@ model RatingSyncJob {
 
   // Error tracking
   error           String?   // Top-level error if job failed entirely
+
+  // Timestamps
+  createdAt       DateTime  @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  @@index([status])
+  @@index([seriesId])
+  @@index([libraryId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// External Reviews (Full-text reviews from external sources)
+// =============================================================================
+
+model ExternalReview {
+  id              String   @id @default(cuid())
+
+  // Target - either seriesId OR fileId (never both)
+  seriesId        String?
+  fileId          String?
+
+  // Source identification
+  source          String   // "anilist" | "myanimelist" | "comicbookroundup"
+  sourceId        String   // External series/issue ID on that source
+  reviewId        String?  // Unique review ID on source (if available)
+
+  // Author information
+  authorName      String   // Username/display name of reviewer
+  authorId        String?  // External user ID (if available)
+  authorAvatarUrl String?  // Avatar image URL
+  authorUrl       String?  // Link to author's profile
+
+  // Review content
+  reviewText      String   // Full review text
+  summary         String?  // First ~200 chars for preview
+
+  // Scoring (reviewer's personal rating, normalized to 0-10)
+  rating          Float?   // Normalized to 0-10 scale
+  originalRating  Float?   // Original value before normalization
+  ratingScale     Float?   // Original scale (e.g., 5, 10, 100)
+
+  // Spoiler handling
+  hasSpoilers     Boolean  @default(false)
+
+  // Metadata
+  reviewType      String   @default("user") // "user" | "critic"
+  likes           Int?     // Helpful/upvote count
+  reviewDate      DateTime? // When review was posted on source
+
+  // Sync metadata
+  confidence      Float    @default(1.0)  // Match confidence 0-1
+  matchMethod     String?  // "id" | "name_year" | "fuzzy" | "manual"
+  lastSyncedAt    DateTime @default(now())
+  expiresAt       DateTime // When this review should be refreshed
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  series          Series?    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  file            ComicFile? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, source, reviewId])
+  @@unique([fileId, source, reviewId])
+  @@index([seriesId])
+  @@index([fileId])
+  @@index([source])
+  @@index([expiresAt])
+  @@index([lastSyncedAt])
+  @@index([reviewDate])
+}
+
+// =============================================================================
+// Review Sync Jobs (Background job tracking for review sync)
+// =============================================================================
+
+model ReviewSyncJob {
+  id              String    @id @default(cuid())
+
+  // Job scope
+  type            String    // "series" | "library" | "scheduled"
+  seriesId        String?   // For single series sync
+  libraryId       String?   // For library-wide sync
+
+  // Job state
+  status          String    @default("pending")  // "pending" | "running" | "completed" | "failed" | "cancelled"
+
+  // Progress tracking
+  totalItems      Int       @default(0)
+  processedItems  Int       @default(0)
+  successItems    Int       @default(0)
+  failedItems     Int       @default(0)
+  unmatchedItems  Int       @default(0)
+
+  // Configuration
+  sources         String    // JSON array of sources to sync
+  forceRefresh    Boolean   @default(false)
+  reviewLimit     Int       @default(10)  // Max reviews per source
+
+  // Results
+  unmatchedSeries String?   // JSON array of {seriesId, seriesName, attemptedSources}
+  errorDetails    String?   // JSON array of per-item errors
+
+  // Error tracking
+  error           String?
 
   // Timestamps
   createdAt       DateTime  @default(now())
