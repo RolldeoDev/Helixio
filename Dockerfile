@@ -20,6 +20,15 @@ RUN npm run build
 
 # Stage 3: Production
 FROM node:20-bookworm-slim AS production
+
+# OCI Labels for Unraid and container registries
+LABEL org.opencontainers.image.title="Helixio" \
+      org.opencontainers.image.description="Web-based comic book library platform with integrated reader" \
+      org.opencontainers.image.url="https://github.com/RolldeoDev/Helixio" \
+      org.opencontainers.image.source="https://github.com/RolldeoDev/Helixio" \
+      org.opencontainers.image.vendor="RolldeoDev" \
+      org.opencontainers.image.licenses="MIT" \
+      maintainer="RolldeoDev"
 RUN apt-get update && apt-get install -y \
     libvips42 p7zip-full gosu \
     && rm -rf /var/lib/apt/lists/*
