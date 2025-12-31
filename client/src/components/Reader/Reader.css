@@ -748,10 +748,22 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.reader-settings-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .reader-settings-header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.reader-settings-session-tag {
+  font-size: 12px;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .reader-settings-close {

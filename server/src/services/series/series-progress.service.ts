@@ -132,10 +132,22 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
       ? parseFloat(lastReadIssue.metadata.number)
       : null;
 
-    // Find next unread issue for this user (Last Read +1 logic)
+    // Find next file to continue reading for this user
+    // Priority: 1) In-progress issues (highest issue number), 2) Next unread after last read
     let nextUnreadFileId: string | null = null;
-    if (lastReadIssue) {
-      // Find the issue after the last read one
+
+    // Priority 1: Find in-progress issues (not completed, currentPage > 0)
+    const inProgressIssues = issues.filter(issue => {
+      const progress = progressByFileId.get(issue.id);
+      return progress && !progress.completed && progress.currentPage > 0;
+    });
+
+    if (inProgressIssues.length > 0) {
+      // Issues are already sorted ASC by issueNumberSort then filename
+      // Take the last one (highest issue number) to continue from furthest point in series
+      nextUnreadFileId = inProgressIssues[inProgressIssues.length - 1]!.id;
+    } else if (lastReadIssue) {
+      // Priority 2: Next unread after last read (existing "Last Read +1" logic)
       const lastReadIndex = issues.findIndex(i => i.id === lastReadIssue.id);
       for (let i = lastReadIndex + 1; i < issues.length; i++) {
         const issue = issues[i];
@@ -145,7 +157,7 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
         }
       }
     } else {
-      // No reading progress - first unread issue
+      // Priority 3: First unread issue (no reading progress yet)
       const firstUnread = issues.find(i => !progressByFileId.get(i.id)?.completed);
       nextUnreadFileId = firstUnread?.id ?? null;
     }

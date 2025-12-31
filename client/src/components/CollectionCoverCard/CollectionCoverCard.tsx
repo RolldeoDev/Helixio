@@ -57,8 +57,11 @@ export interface CollectionCoverCardProps {
   /** Collection data */
   collection: PromotedCollectionData;
 
-  /** Size variant */
+  /** Size variant (ignored if fluid is true) */
   size?: CollectionCoverCardSize;
+
+  /** Fill 100% of container (for virtualized grids) */
+  fluid?: boolean;
 
   /** Click handler */
   onClick?: (collectionId: string) => void;
@@ -77,6 +80,9 @@ export interface CollectionCoverCardProps {
 
   /** Tab index for keyboard navigation */
   tabIndex?: number;
+
+  /** Context menu handler - receives event and collectionId for menu positioning */
+  onContextMenu?: (e: React.MouseEvent, collectionId: string) => void;
 }
 
 // =============================================================================
@@ -86,12 +92,14 @@ export interface CollectionCoverCardProps {
 export function CollectionCoverCard({
   collection,
   size = 'medium',
+  fluid = false,
   onClick,
   showYear = true,
   showPublisher = true,
   className = '',
   animationIndex,
   tabIndex = 0,
+  onContextMenu,
 }: CollectionCoverCardProps) {
   // Determine cover display
   const coverUrl = useMemo(() => {
@@ -183,17 +191,32 @@ export function CollectionCoverCard({
     [collection.id, onClick]
   );
 
+  // Handle context menu (right-click)
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onContextMenu) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onContextMenu(e, collection.id);
+    },
+    [collection.id, onContextMenu]
+  );
+
   // Animation style
   const animationStyle =
     animationIndex !== undefined
       ? ({ '--animation-index': animationIndex } as React.CSSProperties)
       : undefined;
 
+  // Build class name based on fluid vs size mode
+  const sizeClass = fluid ? 'collection-cover-card--fluid' : `collection-cover-card--${size}`;
+
   return (
     <div
-      className={`collection-cover-card collection-cover-card--${size} ${className}`}
+      className={`collection-cover-card ${sizeClass} ${className}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
       tabIndex={tabIndex}
       role="button"
       aria-label={`Collection: ${collection.name}${displayYear ? ` (${displayYear})` : ''}`}

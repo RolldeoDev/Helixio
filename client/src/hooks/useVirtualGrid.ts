@@ -33,6 +33,10 @@ export interface VirtualGridConfig {
   maxCoverWidth?: number;
   /** Horizontal padding to subtract from container width (default 32) */
   horizontalPadding?: number;
+  /** Left padding offset for item positioning (default 0) */
+  paddingLeft?: number;
+  /** Top padding offset for item positioning (default 0) */
+  paddingTop?: number;
   gap: number;
   overscan?: number; // Number of rows to render outside viewport
 }

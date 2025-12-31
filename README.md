@@ -229,6 +229,14 @@ Special - One Shot Title (YYYY).cbz
 - **CB7** (7-Zip archives) - Read support
 - **PDF** - Read support
 
+## Support Helixio
+
+If Helixio has helped organize your collection, consider supporting its development. Every contribution helps fuel the developer's ever-growing comic addiction (it's for testing purposes, obviously).
+
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/helixiodev)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/HelixioDev)
+[![PayPal](https://img.shields.io/badge/PayPal-Donate-00457C?logo=paypal&logoColor=white)](https://paypal.me/HelixioDev)
+
 ## Development
 
 See [CLAUDE.md](./CLAUDE.md) for development commands, architecture details, and contribution guidelines.

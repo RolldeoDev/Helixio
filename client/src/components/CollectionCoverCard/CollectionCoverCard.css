@@ -95,6 +95,18 @@
   --collection-card-radius: 10px;
 }
 
+/* Fluid mode - fills 100% of container (for virtualized grids) */
+.collection-cover-card--fluid {
+  width: 100%;
+  height: 100%;
+}
+
+.collection-cover-card--fluid .collection-cover-card__cover {
+  flex: 1;
+  min-height: 0;
+  aspect-ratio: unset;
+}
+
 /* =============================================================================
    Collection Badge - Small corner indicator
    ============================================================================= */

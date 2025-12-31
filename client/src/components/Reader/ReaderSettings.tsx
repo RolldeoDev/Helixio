@@ -40,6 +40,8 @@ export function ReaderSettings() {
     zoomIn,
     zoomOut,
     resetZoom,
+    hasSessionModifications,
+    clearSessionSettings,
   } = useReader();
 
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -94,7 +96,12 @@ export function ReaderSettings() {
     <div className="reader-settings-overlay" onClick={handleOverlayClick}>
       <div className="reader-settings-panel">
         <div className="reader-settings-header">
-          <h3>Reader Settings</h3>
+          <div className="reader-settings-title">
+            <h3>Reader Settings</h3>
+            {hasSessionModifications && (
+              <span className="reader-settings-session-tag">(Session)</span>
+            )}
+          </div>
           <button className="reader-settings-close" onClick={closeSettings}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -538,6 +545,11 @@ export function ReaderSettings() {
         </div>
 
         <div className="reader-settings-footer">
+          {hasSessionModifications && (
+            <button className="btn-ghost" onClick={clearSessionSettings}>
+              Reset to Preset
+            </button>
+          )}
           <button className="btn-secondary" onClick={() => setShowSaveModal(true)}>
             Save as Preset
           </button>

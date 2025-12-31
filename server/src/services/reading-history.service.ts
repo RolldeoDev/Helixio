@@ -125,17 +125,26 @@ export async function updateSession(
 /**
  * End a reading session
  * @param confirmedPagesRead - Number of pages confirmed as read (viewed for 3+ seconds)
+ * @param userId - Optional user ID for auto-complete threshold check
  */
 export async function endSession(
   sessionId: string,
   endPage: number,
   completed: boolean = false,
-  confirmedPagesRead?: number
+  confirmedPagesRead?: number,
+  userId?: string
 ): Promise<ReadingSession | null> {
   const db = getDatabase();
 
   const session = await db.readingHistory.findUnique({
     where: { id: sessionId },
+    include: {
+      file: {
+        include: {
+          library: { select: { autoCompleteThreshold: true } },
+        },
+      },
+    },
   });
 
   if (!session) return null;
@@ -143,6 +152,40 @@ export async function endSession(
   // Use confirmed pages if provided, otherwise fall back to range calculation
   const pagesRead = confirmedPagesRead ?? Math.max(0, endPage - session.startPage + 1);
   const duration = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
+
+  // Track if we auto-complete for stats update
+  let wasAutoCompleted = false;
+
+  // Auto-complete threshold check (only if not already completed)
+  if (!completed && userId && session.file.library.autoCompleteThreshold !== null) {
+    const threshold = session.file.library.autoCompleteThreshold / 100;
+
+    // Get user's reading progress for this file
+    const progress = await db.userReadingProgress.findUnique({
+      where: { userId_fileId: { userId, fileId: session.fileId } },
+    });
+
+    if (progress && progress.totalPages > 0) {
+      const readPercentage = progress.currentPage / progress.totalPages;
+
+      if (readPercentage >= threshold) {
+        // Auto-mark as completed
+        await db.userReadingProgress.update({
+          where: { userId_fileId: { userId, fileId: session.fileId } },
+          data: { completed: true },
+        });
+
+        // Update series progress if file is linked to a series
+        if (session.file.seriesId) {
+          const { updateSeriesProgress } = await import('./series/series-progress.service.js');
+          await updateSeriesProgress(session.file.seriesId, userId);
+        }
+
+        completed = true;
+        wasAutoCompleted = true;
+      }
+    }
+  }
 
   const updated = await db.readingHistory.update({
     where: { id: sessionId },

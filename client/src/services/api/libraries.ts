@@ -44,7 +44,7 @@ export async function createLibrary(data: {
 
 export async function updateLibrary(
   id: string,
-  data: { name?: string; type?: 'western' | 'manga' }
+  data: { name?: string; type?: 'western' | 'manga'; autoCompleteThreshold?: number | null }
 ): Promise<Library> {
   return patch<Library>(`/libraries/${id}`, data);
 }

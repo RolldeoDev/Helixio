@@ -18,6 +18,11 @@ import {
   ReactNode,
 } from 'react';
 import {
+  useSessionSettingsOptional,
+  extractSessionSettings,
+  type SessionSettings,
+} from './SessionSettingsContext';
+import {
   getArchiveContents,
   getReadingProgress,
   updateReadingProgress,
@@ -177,7 +182,8 @@ type ReaderAction =
   | { type: 'SET_AUTO_WEBTOON'; payload: boolean }
   | { type: 'SHOW_START_SCREEN' }
   | { type: 'SHOW_END_SCREEN' }
-  | { type: 'HIDE_TRANSITION_SCREEN' };
+  | { type: 'HIDE_TRANSITION_SCREEN' }
+  | { type: 'APPLY_SESSION_SETTINGS'; payload: SessionSettings };
 
 const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
@@ -467,6 +473,26 @@ function readerReducer(state: ReaderState, action: ReaderAction): ReaderState {
     case 'HIDE_TRANSITION_SCREEN':
       return { ...state, transitionScreen: 'none' };
 
+    case 'APPLY_SESSION_SETTINGS':
+      return {
+        ...state,
+        mode: action.payload.mode,
+        direction: action.payload.direction,
+        scaling: action.payload.scaling,
+        customWidth: action.payload.customWidth,
+        splitting: action.payload.splitting,
+        background: action.payload.background,
+        brightness: action.payload.brightness,
+        colorCorrection: action.payload.colorCorrection,
+        showPageShadow: action.payload.showPageShadow,
+        autoHideUI: action.payload.autoHideUI,
+        preloadCount: action.payload.preloadCount,
+        usePhysicalNavigation: action.payload.usePhysicalNavigation,
+        webtoonGap: action.payload.webtoonGap,
+        webtoonMaxWidth: action.payload.webtoonMaxWidth,
+        zoom: action.payload.zoom,
+      };
+
     default:
       return state;
   }
@@ -538,6 +564,9 @@ interface ReaderContextValue {
   detectWebtoonFormat: () => void;
   // Transition screens
   exitTransitionScreen: () => void;
+  // Session settings
+  hasSessionModifications: boolean;
+  clearSessionSettings: () => void;
 }
 
 const ReaderContext = createContext<ReaderContextValue | null>(null);
@@ -555,6 +584,9 @@ interface ReaderProviderProps {
 
 export function ReaderProvider({ fileId, filename, startPage, children }: ReaderProviderProps) {
   const [state, dispatch] = useReducer(readerReducer, createInitialState(fileId, filename));
+
+  // Session settings context (optional - may not be wrapped in SessionSettingsProvider)
+  const sessionContext = useSessionSettingsOptional();
 
   // Initialize reader
   useEffect(() => {
@@ -575,8 +607,28 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
 
         if (cancelled) return;
 
-        // Apply settings
+        // Apply settings from API (preset)
         dispatch({ type: 'LOAD_SETTINGS', payload: settingsResponse });
+
+        // Handle session settings
+        if (sessionContext) {
+          // Extract session-relevant settings from API response
+          const presetSessionSettings = extractSessionSettings({
+            ...settingsResponse,
+            // API doesn't include these, use defaults
+            webtoonGap: 8,
+            webtoonMaxWidth: 800,
+            zoom: 1,
+          });
+
+          // Initialize preset in session context (only stores on first file in session)
+          sessionContext.initializeFromPreset(presetSessionSettings);
+
+          // If we have session settings (user made changes), apply them
+          if (sessionContext.sessionSettings) {
+            dispatch({ type: 'APPLY_SESSION_SETTINGS', payload: sessionContext.sessionSettings });
+          }
+        }
 
         // Filter to only image files and sort
         const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
@@ -764,50 +816,61 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     dispatch({ type: 'SET_SPLIT_VIEW', payload: 'full' });
   }, []);
 
-  // Settings actions
+  // Settings actions - these also update session settings if context is available
   const setMode = useCallback((mode: ReadingMode) => {
     dispatch({ type: 'SET_MODE', payload: mode });
-  }, []);
+    sessionContext?.updateSessionSetting('mode', mode);
+  }, [sessionContext]);
 
   const setDirection = useCallback((direction: ReadingDirection) => {
     dispatch({ type: 'SET_DIRECTION', payload: direction });
-  }, []);
+    sessionContext?.updateSessionSetting('direction', direction);
+  }, [sessionContext]);
 
   const setScaling = useCallback((scaling: ImageScaling) => {
     dispatch({ type: 'SET_SCALING', payload: scaling });
-  }, []);
+    sessionContext?.updateSessionSetting('scaling', scaling);
+  }, [sessionContext]);
 
   const setCustomWidth = useCallback((width: number | null) => {
     dispatch({ type: 'SET_CUSTOM_WIDTH', payload: width });
-  }, []);
+    sessionContext?.updateSessionSetting('customWidth', width);
+  }, [sessionContext]);
 
   const setSplitting = useCallback((splitting: ImageSplitting) => {
     dispatch({ type: 'SET_SPLITTING', payload: splitting });
-  }, []);
+    sessionContext?.updateSessionSetting('splitting', splitting);
+  }, [sessionContext]);
 
   const setBackground = useCallback((background: BackgroundColor) => {
     dispatch({ type: 'SET_BACKGROUND', payload: background });
-  }, []);
+    sessionContext?.updateSessionSetting('background', background);
+  }, [sessionContext]);
 
   const setBrightness = useCallback((brightness: number) => {
     dispatch({ type: 'SET_BRIGHTNESS', payload: brightness });
-  }, []);
+    sessionContext?.updateSessionSetting('brightness', brightness);
+  }, [sessionContext]);
 
   const setColorCorrection = useCallback((colorCorrection: ColorCorrection) => {
     dispatch({ type: 'SET_COLOR_CORRECTION', payload: colorCorrection });
-  }, []);
+    sessionContext?.updateSessionSetting('colorCorrection', colorCorrection);
+  }, [sessionContext]);
 
   const togglePageShadow = useCallback(() => {
     dispatch({ type: 'TOGGLE_PAGE_SHADOW' });
-  }, []);
+    sessionContext?.updateSessionSetting('showPageShadow', !state.showPageShadow);
+  }, [sessionContext, state.showPageShadow]);
 
   const toggleAutoHideUI = useCallback(() => {
     dispatch({ type: 'TOGGLE_AUTO_HIDE_UI' });
-  }, []);
+    sessionContext?.updateSessionSetting('autoHideUI', !state.autoHideUI);
+  }, [sessionContext, state.autoHideUI]);
 
   const setUsePhysicalNavigation = useCallback((value: boolean | null) => {
     dispatch({ type: 'SET_USE_PHYSICAL_NAVIGATION', payload: value });
-  }, []);
+    sessionContext?.updateSessionSetting('usePhysicalNavigation', value);
+  }, [sessionContext]);
 
   const saveSettings = useCallback(async () => {
     try {
@@ -878,19 +941,31 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
   // Zoom actions
   const setZoom = useCallback((zoom: number) => {
     dispatch({ type: 'SET_ZOOM', payload: zoom });
-  }, []);
+    sessionContext?.updateSessionSetting('zoom', zoom);
+  }, [sessionContext]);
 
   const zoomIn = useCallback(() => {
     dispatch({ type: 'ZOOM_IN' });
-  }, []);
+    // Find next zoom level and update session
+    const currentIndex = ZOOM_LEVELS.indexOf(state.zoom);
+    const nextIndex = currentIndex < ZOOM_LEVELS.length - 1 ? currentIndex + 1 : ZOOM_LEVELS.length - 1;
+    const nextZoom = ZOOM_LEVELS[nextIndex] ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1] ?? 4;
+    sessionContext?.updateSessionSetting('zoom', nextZoom);
+  }, [sessionContext, state.zoom]);
 
   const zoomOut = useCallback(() => {
     dispatch({ type: 'ZOOM_OUT' });
-  }, []);
+    // Find previous zoom level and update session
+    const currentIndex = ZOOM_LEVELS.indexOf(state.zoom);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+    const prevZoom = ZOOM_LEVELS[prevIndex] ?? ZOOM_LEVELS[0] ?? 0.25;
+    sessionContext?.updateSessionSetting('zoom', prevZoom);
+  }, [sessionContext, state.zoom]);
 
   const resetZoom = useCallback(() => {
     dispatch({ type: 'RESET_ZOOM' });
-  }, []);
+    sessionContext?.updateSessionSetting('zoom', 1);
+  }, [sessionContext]);
 
   const setPan = useCallback((offset: { x: number; y: number }) => {
     dispatch({ type: 'SET_PAN', payload: offset });
@@ -959,11 +1034,13 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
   // Webtoon settings
   const setWebtoonGap = useCallback((gap: number) => {
     dispatch({ type: 'SET_WEBTOON_GAP', payload: gap });
-  }, []);
+    sessionContext?.updateSessionSetting('webtoonGap', gap);
+  }, [sessionContext]);
 
   const setWebtoonMaxWidth = useCallback((width: number) => {
     dispatch({ type: 'SET_WEBTOON_MAX_WIDTH', payload: width });
-  }, []);
+    sessionContext?.updateSessionSetting('webtoonMaxWidth', width);
+  }, [sessionContext]);
 
   // Page rotation
   const rotatePageCW = useCallback(
@@ -1047,6 +1124,17 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     dispatch({ type: 'HIDE_TRANSITION_SCREEN' });
   }, []);
 
+  // Clear session settings and revert to preset
+  const clearSessionSettings = useCallback(() => {
+    if (sessionContext) {
+      sessionContext.clearSessionSettings();
+      // Apply preset settings back to local state
+      if (sessionContext.presetSettings) {
+        dispatch({ type: 'APPLY_SESSION_SETTINGS', payload: sessionContext.presetSettings });
+      }
+    }
+  }, [sessionContext]);
+
   // Listen for fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -1108,6 +1196,8 @@ export function ReaderProvider({ fileId, filename, startPage, children }: Reader
     hasPrevChapter,
     detectWebtoonFormat,
     exitTransitionScreen,
+    hasSessionModifications: sessionContext?.hasSessionModifications ?? false,
+    clearSessionSettings,
   };
 
   return <ReaderContext.Provider value={value}>{children}</ReaderContext.Provider>;

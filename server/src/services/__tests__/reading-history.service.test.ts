@@ -11,6 +11,11 @@ vi.mock('../database.service.js', () => ({
   getDatabase: vi.fn(),
 }));
 
+// Mock the series progress service for auto-complete tests
+vi.mock('../series/series-progress.service.js', () => ({
+  updateSeriesProgress: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getDatabase } from '../database.service.js';
 import {
   startSession,
@@ -44,6 +49,10 @@ describe('ReadingHistoryService', () => {
       upsert: ReturnType<typeof vi.fn>;
       aggregate: ReturnType<typeof vi.fn>;
     };
+    userReadingProgress: {
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
   };
 
   beforeEach(() => {
@@ -66,6 +75,10 @@ describe('ReadingHistoryService', () => {
         findMany: vi.fn(),
         upsert: vi.fn(),
         aggregate: vi.fn(),
+      },
+      userReadingProgress: {
+        findUnique: vi.fn(),
+        update: vi.fn(),
       },
     };
 
@@ -364,6 +377,202 @@ describe('ReadingHistoryService', () => {
 
       // Should update pagesRead and totalDuration
       expect(mockDb.readingStats.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    // Auto-complete threshold tests
+    describe('auto-complete threshold', () => {
+      it('should auto-complete when threshold is reached', async () => {
+        const sessionId = 'session-123';
+        const userId = 'user-1';
+        const startedAt = new Date('2024-06-15T11:30:00.000Z');
+
+        // File with 30 pages, threshold 95%, user at page 29 (96.7%)
+        mockDb.readingHistory.findUnique.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startPage: 0,
+          startedAt,
+          file: {
+            seriesId: 'series-1',
+            library: { autoCompleteThreshold: 95 },
+          },
+        });
+        mockDb.userReadingProgress.findUnique.mockResolvedValue({
+          userId,
+          fileId: 'file-1',
+          currentPage: 29,
+          totalPages: 30,
+          completed: false,
+        });
+        mockDb.userReadingProgress.update.mockResolvedValue({});
+        mockDb.readingHistory.update.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startedAt,
+          endedAt: new Date(),
+          startPage: 0,
+          endPage: 29,
+          pagesRead: 30,
+          duration: 1800,
+          completed: true,
+        });
+        mockDb.readingStats.upsert.mockResolvedValue({});
+
+        const result = await endSession(sessionId, 29, false, undefined, userId);
+
+        expect(result?.completed).toBe(true);
+        expect(mockDb.userReadingProgress.update).toHaveBeenCalledWith({
+          where: { userId_fileId: { userId, fileId: 'file-1' } },
+          data: { completed: true },
+        });
+      });
+
+      it('should not auto-complete when below threshold', async () => {
+        const sessionId = 'session-123';
+        const userId = 'user-1';
+        const startedAt = new Date('2024-06-15T11:30:00.000Z');
+
+        // File with 30 pages, threshold 95%, user at page 25 (83.3%)
+        mockDb.readingHistory.findUnique.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startPage: 0,
+          startedAt,
+          file: {
+            seriesId: null,
+            library: { autoCompleteThreshold: 95 },
+          },
+        });
+        mockDb.userReadingProgress.findUnique.mockResolvedValue({
+          userId,
+          fileId: 'file-1',
+          currentPage: 25,
+          totalPages: 30,
+          completed: false,
+        });
+        mockDb.readingHistory.update.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startedAt,
+          endedAt: new Date(),
+          startPage: 0,
+          endPage: 25,
+          pagesRead: 26,
+          duration: 1800,
+          completed: false,
+        });
+        mockDb.readingStats.upsert.mockResolvedValue({});
+
+        const result = await endSession(sessionId, 25, false, undefined, userId);
+
+        expect(result?.completed).toBe(false);
+        expect(mockDb.userReadingProgress.update).not.toHaveBeenCalled();
+      });
+
+      it('should not auto-complete when threshold is null (disabled)', async () => {
+        const sessionId = 'session-123';
+        const userId = 'user-1';
+        const startedAt = new Date('2024-06-15T11:30:00.000Z');
+
+        // Library with disabled auto-complete
+        mockDb.readingHistory.findUnique.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startPage: 0,
+          startedAt,
+          file: {
+            seriesId: null,
+            library: { autoCompleteThreshold: null },
+          },
+        });
+        mockDb.readingHistory.update.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startedAt,
+          endedAt: new Date(),
+          startPage: 0,
+          endPage: 29,
+          pagesRead: 30,
+          duration: 1800,
+          completed: false,
+        });
+        mockDb.readingStats.upsert.mockResolvedValue({});
+
+        const result = await endSession(sessionId, 29, false, undefined, userId);
+
+        expect(result?.completed).toBe(false);
+        expect(mockDb.userReadingProgress.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('should not auto-complete when userId is not provided', async () => {
+        const sessionId = 'session-123';
+        const startedAt = new Date('2024-06-15T11:30:00.000Z');
+
+        mockDb.readingHistory.findUnique.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startPage: 0,
+          startedAt,
+          file: {
+            seriesId: null,
+            library: { autoCompleteThreshold: 95 },
+          },
+        });
+        mockDb.readingHistory.update.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startedAt,
+          endedAt: new Date(),
+          startPage: 0,
+          endPage: 29,
+          pagesRead: 30,
+          duration: 1800,
+          completed: false,
+        });
+        mockDb.readingStats.upsert.mockResolvedValue({});
+
+        // No userId provided
+        const result = await endSession(sessionId, 29, false);
+
+        expect(result?.completed).toBe(false);
+        expect(mockDb.userReadingProgress.findUnique).not.toHaveBeenCalled();
+      });
+
+      it('should not auto-complete when already marked completed', async () => {
+        const sessionId = 'session-123';
+        const userId = 'user-1';
+        const startedAt = new Date('2024-06-15T11:30:00.000Z');
+
+        mockDb.readingHistory.findUnique.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startPage: 0,
+          startedAt,
+          file: {
+            seriesId: null,
+            library: { autoCompleteThreshold: 95 },
+          },
+        });
+        mockDb.readingHistory.update.mockResolvedValue({
+          id: sessionId,
+          fileId: 'file-1',
+          startedAt,
+          endedAt: new Date(),
+          startPage: 0,
+          endPage: 29,
+          pagesRead: 30,
+          duration: 1800,
+          completed: true,
+        });
+        mockDb.readingStats.upsert.mockResolvedValue({});
+
+        // completed flag is already true
+        const result = await endSession(sessionId, 29, true, undefined, userId);
+
+        expect(result?.completed).toBe(true);
+        // Should not check reading progress since already completed
+        expect(mockDb.userReadingProgress.findUnique).not.toHaveBeenCalled();
+      });
     });
   });
 

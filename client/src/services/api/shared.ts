@@ -57,6 +57,8 @@ export interface Library {
   createdAt: string;
   updatedAt: string;
   stats?: LibraryStats;
+  /** Auto-complete threshold: percentage (0-100), null = disabled */
+  autoCompleteThreshold?: number | null;
 }
 
 export interface ComicFile {

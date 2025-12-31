@@ -1,0 +1,564 @@
+/* =============================================================================
+   SeriesBrowserPage Styles
+
+   New series browser page following LIBRARY_ARCH.md performance principles.
+   ============================================================================= */
+
+.series-browser-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  min-width: 0; /* Allow flex item to shrink below content size */
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.series-browser-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  min-width: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.series-browser-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.series-browser-header h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.series-browser-count {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   Filters
+   ============================================================================= */
+
+.series-browser-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Search Input */
+.series-browser-search {
+  position: relative;
+  flex: 0 1 240px;
+}
+
+.series-browser-search-input {
+  width: 100%;
+  padding: 6px var(--spacing-md);
+  padding-right: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.series-browser-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.series-browser-search-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-muted);
+}
+
+.series-browser-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.series-browser-search-clear:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+/* Select Dropdowns */
+.series-browser-select {
+  padding: 6px 24px 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%237d8590' d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.series-browser-select:focus {
+  border-color: var(--color-primary);
+}
+
+.series-browser-select:hover {
+  border-color: var(--color-text-muted);
+}
+
+/* Library Filter Group */
+.series-browser-library-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.series-browser-library-group .series-browser-select {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+
+/* Hidden Series Toggle Button */
+.series-browser-hidden-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.series-browser-hidden-btn:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.series-browser-hidden-btn--active {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  border-color: var(--color-primary-muted);
+}
+
+/* Clear Filters Button */
+.series-browser-clear-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.series-browser-clear-btn:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: var(--color-error-muted, rgba(239, 68, 68, 0.1));
+}
+
+/* =============================================================================
+   Smart Filter Panel Container
+   ============================================================================= */
+
+.series-browser-smart-filter {
+  padding: 0 var(--spacing-xl);
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .series-browser-smart-filter {
+    padding: 0 var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .series-browser-smart-filter {
+    padding: 0 var(--spacing-sm);
+  }
+}
+
+/* =============================================================================
+   Content Area - Grid + Sidebar Container
+   ============================================================================= */
+
+.series-browser-content {
+  flex: 1;
+  display: flex;
+  min-height: 0; /* Important for flex child */
+  position: relative;
+}
+
+/* =============================================================================
+   Scroll Container - Following LIBRARY_ARCH.md patterns
+   ============================================================================= */
+
+.series-browser-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
+  min-height: 0; /* Important for flex child */
+  padding-right: 48px; /* Reserve space for NavigationSidebar */
+}
+
+/* Virtual grid container - positioned relative for absolute children */
+.series-browser-grid {
+  position: relative;
+  min-height: 100%;
+  /* Padding is handled by JS via useVirtualGrid paddingLeft/paddingTop */
+}
+
+/* Grid items - GPU-accelerated positioning via transform */
+.series-browser-grid-item {
+  position: absolute;
+  will-change: transform;
+}
+
+/* =============================================================================
+   Navigation Sidebar
+   ============================================================================= */
+
+.series-browser-sidebar {
+  flex-shrink: 0;
+  /* NavigationSidebar handles its own styling */
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.series-browser-loading {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+/* =============================================================================
+   Error State
+   ============================================================================= */
+
+.series-browser-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-xl);
+  min-height: 300px;
+}
+
+.series-browser-error-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--color-error);
+  margin-bottom: var(--spacing-lg);
+}
+
+.series-browser-error-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.series-browser-error h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.series-browser-error p {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-lg) 0;
+  max-width: 400px;
+}
+
+.series-browser-retry-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.series-browser-retry-btn:hover {
+  background: var(--color-primary-hover, #4f46e5);
+  border-color: var(--color-primary-hover, #4f46e5);
+}
+
+/* =============================================================================
+   Empty State
+   ============================================================================= */
+
+.series-browser-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--spacing-xl);
+  min-height: 300px;
+}
+
+.series-browser-empty-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.5;
+}
+
+.series-browser-empty-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.series-browser-empty h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-sm) 0;
+}
+
+.series-browser-empty p {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--spacing-lg) 0;
+  max-width: 400px;
+}
+
+.series-browser-empty p:last-child {
+  margin-bottom: 0;
+}
+
+/* =============================================================================
+   Scroll Performance Optimizations
+
+   When .scrolling class is active, disable expensive effects.
+   Note: SeriesBrowserCard handles its own scroll optimizations via CSS.
+   ============================================================================= */
+
+.scrolling .series-browser-grid-item {
+  transition: none !important;
+}
+
+/* =============================================================================
+   Debug Info Bar (Development Only)
+   ============================================================================= */
+
+.series-browser-debug {
+  padding: var(--spacing-xs) var(--spacing-lg);
+  background: var(--color-bg-tertiary);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono, monospace);
+  flex-shrink: 0;
+}
+
+/* =============================================================================
+   Responsive Design
+   ============================================================================= */
+
+@media (max-width: 1024px) {
+  .series-browser-header {
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .series-browser-filters {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .series-browser-search {
+    flex: 1 1 200px;
+    min-width: 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .series-browser-header {
+    padding: var(--spacing-sm) var(--spacing-md);
+    gap: var(--spacing-sm);
+  }
+
+  .series-browser-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .series-browser-filters {
+    gap: var(--spacing-xs);
+  }
+
+  .series-browser-search {
+    flex: 1 1 100%;
+    min-width: 100%;
+    order: -1;
+  }
+
+  .series-browser-select {
+    padding: 5px 20px 5px 6px;
+    font-size: 0.75rem;
+    max-width: 120px;
+  }
+
+  .series-browser-library-group .series-browser-select {
+    max-width: 100px;
+  }
+
+  .series-browser-hidden-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .series-browser-clear-btn {
+    width: 26px;
+    height: 26px;
+  }
+
+  .series-browser-grid {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .series-browser-header h1 {
+    font-size: 1.125rem;
+  }
+
+  .series-browser-select {
+    max-width: 100px;
+    padding: 4px 18px 4px 5px;
+  }
+
+  .series-browser-library-group .series-browser-select {
+    max-width: 80px;
+  }
+
+  .series-browser-grid {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (pointer: coarse) {
+  /* Ensure minimum 44px touch targets */
+  .series-browser-select {
+    min-height: 44px;
+    padding: 10px 28px 10px 12px;
+    font-size: 0.875rem;
+  }
+
+  .series-browser-search-input {
+    min-height: 44px;
+    padding: 10px var(--spacing-md);
+    padding-right: 40px;
+    font-size: 0.875rem;
+  }
+
+  .series-browser-search-clear {
+    width: 32px;
+    height: 32px;
+    right: 8px;
+  }
+
+  .series-browser-hidden-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .series-browser-clear-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .series-browser-filters {
+    gap: var(--spacing-sm);
+  }
+
+  /* Active state feedback for touch */
+  .series-browser-select:active,
+  .series-browser-hidden-btn:active,
+  .series-browser-clear-btn:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+}
+
+/* =============================================================================
+   Reduced Motion Support
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .series-browser-grid-item {
+    transition: none;
+  }
+}

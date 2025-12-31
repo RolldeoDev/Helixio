@@ -22,6 +22,10 @@ model Library {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auto-complete threshold: percentage (0-100), null = disabled
+  // Default 95 means issues at 95%+ completion auto-complete on session exit
+  autoCompleteThreshold Int? @default(95)
+
   // Relations
   files           ComicFile[]
   batchOperations BatchOperation[]

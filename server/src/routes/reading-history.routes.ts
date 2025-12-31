@@ -9,6 +9,7 @@
 
 import { Router, Request, Response } from 'express';
 import { logError } from '../services/logger.service.js';
+import { optionalAuth } from '../middleware/auth.middleware.js';
 import {
   startSession,
   updateSession,
@@ -85,8 +86,9 @@ router.put('/session/:sessionId', async (req: Request, res: Response) => {
 /**
  * POST /api/reading-history/session/:sessionId/end
  * End a reading session
+ * Uses optional auth to get userId for auto-complete threshold check
  */
-router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
+router.post('/session/:sessionId/end', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const { endPage, completed, confirmedPagesRead } = req.body as {
@@ -100,7 +102,9 @@ router.post('/session/:sessionId/end', async (req: Request, res: Response) => {
       return;
     }
 
-    const session = await endSession(sessionId!, endPage, completed, confirmedPagesRead);
+    // Pass userId if available for auto-complete threshold check
+    const userId = req.user?.id;
+    const session = await endSession(sessionId!, endPage, completed, confirmedPagesRead, userId);
     res.json(session);
   } catch (error) {
     logError('reading-history', error, { action: 'end-session' });

@@ -2059,21 +2059,35 @@ export async function recalculateSeriesCover(seriesId: string): Promise<void> {
   let resolvedFileId: string | null = null;
 
   // Apply resolution priority based on coverSource preference
-  if (series.coverSource === 'api' && series.coverHash) {
-    resolvedSource = 'api';
-    resolvedHash = series.coverHash;
-  } else if (series.coverSource === 'user' && series.coverFileId) {
-    // Verify the file still exists before using it
-    const fileExists = await db.comicFile.findUnique({
-      where: { id: series.coverFileId },
-      select: { id: true },
-    });
-    if (fileExists) {
-      resolvedSource = 'user';
-      resolvedFileId = series.coverFileId;
-      resolvedHash = await getFileCoverHash(series.coverFileId);
+  if (series.coverSource === 'api') {
+    if (series.coverHash) {
+      resolvedSource = 'api';
+      resolvedHash = series.coverHash;
+    } else if (firstIssue) {
+      // Fallback to first issue when API cover not yet downloaded
+      resolvedSource = 'firstIssue';
+      resolvedFileId = firstIssue.id;
+      resolvedHash = firstIssue.coverHash || firstIssue.hash;
     }
-    // If file deleted, fall through - resolvedSource stays 'none'
+  } else if (series.coverSource === 'user') {
+    if (series.coverFileId) {
+      // Verify the file still exists before using it
+      const fileExists = await db.comicFile.findUnique({
+        where: { id: series.coverFileId },
+        select: { id: true },
+      });
+      if (fileExists) {
+        resolvedSource = 'user';
+        resolvedFileId = series.coverFileId;
+        resolvedHash = await getFileCoverHash(series.coverFileId);
+      }
+    }
+    // Fallback to first issue if file deleted or not set
+    if (resolvedSource === 'none' && firstIssue) {
+      resolvedSource = 'firstIssue';
+      resolvedFileId = firstIssue.id;
+      resolvedHash = firstIssue.coverHash || firstIssue.hash;
+    }
   } else if (series.coverSource === 'auto') {
     // Auto fallback chain: API > User > First Issue
     if (series.coverHash) {

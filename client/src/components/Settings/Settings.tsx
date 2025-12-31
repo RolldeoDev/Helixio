@@ -281,6 +281,7 @@ export function Settings() {
       await updateLibrary(editingLibrary.id, {
         name: editingLibrary.name,
         type: editingLibrary.type,
+        autoCompleteThreshold: editingLibrary.autoCompleteThreshold,
       });
       await refreshLibraries();
       setEditingLibrary(null);
@@ -567,6 +568,29 @@ export function Settings() {
                           <option value="western">Western Comics</option>
                           <option value="manga">Manga</option>
                         </select>
+                        <div className="setting-group" style={{ marginTop: '0.5rem' }}>
+                          <label htmlFor={`autocomplete-${library.id}`}>Auto-complete threshold</label>
+                          <p className="setting-description" style={{ fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                            Automatically mark issues as complete when you exit after reaching this percentage.
+                          </p>
+                          <select
+                            id={`autocomplete-${library.id}`}
+                            value={editingLibrary.autoCompleteThreshold ?? 'disabled'}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setEditingLibrary({
+                                ...editingLibrary,
+                                autoCompleteThreshold: value === 'disabled' ? null : parseInt(value, 10),
+                              });
+                            }}
+                          >
+                            <option value="disabled">Disabled</option>
+                            <option value="90">90%</option>
+                            <option value="95">95% (Default)</option>
+                            <option value="98">98%</option>
+                            <option value="100">100% (Last page only)</option>
+                          </select>
+                        </div>
                         <div className="edit-actions">
                           <button className="btn-primary" onClick={handleUpdateLibrary}>
                             Save
@@ -583,6 +607,11 @@ export function Settings() {
                           <span className="library-path">{library.rootPath}</span>
                           <span className="library-type badge">
                             {library.type === 'manga' ? 'Manga' : 'Western'}
+                          </span>
+                          <span className="library-autocomplete muted" style={{ fontSize: '0.85rem' }}>
+                            Auto-complete: {library.autoCompleteThreshold !== null && library.autoCompleteThreshold !== undefined
+                              ? `${library.autoCompleteThreshold}%`
+                              : 'Disabled'}
                           </span>
                           {/* Reader Profile */}
                           <div className="library-reader-profile">

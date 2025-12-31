@@ -6,7 +6,7 @@
  */
 
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Reader, ReaderProvider } from '../components/Reader';
+import { Reader, ReaderProvider, SessionSettingsProvider } from '../components/Reader';
 
 export function ReaderPage() {
   const { fileId } = useParams<{ fileId: string }>();
@@ -49,12 +49,14 @@ export function ReaderPage() {
   };
 
   return (
-    <ReaderProvider fileId={fileId} filename={filename} startPage={startPage}>
-      <Reader
-        onClose={handleClose}
-        onNavigateToFile={handleNavigateToFile}
-        onNavigateToSeries={handleNavigateToSeries}
-      />
-    </ReaderProvider>
+    <SessionSettingsProvider>
+      <ReaderProvider fileId={fileId} filename={filename} startPage={startPage}>
+        <Reader
+          onClose={handleClose}
+          onNavigateToFile={handleNavigateToFile}
+          onNavigateToSeries={handleNavigateToSeries}
+        />
+      </ReaderProvider>
+    </SessionSettingsProvider>
   );
 }
