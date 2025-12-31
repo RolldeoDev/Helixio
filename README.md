@@ -237,10 +237,6 @@ Special - One Shot Title (YYYY).cbz
 - **CB7** (7-Zip archives) - Read support
 - **PDF** - Read support
 
-## Development
-
-See [CLAUDE.md](./CLAUDE.md) for development commands, architecture details, and contribution guidelines.
-
 ## License
 
 Private project.
