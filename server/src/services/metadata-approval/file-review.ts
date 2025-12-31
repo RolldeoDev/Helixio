@@ -11,7 +11,7 @@ import { SeriesCache, type CachedIssuesData } from '../series-cache.service.js';
 import * as comicVine from '../comicvine.service.js';
 import { getSession, setSession } from './session-store.js';
 import { matchFileToIssue, getIssueNumber, getIssueTitle } from './helpers.js';
-import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, type MangaChapterOptions, type ComicClassificationOptions } from './field-changes.js';
+import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, generateRenameField, type MangaChapterOptions, type ComicClassificationOptions } from './field-changes.js';
 import { getComicClassificationSettings } from '../config.service.js';
 import { classifyMangaFile, type MangaClassificationResult } from '../manga-classification.service.js';
 import { getMangaClassificationSettings } from '../config.service.js';
@@ -57,6 +57,7 @@ async function prepareMangaFileChanges(
     parsedFiles: Record<string, ParsedFileData>;
     selectedSeries: SeriesMatch;
   },
+  libraryId: string | undefined,
   onProgress?: ProgressCallback
 ): Promise<FileChange[]> {
   const progress = onProgress || (() => {});
@@ -71,18 +72,22 @@ async function prepareMangaFileChanges(
     `Using chapter numbers from filenames (${metadataSource.source} provides series metadata only)`
   );
 
-  // Fetch page counts for all files if classification is enabled
-  let pageCountMap: Map<string, number> = new Map();
-  if (classificationSettings.enabled) {
-    const filesWithMetadata = await prisma.comicFile.findMany({
-      where: { id: { in: group.fileIds } },
-      select: { id: true, metadata: { select: { pageCount: true } } },
-    });
-    for (const file of filesWithMetadata) {
-      if (file.metadata?.pageCount) {
-        pageCountMap.set(file.id, file.metadata.pageCount);
-      }
+  // Fetch page counts and file paths for all files
+  const filesWithMetadata = await prisma.comicFile.findMany({
+    where: { id: { in: group.fileIds } },
+    select: {
+      id: true,
+      path: true,
+      metadata: { select: { pageCount: true } },
+    },
+  });
+  const pageCountMap = new Map<string, number>();
+  const filePathMap = new Map<string, string>();
+  for (const file of filesWithMetadata) {
+    if (file.metadata?.pageCount) {
+      pageCountMap.set(file.id, file.metadata.pageCount);
     }
+    filePathMap.set(file.id, file.path);
   }
 
   for (let i = 0; i < group.fileIds.length; i++) {
@@ -125,6 +130,31 @@ async function prepareMangaFileChanges(
         metadataSource,
         options
       );
+
+      // Generate rename preview if we have library context
+      const filePath = filePathMap.get(fileId);
+      if (libraryId && filePath) {
+        // Build proposed metadata for rename preview (use proposed values from fields)
+        const proposedMetadata: Record<string, string | number | null> = {};
+        for (const [key, fc] of Object.entries(fields)) {
+          proposedMetadata[key] = fc.proposed;
+        }
+
+        const renameField = await generateRenameField(proposedMetadata, {
+          libraryId,
+          filePath,
+          series: {
+            name: metadataSource.name,
+            publisher: metadataSource.publisher ?? undefined,
+            startYear: metadataSource.startYear,
+            issueCount: metadataSource.issueCount,
+          },
+        });
+
+        if (renameField) {
+          fields.rename = renameField;
+        }
+      }
 
       // Determine display label based on classification or content type
       const displayLabel = classification?.displayTitle ||
@@ -354,6 +384,7 @@ export async function prepareFileChanges(
           parsedFiles: group.parsedFiles,
           selectedSeries: metadataSource,
         },
+        session.libraryId,
         progress
       );
       fileChanges.push(...mangaChanges);
@@ -406,18 +437,19 @@ export async function prepareFileChanges(
     let matchedCount = 0;
     let unmatchedCount = 0;
 
-    // Fetch page counts for all files if comic classification is enabled
+    // Fetch page counts and file paths for all files
     const comicClassificationSettings = getComicClassificationSettings();
-    let pageCountMap: Map<string, number> = new Map();
-    if (comicClassificationSettings.enabled) {
-      const filesWithMetadata = await prisma.comicFile.findMany({
-        where: { id: { in: group.fileIds } },
-        select: { id: true, metadata: { select: { pageCount: true } } },
-      });
-      for (const file of filesWithMetadata) {
-        if (file.metadata?.pageCount) {
-          pageCountMap.set(file.id, file.metadata.pageCount);
-        }
+    const pageCountMap = new Map<string, number>();
+    const filePathMap = new Map<string, string>();
+
+    const filesWithMetadata = await prisma.comicFile.findMany({
+      where: { id: { in: group.fileIds } },
+      select: { id: true, path: true, metadata: { select: { pageCount: true } } },
+    });
+    for (const file of filesWithMetadata) {
+      filePathMap.set(file.id, file.path);
+      if (file.metadata?.pageCount) {
+        pageCountMap.set(file.id, file.metadata.pageCount);
       }
     }
 
@@ -427,6 +459,7 @@ export async function prepareFileChanges(
     interface PendingMatch {
       fileId: string;
       filename: string;
+      filePath: string;
       issue: (typeof cachedIssues.issues)[0];
       confidence: number;
       parseSource: string;
@@ -448,9 +481,11 @@ export async function prepareFileChanges(
 
       if (issue && confidence >= 0.5) {
         matchedCount++;
+        const filePath = filePathMap.get(fileId) || '';
         pendingMatches.push({
           fileId,
           filename,
+          filePath,
           issue,
           confidence,
           parseSource,
@@ -530,6 +565,30 @@ export async function prepareFileChanges(
           classificationOptions
         );
 
+        // Generate rename preview if we have library context
+        if (session.libraryId && match.filePath) {
+          // Build proposed metadata for rename preview
+          const proposedMetadata: Record<string, string | number | null> = {};
+          for (const [key, fc] of Object.entries(fields)) {
+            proposedMetadata[key] = fc.proposed;
+          }
+
+          const renameField = await generateRenameField(proposedMetadata, {
+            libraryId: session.libraryId,
+            filePath: match.filePath,
+            series: {
+              name: metadataSource.name,
+              publisher: metadataSource.publisher ?? undefined,
+              startYear: metadataSource.startYear,
+              issueCount: metadataSource.issueCount,
+            },
+          });
+
+          if (renameField) {
+            fields.rename = renameField;
+          }
+        }
+
         fileChanges.push({
           fileId: match.fileId,
           filename: match.filename,
@@ -560,6 +619,30 @@ export async function prepareFileChanges(
           metadataSource,
           classificationOptions
         );
+
+        // Generate rename preview if we have library context
+        if (session.libraryId && match.filePath) {
+          // Build proposed metadata for rename preview
+          const proposedMetadata: Record<string, string | number | null> = {};
+          for (const [key, fc] of Object.entries(fields)) {
+            proposedMetadata[key] = fc.proposed;
+          }
+
+          const renameField = await generateRenameField(proposedMetadata, {
+            libraryId: session.libraryId,
+            filePath: match.filePath,
+            series: {
+              name: metadataSource.name,
+              publisher: metadataSource.publisher ?? undefined,
+              startYear: metadataSource.startYear,
+              issueCount: metadataSource.issueCount,
+            },
+          });
+
+          if (renameField) {
+            fields.rename = renameField;
+          }
+        }
 
         fileChanges.push({
           fileId: match.fileId,

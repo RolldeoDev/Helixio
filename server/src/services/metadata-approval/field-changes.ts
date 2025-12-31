@@ -4,8 +4,9 @@
  * Converts API issue data into field changes for approval.
  */
 
+import { basename, extname } from 'path';
 import { getDatabase } from '../database.service.js';
-import { readComicInfo } from '../comicinfo.service.js';
+import { readComicInfo, type ComicInfo } from '../comicinfo.service.js';
 import type { ComicVineIssue } from '../comicvine.service.js';
 import type { MetronIssue } from '../metron.service.js';
 import type { SeriesMatch, FieldChange } from './types.js';
@@ -19,6 +20,10 @@ import {
   classifyComicFormat,
   type ComicClassificationResult,
 } from '../comic-classification.service.js';
+import { generateFilenameFromTemplate, needsRename } from '../filename-generator.service.js';
+import { createServiceLogger } from '../logger.service.js';
+
+const logger = createServiceLogger('metadata-approval-field-changes');
 
 // =============================================================================
 // Current Metadata Extraction
@@ -479,4 +484,100 @@ export async function mangaChapterToFieldChanges(
   };
 
   return buildFieldChanges(currentMetadata, proposedMetadata);
+}
+
+// =============================================================================
+// Rename Preview Generation
+// =============================================================================
+
+/**
+ * Options for generating rename field preview
+ */
+export interface RenameFieldOptions {
+  /** Library ID for template lookup */
+  libraryId: string;
+  /** Current file path */
+  filePath: string;
+  /** Series data for template resolution */
+  series?: {
+    name?: string;
+    publisher?: string;
+    startYear?: number;
+    volume?: number;
+    issueCount?: number;
+  };
+}
+
+/**
+ * Generate a rename field preview from proposed metadata.
+ *
+ * Uses the library's active filename template to generate the proposed filename
+ * based on the proposed metadata changes.
+ *
+ * @param proposedMetadata - The proposed metadata fields (as ComicInfo-compatible values)
+ * @param options - Configuration including libraryId and current file path
+ * @returns FieldChange for rename, or null if no rename needed
+ */
+export async function generateRenameField(
+  proposedMetadata: Record<string, string | number | null>,
+  options: RenameFieldOptions
+): Promise<FieldChange | null> {
+  try {
+    const currentFilename = basename(options.filePath);
+
+    // Build ComicInfo object from proposed metadata
+    // This mimics what would be written to the file
+    const comicInfo: ComicInfo = {
+      Series: proposedMetadata.series as string | undefined,
+      Number: proposedMetadata.number as string | undefined,
+      Title: proposedMetadata.title as string | undefined,
+      Volume: proposedMetadata.volume as number | undefined,
+      Year: proposedMetadata.year as number | undefined,
+      Month: proposedMetadata.month as number | undefined,
+      Day: proposedMetadata.day as number | undefined,
+      Publisher: proposedMetadata.publisher as string | undefined,
+      Writer: proposedMetadata.writer as string | undefined,
+      Penciller: proposedMetadata.penciller as string | undefined,
+      Inker: proposedMetadata.inker as string | undefined,
+      Colorist: proposedMetadata.colorist as string | undefined,
+      Letterer: proposedMetadata.letterer as string | undefined,
+      CoverArtist: proposedMetadata.coverArtist as string | undefined,
+      Editor: proposedMetadata.editor as string | undefined,
+      Summary: proposedMetadata.summary as string | undefined,
+      Genre: proposedMetadata.genre as string | undefined,
+      Format: proposedMetadata.format as string | undefined,
+      StoryArc: proposedMetadata.storyArc as string | undefined,
+      Characters: proposedMetadata.characters as string | undefined,
+      Teams: proposedMetadata.teams as string | undefined,
+      Locations: proposedMetadata.locations as string | undefined,
+      AgeRating: proposedMetadata.ageRating as string | undefined,
+      Manga: proposedMetadata.manga as 'Yes' | 'No' | 'YesAndRightToLeft' | undefined,
+      Count: proposedMetadata.count as number | undefined,
+    };
+
+    // Generate filename using template system
+    const result = await generateFilenameFromTemplate(
+      comicInfo,
+      options.filePath,
+      {
+        libraryId: options.libraryId,
+        series: options.series,
+      }
+    );
+
+    // Check if filename would actually change
+    if (!needsRename(currentFilename, result.filename)) {
+      return null;
+    }
+
+    return {
+      current: currentFilename,
+      proposed: result.filename,
+      approved: true, // Default to applying rename
+      edited: false,
+    };
+  } catch (error) {
+    logger.warn({ error, filePath: options.filePath }, 'Failed to generate rename preview');
+    return null;
+  }
 }
