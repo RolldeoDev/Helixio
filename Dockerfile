@@ -28,12 +28,14 @@ COPY package*.json ./
 COPY server/package*.json ./server/
 RUN npm ci --workspace=server --omit=dev
 COPY --from=builder /app/server/prisma ./server/prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/server/node_modules/.prisma ./server/node_modules/.prisma
+COPY --from=builder /app/server/node_modules/@prisma ./server/node_modules/@prisma
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/client/dist ./client/dist
 COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh && useradd -m -u 1000 helixio
+RUN chmod +x /docker-entrypoint.sh && \
+    usermod -l helixio -d /home/helixio -m node && \
+    groupmod -n helixio node
 
 ENV NODE_ENV=production PORT=8483 HOME=/config NO_OPEN=true
 VOLUME ["/config", "/comics"]
