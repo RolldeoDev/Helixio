@@ -13,6 +13,6 @@ services:
     volumes:
       # For UNRAID, change these paths:
       # - /mnt/user/appdata/helixio:/config
-      # - /mnt/user/media/Comics:/comics:ro
+      # - /mnt/user/media/Comics:/comics:rw
       - ./test-config:/config
-      - ./test-comics:/comics:ro
+      - ./test-comics:/comics:rw
