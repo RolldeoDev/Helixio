@@ -303,6 +303,10 @@ model ComicFile {
   seriesId     String?
   series       Series?  @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
+  // Raw series name extracted during scan (before series creation)
+  // Used to decouple metadata extraction from series linking
+  seriesNameRaw  String?
+
   // Cover management (auto = first page, page = specific page, custom = URL/upload)
   coverSource    String  @default("auto")  // "auto" | "page" | "custom"
   coverPageIndex Int?                       // Page index if source is "page" (0-indexed)

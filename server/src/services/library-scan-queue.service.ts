@@ -21,9 +21,7 @@ import {
   failScanJob,
   recoverInterruptedScanJobs,
   type ScanJobStatus,
-  type ProgressCallback,
 } from './library-scan-job.service.js';
-import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
 
 // =============================================================================
 // Types
@@ -47,8 +45,8 @@ export interface ScanQueueItem {
 /** Maximum number of scan jobs allowed in the queue */
 const MAX_QUEUE_SIZE = 20;
 
-/** Maximum number of concurrent library scans */
-const MAX_CONCURRENT_SCANS = 3;
+/** Maximum number of concurrent library scans (1 = sequential to eliminate race conditions) */
+const MAX_CONCURRENT_SCANS = 1;
 
 // =============================================================================
 // Queue State
@@ -310,7 +308,7 @@ function scheduleNextProcess(): void {
 // =============================================================================
 
 /**
- * Execute the full library scan workflow
+ * Execute the full library scan workflow using new 5-phase scanner.
  */
 async function executeFullScan(
   jobId: string,
@@ -323,321 +321,53 @@ async function executeFullScan(
 
   const libraryId = job.libraryId;
 
-  // Helper to check cancellation
-  const checkCancellation = async (): Promise<boolean> => {
-    if (cancellationToken.cancelled) {
-      await updateScanJobStatus(jobId, 'cancelled');
-      await addScanJobLog(jobId, job.currentStage, 'Scan cancelled', undefined, 'warning');
-      return true;
-    }
-    return false;
-  };
-
-  // Helper to create progress callback for a stage
-  const createProgressCallback = (stage: string): ProgressCallback => {
-    return async (message: string, detail?: string) => {
-      await addScanJobLog(jobId, stage, message, detail, 'info');
-    };
-  };
-
   try {
-    // Import services dynamically to avoid circular dependencies
-    const { discoverFiles, applyScanResults, scanLibrary } = await import('./scanner.service.js');
-    const { batchExtractCovers } = await import('./cover.service.js');
-    const { getDatabase } = await import('./database.service.js');
-    const { linkFileToSeriesWithFolderFallback, autoLinkAllFiles } = await import('./series-matcher.service.js');
+    // Import new scanner
+    const { scanLibrary } = await import('./library-scanner/index.js');
 
-    const prisma = getDatabase();
+    // Run the scan with the new 5-phase scanner
+    const result = await scanLibrary(libraryId, {
+      onProgress: async (progress) => {
+        // Map phase to job stage
+        const stageMap: Record<string, string> = {
+          discovery: 'discovering',
+          metadata: 'indexing',
+          series: 'linking',
+          linking: 'linking',
+          covers: 'covers',
+          complete: 'complete',
+        };
 
-    // Get library
-    const library = await prisma.library.findUnique({ where: { id: libraryId } });
-    if (!library) {
-      throw new Error('Library not found');
-    }
+        const stage = stageMap[progress.phase] ?? progress.phase;
 
-    // =============================================================================
-    // Stage 1: Discovering
-    // =============================================================================
-    await updateScanJobStatus(jobId, 'discovering', 'discovering');
-    await addScanJobLog(jobId, 'discovering', 'Starting file discovery', library.rootPath, 'info');
-
-    const discoveryResult = await discoverFiles(library.rootPath, {
-      includeHash: true,
-    });
-
-    await updateScanJobProgress(jobId, {
-      discoveredFiles: discoveryResult.files.length,
-      totalFiles: discoveryResult.files.length,
-    });
-    await addScanJobLog(
-      jobId,
-      'discovering',
-      `Discovered ${discoveryResult.files.length} files`,
-      discoveryResult.errors.length > 0 ? `${discoveryResult.errors.length} errors` : undefined,
-      'success'
-    );
-
-    if (await checkCancellation()) return;
-
-    // =============================================================================
-    // Stage 2: Cleaning (Orphan detection)
-    // =============================================================================
-    await updateScanJobStatus(jobId, 'cleaning', 'cleaning');
-    await addScanJobLog(jobId, 'cleaning', 'Detecting changes and orphaned files', undefined, 'info');
-
-    // Use existing scanLibrary to detect changes
-    const scanResult = await scanLibrary(libraryId);
-
-    await updateScanJobProgress(jobId, {
-      orphanedFiles: scanResult.orphanedFiles.length,
-    });
-
-    // Apply scan results (creates new files, removes orphans)
-    const hasChanges =
-      scanResult.newFiles.length > 0 ||
-      scanResult.movedFiles.length > 0 ||
-      scanResult.orphanedFiles.length > 0;
-
-    if (hasChanges) {
-      await applyScanResults(scanResult);
-      await addScanJobLog(
-        jobId,
-        'cleaning',
-        'Applied scan changes',
-        `New: ${scanResult.newFiles.length}, Moved: ${scanResult.movedFiles.length}, Orphaned: ${scanResult.orphanedFiles.length}`,
-        'success'
-      );
-    } else {
-      await addScanJobLog(jobId, 'cleaning', 'No file changes detected', undefined, 'info');
-    }
-
-    if (await checkCancellation()) return;
-
-    // =============================================================================
-    // Stage 3: Indexing (ComicInfo.xml extraction) - PARALLEL
-    // =============================================================================
-    await updateScanJobStatus(jobId, 'indexing', 'indexing');
-    await addScanJobLog(jobId, 'indexing', 'Extracting metadata from files', undefined, 'info');
-
-    // Get all files that need metadata extraction
-    const filesToIndex = await prisma.comicFile.findMany({
-      where: {
-        libraryId,
-        status: { in: ['pending', 'indexed'] },
+        await updateScanJobStatus(jobId, stage as ScanJobStatus, stage);
+        await updateScanJobProgress(jobId, {
+          discoveredFiles: progress.phase === 'discovery' ? progress.current : undefined,
+          indexedFiles: progress.phase === 'metadata' ? progress.current : undefined,
+          linkedFiles: progress.phase === 'linking' ? progress.current : undefined,
+          coversExtracted: progress.phase === 'covers' ? progress.current : undefined,
+          totalFiles: progress.total > 0 ? progress.total : undefined,
+        });
+        await addScanJobLog(jobId, stage, progress.message, progress.detail, 'info');
       },
-      include: {
-        metadata: true,
-      },
+      shouldCancel: () => cancellationToken.cancelled,
     });
 
-    // Import metadata cache service
-    const { refreshMetadataCache } = await import('./metadata-cache.service.js');
-
-    // Filter to only files that need indexing
-    const filesToActuallyIndex = filesToIndex.filter(
-      (file) => !file.metadata || !file.metadata.lastScanned
-    );
-
-    let indexedCount = 0;
-    let indexErrorCount = 0;
-    const indexBatchSize = 20; // Increased batch size for parallel processing
-    const indexConcurrency = getOptimalConcurrency('io'); // Metadata extraction is I/O bound
-
-    for (let i = 0; i < filesToActuallyIndex.length; i += indexBatchSize) {
-      if (await checkCancellation()) return;
-
-      const batch = filesToActuallyIndex.slice(i, i + indexBatchSize);
-
-      // Process batch in parallel
-      const batchResult = await parallelMap(
-        batch,
-        async (file) => {
-          await refreshMetadataCache(file.id);
-          return { fileId: file.id, success: true };
-        },
-        {
-          concurrency: indexConcurrency,
-          shouldCancel: () => cancellationToken.cancelled,
-        }
-      );
-
-      // Count results
-      for (const result of batchResult.results) {
-        if (result.success) {
-          indexedCount++;
-        } else {
-          indexErrorCount++;
-          logger.warn({ fileId: batch[result.index]?.id, error: result.error }, 'Failed to extract metadata');
-        }
+    if (!result.success) {
+      if (result.error === 'Scan cancelled') {
+        await updateScanJobStatus(jobId, 'cancelled');
+        await addScanJobLog(jobId, 'cancelled', 'Scan cancelled by user', undefined, 'warning');
+        return;
       }
-
-      await updateScanJobProgress(jobId, {
-        indexedFiles: indexedCount,
-        errorCount: job.errorCount + indexErrorCount,
-      });
-
-      // Log progress every batch
-      await addScanJobLog(
-        jobId,
-        'indexing',
-        `Indexed ${indexedCount} of ${filesToActuallyIndex.length} files`,
-        indexErrorCount > 0 ? `${indexErrorCount} errors` : undefined,
-        'info'
-      );
+      throw new Error(result.error ?? 'Scan failed');
     }
 
-    // Add files that didn't need indexing to the count
-    indexedCount += filesToIndex.length - filesToActuallyIndex.length;
-
-    await addScanJobLog(jobId, 'indexing', `Completed metadata extraction`, `${indexedCount} files indexed`, 'success');
-
-    if (await checkCancellation()) return;
-
-    // =============================================================================
-    // Stage 4: Linking (Series assignment with folder fallback) - PARALLEL
-    // =============================================================================
-    await updateScanJobStatus(jobId, 'linking', 'linking');
-    await addScanJobLog(jobId, 'linking', 'Linking files to series', undefined, 'info');
-
-    // Get files that need linking
-    const filesToLink = await prisma.comicFile.findMany({
-      where: {
-        libraryId,
-        seriesId: null,
-        status: { in: ['pending', 'indexed'] },
-      },
-      include: {
-        metadata: true,
-      },
-    });
-
-    let linkedCount = 0;
-    let seriesCreatedCount = 0;
-    const linkBatchSize = 20; // Increased batch size for parallel processing
-    // Use lower concurrency for linking since it involves DB writes and potential series creation
-    const linkConcurrency = Math.min(getOptimalConcurrency('io'), 4);
-
-    for (let i = 0; i < filesToLink.length; i += linkBatchSize) {
-      if (await checkCancellation()) return;
-
-      const batch = filesToLink.slice(i, i + linkBatchSize);
-
-      // Process batch in parallel
-      const batchResult = await parallelMap(
-        batch,
-        async (file) => {
-          const result = await linkFileToSeriesWithFolderFallback(file.id);
-          return {
-            fileId: file.id,
-            linked: result.linked,
-            seriesCreated: result.seriesCreated || false,
-          };
-        },
-        {
-          concurrency: linkConcurrency,
-          shouldCancel: () => cancellationToken.cancelled,
-        }
-      );
-
-      // Count results
-      for (const result of batchResult.results) {
-        if (result.success && result.result) {
-          if (result.result.linked) {
-            linkedCount++;
-            if (result.result.seriesCreated) {
-              seriesCreatedCount++;
-            }
-          }
-        } else {
-          logger.warn({ fileId: batch[result.index]?.id, error: result.error }, 'Failed to link file to series');
-        }
-      }
-
-      await updateScanJobProgress(jobId, {
-        linkedFiles: linkedCount,
-        seriesCreated: seriesCreatedCount,
-      });
-
-      // Log progress every batch
-      await addScanJobLog(
-        jobId,
-        'linking',
-        `Linked ${linkedCount} of ${filesToLink.length} files`,
-        `${seriesCreatedCount} series created`,
-        'info'
-      );
-    }
-
-    // Also run the standard auto-link for any remaining files
-    await autoLinkAllFiles();
-
-    await addScanJobLog(
-      jobId,
-      'linking',
-      'Completed series linking',
-      `${linkedCount} files linked, ${seriesCreatedCount} series created`,
-      'success'
-    );
-
-    if (await checkCancellation()) return;
-
-    // =============================================================================
-    // Stage 5: Covers
-    // =============================================================================
-    await updateScanJobStatus(jobId, 'covers', 'covers');
-    await addScanJobLog(jobId, 'covers', 'Extracting cover images', undefined, 'info');
-
-    // Get all file IDs for cover extraction
-    const allFiles = await prisma.comicFile.findMany({
-      where: {
-        libraryId,
-        status: { in: ['pending', 'indexed'] },
-      },
-      select: { id: true },
-    });
-
-    const fileIds = allFiles.map((f) => f.id);
-    let coversExtracted = 0;
-
-    // Extract covers in batches with progress
-    const coverBatchSize = 20;
-    for (let i = 0; i < fileIds.length; i += coverBatchSize) {
-      if (await checkCancellation()) return;
-
-      const batch = fileIds.slice(i, i + coverBatchSize);
-      const result = await batchExtractCovers(batch);
-
-      coversExtracted += result.success + result.cached;
-      await updateScanJobProgress(jobId, { coversExtracted });
-
-      if (i % 100 === 0) {
-        await addScanJobLog(
-          jobId,
-          'covers',
-          `Extracted ${coversExtracted} of ${fileIds.length} covers`,
-          undefined,
-          'info'
-        );
-      }
-    }
-
-    await addScanJobLog(
-      jobId,
-      'covers',
-      'Completed cover extraction',
-      `${coversExtracted} covers cached`,
-      'success'
-    );
-
-    // =============================================================================
-    // Complete
-    // =============================================================================
     await updateScanJobStatus(jobId, 'complete', 'complete');
     await addScanJobLog(
       jobId,
       'complete',
       'Library scan completed successfully',
-      `${discoveryResult.files.length} files, ${linkedCount} linked, ${coversExtracted} covers`,
+      `Duration: ${Math.round(result.totalDuration / 1000)}s`,
       'success'
     );
   } catch (error) {
