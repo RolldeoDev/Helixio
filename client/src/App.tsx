@@ -58,6 +58,7 @@ import { StatsPage } from './pages/StatsPage';
 import { EntityStatsPage } from './pages/EntityStatsPage';
 import { AchievementsPage } from './pages/AchievementsPage';
 import { FoldersPage } from './pages/FoldersPage';
+import { SetupWizardPage } from './pages/SetupWizardPage';
 import { SharedLists } from './components/SharedLists';
 import { UserManagement } from './components/Admin';
 import { HelixioLoader } from './components/HelixioLoader';
@@ -339,7 +340,7 @@ function LibraryView() {
 function AppContent() {
   const location = useLocation();
   const { hasActiveJob, isModalOpen } = useMetadataJob();
-  const { isAuthenticated, isLoading: authLoading, setupRequired } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, setupRequired, user } = useAuth();
 
   // Require authentication for all routes except /login
   // Unauthenticated users are always redirected to login page
@@ -350,6 +351,18 @@ function AppContent() {
   // Show setup/login page if required
   if (setupRequired || (!isAuthenticated && location.pathname !== '/login')) {
     return <LoginPage />;
+  }
+
+  // Show setup wizard for new admin users who haven't completed setup
+  // Only show if: user is authenticated, is admin, and hasn't completed setup
+  if (
+    isAuthenticated &&
+    user &&
+    user.role === 'admin' &&
+    !user.setupComplete &&
+    location.pathname !== '/setup'
+  ) {
+    return <SetupWizardPage />;
   }
 
   // Check if we're on the reader route
@@ -399,6 +412,7 @@ function AppContent() {
           <Route path="/history" element={<RollbackPanel />} />
           <Route path="/lists/*" element={<SharedLists />} />
           <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/setup" element={<SetupWizardPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Routes>
       </main>

@@ -11,6 +11,7 @@
 
 import { Router, Request, Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
+import { requirePermission } from '../middleware/permissions.middleware.js';
 import { logError } from '../services/logger.service.js';
 import {
   getProgress,
@@ -261,8 +262,9 @@ router.get('/:fileId/bookmarks', async (req: Request, res: Response) => {
 /**
  * POST /api/reading-progress/:fileId/bookmarks
  * Add a bookmark
+ * Requires 'bookmark' permission
  */
-router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
+router.post('/:fileId/bookmarks', requirePermission('bookmark'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { pageIndex } = req.body as { pageIndex: number };
@@ -286,8 +288,9 @@ router.post('/:fileId/bookmarks', async (req: Request, res: Response) => {
 /**
  * DELETE /api/reading-progress/:fileId/bookmarks/:pageIndex
  * Remove a bookmark
+ * Requires 'bookmark' permission
  */
-router.delete('/:fileId/bookmarks/:pageIndex', async (req: Request, res: Response) => {
+router.delete('/:fileId/bookmarks/:pageIndex', requirePermission('bookmark'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const pageIndex = parseInt(req.params.pageIndex!, 10);

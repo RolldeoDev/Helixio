@@ -14,6 +14,7 @@ import { stat } from 'fs/promises';
 import { basename } from 'path';
 import { pipeline } from 'stream/promises';
 import { requireAuth } from '../middleware/auth.middleware.js';
+import { requirePermission } from '../middleware/permissions.middleware.js';
 import { getDatabase } from '../services/database.service.js';
 import {
   streamSingleFile,
@@ -44,8 +45,9 @@ const router = Router();
 /**
  * GET /api/downloads/file/:fileId
  * Download a single comic file directly.
+ * Requires 'download' permission.
  */
-router.get('/file/:fileId', requireAuth, async (req: Request, res: Response) => {
+router.get('/file/:fileId', requireAuth, requirePermission('download'), async (req: Request, res: Response) => {
   try {
     await streamSingleFile(req.params.fileId!, res);
   } catch (error) {
@@ -111,8 +113,9 @@ router.post('/estimate/bulk', requireAuth, async (req: Request, res: Response) =
 /**
  * POST /api/downloads/series/:seriesId
  * Request a series download (creates background job).
+ * Requires 'download' permission.
  */
-router.post('/series/:seriesId', requireAuth, async (req: Request, res: Response) => {
+router.post('/series/:seriesId', requireAuth, requirePermission('download'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { seriesId } = req.params;
@@ -169,8 +172,9 @@ router.post('/series/:seriesId', requireAuth, async (req: Request, res: Response
 /**
  * POST /api/downloads/bulk
  * Request a bulk download of selected files.
+ * Requires 'download' permission.
  */
-router.post('/bulk', requireAuth, async (req: Request, res: Response) => {
+router.post('/bulk', requireAuth, requirePermission('download'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const { fileIds, splitEnabled, splitSizeBytes } = req.body as {
@@ -372,8 +376,9 @@ router.get('/job/:jobId/stream', requireAuth, async (req: Request, res: Response
  * GET /api/downloads/job/:jobId/download
  * Download the prepared ZIP file.
  * Query params: ?part=0 for split downloads
+ * Requires 'download' permission.
  */
-router.get('/job/:jobId/download', requireAuth, async (req: Request, res: Response) => {
+router.get('/job/:jobId/download', requireAuth, requirePermission('download'), async (req: Request, res: Response) => {
   try {
     const jobId = req.params.jobId!;
     const partIndex = parseInt(req.query.part as string) || 0;

@@ -6,7 +6,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { validateToken, UserInfo } from '../services/auth.service.js';
+import { validateToken, UserInfo, updateLastActiveAt } from '../services/auth.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
 import {
@@ -130,6 +130,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         req.user = user;
         req.token = sessionToken;
         req.authMethod = 'session';
+
+        // Update lastActiveAt (throttled to every 60 seconds)
+        const now = Date.now();
+        const lastActive = user.lastActiveAt ? new Date(user.lastActiveAt).getTime() : 0;
+        if (now - lastActive > 60000) {
+          updateLastActiveAt(user.id).catch((err) =>
+            logError('auth-middleware', err, { action: 'update-last-active' })
+          );
+        }
+
         next();
         return;
       }

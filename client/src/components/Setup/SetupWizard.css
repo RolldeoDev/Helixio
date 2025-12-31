@@ -1,0 +1,770 @@
+/**
+ * Setup Wizard Styles
+ *
+ * Styles for the first-time user setup wizard.
+ */
+
+/* =============================================================================
+   Page Container
+   ============================================================================= */
+
+.setup-wizard-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+}
+
+.setup-wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+.setup-wizard-header img {
+  height: 32px;
+  width: auto;
+}
+
+.setup-wizard-skip {
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.setup-wizard-skip:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.setup-wizard-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.setup-wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
+}
+
+/* =============================================================================
+   Step Indicators
+   ============================================================================= */
+
+.step-indicator {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.step-indicator.completed {
+  background: var(--color-primary);
+  color: white;
+}
+
+.step-indicator.completed svg {
+  width: 16px;
+  height: 16px;
+}
+
+.step-indicator.active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 0 0 4px var(--color-primary-muted);
+}
+
+.step-indicator.pending {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.step-connector {
+  width: 40px;
+  height: 2px;
+  background: var(--border-color);
+  transition: background 0.3s ease;
+}
+
+.step-connector.completed {
+  background: var(--color-primary);
+}
+
+.step-indicator-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* =============================================================================
+   Common Step Styles
+   ============================================================================= */
+
+.setup-step {
+  width: 100%;
+  max-width: 640px;
+  background: var(--bg-primary);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  padding: 2.5rem;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.step-header h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.step-subtitle {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.step-error {
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  color: #ef4444;
+  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
+}
+
+.step-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+/* =============================================================================
+   Buttons
+   ============================================================================= */
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.125rem;
+  min-width: 200px;
+}
+
+.btn-secondary {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 0.625rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s;
+}
+
+.btn-text:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.btn-text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Welcome Step
+   ============================================================================= */
+
+.welcome-step .welcome-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.welcome-step .welcome-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem 0;
+}
+
+.welcome-step .welcome-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.feature-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.feature-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 0.75rem;
+  color: var(--color-primary);
+}
+
+.feature-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.feature-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.375rem 0;
+}
+
+.feature-description {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* =============================================================================
+   Library Step
+   ============================================================================= */
+
+.library-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-group input {
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-muted);
+}
+
+.form-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.path-input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.path-input-group input {
+  flex: 1;
+}
+
+.type-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.type-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.type-option:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.type-option.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 4px 16px var(--color-primary-muted);
+}
+
+.type-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.type-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--text-secondary);
+}
+
+.type-option.selected .type-icon {
+  color: var(--color-primary);
+}
+
+.type-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.type-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.type-description {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* =============================================================================
+   Scan Step
+   ============================================================================= */
+
+.scan-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
+}
+
+.scan-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.scan-icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+}
+
+.scan-icon.scanning {
+  background: var(--color-primary-muted);
+}
+
+.scan-icon.scanning .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scan-icon.complete {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.scan-icon.complete svg {
+  width: 32px;
+  height: 32px;
+}
+
+.scan-icon.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.scan-icon.error svg {
+  width: 32px;
+  height: 32px;
+}
+
+.scan-message {
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.scan-progress-bar {
+  width: 100%;
+  max-width: 400px;
+  height: 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.scan-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.scan-stats {
+  display: flex;
+  gap: 2rem;
+  margin-top: 0.5rem;
+}
+
+.scan-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.scan-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scan-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scan-hint {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  max-width: 360px;
+  margin: 0;
+}
+
+/* =============================================================================
+   Preferences Step
+   ============================================================================= */
+
+.preferences-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.preference-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.preference-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.color-scheme-toggle {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.scheme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.scheme-option:hover {
+  border-color: var(--color-primary);
+}
+
+.scheme-option.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.scheme-option svg {
+  width: 18px;
+  height: 18px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-card:hover {
+  border-color: var(--color-primary);
+}
+
+.theme-card.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.theme-preview {
+  width: 100%;
+  height: 48px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-preview-accent {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+.theme-preview-text {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 40%;
+  height: 6px;
+  border-radius: 3px;
+  opacity: 0.6;
+}
+
+.theme-name {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.theme-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.theme-check svg {
+  width: 12px;
+  height: 12px;
+}
+
+.reader-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reader-mode-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.reader-mode-option:hover {
+  border-color: var(--color-primary);
+}
+
+.reader-mode-option.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.reader-mode-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.reader-mode-description {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .setup-step {
+    padding: 1.5rem;
+    border-radius: 0;
+    min-height: 100vh;
+    box-shadow: none;
+  }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .type-selector {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .scan-stats {
+    gap: 1.5rem;
+  }
+}

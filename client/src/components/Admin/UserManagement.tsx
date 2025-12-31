@@ -1,13 +1,15 @@
 /**
  * User Management Component
  *
- * Admin interface for managing users.
+ * Admin interface for managing users with permissions, library access, and password reset.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useConfirmModal } from '../ConfirmModal';
 import { useApiToast } from '../../hooks';
+import { PermissionBadges } from './PermissionBadge';
+import { PermissionEditModal } from './PermissionEditModal';
 import './UserManagement.css';
 
 // =============================================================================
@@ -17,12 +19,14 @@ import './UserManagement.css';
 interface User {
   id: string;
   username: string;
-  email?: string;
-  displayName?: string;
+  email: string | null;
+  displayName: string | null;
   role: 'admin' | 'user' | 'guest';
   isActive: boolean;
+  permissions: string;
   createdAt: string;
-  lastLogin?: string;
+  lastLoginAt: string | null;
+  lastActiveAt: string | null;
 }
 
 // =============================================================================
@@ -88,6 +92,51 @@ async function deleteUser(userId: string): Promise<void> {
 }
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Format relative time for last active display
+ */
+function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'Never';
+
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 5) return 'Online';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString();
+}
+
+/**
+ * Check if user is online (active in last 5 minutes)
+ */
+function isOnline(lastActiveAt: string | null | undefined): boolean {
+  if (!lastActiveAt) return false;
+  const diffMs = new Date().getTime() - new Date(lastActiveAt).getTime();
+  return diffMs < 5 * 60 * 1000; // 5 minutes
+}
+
+/**
+ * Parse permissions JSON to object
+ */
+function parsePermissions(permsJson: string): Record<string, boolean> {
+  try {
+    return JSON.parse(permsJson || '{}');
+  } catch {
+    return {};
+  }
+}
+
+// =============================================================================
 // Component
 // =============================================================================
 
@@ -110,6 +159,9 @@ export function UserManagement() {
     role: 'user',
   });
   const [creating, setCreating] = useState(false);
+
+  // Edit modal state
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -202,9 +254,14 @@ export function UserManagement() {
     }
   };
 
-  const formatDate = (date?: string): string => {
-    if (!date) return 'Never';
-    return new Date(date).toLocaleDateString();
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+  };
+
+  const handleSaveUser = (updatedUser: User) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
+    );
   };
 
   if (currentUser?.role !== 'admin') {
@@ -323,9 +380,9 @@ export function UserManagement() {
               <tr>
                 <th>User</th>
                 <th>Role</th>
+                <th>Permissions</th>
                 <th>Status</th>
-                <th>Created</th>
-                <th>Last Login</th>
+                <th>Last Active</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -334,12 +391,15 @@ export function UserManagement() {
                 <tr key={user.id} className={!user.isActive ? 'inactive' : ''}>
                   <td>
                     <div className="user-info">
-                      <span className="user-name">
-                        {user.displayName || user.username}
-                        {user.id === currentUser?.id && (
-                          <span className="you-badge">You</span>
-                        )}
-                      </span>
+                      <div className="user-name-row">
+                        <span className={`online-indicator ${isOnline(user.lastActiveAt) ? 'online' : 'offline'}`} />
+                        <span className="user-name">
+                          {user.displayName || user.username}
+                          {user.id === currentUser?.id && (
+                            <span className="you-badge">You</span>
+                          )}
+                        </span>
+                      </div>
                       <span className="user-username">@{user.username}</span>
                       {user.email && <span className="user-email">{user.email}</span>}
                     </div>
@@ -360,35 +420,82 @@ export function UserManagement() {
                     )}
                   </td>
                   <td>
+                    <PermissionBadges
+                      permissions={parsePermissions(user.permissions)}
+                      activeOnly
+                      compact
+                      isAdmin={user.role === 'admin'}
+                    />
+                  </td>
+                  <td>
                     <span className={`status-badge ${user.isActive ? 'active' : 'inactive'}`}>
                       {user.isActive ? 'Active' : 'Disabled'}
                     </span>
                   </td>
-                  <td>{formatDate(user.createdAt)}</td>
-                  <td>{formatDate(user.lastLogin)}</td>
                   <td>
-                    {user.id !== currentUser?.id && (
-                      <div className="user-actions">
-                        <button
-                          className="btn-ghost small"
-                          onClick={() => handleToggleActive(user)}
-                        >
-                          {user.isActive ? 'Disable' : 'Enable'}
-                        </button>
-                        <button
-                          className="btn-ghost small danger"
-                          onClick={() => handleDeleteUser(user)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
+                    <span className={`last-active ${isOnline(user.lastActiveAt) ? 'online' : ''}`}>
+                      {formatRelativeTime(user.lastActiveAt)}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="user-actions">
+                      <button
+                        className="btn-icon"
+                        onClick={() => handleEditUser(user)}
+                        title="Edit permissions"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                      {user.id !== currentUser?.id && (
+                        <>
+                          <button
+                            className="btn-icon"
+                            onClick={() => handleToggleActive(user)}
+                            title={user.isActive ? 'Disable user' : 'Enable user'}
+                          >
+                            {user.isActive ? (
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                              </svg>
+                            ) : (
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            className="btn-icon danger"
+                            onClick={() => handleDeleteUser(user)}
+                            title="Delete user"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3,6 5,6 21,6" />
+                              <path d="M19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingUser && (
+        <PermissionEditModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={handleSaveUser}
+        />
       )}
     </div>
   );

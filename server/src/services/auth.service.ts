@@ -8,6 +8,12 @@ import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { getAvatarPath, getAvatarsDir } from './app-paths.service.js';
+import {
+  getDefaultPermissionsJson,
+  parsePermissions,
+  mergePermissions,
+  UserPermissions,
+} from '../types/permissions.js';
 
 const prisma = new PrismaClient();
 
@@ -25,8 +31,11 @@ export interface UserInfo {
   isActive: boolean;
   profilePrivate: boolean;
   hideReadingStats: boolean;
+  setupComplete: boolean;
+  permissions: string; // JSON string of permissions
   createdAt: Date;
   lastLoginAt: Date | null;
+  lastActiveAt: Date | null;
 }
 
 export interface CreateUserInput {
@@ -129,6 +138,7 @@ export async function createUser(input: CreateUserInput): Promise<UserInfo> {
       displayName: displayName || username,
       passwordHash,
       role,
+      permissions: getDefaultPermissionsJson(),
     },
   });
 
@@ -200,6 +210,18 @@ export async function updatePassword(userId: string, currentPassword: string, ne
     where: { id: userId },
     data: { passwordHash },
   });
+}
+
+/**
+ * Mark setup wizard as complete for a user
+ */
+export async function completeUserSetup(userId: string): Promise<UserInfo> {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { setupComplete: true },
+  });
+
+  return mapUserToInfo(user);
 }
 
 export async function deleteUser(userId: string): Promise<void> {
@@ -379,8 +401,11 @@ function mapUserToInfo(user: {
   isActive: boolean;
   profilePrivate: boolean;
   hideReadingStats: boolean;
+  setupComplete: boolean;
+  permissions: string;
   createdAt: Date;
   lastLoginAt: Date | null;
+  lastActiveAt: Date | null;
 }): UserInfo {
   return {
     id: user.id,
@@ -392,8 +417,11 @@ function mapUserToInfo(user: {
     isActive: user.isActive,
     profilePrivate: user.profilePrivate,
     hideReadingStats: user.hideReadingStats,
+    setupComplete: user.setupComplete,
+    permissions: user.permissions,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
+    lastActiveAt: user.lastActiveAt,
   };
 }
 
@@ -600,6 +628,82 @@ export async function removeAvatar(userId: string): Promise<void> {
 export function getAvatarFilePath(userId: string): string | null {
   const avatarPath = getAvatarPath(userId);
   return existsSync(avatarPath) ? avatarPath : null;
+}
+
+// =============================================================================
+// Permission Management
+// =============================================================================
+
+/**
+ * Update user permissions
+ * @param userId - User ID to update
+ * @param permissions - Partial permissions to merge with existing
+ * @returns Updated user info
+ */
+export async function updateUserPermissions(
+  userId: string,
+  permissions: Partial<Record<string, boolean>>
+): Promise<UserInfo> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Parse existing permissions and merge with updates
+  const existingPerms = parsePermissions(user.permissions);
+  const mergedPerms = mergePermissions(existingPerms, permissions);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: { permissions: JSON.stringify(mergedPerms) },
+  });
+
+  return mapUserToInfo(updatedUser);
+}
+
+/**
+ * Admin reset user password (no current password required)
+ * @param userId - User ID to reset
+ * @param newPassword - New password to set
+ */
+export async function resetUserPassword(userId: string, newPassword: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if (newPassword.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  const passwordHash = hashPassword(newPassword);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+
+  // Revoke all existing sessions (force re-login with new password)
+  await prisma.userSession.deleteMany({
+    where: { userId },
+  });
+}
+
+/**
+ * Update user's lastActiveAt timestamp (called by auth middleware)
+ * Uses a throttle of 60 seconds to avoid excessive database writes.
+ */
+export async function updateLastActiveAt(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastActiveAt: new Date() },
+  });
 }
 
 // =============================================================================

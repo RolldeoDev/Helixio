@@ -163,6 +163,7 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
       const response = await fetch(`${API_BASE}/api/factory-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           level: selectedLevel,
           clearKeychain,

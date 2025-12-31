@@ -9,8 +9,10 @@ import multer from 'multer';
 import sharp from 'sharp';
 import * as authService from '../services/auth.service.js';
 import { requireAuth, requireAdmin, rateLimitByIP } from '../middleware/auth.middleware.js';
+import { requirePermission } from '../middleware/permissions.middleware.js';
 import { getAvatarsDir } from '../services/app-paths.service.js';
 import { logError } from '../services/logger.service.js';
+import { getAllPermissions, hasPermission } from '../types/permissions.js';
 
 const router = Router();
 
@@ -124,6 +126,14 @@ router.post('/login', rateLimitByIP, async (req: Request, res: Response) => {
       return;
     }
 
+    // Check login permission (after credential validation)
+    // Admins bypass permission checks; non-admins need login permission
+    if (result.user && result.user.role !== 'admin' && !hasPermission(result.user, 'login')) {
+      // Return generic error to avoid revealing account status
+      res.status(401).json({ error: 'Invalid username or password' });
+      return;
+    }
+
     // Set cookie
     res.cookie('helixio_token', result.token, {
       httpOnly: true,
@@ -187,10 +197,23 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 /**
  * Update current user profile
  * PATCH /api/auth/me
+ * Note: profilePrivate and hideReadingStats require 'changeRestriction' permission
  */
 router.patch('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const { displayName, email, avatarUrl, profilePrivate, hideReadingStats } = req.body;
+
+    // Check if user is trying to change restricted settings
+    const isChangingRestrictions =
+      profilePrivate !== undefined || hideReadingStats !== undefined;
+
+    if (isChangingRestrictions && req.user!.role !== 'admin' && !hasPermission(req.user!, 'changeRestriction')) {
+      res.status(403).json({
+        error: 'Permission denied',
+        message: 'You do not have permission to modify privacy settings',
+      });
+      return;
+    }
 
     const user = await authService.updateUser(req.user!.id, {
       displayName,
@@ -213,7 +236,7 @@ router.patch('/me', requireAuth, async (req: Request, res: Response) => {
  * Change password
  * POST /api/auth/change-password
  */
-router.post('/change-password', requireAuth, async (req: Request, res: Response) => {
+router.post('/change-password', requireAuth, requirePermission('changePassword'), async (req: Request, res: Response) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -229,6 +252,24 @@ router.post('/change-password', requireAuth, async (req: Request, res: Response)
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Password change failed',
     });
+  }
+});
+
+// =============================================================================
+// Setup Wizard
+// =============================================================================
+
+/**
+ * Complete setup wizard
+ * POST /api/auth/complete-setup
+ */
+router.post('/complete-setup', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const user = await authService.completeUserSetup(req.user!.id);
+    res.json({ user });
+  } catch (error) {
+    logError('auth', error, { action: 'complete-setup' });
+    res.status(500).json({ error: 'Failed to complete setup' });
   }
 });
 
@@ -553,6 +594,80 @@ router.post('/users/:userId/unfreeze', requireAdmin, async (req: Request, res: R
     logError('auth', error, { action: 'unfreeze-user' });
     res.status(400).json({
       error: error instanceof Error ? error.message : 'Failed to unfreeze user',
+    });
+  }
+});
+
+// =============================================================================
+// Admin: Permission Management
+// =============================================================================
+
+/**
+ * Get all available permissions (admin only)
+ * GET /api/auth/permissions
+ */
+router.get('/permissions', requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    const permissions = getAllPermissions();
+    res.json({ permissions });
+  } catch (error) {
+    logError('auth', error, { action: 'get-permissions' });
+    res.status(500).json({ error: 'Failed to get permissions' });
+  }
+});
+
+/**
+ * Update user permissions (admin only)
+ * PATCH /api/auth/users/:userId/permissions
+ */
+router.patch('/users/:userId/permissions', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const { permissions } = req.body;
+    if (!permissions || typeof permissions !== 'object') {
+      res.status(400).json({ error: 'Permissions object required' });
+      return;
+    }
+
+    const user = await authService.updateUserPermissions(userId, permissions);
+    res.json({ user });
+  } catch (error) {
+    logError('auth', error, { action: 'update-permissions' });
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to update permissions',
+    });
+  }
+});
+
+/**
+ * Reset user password (admin only)
+ * POST /api/auth/users/:userId/reset-password
+ */
+router.post('/users/:userId/reset-password', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId;
+    if (!userId) {
+      res.status(400).json({ error: 'User ID required' });
+      return;
+    }
+
+    const { newPassword } = req.body;
+    if (!newPassword || typeof newPassword !== 'string') {
+      res.status(400).json({ error: 'New password required' });
+      return;
+    }
+
+    await authService.resetUserPassword(userId, newPassword);
+    res.json({ success: true });
+  } catch (error) {
+    logError('auth', error, { action: 'reset-password' });
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Failed to reset password',
     });
   }
 });

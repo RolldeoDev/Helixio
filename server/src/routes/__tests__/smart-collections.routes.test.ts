@@ -28,8 +28,11 @@ vi.mock('../../middleware/auth.middleware.js', () => ({
       isActive: true,
       profilePrivate: false,
       hideReadingStats: false,
+      setupComplete: true,
+      permissions: '{}',
       createdAt: new Date(),
       lastLoginAt: null,
+      lastActiveAt: null,
     };
     next();
   },

@@ -309,3 +309,65 @@
 .user-management .btn-ghost.danger:hover {
   background: rgba(239, 68, 68, 0.1);
 }
+
+/* Online indicator */
+.user-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.online-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.online-indicator.online {
+  background-color: var(--success, #22c55e);
+  box-shadow: 0 0 4px var(--success, #22c55e);
+}
+
+.online-indicator.offline {
+  background-color: var(--bg-tertiary, #374151);
+}
+
+/* Last active */
+.last-active {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.last-active.online {
+  color: var(--success, #22c55e);
+  font-weight: 500;
+}
+
+/* Icon buttons */
+.user-management .btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.user-management .btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+}
+
+.user-management .btn-icon.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger, #ef4444);
+  border-color: var(--danger, #ef4444);
+}

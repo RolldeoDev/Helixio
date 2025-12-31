@@ -1,0 +1,453 @@
+/**
+ * Library Settings Styles
+ *
+ * Styles for the Libraries tab including:
+ * - Library list and cards
+ * - Add library modal
+ * - File classification settings
+ */
+
+/* ==========================================================================
+   Library Settings Tab
+   ========================================================================== */
+
+.library-settings-tab h2 {
+  font-family: var(--font-display);
+  font-style: italic;
+  margin-bottom: var(--spacing-lg);
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Library List
+   ========================================================================== */
+
+.library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: var(--spacing-xl);
+}
+
+.library-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.library-empty-state .empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 1.5rem;
+  color: var(--text-tertiary);
+}
+
+.library-empty-state .empty-state-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.library-empty-state h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.library-empty-state p {
+  margin: 0 0 1.5rem;
+  color: var(--text-secondary);
+  max-width: 280px;
+}
+
+.add-library-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+
+.add-library-btn .btn-icon-svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ==========================================================================
+   Library Card
+   ========================================================================== */
+
+.library-card {
+  /* Card-specific overrides if needed */
+}
+
+.library-card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.library-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.library-type-badge.western {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.library-type-badge.manga {
+  background: rgba(236, 72, 153, 0.15);
+  color: #f472b6;
+}
+
+.library-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Library Form */
+.library-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.library-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.library-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.library-form .form-group label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.library-form .form-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.library-form input,
+.library-form select {
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  transition: border-color var(--transition-fast);
+}
+
+.library-form input:focus,
+.library-form select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.library-form input:disabled,
+.library-form select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Reader Section */
+.library-reader-section {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.reader-preset-select {
+  width: 100%;
+  max-width: 300px;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+}
+
+.reader-preset-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.loading-text {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* Library Stats */
+.library-stats {
+  display: none; /* Hidden when expanded since info is in the form */
+}
+
+/* Library Actions */
+.library-card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.library-card-actions-left,
+.library-card-actions-right {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.library-card-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.library-card-actions .btn-icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.spinner-inline {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--text-tertiary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Add Library Modal
+   ========================================================================== */
+
+.add-library-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 1rem;
+}
+
+.add-library-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: min(480px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.add-library-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.add-library-modal-header h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-close-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.add-library-modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  overflow-y: auto;
+}
+
+.add-library-error {
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
+  color: #ef4444;
+  font-size: 0.875rem;
+}
+
+.add-library-modal-body .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.add-library-modal-body .form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.add-library-modal-body .form-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin-top: 0.25rem;
+}
+
+.add-library-modal-body input,
+.add-library-modal-body select {
+  padding: 0.75rem 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-family: var(--font-body);
+  transition: border-color var(--transition-fast);
+}
+
+.add-library-modal-body input:focus,
+.add-library-modal-body select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.add-library-modal-body input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.path-input-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.path-input-group input {
+  flex: 1;
+}
+
+.path-input-group .btn-secondary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.add-library-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+/* ==========================================================================
+   Classification Settings
+   ========================================================================== */
+
+.classification-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.classification-settings .section-card {
+  margin-bottom: 0;
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+
+@media (max-width: 640px) {
+  .library-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .library-card-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .library-card-actions-left,
+  .library-card-actions-right {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .add-library-modal {
+    width: 100%;
+    max-height: 90vh;
+  }
+
+  .path-input-group {
+    flex-direction: column;
+  }
+
+  .path-input-group .btn-secondary {
+    width: 100%;
+  }
+}

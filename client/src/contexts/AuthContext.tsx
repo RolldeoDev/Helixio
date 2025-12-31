@@ -26,6 +26,7 @@ export interface User {
   role: 'admin' | 'user' | 'guest';
   profilePrivate?: boolean;
   hideReadingStats?: boolean;
+  setupComplete?: boolean;
   createdAt: string;
 }
 
@@ -57,6 +58,7 @@ interface AuthContextValue extends AuthState {
   getSessions: () => Promise<Session[]>;
   revokeSession: (sessionId: string) => Promise<void>;
   refreshUser: () => Promise<void>;
+  completeSetup: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -328,6 +330,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const completeSetup = useCallback(async () => {
+    try {
+      const { user: updatedUser } = await apiRequest<{ user: User }>(
+        '/complete-setup',
+        { method: 'POST' }
+      );
+      setUser(updatedUser);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to complete setup');
+      throw err;
+    }
+  }, []);
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -353,6 +368,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getSessions,
     revokeSession,
     refreshUser,
+    completeSetup,
     clearError,
   };
 
