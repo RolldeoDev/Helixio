@@ -1,0 +1,214 @@
+/**
+ * SeriesVirtualGrid Styles
+ *
+ * Virtualized grid container with stable layout.
+ * Handles loading, fetching, empty, and scrolling states.
+ */
+
+/* =============================================================================
+   Base Container
+   ============================================================================= */
+
+.series-virtual-grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Measurement container - full width, zero height */
+.series-virtual-grid__measure {
+  width: 100%;
+  height: 0;
+  flex-shrink: 0;
+}
+
+/* =============================================================================
+   Scroll Container
+   ============================================================================= */
+
+.series-virtual-grid__scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Smooth scrolling on touch devices */
+  -webkit-overflow-scrolling: touch;
+  /* Hide scrollbar on Windows but keep functionality */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.series-virtual-grid__scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.series-virtual-grid__scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.series-virtual-grid__scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+.series-virtual-grid__scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* =============================================================================
+   Virtual Content Area
+   ============================================================================= */
+
+.series-virtual-grid__content {
+  position: relative;
+  width: 100%;
+  /* Height is set dynamically via inline style */
+}
+
+/* =============================================================================
+   Fetching State
+   ============================================================================= */
+
+.series-virtual-grid__fetching-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 10;
+  animation: fade-in 150ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Disable pointer events on content while fetching */
+.series-virtual-grid--fetching .series-virtual-grid__content {
+  pointer-events: none;
+}
+
+/* =============================================================================
+   Loading Skeleton
+   ============================================================================= */
+
+.series-virtual-grid--loading {
+  padding: var(--spacing-md);
+}
+
+.series-virtual-grid__skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.series-virtual-grid__skeleton-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.series-virtual-grid__skeleton-cover {
+  aspect-ratio: 2/3;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-card, #1a1a2e) 25%,
+    var(--color-surface-hover, #252542) 50%,
+    var(--color-surface-card, #1a1a2e) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.series-virtual-grid__skeleton-info {
+  padding: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.series-virtual-grid__skeleton-title {
+  height: 14px;
+  width: 80%;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+.series-virtual-grid__skeleton-meta {
+  height: 10px;
+  width: 50%;
+  background: var(--color-surface-hover);
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =============================================================================
+   Empty State
+   ============================================================================= */
+
+.series-virtual-grid--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.series-virtual-grid__empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-2xl);
+  text-align: center;
+  max-width: 400px;
+}
+
+.series-virtual-grid__empty-icon {
+  width: 64px;
+  height: 64px;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.series-virtual-grid__empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.series-virtual-grid__empty-text {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* =============================================================================
+   Scrolling State Optimizations
+   ============================================================================= */
+
+/* Disable expensive effects during scroll */
+.series-virtual-grid--scrolling .series-virtual-grid__content {
+  /* Will-change hint for compositor */
+  will-change: transform;
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .series-virtual-grid__skeleton-cover {
+    animation: none;
+  }
+
+  .series-virtual-grid__fetching-overlay {
+    animation: none;
+  }
+}
