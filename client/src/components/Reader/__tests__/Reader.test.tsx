@@ -14,6 +14,23 @@ import { Reader, ReaderProvider } from '../index';
 // Mock scrollTo for jsdom
 Element.prototype.scrollTo = vi.fn();
 
+// Mock useDeviceDetection to return a non-touch device so toolbar renders
+vi.mock('../../../hooks', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    useDeviceDetection: () => ({
+      isTouchDevice: false,
+      isTablet: false,
+      isMobile: false,
+      isLandscape: true,
+      isPortrait: false,
+      screenWidth: 1920,
+      screenHeight: 1080,
+    }),
+  };
+});
+
 // Mock the API service with all required exports
 vi.mock('../../../services/api.service', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>;
@@ -21,12 +38,12 @@ vi.mock('../../../services/api.service', async (importOriginal) => {
     ...actual,
     getArchiveContents: vi.fn().mockResolvedValue({
       entries: [
-        { path: 'page001.jpg', size: 100000, type: 'file' },
-        { path: 'page002.jpg', size: 100000, type: 'file' },
-        { path: 'page003.jpg', size: 100000, type: 'file' },
+        { path: 'page001.jpg', size: 100000, isDirectory: false },
+        { path: 'page002.jpg', size: 100000, isDirectory: false },
+        { path: 'page003.jpg', size: 100000, isDirectory: false },
       ],
     }),
-    getReaderSettings: vi.fn().mockResolvedValue({
+    getResolvedReaderSettings: vi.fn().mockResolvedValue({
       mode: 'single',
       background: 'black',
       brightness: 100,
@@ -49,8 +66,14 @@ vi.mock('../../../services/api.service', async (importOriginal) => {
       bookmarks: [],
     }),
     getAdjacentFiles: vi.fn().mockResolvedValue({ previous: null, next: null }),
+    getFile: vi.fn().mockResolvedValue({
+      id: 'test-file-id',
+      filename: 'Test Comic.cbz',
+      metadata: null,
+    }),
     generateThumbnails: vi.fn().mockResolvedValue({ success: true }),
     updateReadingProgress: vi.fn().mockResolvedValue({ success: true }),
+    getPageUrl: vi.fn().mockImplementation((fileId: string, path: string) => `/api/files/${fileId}/page/${encodeURIComponent(path)}`),
   };
 });
 

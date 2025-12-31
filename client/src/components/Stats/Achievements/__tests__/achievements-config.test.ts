@@ -24,8 +24,8 @@ describe('Achievement Counts', () => {
     expect(ALL_ACHIEVEMENTS.length).toBeGreaterThan(500);
   });
 
-  it('should have 25 categories defined', () => {
-    expect(Object.keys(CATEGORY_INFO).length).toBe(25);
+  it('should have 26 categories defined', () => {
+    expect(Object.keys(CATEGORY_INFO).length).toBe(26);
   });
 
   it('should have achievements in all expected categories', () => {
@@ -36,7 +36,7 @@ describe('Achievement Counts', () => {
       'decade_explorer', 'story_arc_explorer', 'format_variety', 'manga_international',
       'binge_reading', 'reading_pace', 'discovery', 'special_achievements',
       'age_rating', 'location_explorer', 'bookmarks_notes', 'sessions',
-      'collection_completion',
+      'collection_completion', 'ratings_engagement',
     ];
 
     const actualCategories = new Set(ALL_ACHIEVEMENTS.map(a => a.category));
@@ -249,6 +249,7 @@ describe('Type Safety', () => {
       'bookmarks_notes',
       'sessions',
       'collection_completion',
+      'ratings_engagement',
     ];
 
     ALL_ACHIEVEMENTS.forEach(achievement => {
