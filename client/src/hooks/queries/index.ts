@@ -172,3 +172,30 @@ export type {
   ExternalRatingsSettings,
   ExternalRatingDisplay,
 } from './useExternalRatings';
+
+// External Reviews (full reviews from AniList, MAL, etc.)
+export {
+  useSeriesReviews,
+  useIssueReviews,
+  useReviewSources,
+  useReviewSyncJobs,
+  useReviewSyncJobStatus,
+  useHasExternalReviews,
+  useSyncSeriesReviews,
+  useDeleteSeriesReviews as useDeleteSeriesExternalReviews,
+  useDeleteIssueReviews as useDeleteIssueExternalReviews,
+  useSyncLibraryReviews,
+  useCancelReviewSyncJob,
+  useInvalidateExternalReviews,
+} from './useExternalReviews';
+export type {
+  SeriesReviewsResponse,
+  IssueReviewsResponse,
+  ReviewSyncResult,
+  ReviewSyncOptions,
+  ReviewSyncJobStatus,
+  ReviewSourceStatus,
+  ExternalReview,
+  UserReview,
+  ReviewSource,
+} from './useExternalReviews';

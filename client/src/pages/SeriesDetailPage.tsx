@@ -53,7 +53,8 @@ import { RatingStars } from '../components/RatingStars';
 import { SeriesUserDataPanel } from '../components/UserDataPanel';
 import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
 import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
-import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings } from '../hooks/queries';
+import { ExternalReviewsTab } from '../components/ExternalReviewsTab';
+import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings, useHasExternalReviews } from '../hooks/queries';
 import { applyPresetToSeries, deleteSeriesReaderSettingsById } from '../services/api/reading';
 import './SeriesDetailPage.css';
 
@@ -212,8 +213,8 @@ export function SeriesDetailPage() {
   // Local State
   // ==========================================================================
 
-  // Tab state for Issues/Related Series/Similar/Collections tabs
-  const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'similar' | 'collections'>('issues');
+  // Tab state for Issues/Related Series/Similar/Collections/Reviews tabs
+  const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'similar' | 'collections' | 'reviews'>('issues');
 
   // ==========================================================================
   // External Hooks
@@ -229,6 +230,9 @@ export function SeriesDetailPage() {
 
   // External ratings status (for showing fetch icon when no ratings exist)
   const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(seriesId);
+
+  // External reviews status (for showing the Reviews tab)
+  const { hasReviews: hasExternalReviews } = useHasExternalReviews(seriesId);
 
   // ==========================================================================
   // Derived State
@@ -775,6 +779,16 @@ export function SeriesDetailPage() {
                 <span className="tab-count">{seriesCollections.length}</span>
               </button>
             )}
+            {/* Reviews tab - always shown for discovery */}
+            <button
+              className={`series-content-tab ${activeTab === 'reviews' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reviews')}
+            >
+              Reviews
+              {hasExternalReviews && (
+                <span className="tab-count-dot" title="Has external reviews" />
+              )}
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1118,6 +1132,13 @@ export function SeriesDetailPage() {
                   );
                 })}
               </div>
+            )}
+
+            {activeTab === 'reviews' && seriesId && (
+              <ExternalReviewsTab
+                seriesId={seriesId}
+                seriesName={series?.name}
+              />
             )}
           </div>
         </div>

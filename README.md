@@ -208,6 +208,71 @@ Helixio stores data in `~/.helixio/`:
 
 API keys for ComicVine and Anthropic (Claude) can be configured through Settings.
 
+## Docker Installation
+
+### Using Docker Compose
+
+```yaml
+services:
+  helixio:
+    image: ghcr.io/rolldedev/helixio:latest
+    container_name: helixio
+    restart: unless-stopped
+    ports:
+      - "8483:8483"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /path/to/config:/config
+      - /path/to/comics:/comics:rw
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PUID` | User ID for file permissions (default: 1000) |
+| `PGID` | Group ID for file permissions (default: 1000) |
+| `TZ` | Timezone (e.g., `America/New_York`) |
+
+### API Key Configuration
+
+API keys can be configured in two ways:
+
+1. **Via the UI** (Settings page) - Keys are stored in `/config/.helixio/config.json`
+2. **Via environment variables** - Takes priority over config file, cannot be changed in UI
+
+| Environment Variable | Description |
+|---------------------|-------------|
+| `HELIXIO_COMICVINE_API_KEY` | ComicVine API key for metadata |
+| `HELIXIO_ANTHROPIC_API_KEY` | Anthropic API key for LLM features |
+| `HELIXIO_METRON_USERNAME` | Metron username |
+| `HELIXIO_METRON_PASSWORD` | Metron password |
+| `HELIXIO_GCD_EMAIL` | Grand Comics Database email |
+| `HELIXIO_GCD_PASSWORD` | Grand Comics Database password |
+
+Example with API keys:
+
+```yaml
+services:
+  helixio:
+    image: ghcr.io/rolldedev/helixio:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - HELIXIO_COMICVINE_API_KEY=your-key-here
+    volumes:
+      - /path/to/config:/config
+      - /path/to/comics:/comics:rw
+```
+
+### Unraid Installation
+
+For Unraid users, an XML template is available for easy installation via Community Applications.
+
 ## File Naming Conventions
 
 ### Series Folders

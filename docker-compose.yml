@@ -10,6 +10,15 @@ services:
       - PUID=99       # UNRAID nobody user
       - PGID=100      # UNRAID users group
       - TZ=America/New_York
+      # API Keys (optional - can also be configured via UI)
+      # Environment variables take priority over config file settings
+      # Keys set via environment variables cannot be changed in the UI
+      # - HELIXIO_COMICVINE_API_KEY=your-comicvine-key
+      # - HELIXIO_ANTHROPIC_API_KEY=your-anthropic-key
+      # - HELIXIO_METRON_USERNAME=your-metron-username
+      # - HELIXIO_METRON_PASSWORD=your-metron-password
+      # - HELIXIO_GCD_EMAIL=your-gcd-email
+      # - HELIXIO_GCD_PASSWORD=your-gcd-password
     volumes:
       # For UNRAID, change these paths:
       # - /mnt/user/appdata/helixio:/config

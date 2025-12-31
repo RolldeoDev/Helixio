@@ -189,4 +189,14 @@ export const queryKeys = {
     jobs: (status?: string) => [...queryKeys.externalRatings.all, 'jobs', status] as const,
     job: (jobId: string) => [...queryKeys.externalRatings.all, 'job', jobId] as const,
   },
+
+  // External Reviews (full reviews from AniList, MAL, etc.)
+  externalReviews: {
+    all: ['externalReviews'] as const,
+    series: (seriesId: string) => [...queryKeys.externalReviews.all, 'series', seriesId] as const,
+    issue: (fileId: string) => [...queryKeys.externalReviews.all, 'issue', fileId] as const,
+    sources: () => [...queryKeys.externalReviews.all, 'sources'] as const,
+    jobs: (status?: string) => [...queryKeys.externalReviews.all, 'jobs', status] as const,
+    job: (jobId: string) => [...queryKeys.externalReviews.all, 'job', jobId] as const,
+  },
 } as const;

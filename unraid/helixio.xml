@@ -32,4 +32,10 @@
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (99 = nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (100 = users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
   <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Your timezone (e.g., America/New_York, Europe/London)" Type="Variable" Display="always" Required="false" Mask="false">America/New_York</Config>
+  <Config Name="ComicVine API Key" Target="HELIXIO_COMICVINE_API_KEY" Default="" Mode="" Description="ComicVine API key for metadata lookup. Get one at https://comicvine.gamespot.com/api/" Type="Variable" Display="always" Required="false" Mask="true"></Config>
+  <Config Name="Anthropic API Key" Target="HELIXIO_ANTHROPIC_API_KEY" Default="" Mode="" Description="Anthropic API key for LLM-powered filename parsing (optional)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Metron Username" Target="HELIXIO_METRON_USERNAME" Default="" Mode="" Description="Metron account username for metadata lookup" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="Metron Password" Target="HELIXIO_METRON_PASSWORD" Default="" Mode="" Description="Metron account password" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="GCD Email" Target="HELIXIO_GCD_EMAIL" Default="" Mode="" Description="Grand Comics Database email for metadata lookup" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="GCD Password" Target="HELIXIO_GCD_PASSWORD" Default="" Mode="" Description="Grand Comics Database password" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
 </Container>

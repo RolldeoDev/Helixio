@@ -340,7 +340,9 @@ describe('AniListRatingProvider', () => {
           minMatchConfidence: 0.99, // Very high threshold
           ratingTTLDays: 7,
           issueRatingTTLDays: 14,
+          reviewTTLDays: 14,
           enabledSources: ['anilist'],
+          enabledReviewSources: ['anilist'],
           syncSchedule: 'manual',
           syncHour: 3,
           scrapingRateLimit: 10,
