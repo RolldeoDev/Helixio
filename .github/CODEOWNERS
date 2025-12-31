@@ -1,0 +1,26 @@
+# CODEOWNERS - Defines who must approve changes to specific files
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global code owners - required for ALL file changes
+* @RolldeoDev
+
+# GitHub configuration and workflows - critical security files
+/.github/ @RolldeoDev
+
+# Server source code
+/server/src/ @RolldeoDev
+
+# Client source code
+/client/src/ @RolldeoDev
+
+# Database schema
+/server/prisma/ @RolldeoDev
+
+# Docker configuration
+/Dockerfile @RolldeoDev
+/docker-compose*.yml @RolldeoDev
+
+# Package configuration
+/package*.json @RolldeoDev
+/server/package*.json @RolldeoDev
+/client/package*.json @RolldeoDev
