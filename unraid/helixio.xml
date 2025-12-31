@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Helixio</Name>
+  <Repository>ghcr.io/rolldedev/helixio:latest</Repository>
+  <Registry>https://github.com/RolldeoDev/Helixio/pkgs/container/helixio</Registry>
+  <Branch>
+    <Tag>latest</Tag>
+    <TagDescription>Latest stable release</TagDescription>
+  </Branch>
+  <Network>bridge</Network>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/RolldeoDev/Helixio/issues</Support>
+  <Project>https://github.com/RolldeoDev/Helixio</Project>
+  <Overview>Helixio is a web-based comic book library platform with an integrated reader. Features include multi-library support, reading progress tracking, metadata management (ComicVine, Metron, GCD), achievements, statistics, collections, themes, and multi-user support with AniList/MAL sync.</Overview>
+  <Category>MediaApp:Books</Category>
+  <WebUI>http://[IP]:[PORT:8483]</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/RolldeoDev/Helixio/main/unraid/helixio.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/RolldeoDev/Helixio/main/client/public/helixioLogoSquareTransparent.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled></DateInstalled>
+  <DonateText>Support Helixio Development</DonateText>
+  <DonateLink>https://github.com/sponsors/RolldeoDev</DonateLink>
+  <Requires/>
+  <Config Name="Web UI Port" Target="8483" Default="8483" Mode="tcp" Description="Port for the web interface" Type="Port" Display="always" Required="true" Mask="false">8483</Config>
+  <Config Name="Config Path" Target="/config" Default="/mnt/user/appdata/helixio" Mode="rw" Description="Path to store application data, database, and cache" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/helixio</Config>
+  <Config Name="Comics Library" Target="/comics" Default="/mnt/user/media/Comics" Mode="rw" Description="Path to your comic book library. Add additional paths as needed." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/media/Comics</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (99 = nobody)" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (100 = users)" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Your timezone (e.g., America/New_York, Europe/London)" Type="Variable" Display="always" Required="false" Mask="false">America/New_York</Config>
+</Container>
