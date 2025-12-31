@@ -9,7 +9,7 @@
  * 4. Progress/Complete - Show deletion progress and results
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { generateVerificationPhrase, phrasesMatch } from './wordlist';
 import './FactoryResetModal.css';
 
@@ -18,7 +18,7 @@ import './FactoryResetModal.css';
 // =============================================================================
 
 type ResetLevel = 1 | 2 | 3;
-type ResetStep = 'select' | 'confirm' | 'verify' | 'progress' | 'complete' | 'error';
+type ResetStep = 'select' | 'confirm' | 'verify' | 'progress' | 'restarting' | 'complete' | 'error';
 
 interface ResetResult {
   success: boolean;
@@ -119,6 +119,9 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
   // Result state
   const [result, setResult] = useState<ResetResult | null>(null);
 
+  // Ref for polling cleanup
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Generate new phrase when entering verification step
   useEffect(() => {
     if (step === 'verify') {
@@ -141,6 +144,11 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
+      // Clear any pending polling timeout
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+      }
       setStep('select');
       setSelectedLevel(null);
       setClearKeychain(false);
@@ -149,6 +157,47 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
       setResult(null);
     }
   }, [isOpen]);
+
+  // Poll for server restart
+  const pollForServerRestart = useCallback(() => {
+    const maxAttempts = 60; // 2 minutes max (60 * 2s)
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts++;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/health`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (response.ok) {
+          // Server is back online
+          setProgressMessage('Server restarted successfully. Reloading...');
+          pollingTimeoutRef.current = setTimeout(() => {
+            window.location.href = '/';
+          }, 1000);
+          return;
+        }
+      } catch {
+        // Expected during restart - server is down
+      }
+
+      // Continue polling
+      if (attempts < maxAttempts) {
+        setProgressMessage(`Waiting for server to restart... (${attempts}/${maxAttempts})`);
+        pollingTimeoutRef.current = setTimeout(poll, 2000);
+      } else {
+        // Timeout - show manual restart instruction
+        setProgressMessage('Server restart is taking longer than expected. Please refresh the page manually.');
+      }
+    };
+
+    // Start polling after initial delay (server needs time to shut down)
+    setProgressMessage('Server shutting down...');
+    pollingTimeoutRef.current = setTimeout(poll, 3000);
+  }, []);
 
   // Perform the reset
   const performReset = useCallback(async () => {
@@ -183,13 +232,13 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
           freedMB: data.freedMB,
           requiresRestart: data.requiresRestart,
         });
-        setStep('complete');
 
-        // If full reset, redirect after delay
+        // If full reset, poll for server restart
         if (data.requiresRestart) {
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 3000);
+          setStep('restarting');
+          pollForServerRestart();
+        } else {
+          setStep('complete');
         }
       } else {
         setResult({
@@ -205,7 +254,7 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
       });
       setStep('error');
     }
-  }, [selectedLevel, clearKeychain, verificationPhrase]);
+  }, [selectedLevel, clearKeychain, verificationPhrase, pollForServerRestart]);
 
   // Handle level selection
   const handleLevelSelect = (level: ResetLevel) => {
@@ -393,16 +442,35 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
             </div>
           )}
 
+          {/* Step 4b: Restarting Server */}
+          {step === 'restarting' && (
+            <div className="factory-reset-progress">
+              <div className="factory-reset-spinner" />
+              <h3>Restarting Server...</h3>
+              <p className="factory-reset-progress-message">{progressMessage}</p>
+              {result && (
+                <div className="factory-reset-summary" style={{ marginTop: '1.5rem' }}>
+                  <div className="factory-reset-summary-item">
+                    <span>Items deleted:</span>
+                    <strong>{result.deletedItems?.length || 0}</strong>
+                  </div>
+                  {result.freedMB !== undefined && (
+                    <div className="factory-reset-summary-item">
+                      <span>Space freed:</span>
+                      <strong>{result.freedMB} MB</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Step 5: Complete */}
           {step === 'complete' && result && (
             <div className="factory-reset-complete">
               <div className="factory-reset-complete-icon">&#10003;</div>
               <h3>Reset Complete</h3>
-              <p>
-                {result.requiresRestart
-                  ? 'Helixio will reload in a few seconds...'
-                  : 'Your selected data has been cleared.'}
-              </p>
+              <p>Your selected data has been cleared.</p>
 
               <div className="factory-reset-summary">
                 <div className="factory-reset-summary-item">

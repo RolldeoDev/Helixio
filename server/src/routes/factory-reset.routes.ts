@@ -136,6 +136,19 @@ router.post(
           freedMB: Math.round(result.freedBytes / (1024 * 1024) * 100) / 100,
           requiresRestart: result.requiresRestart,
         });
+
+        // Trigger server restart for Level 3 reset
+        // Wait for response to be fully sent before exit
+        // Docker's restart policy (or process manager) will restart the server
+        if (result.requiresRestart) {
+          res.on('finish', () => {
+            logger.warn('Response sent, scheduling restart...');
+            setTimeout(() => {
+              logger.info('Exiting process for restart after factory reset');
+              process.exit(0);
+            }, 1000);
+          });
+        }
       } else {
         logger.error(
           { level, error: result.error },
