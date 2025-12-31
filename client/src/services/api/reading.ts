@@ -88,6 +88,7 @@ export interface ContinueReadingItem {
   totalPages: number;
   progress: number;
   lastReadAt: string;
+  itemType: 'in_progress' | 'next_up'; // Type of continue reading item
   // Metadata fields
   series: string | null;
   number: string | null;
@@ -638,7 +639,7 @@ export async function removeBookmark(
  * Get continue reading items
  */
 export async function getContinueReading(
-  limit = 3,
+  limit = 20,
   libraryId?: string
 ): Promise<{ items: ContinueReadingItem[] }> {
   const params = new URLSearchParams();

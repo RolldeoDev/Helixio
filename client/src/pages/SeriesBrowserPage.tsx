@@ -13,7 +13,8 @@
  * - Navigation sidebar for quick jumping (no pagination)
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useReducer } from 'react';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useNavigate } from 'react-router-dom';
 import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import { useApp } from '../contexts/AppContext';
@@ -62,6 +63,60 @@ import './SeriesBrowserPage.css';
 
 // localStorage key for cover size preference
 const COVER_SIZE_KEY = 'helixio-series-browser-cover-size';
+
+// =============================================================================
+// Filter State Types and Reducer
+// =============================================================================
+
+type FilterState = {
+  searchInput: string;      // Immediate input value (for responsive UI)
+  publisher: string;
+  type: 'western' | 'manga' | '';
+  hasUnread: boolean | undefined;
+  showHidden: boolean;
+  sortBy: SeriesListOptions['sortBy'];
+  sortOrder: 'asc' | 'desc';
+};
+
+type FilterAction =
+  | { type: 'SET_SEARCH_INPUT'; value: string }
+  | { type: 'SET_PUBLISHER'; value: string }
+  | { type: 'SET_TYPE'; value: 'western' | 'manga' | '' }
+  | { type: 'SET_HAS_UNREAD'; value: boolean | undefined }
+  | { type: 'SET_SHOW_HIDDEN'; value: boolean }
+  | { type: 'SET_SORT'; sortBy: SeriesListOptions['sortBy']; sortOrder: 'asc' | 'desc' }
+  | { type: 'CLEAR_ALL' };
+
+const initialFilterState: FilterState = {
+  searchInput: '',
+  publisher: '',
+  type: '',
+  hasUnread: undefined,
+  showHidden: false,
+  sortBy: 'name',
+  sortOrder: 'asc',
+};
+
+function filterReducer(state: FilterState, action: FilterAction): FilterState {
+  switch (action.type) {
+    case 'SET_SEARCH_INPUT':
+      return { ...state, searchInput: action.value };
+    case 'SET_PUBLISHER':
+      return { ...state, publisher: action.value };
+    case 'SET_TYPE':
+      return { ...state, type: action.value };
+    case 'SET_HAS_UNREAD':
+      return { ...state, hasUnread: action.value };
+    case 'SET_SHOW_HIDDEN':
+      return { ...state, showHidden: action.value };
+    case 'SET_SORT':
+      return { ...state, sortBy: action.sortBy, sortOrder: action.sortOrder };
+    case 'CLEAR_ALL':
+      return initialFilterState;
+    default:
+      return state;
+  }
+}
 
 // =============================================================================
 // Main Component (with Provider wrapper)
@@ -113,14 +168,28 @@ function SeriesBrowserPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
-  // Filter state
-  const [search, setSearch] = useState('');
-  const [publisher, setPublisher] = useState<string>('');
-  const [type, setType] = useState<'western' | 'manga' | ''>('');
-  const [hasUnread, setHasUnread] = useState<boolean | undefined>(undefined);
-  const [showHidden, setShowHidden] = useState(false);
-  const [sortBy, setSortBy] = useState<SeriesListOptions['sortBy']>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  // Filter state - consolidated into reducer for better performance
+  const [filters, dispatch] = useReducer(filterReducer, initialFilterState);
+
+  // Debounced search - waits 300ms after user stops typing before triggering API
+  const debouncedSearch = useDebouncedValue(filters.searchInput, 300);
+
+  // Filter key - changes on data load to force card remount
+  // This fixes IntersectionObserver race condition that causes stuck skeletons
+  const filterKeyRef = useRef(0);
+  const prevLoadingRef = useRef(loading);
+  // Increment when loading transitions from true to false (data just loaded)
+  if (prevLoadingRef.current && !loading) {
+    filterKeyRef.current += 1;
+  }
+  prevLoadingRef.current = loading;
+  const filterKey = filterKeyRef.current;
+
+  // Cache last known count values to prevent layout shift during loading
+  const lastCountRef = useRef({ items: 0, total: 0 });
+
+  // Destructure for convenience
+  const { searchInput, publisher, type, hasUnread, showHidden, sortBy, sortOrder } = filters;
 
   // Derive libraryId from AppContext for API calls
   const libraryId = isAllLibraries ? '' : (selectedLibrary?.id || '');
@@ -196,18 +265,19 @@ function SeriesBrowserPageContent() {
   }, []);
 
   // Build API options - memoized to prevent unnecessary refetches
+  // Uses debouncedSearch to avoid API calls on every keystroke
   const options = useMemo(() => ({
     sortBy,
     sortOrder,
     all: true, // Load ALL data at once for client-side filtering
     includePromotedCollections: true, // Include promoted collections in grid
-    ...(search && { search }),
+    ...(debouncedSearch && { search: debouncedSearch }),
     ...(publisher && { publisher }),
     ...(type && { type }),
     ...(hasUnread !== undefined && { hasUnread }),
     ...(libraryId && { libraryId }),
     ...(showHidden && { includeHidden: true }),
-  }), [sortBy, sortOrder, search, publisher, type, hasUnread, libraryId, showHidden]);
+  }), [sortBy, sortOrder, debouncedSearch, publisher, type, hasUnread, libraryId, showHidden]);
 
   // Fetch series and promoted collections data
   const fetchSeries = useCallback(async () => {
@@ -271,6 +341,13 @@ function SeriesBrowserPageContent() {
     return [...collectionItems, ...filteredSeriesItems];
   }, [rawItems, isSmartFilterActive, applyFilterToSeries]);
 
+  // Update cached count values when data loads (for stable badge during loading)
+  useEffect(() => {
+    if (!loading && items.length > 0) {
+      lastCountRef.current = { items: items.length, total };
+    }
+  }, [loading, items.length, total]);
+
   // Calculate dynamic overscan based on estimated column count
   // More columns = more items per row = fewer overscan rows needed
   const dynamicOverscan = useMemo(() => {
@@ -330,28 +407,24 @@ function SeriesBrowserPageContent() {
     navigate(`/collection/${collectionId}`);
   }, [navigate]);
 
-  // Filter handlers
+  // Filter handlers - use dispatch for consolidated state updates
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
+    dispatch({ type: 'SET_SEARCH_INPUT', value: e.target.value });
   }, []);
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setSearch('');
+      dispatch({ type: 'SET_SEARCH_INPUT', value: '' });
     }
   }, []);
 
   const clearFilters = useCallback(() => {
-    setSearch('');
-    setPublisher('');
-    setType('');
-    setHasUnread(undefined);
-    setShowHidden(false);
+    dispatch({ type: 'CLEAR_ALL' });
     selectLibrary('all');
     clearSeriesSelection();
   }, [selectLibrary, clearSeriesSelection]);
 
-  const hasActiveFilters = search || publisher || type || hasUnread !== undefined || libraryId || showHidden || isSmartFilterActive;
+  const hasActiveFilters = searchInput || publisher || type || hasUnread !== undefined || libraryId || showHidden || isSmartFilterActive;
 
   // Keep allSeriesIdsRef in sync with current items for range selection
   // Only include series (not collections) for selection
@@ -702,11 +775,18 @@ function SeriesBrowserPageContent() {
       <div className="series-browser-header">
         <div className="series-browser-header-left">
           <h1>Series Browser</h1>
-          {!loading && !error && (
-            <div className="series-browser-count">
-              {items.length}{hasActiveFilters ? ` of ${total}` : ''} series
-            </div>
-          )}
+          {/* Always render count badge to prevent layout shift */}
+          <div className="series-browser-count">
+            {loading ? (
+              <span className="series-browser-count--loading">
+                {lastCountRef.current.items || '–'} series
+              </span>
+            ) : error ? (
+              <span className="series-browser-count--error">–</span>
+            ) : (
+              <>{items.length}{hasActiveFilters ? ` of ${total}` : ''} series</>
+            )}
+          </div>
         </div>
 
         {/* Filters and Toolbar - Two Groups */}
@@ -725,16 +805,18 @@ function SeriesBrowserPageContent() {
               <input
                 type="text"
                 placeholder="Search series..."
-                value={search}
+                value={searchInput}
                 onChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
                 className="series-browser-search-input"
               />
-              {search && (
-                <button className="series-browser-search-clear" onClick={() => setSearch('')}>
-                  &times;
-                </button>
-              )}
+              {/* Always render clear button, hide with CSS to prevent layout shift */}
+              <button
+                className={`series-browser-search-clear ${searchInput ? '' : 'series-browser-search-clear--hidden'}`}
+                onClick={() => dispatch({ type: 'SET_SEARCH_INPUT', value: '' })}
+              >
+                &times;
+              </button>
             </div>
 
             {/* Library + Hidden toggle */}
@@ -767,7 +849,7 @@ function SeriesBrowserPageContent() {
               </div>
               <button
                 className={`series-browser-hidden-btn ${showHidden ? 'series-browser-hidden-btn--active' : ''}`}
-                onClick={() => setShowHidden(!showHidden)}
+                onClick={() => dispatch({ type: 'SET_SHOW_HIDDEN', value: !showHidden })}
                 title={showHidden ? 'Hide hidden series' : 'Show hidden series'}
                 aria-label={showHidden ? 'Hide hidden series' : 'Show hidden series'}
                 type="button"
@@ -801,7 +883,7 @@ function SeriesBrowserPageContent() {
               <select
                 className="series-browser-select series-browser-select--with-icon"
                 value={publisher}
-                onChange={(e) => setPublisher(e.target.value)}
+                onChange={(e) => dispatch({ type: 'SET_PUBLISHER', value: e.target.value })}
                 title="Publisher"
               >
                 <option value="">All Publishers</option>
@@ -817,7 +899,7 @@ function SeriesBrowserPageContent() {
             <select
               className="series-browser-select"
               value={type}
-              onChange={(e) => setType(e.target.value as 'western' | 'manga' | '')}
+              onChange={(e) => dispatch({ type: 'SET_TYPE', value: e.target.value as 'western' | 'manga' | '' })}
               title="Type"
             >
               <option value="">All Types</option>
@@ -830,11 +912,8 @@ function SeriesBrowserPageContent() {
               className="series-browser-select"
               value={hasUnread === undefined ? '' : hasUnread ? 'unread' : 'complete'}
               onChange={(e) => {
-                if (e.target.value === '') {
-                  setHasUnread(undefined);
-                } else {
-                  setHasUnread(e.target.value === 'unread');
-                }
+                const value = e.target.value === '' ? undefined : e.target.value === 'unread';
+                dispatch({ type: 'SET_HAS_UNREAD', value });
               }}
               title="Reading Status"
             >
@@ -870,8 +949,7 @@ function SeriesBrowserPageContent() {
               value={`${sortBy}-${sortOrder}`}
               onChange={(e) => {
                 const [newSortBy, newSortOrder] = e.target.value.split('-') as [SeriesListOptions['sortBy'], 'asc' | 'desc'];
-                setSortBy(newSortBy);
-                setSortOrder(newSortOrder);
+                dispatch({ type: 'SET_SORT', sortBy: newSortBy, sortOrder: newSortOrder });
               }}
               title="Sort by"
             >
@@ -956,7 +1034,7 @@ function SeriesBrowserPageContent() {
             >
               {virtualItems.map(({ item, index, style }) => (
                 <div
-                  key={item.id}
+                  key={`${item.id}-${filterKey}`}
                   className="series-browser-grid-item"
                   style={style}
                   data-index={index}

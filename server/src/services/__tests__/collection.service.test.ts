@@ -66,7 +66,7 @@ const {
   markSeriesItemsUnavailable,
   restoreSeriesItems,
   toggleCollectionPromotion,
-} = await import('../collection.service.js');
+} = await import('../collection/index.js');
 
 describe('Collection Service', () => {
   beforeEach(() => {

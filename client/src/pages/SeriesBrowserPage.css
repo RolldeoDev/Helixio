@@ -53,6 +53,16 @@
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  min-width: 90px; /* Reserve space to prevent layout shift when count changes */
+  text-align: center;
+}
+
+.series-browser-count--loading {
+  opacity: 0.6;
+}
+
+.series-browser-count--error {
+  opacity: 0.4;
 }
 
 /* =============================================================================
@@ -161,6 +171,12 @@
 .series-browser-search-clear:hover {
   background: var(--color-hover);
   color: var(--color-text);
+}
+
+/* Hidden state for clear button - prevents layout shift */
+.series-browser-search-clear--hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Select Dropdowns */
@@ -500,6 +516,7 @@
   color: var(--color-text-muted);
   font-family: var(--font-mono, monospace);
   flex-shrink: 0;
+  display:none; /* Hidden for now, uncomment to show debug information */
 }
 
 /* =============================================================================

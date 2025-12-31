@@ -87,7 +87,8 @@ export function CoverImage({ fileId, filename, progress, eager, coverVersion }: 
       {showProgressRing && (
         <ProgressRing
           progress={displayProgress}
-          size="sm"
+          size="md"
+          showLabel={!progress?.completed}
           completed={progress?.completed}
           className="cover-card__progress-ring"
         />

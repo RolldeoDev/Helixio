@@ -63,7 +63,7 @@ export function HomePage() {
 
     try {
       const [continueReadingRes, statsRes, summaryRes] = await Promise.all([
-        getContinueReading(8, effectiveLibraryId),
+        getContinueReading(20, effectiveLibraryId),
         getAllTimeReadingStats(),
         getStatsSummary(effectiveLibraryId),
       ]);

@@ -178,6 +178,14 @@ export function useSeriesCoverImage(
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Sync isInView with eager prop changes
+  // This ensures first-row items (eager=true) load even if they mounted before eager was determined
+  useEffect(() => {
+    if (eager && !isInView) {
+      setIsInView(true);
+    }
+  }, [eager, isInView]);
+
   // Sync status with computedUrl changes - if URL becomes null, show error state
   useEffect(() => {
     if (!computedUrl) {

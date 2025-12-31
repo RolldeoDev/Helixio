@@ -47,6 +47,7 @@ export interface ContinueReadingItem {
   totalPages: number;
   progress: number; // 0-100 percentage
   lastReadAt: Date;
+  itemType: 'in_progress' | 'next_up'; // Type of continue reading item
   // Metadata fields
   series: string | null;
   number: string | null;
@@ -470,16 +471,20 @@ export async function getBookmarks(userId: string, fileId: string): Promise<numb
 // =============================================================================
 
 /**
- * Get recently read files that are in progress (not completed) for a specific user
+ * Get recently read files that are in progress (not completed) for a specific user,
+ * plus "next up" issues from series that have reading history but no in-progress issues.
+ *
+ * Returns in-progress items first, then next-up items, both sorted by lastReadAt DESC.
  */
 export async function getContinueReading(
   userId: string,
-  limit = 3,
+  limit = 20,
   libraryId?: string
 ): Promise<ContinueReadingItem[]> {
   const db = getDatabase();
 
-  const progress = await db.userReadingProgress.findMany({
+  // QUERY 1: Get in-progress issues (existing logic)
+  const inProgress = await db.userReadingProgress.findMany({
     where: {
       userId,
       completed: false,
@@ -498,6 +503,7 @@ export async function getContinueReading(
           relativePath: true,
           libraryId: true,
           coverHash: true,
+          seriesId: true,
           metadata: {
             select: {
               series: true,
@@ -515,7 +521,8 @@ export async function getContinueReading(
     },
   });
 
-  return progress.map((p) => ({
+  // Format in-progress items
+  const inProgressFormatted: ContinueReadingItem[] = inProgress.map((p) => ({
     fileId: p.file.id,
     filename: p.file.filename,
     relativePath: p.file.relativePath,
@@ -525,11 +532,111 @@ export async function getContinueReading(
     totalPages: p.totalPages,
     progress: p.totalPages > 0 ? Math.round((p.currentPage / p.totalPages) * 100) : 0,
     lastReadAt: p.lastReadAt,
+    itemType: 'in_progress' as const,
     series: p.file.metadata?.series ?? null,
     number: p.file.metadata?.number ?? null,
     title: p.file.metadata?.title ?? null,
     issueCount: p.file.series?.issueCount ?? null,
   }));
+
+  const remainingSlots = limit - inProgressFormatted.length;
+
+  // If we've filled the limit with in-progress items, return early
+  if (remainingSlots <= 0) {
+    return inProgressFormatted;
+  }
+
+  // Get series IDs that already have in-progress issues (to exclude from next-up)
+  const inProgressSeriesIds = new Set(
+    inProgress
+      .filter((p) => p.file.seriesId)
+      .map((p) => p.file.seriesId as string)
+  );
+
+  // QUERY 2: Get series with next-up issues
+  // Criteria: has reading history (totalRead > 0), no in-progress issues (totalInProgress == 0),
+  // not completed (totalRead < totalOwned), has a next unread file
+  const seriesWithNextUp = await db.seriesProgress.findMany({
+    where: {
+      userId,
+      nextUnreadFileId: { not: null },
+      totalInProgress: 0,
+      totalRead: { gt: 0 },
+      // Filter by library if specified
+      ...(libraryId && {
+        series: {
+          issues: { some: { libraryId } },
+        },
+      }),
+    },
+    orderBy: { lastReadAt: 'desc' },
+    take: remainingSlots * 2, // Fetch extras for in-memory filtering
+  });
+
+  // Filter out completed series and series that already have in-progress issues
+  const eligible = seriesWithNextUp
+    .filter(
+      (sp) =>
+        sp.totalRead < sp.totalOwned && !inProgressSeriesIds.has(sp.seriesId)
+    )
+    .slice(0, remainingSlots);
+
+  // If no eligible series, return just in-progress items
+  if (eligible.length === 0) {
+    return inProgressFormatted;
+  }
+
+  // QUERY 3: Fetch file details for next-up issues
+  const nextUpFileIds = eligible
+    .map((sp) => sp.nextUnreadFileId)
+    .filter(Boolean) as string[];
+
+  const nextUpFiles = await db.comicFile.findMany({
+    where: { id: { in: nextUpFileIds } },
+    include: {
+      metadata: {
+        select: {
+          series: true,
+          number: true,
+          title: true,
+        },
+      },
+      series: {
+        select: {
+          issueCount: true,
+        },
+      },
+    },
+  });
+
+  // Create a map for quick file lookup
+  const fileMap = new Map(nextUpFiles.map((f) => [f.id, f]));
+
+  // Format next-up items, maintaining the series lastReadAt order
+  const nextUpFormatted: ContinueReadingItem[] = eligible
+    .map((sp) => {
+      const file = fileMap.get(sp.nextUnreadFileId!);
+      if (!file) return null;
+      return {
+        fileId: file.id,
+        filename: file.filename,
+        relativePath: file.relativePath,
+        libraryId: file.libraryId,
+        coverHash: file.coverHash ?? null,
+        currentPage: 0,
+        totalPages: 0,
+        progress: 0,
+        lastReadAt: sp.lastReadAt ?? new Date(),
+        itemType: 'next_up' as const,
+        series: file.metadata?.series ?? null,
+        number: file.metadata?.number ?? null,
+        title: file.metadata?.title ?? null,
+        issueCount: file.series?.issueCount ?? null,
+      };
+    })
+    .filter(Boolean) as ContinueReadingItem[];
+
+  return [...inProgressFormatted, ...nextUpFormatted];
 }
 
 /**

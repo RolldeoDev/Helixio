@@ -40,7 +40,7 @@ vi.mock('../series/index.js', () => ({
 }));
 
 // Mock collection service
-vi.mock('../collection.service.js', () => ({
+vi.mock('../collection/index.js', () => ({
   restoreSeriesItems: vi.fn().mockResolvedValue(undefined),
 }));
 

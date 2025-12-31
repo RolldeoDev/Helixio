@@ -68,7 +68,7 @@ vi.mock('../series/index.js', () => ({
 
 // Mock collection service
 const mockMarkFileItemsUnavailable = vi.fn().mockResolvedValue(undefined);
-vi.mock('../collection.service.js', () => ({
+vi.mock('../collection/index.js', () => ({
   markFileItemsUnavailable: mockMarkFileItemsUnavailable,
 }));
 

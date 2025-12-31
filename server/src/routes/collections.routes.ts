@@ -40,7 +40,7 @@ import {
   regenerateMosaicSync,
   linkCollectionToPreset,
   unlinkCollectionFromPreset,
-} from '../services/collection.service.js';
+} from '../services/collection/index.js';
 import {
   refreshSmartCollection,
   updateSmartFilter,

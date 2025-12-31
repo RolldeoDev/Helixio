@@ -56,7 +56,7 @@ vi.mock('../../services/smart-collection.service.js', () => ({
 }));
 
 // Mock collection service
-vi.mock('../../services/collection.service.js', () => ({
+vi.mock('../../services/collection/index.js', () => ({
   getCollections: vi.fn().mockResolvedValue([]),
   getCollection: vi.fn().mockResolvedValue(null),
   getCollectionExpanded: vi.fn().mockResolvedValue(null),

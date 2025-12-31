@@ -22,7 +22,7 @@ import {
   findSeriesByAlias,
   restoreSeries,
 } from './series/index.js';
-import { restoreSeriesItems } from './collection.service.js';
+import { restoreSeriesItems } from './collection/index.js';
 import { logInfo, logError } from './logger.service.js';
 
 // =============================================================================

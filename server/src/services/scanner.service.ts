@@ -15,7 +15,7 @@ import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 import { checkAndSoftDeleteEmptySeries, restoreSeries } from './series/index.js';
-import { markFileItemsUnavailable } from './collection.service.js';
+import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
 
 const logger = createServiceLogger('scanner');

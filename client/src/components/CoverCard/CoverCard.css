@@ -413,7 +413,7 @@
 
 .cover-card__progress-ring {
   position: absolute;
-  bottom: 8px;
+  top: 8px;
   right: 8px;
   z-index: 5;
 }

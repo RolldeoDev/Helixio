@@ -38,12 +38,13 @@ router.use(requireAuth);
 
 /**
  * GET /api/reading-progress/continue-reading
- * Get recently read files that are in progress
+ * Get recently read files that are in progress, plus "next up" issues from series
+ * that have reading history but no currently in-progress issue.
  */
 router.get('/continue-reading', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 3;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
     const libraryId = req.query.libraryId as string | undefined;
 
     const items = await getContinueReading(userId, limit, libraryId);

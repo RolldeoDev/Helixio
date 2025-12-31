@@ -1,10 +1,11 @@
 /**
  * Continue Reading Section
  *
- * Displays in-progress comics in a horizontal carousel.
+ * Displays in-progress comics and "next up" issues in a horizontal carousel.
  * Features:
- * - ComicCarousel with progress indicators
- * - Empty state when no in-progress items
+ * - ComicCarousel with progress indicators for in-progress items
+ * - "Up Next" badge for next-up items from series with reading history
+ * - Empty state when no items
  * - Loading skeleton state
  */
 
@@ -34,13 +35,30 @@ export function ContinueReadingSection({
   onItemClick,
   onItemsChange,
 }: ContinueReadingSectionProps) {
+  // Count items by type for subtitle
+  const inProgressCount = items.filter((i) => i.itemType === 'in_progress').length;
+  const nextUpCount = items.filter((i) => i.itemType === 'next_up').length;
+
+  // Build dynamic subtitle
+  let subtitle = '';
+  if (inProgressCount > 0 && nextUpCount > 0) {
+    subtitle = `${inProgressCount} in progress, ${nextUpCount} up next`;
+  } else if (inProgressCount > 0) {
+    subtitle = `${inProgressCount} in progress`;
+  } else if (nextUpCount > 0) {
+    subtitle = `${nextUpCount} up next`;
+  }
+
   // Convert ContinueReadingItem to ComicCarouselItem
+  // In-progress items show progress bar, next-up items show "Up Next" badge
   const cardItems: ComicCarouselItem[] = items.map((item) => ({
     fileId: item.fileId,
     filename: item.filename,
     coverHash: item.coverHash,
-    progress: item.progress,
+    progress: item.itemType === 'in_progress' ? item.progress : undefined,
     completed: false,
+    badge: item.itemType === 'next_up' ? 'Up Next' : undefined,
+    badgeType: item.itemType === 'next_up' ? 'info' : undefined,
     series: item.series,
     number: item.number,
     title: item.title,
@@ -85,7 +103,7 @@ export function ContinueReadingSection({
     <section className="home-section">
       <SectionHeader
         title="Continue Reading"
-        subtitle={`${items.length} in progress`}
+        subtitle={subtitle}
         seeAllLink="/library?status=reading"
       />
       <ComicCarousel items={cardItems} onItemClick={onItemClick} onItemsChange={onItemsChange} />

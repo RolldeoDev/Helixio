@@ -36,7 +36,7 @@ vi.mock('../logger.service.js', () => ({
 }));
 
 // Mock collection service (for recalculateCollectionMetadata)
-vi.mock('../collection.service.js', () => ({
+vi.mock('../collection/index.js', () => ({
   recalculateCollectionMetadata: vi.fn().mockResolvedValue(undefined),
 }));
 

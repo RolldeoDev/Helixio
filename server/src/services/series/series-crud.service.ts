@@ -35,7 +35,7 @@ import type {
   SeriesBrowseResult,
 } from './series.types.js';
 import { getSeriesByIdentity } from './series-lookup.service.js';
-import { onSeriesMetadataChanged } from '../collection.service.js';
+import { onSeriesMetadataChanged } from '../collection/index.js';
 import { markSmartCollectionsDirty } from '../smart-collection-dirty.service.js';
 
 // =============================================================================

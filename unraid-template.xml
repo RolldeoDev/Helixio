@@ -7,8 +7,8 @@
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
   <Support/>
-  <Project>https://github.com/youruser/helixio</Project>
-  <Overview>Comic book collection management tool with metadata lookup from ComicVine and Metron.</Overview>
+  <Project>https://github.com/RolldeoDev/Helixio</Project>
+  <Overview>Comic book collection management tool with metadata lookup from ComicVine and AniList.</Overview>
   <Category>MediaApp:Books</Category>
   <WebUI>http://[IP]:[PORT:8483]/</WebUI>
   <TemplateURL/>
@@ -52,7 +52,7 @@
       <Mode/>
     </Variable>
     <Variable>
-      <Value>America/New_York</Value>
+      <Value>America/Denver</Value>
       <Name>TZ</Name>
       <Mode/>
     </Variable>
@@ -63,5 +63,5 @@
   <Config Name="Comics Library" Target="/comics" Default="/mnt/user/media/Comics" Mode="ro" Description="Comics library root folder" Type="Path" Display="always" Required="true" Mask="false">/mnt/user/media/Comics</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions" Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions" Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
-  <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Timezone (e.g., America/New_York)" Type="Variable" Display="advanced" Required="false" Mask="false">America/New_York</Config>
+  <Config Name="Timezone" Target="TZ" Default="America/Denver" Mode="" Description="Timezone (e.g., America/Denver)" Type="Variable" Display="advanced" Required="false" Mask="false">America/Denver</Config>
 </Container>

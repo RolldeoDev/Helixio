@@ -107,7 +107,7 @@ import {
   hasAnyCreators,
 } from '../services/creator-aggregation.service.js';
 import { processExistingFiles } from '../services/scanner.service.js';
-import { onSeriesCoverChanged } from '../services/collection.service.js';
+import { onSeriesCoverChanged } from '../services/collection/index.js';
 import { createServiceLogger } from '../services/logger.service.js';
 import { getSimilarSeriesRecommendations } from '../services/recommendation-engine.service.js';
 import { getCachedSimilarSeries, setCachedSimilarSeries } from '../services/recommendation-cache.service.js';

@@ -13,32 +13,17 @@
  * - Scroll state detection (disables animations during rapid scroll)
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  getSeries,
-  getSeriesIssues,
-  getNextSeriesIssue,
   getCoverUrl,
   getApiCoverUrl,
   getCollectionCoverUrl,
-  fetchSeriesMetadata,
-  previewSeriesMetadata,
-  applySeriesMetadata,
-  getSeriesRelationships,
-  getSimilarSeries,
-  Series,
   SeriesIssue,
-  SeriesForMerge,
-  MetadataSource,
-  SeriesMetadataPayload,
-  MetadataPreviewField,
   RelatedSeriesInfo,
-  SimilarSeriesEntry,
 } from '../services/api.service';
-import { useMetadataJob } from '../contexts/MetadataJobContext';
-import { useApiToast, useMenuActions } from '../hooks';
-import { useBreadcrumbs, NavigationOrigin } from '../contexts/BreadcrumbContext';
+import { useApiToast, useMenuActions, useIssueSelection, useSeriesData, useSeriesModals } from '../hooks';
+import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import type { MenuContext } from '../components/UnifiedMenu/types';
 import {
   CoverCard,
@@ -51,9 +36,8 @@ import { SeriesSelectModal } from '../components/SeriesSelectModal';
 import { MergeSeriesModal } from '../components/MergeSeriesModal';
 import { LinkSeriesModal } from '../components/LinkSeriesModal';
 import { ManageRelationshipsModal } from '../components/ManageRelationshipsModal';
-import { removeChildSeries, updateRelationshipType, type RelationshipType } from '../services/api/series';
+import { removeChildSeries, updateRelationshipType, type RelationshipType, type Collection } from '../services/api/series';
 import { useSeriesCollections, useRemoveFromCollection } from '../hooks/queries/useCollections';
-import type { Collection } from '../services/api/series';
 import { SeriesMetadataSearchModal } from '../components/SeriesMetadataSearchModal';
 import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
@@ -70,14 +54,7 @@ import { SeriesUserDataPanel } from '../components/UserDataPanel';
 import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
 import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
 import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings } from '../hooks/queries';
-import {
-  getReaderPresetsGrouped,
-  applyPresetToSeries,
-  deleteSeriesReaderSettingsById,
-  getSeriesReaderSettingsById,
-  getLibraryReaderSettings,
-  PresetsGrouped,
-} from '../services/api/reading';
+import { applyPresetToSeries, deleteSeriesReaderSettingsById } from '../services/api/reading';
 import './SeriesDetailPage.css';
 
 // =============================================================================
@@ -182,30 +159,65 @@ function VirtualizedIssuesGrid({
 export function SeriesDetailPage() {
   const { seriesId } = useParams<{ seriesId: string }>();
   const navigate = useNavigate();
-  const { lastCompletedJobAt } = useMetadataJob();
   const { setBreadcrumbs } = useBreadcrumbs();
-
-  const [series, setSeries] = useState<Series | null>(null);
-  const [issues, setIssues] = useState<SeriesIssue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [nextIssue, setNextIssue] = useState<{ id: string; filename: string } | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const { addToast } = useApiToast();
-  const [isEditSeriesModalOpen, setIsEditSeriesModalOpen] = useState(false);
 
-  // Related series state
-  const [parentSeries, setParentSeries] = useState<RelatedSeriesInfo[]>([]);
-  const [childSeries, setChildSeries] = useState<RelatedSeriesInfo[]>([]);
+  // ==========================================================================
+  // Custom Hooks - Data, Selection, and Modals
+  // ==========================================================================
 
-  // Similar series state (from recommendation engine)
-  const [similarSeries, setSimilarSeries] = useState<SimilarSeriesEntry[]>([]);
-  const [similarSeriesLoading, setSimilarSeriesLoading] = useState(false);
-  const [similarSeriesError, setSimilarSeriesError] = useState(false);
-  const similarFetchedRef = useRef(false);
+  // Series data hook - handles fetching and state for series, issues, relationships
+  const seriesData = useSeriesData({ seriesId });
+  const {
+    series,
+    issues,
+    loading,
+    error,
+    nextIssue,
+    parentSeries,
+    childSeries,
+    allRelatedSeries,
+    similarSeries,
+    similarSeriesLoading,
+    similarSeriesError,
+    isDescriptionExpanded,
+    descriptionNeedsTruncation,
+    descriptionRef,
+    toggleDescriptionExpanded,
+    refetch: fetchSeries,
+    fetchSimilarSeries,
+    refetchSimilarSeries,
+    setParentSeries,
+    setChildSeries,
+  } = seriesData;
+
+  // Modals hook - handles all modal states and workflows
+  const modals = useSeriesModals({
+    seriesId,
+    series,
+    issues,
+    onRefresh: fetchSeries,
+    addToast,
+  });
+
+  // Issue selection hook - handles multi-select for bulk operations
+  const selection = useIssueSelection({
+    seriesId,
+    seriesName: series?.name,
+    issues,
+  });
+  const { selectedFiles, handleIssueClick, handleSelectionChange } = selection;
+
+  // ==========================================================================
+  // Local State
+  // ==========================================================================
 
   // Tab state for Issues/Related Series/Similar/Collections tabs
   const [activeTab, setActiveTab] = useState<'issues' | 'related' | 'similar' | 'collections'>('issues');
+
+  // ==========================================================================
+  // External Hooks
+  // ==========================================================================
 
   // Fetch collections containing this series (or its files)
   const { data: seriesCollections = [] } = useSeriesCollections(seriesId);
@@ -218,12 +230,9 @@ export function SeriesDetailPage() {
   // External ratings status (for showing fetch icon when no ratings exist)
   const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(seriesId);
 
-  // Combined related series for the unified row with isParent flag
-  const allRelatedSeries = useMemo(() => {
-    const parentsWithFlag = parentSeries.map(p => ({ ...p, isParent: true as const }));
-    const childrenWithFlag = childSeries.map(c => ({ ...c, isParent: false as const }));
-    return [...parentsWithFlag, ...childrenWithFlag];
-  }, [parentSeries, childSeries]);
+  // ==========================================================================
+  // Derived State
+  // ==========================================================================
 
   // Dynamic series action menu items - conditionally show Link/Manage based on relationships
   const seriesMenuItems: ActionMenuItem[] = useMemo(() => {
@@ -243,96 +252,9 @@ export function SeriesDetailPage() {
     ];
   }, [parentSeries.length, childSeries.length]);
 
-  // Merge modal state
-  const [showSeriesSelectModal, setShowSeriesSelectModal] = useState(false);
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [selectedMergeSeries, setSelectedMergeSeries] = useState<SeriesForMerge[]>([]);
-
-  // Relationship modal state
-  const [showLinkSeriesModal, setShowLinkSeriesModal] = useState(false);
-  const [showManageRelationshipsModal, setShowManageRelationshipsModal] = useState(false);
-
-  // External ratings modal state
-  const [showRatingsModal, setShowRatingsModal] = useState(false);
-
-  // Reader settings modal state
-  const [showReaderSettingsModal, setShowReaderSettingsModal] = useState(false);
-  const [readerPresets, setReaderPresets] = useState<PresetsGrouped | null>(null);
-  const [seriesReaderSettings, setSeriesReaderSettings] = useState<{ presetId?: string; presetName?: string } | null>(null);
-  const [libraryReaderSettingsInfo, setLibraryReaderSettingsInfo] = useState<{ presetId?: string; presetName?: string } | null>(null);
-  const [loadingReaderSettings, setLoadingReaderSettings] = useState(false);
-
-  // Description expand/collapse state
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const [descriptionNeedsTruncation, setDescriptionNeedsTruncation] = useState(false);
-  const descriptionRef = useRef<HTMLDivElement>(null);
-
-  // Metadata fetch workflow state
-  const [showMetadataSearchModal, setShowMetadataSearchModal] = useState(false);
-  const [showMetadataPreviewModal, setShowMetadataPreviewModal] = useState(false);
-  const [pendingMetadata, setPendingMetadata] = useState<SeriesMetadataPayload | null>(null);
-  const [pendingSource, setPendingSource] = useState<MetadataSource | null>(null);
-  const [pendingExternalId, setPendingExternalId] = useState<string | null>(null);
-  const [previewFields, setPreviewFields] = useState<MetadataPreviewField[]>([]);
-  const [isApplyingMetadata, setIsApplyingMetadata] = useState(false);
-
-  // Fetch series data (all issues at once for infinite scroll)
-  const fetchSeries = useCallback(async () => {
-    if (!seriesId) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [seriesResult, issuesResult, nextResult, relationshipsResult] = await Promise.all([
-        getSeries(seriesId),
-        getSeriesIssues(seriesId, { all: true, sortBy: 'number', sortOrder: 'asc' }),
-        getNextSeriesIssue(seriesId),
-        getSeriesRelationships(seriesId),
-      ]);
-
-      setSeries(seriesResult.series);
-      setIssues(issuesResult.issues);
-      setParentSeries(relationshipsResult.parents);
-      setChildSeries(relationshipsResult.children);
-
-      if (nextResult.nextIssue) {
-        setNextIssue({
-          id: nextResult.nextIssue.id,
-          filename: nextResult.nextIssue.filename,
-        });
-      } else {
-        setNextIssue(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load series');
-    } finally {
-      setLoading(false);
-    }
-  }, [seriesId]);
-
-  useEffect(() => {
-    fetchSeries();
-  }, [fetchSeries]);
-
-  // Fetch similar series when tab is selected (lazy loading)
-  const fetchSimilarSeries = useCallback(async () => {
-    if (!seriesId || similarFetchedRef.current) return;
-
-    similarFetchedRef.current = true;
-    setSimilarSeriesLoading(true);
-    setSimilarSeriesError(false);
-
-    try {
-      const result = await getSimilarSeries(seriesId, 12);
-      setSimilarSeries(result.similar);
-    } catch (err) {
-      console.error('Failed to fetch similar series:', err);
-      setSimilarSeriesError(true);
-    } finally {
-      setSimilarSeriesLoading(false);
-    }
-  }, [seriesId]);
+  // ==========================================================================
+  // Effects
+  // ==========================================================================
 
   // Load similar series when tab is selected
   useEffect(() => {
@@ -340,20 +262,6 @@ export function SeriesDetailPage() {
       fetchSimilarSeries();
     }
   }, [activeTab, fetchSimilarSeries]);
-
-  // Reset similar series state when seriesId changes
-  useEffect(() => {
-    similarFetchedRef.current = false;
-    setSimilarSeries([]);
-    setSimilarSeriesError(false);
-  }, [seriesId]);
-
-  // Refresh series data when a metadata job completes
-  useEffect(() => {
-    if (lastCompletedJobAt) {
-      fetchSeries();
-    }
-  }, [lastCompletedJobAt, fetchSeries]);
 
   // Handle removing a parent relationship
   const handleRemoveParentRelationship = useCallback(
@@ -465,15 +373,6 @@ export function SeriesDetailPage() {
     }
   }, [series, seriesId, setBreadcrumbs]);
 
-  // Check if description needs truncation (now 6-8 lines)
-  useEffect(() => {
-    if (descriptionRef.current) {
-      const lineHeight = parseFloat(getComputedStyle(descriptionRef.current).lineHeight);
-      const maxHeight = lineHeight * 6; // 6 lines for compact view
-      setDescriptionNeedsTruncation(descriptionRef.current.scrollHeight > maxHeight + 2);
-    }
-  }, [series?.summary, series?.deck]);
-
   // Centralized menu actions for file-level operations
   const {
     handleAction: handleMenuActionFromHook,
@@ -485,34 +384,10 @@ export function SeriesDetailPage() {
     onRefresh: fetchSeries,
     series,
     issues,
-    onEditSeries: () => setIsEditSeriesModalOpen(true),
-    onMergeWith: () => setShowSeriesSelectModal(true),
-    onLinkSeries: () => setShowLinkSeriesModal(true),
-    onFetchSeriesMetadata: async () => {
-      if (!series) return;
-      try {
-        const result = await fetchSeriesMetadata(series.id);
-        if (result.needsSearch) {
-          setShowMetadataSearchModal(true);
-        } else if (result.metadata && result.source && result.externalId) {
-          const previewResult = await previewSeriesMetadata(
-            series.id,
-            result.metadata,
-            result.source,
-            result.externalId
-          );
-          setPendingMetadata(result.metadata);
-          setPendingSource(result.source);
-          setPendingExternalId(result.externalId);
-          setPreviewFields(previewResult.preview.fields);
-          setShowMetadataPreviewModal(true);
-        } else {
-          addToast('info', result.message || 'No metadata found');
-        }
-      } catch (err) {
-        addToast('error', err instanceof Error ? err.message : 'Failed to fetch metadata');
-      }
-    },
+    onEditSeries: modals.openEditSeriesModal,
+    onMergeWith: modals.openSeriesSelectModal,
+    onLinkSeries: modals.openLinkSeriesModal,
+    onFetchSeriesMetadata: modals.handleFetchSeriesMetadata,
   });
 
   const handleContinueReading = useCallback(() => {
@@ -534,58 +409,6 @@ export function SeriesDetailPage() {
     }
   }, [issues, navigate]);
 
-  // Handle click on issue card
-  const handleIssueClick = useCallback((fileId: string, e: React.MouseEvent) => {
-    // Handle shift-click for range selection (toggle selection)
-    if (e.shiftKey) {
-      setSelectedFiles((prev) => {
-        const next = new Set(prev);
-        if (next.has(fileId)) {
-          next.delete(fileId);
-        } else {
-          next.add(fileId);
-        }
-        return next;
-      });
-      return;
-    }
-
-    // Handle ctrl/cmd-click for multi-select (toggle selection)
-    if (e.ctrlKey || e.metaKey) {
-      setSelectedFiles((prev) => {
-        const next = new Set(prev);
-        if (next.has(fileId)) {
-          next.delete(fileId);
-        } else {
-          next.add(fileId);
-        }
-        return next;
-      });
-      return;
-    }
-
-    // Plain click (no modifiers) - navigate to issue detail
-    const navState: NavigationOrigin = {
-      from: 'series',
-      seriesId: seriesId,
-      seriesName: series?.name,
-    };
-    navigate(`/issue/${fileId}`, { state: navState });
-  }, [navigate, seriesId, series?.name]);
-
-  // Handle selection change from checkbox
-  const handleSelectionChange = useCallback((fileId: string, selected: boolean) => {
-    setSelectedFiles((prev) => {
-      const next = new Set(prev);
-      if (selected) {
-        next.add(fileId);
-      } else {
-        next.delete(fileId);
-      }
-      return next;
-    });
-  }, []);
-
   // Handle context menu action - delegates to centralized hook
   const handleMenuAction = useCallback(
     (action: MenuItemPreset | string, fileId: string) => {
@@ -600,114 +423,6 @@ export function SeriesDetailPage() {
     [selectedFiles, handleMenuActionFromHook]
   );
 
-  // Helper to convert Series to SeriesForMerge
-  const seriesToMergeFormat = (s: Series): SeriesForMerge => ({
-    id: s.id,
-    name: s.name,
-    publisher: s.publisher,
-    startYear: s.startYear,
-    endYear: s.endYear,
-    issueCount: s.issueCount,
-    ownedIssueCount: s._count?.issues ?? 0,
-    comicVineId: s.comicVineId,
-    metronId: s.metronId,
-    coverUrl: s.coverUrl,
-    coverHash: s.coverHash,
-    coverFileId: s.coverFileId,
-    aliases: s.aliases,
-    summary: s.summary,
-    type: s.type,
-    createdAt: String(s.createdAt ?? new Date().toISOString()),
-    updatedAt: String(s.updatedAt ?? new Date().toISOString()),
-  });
-
-  // Handle series selection for merge
-  const handleSeriesSelectedForMerge = (selectedSeries: Series[]) => {
-    if (!series) return;
-
-    const currentSeriesForMerge = seriesToMergeFormat(series);
-    const selectedSeriesForMerge = selectedSeries.map(seriesToMergeFormat);
-
-    setSelectedMergeSeries([currentSeriesForMerge, ...selectedSeriesForMerge]);
-    setShowSeriesSelectModal(false);
-    setShowMergeModal(true);
-  };
-
-  // Handle merge complete
-  const handleMergeComplete = () => {
-    setShowMergeModal(false);
-    setSelectedMergeSeries([]);
-    fetchSeries();
-  };
-
-  // Handle metadata search modal selection
-  const handleMetadataSearchSelect = useCallback(
-    async (source: MetadataSource, externalId: string, metadata: SeriesMetadataPayload) => {
-      setShowMetadataSearchModal(false);
-
-      if (!seriesId) return;
-
-      try {
-        // Get preview data for the selected metadata
-        const previewResult = await previewSeriesMetadata(
-          seriesId,
-          metadata,
-          source,
-          externalId
-        );
-
-        setPendingMetadata(metadata);
-        setPendingSource(source);
-        setPendingExternalId(externalId);
-        setPreviewFields(previewResult.preview.fields);
-        setShowMetadataPreviewModal(true);
-      } catch (err) {
-        addToast('error', err instanceof Error ? err.message : 'Failed to load preview');
-      }
-    },
-    [seriesId, addToast]
-  );
-
-  // Handle metadata preview modal apply
-  const handleMetadataPreviewApply = useCallback(
-    async (selectedFields: string[]) => {
-      if (!seriesId || !pendingMetadata || !pendingSource) return;
-
-      setIsApplyingMetadata(true);
-
-      try {
-        await applySeriesMetadata(seriesId, {
-          metadata: pendingMetadata,
-          source: pendingSource,
-          externalId: pendingExternalId,
-          fields: selectedFields,
-        });
-
-        // Reset state and refresh
-        setShowMetadataPreviewModal(false);
-        setPendingMetadata(null);
-        setPendingSource(null);
-        setPendingExternalId(null);
-        setPreviewFields([]);
-        addToast('success', 'Metadata applied successfully');
-        fetchSeries();
-      } catch (err) {
-        addToast('error', err instanceof Error ? err.message : 'Failed to apply metadata');
-      } finally {
-        setIsApplyingMetadata(false);
-      }
-    },
-    [seriesId, pendingMetadata, pendingSource, pendingExternalId, fetchSeries, addToast]
-  );
-
-  // Handle metadata preview modal close
-  const handleMetadataPreviewClose = useCallback(() => {
-    setShowMetadataPreviewModal(false);
-    setPendingMetadata(null);
-    setPendingSource(null);
-    setPendingExternalId(null);
-    setPreviewFields([]);
-  }, []);
 
   // Handle series-level actions from ActionMenu - delegates to centralized hook
   const handleSeriesAction = useCallback(
@@ -716,38 +431,15 @@ export function SeriesDetailPage() {
 
       // Handle local actions first
       if (actionId === 'linkSeries') {
-        setShowLinkSeriesModal(true);
+        modals.openLinkSeriesModal();
         return;
       }
       if (actionId === 'manageRelationships') {
-        setShowManageRelationshipsModal(true);
+        modals.openManageRelationshipsModal();
         return;
       }
       if (actionId === 'readerSettings') {
-        setShowReaderSettingsModal(true);
-        // Fetch presets and current settings
-        // Get libraryId from first issue (issues have libraryId, series doesn't)
-        const libraryId = issues?.[0]?.libraryId ?? null;
-        setLoadingReaderSettings(true);
-        Promise.all([
-          getReaderPresetsGrouped(),
-          getSeriesReaderSettingsById(seriesId),
-          libraryId ? getLibraryReaderSettings(libraryId) : Promise.resolve(null)
-        ]).then(([presets, seriesSettings, libSettings]) => {
-          setReaderPresets(presets);
-          // Extract preset info from series settings
-          const seriesWithPreset = seriesSettings as { basedOnPresetId?: string; basedOnPresetName?: string };
-          setSeriesReaderSettings(seriesWithPreset?.basedOnPresetId ? {
-            presetId: seriesWithPreset.basedOnPresetId,
-            presetName: seriesWithPreset.basedOnPresetName
-          } : null);
-          // Extract preset info from library settings
-          const libWithPreset = libSettings as { basedOnPresetId?: string; basedOnPresetName?: string } | null;
-          setLibraryReaderSettingsInfo(libWithPreset?.basedOnPresetId ? {
-            presetId: libWithPreset.basedOnPresetId,
-            presetName: libWithPreset.basedOnPresetName
-          } : null);
-        }).catch(console.error).finally(() => setLoadingReaderSettings(false));
+        modals.openReaderSettingsModal();
         return;
       }
 
@@ -759,7 +451,7 @@ export function SeriesDetailPage() {
       };
       handleMenuActionFromHook(actionId, context);
     },
-    [seriesId, issues, handleMenuActionFromHook]
+    [seriesId, modals, handleMenuActionFromHook]
   );
 
   // Handle bulk issue actions from ActionMenu - delegates to centralized hook
@@ -905,7 +597,7 @@ export function SeriesDetailPage() {
                     {descriptionNeedsTruncation && (
                       <button
                         className="series-description-toggle"
-                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        onClick={toggleDescriptionExpanded}
                         aria-expanded={isDescriptionExpanded}
                       >
                         {isDescriptionExpanded ? 'Show less' : 'Read more'}
@@ -938,7 +630,7 @@ export function SeriesDetailPage() {
                 {!hasExternalRatings && !isLoadingExternalRatings && (
                   <button
                     className="fetch-external-ratings-icon"
-                    onClick={() => setShowRatingsModal(true)}
+                    onClick={() => modals.openRatingsModal()}
                     title="Search for external ratings"
                     type="button"
                   >
@@ -967,7 +659,7 @@ export function SeriesDetailPage() {
             {seriesId && (
               <ExternalRatingsPreview
                 seriesId={seriesId}
-                onViewDetails={() => setShowRatingsModal(true)}
+                onViewDetails={() => modals.openRatingsModal()}
               />
             )}
 
@@ -1096,7 +788,7 @@ export function SeriesDetailPage() {
                       <span>{selectedFiles.size} selected</span>
                       <button
                         className="btn-ghost"
-                        onClick={() => setSelectedFiles(new Set())}
+                        onClick={() => selection.clearSelection()}
                       >
                         Clear
                       </button>
@@ -1242,10 +934,7 @@ export function SeriesDetailPage() {
                     <p>Unable to load similar series.</p>
                     <button
                       className="similar-series-retry-btn"
-                      onClick={() => {
-                        similarFetchedRef.current = false;
-                        fetchSimilarSeries();
-                      }}
+                      onClick={refetchSimilarSeries}
                     >
                       Try Again
                     </button>
@@ -1443,7 +1132,7 @@ export function SeriesDetailPage() {
                   <span>{selectedFiles.size} selected</span>
                   <button
                     className="btn-ghost"
-                    onClick={() => setSelectedFiles(new Set())}
+                    onClick={() => selection.clearSelection()}
                   >
                     Clear
                   </button>
@@ -1493,8 +1182,8 @@ export function SeriesDetailPage() {
       {seriesId && (
         <EditSeriesModal
           seriesId={seriesId}
-          isOpen={isEditSeriesModalOpen}
-          onClose={() => setIsEditSeriesModalOpen(false)}
+          isOpen={modals.isEditSeriesModalOpen}
+          onClose={modals.closeEditSeriesModal}
           onSave={() => {
             fetchSeries();
           }}
@@ -1503,24 +1192,21 @@ export function SeriesDetailPage() {
 
       {/* Series Select Modal for Merge */}
       <SeriesSelectModal
-        isOpen={showSeriesSelectModal}
-        onClose={() => setShowSeriesSelectModal(false)}
-        onSelect={handleSeriesSelectedForMerge}
+        isOpen={modals.showSeriesSelectModal}
+        onClose={modals.closeSeriesSelectModal}
+        onSelect={modals.handleSeriesSelectedForMerge}
         excludeIds={seriesId ? [seriesId] : []}
         title="Select Series to Merge"
         multiSelect={true}
       />
 
       {/* Merge Series Modal */}
-      {showMergeModal && selectedMergeSeries.length > 0 && (
+      {modals.showMergeModal && modals.selectedMergeSeries.length > 0 && (
         <MergeSeriesModal
-          isOpen={showMergeModal}
-          onClose={() => {
-            setShowMergeModal(false);
-            setSelectedMergeSeries([]);
-          }}
-          onMergeComplete={handleMergeComplete}
-          initialSeries={selectedMergeSeries}
+          isOpen={modals.showMergeModal}
+          onClose={modals.closeMergeModal}
+          onMergeComplete={modals.handleMergeComplete}
+          initialSeries={modals.selectedMergeSeries}
           initialTargetId={seriesId}
         />
       )}
@@ -1535,9 +1221,9 @@ export function SeriesDetailPage() {
       {/* Series Metadata Search Modal */}
       {series && seriesId && (
         <SeriesMetadataSearchModal
-          isOpen={showMetadataSearchModal}
-          onClose={() => setShowMetadataSearchModal(false)}
-          onSelect={handleMetadataSearchSelect}
+          isOpen={modals.showMetadataSearchModal}
+          onClose={modals.closeMetadataSearchModal}
+          onSelect={modals.handleMetadataSearchSelect}
           seriesId={seriesId}
           initialQuery={series.name}
           libraryType={series.type}
@@ -1546,20 +1232,20 @@ export function SeriesDetailPage() {
 
       {/* Metadata Preview Modal */}
       <MetadataPreviewModal
-        isOpen={showMetadataPreviewModal}
-        onClose={handleMetadataPreviewClose}
-        onApply={handleMetadataPreviewApply}
-        fields={previewFields}
-        source={pendingSource}
+        isOpen={modals.showMetadataPreviewModal}
+        onClose={modals.handleMetadataPreviewClose}
+        onApply={modals.handleMetadataPreviewApply}
+        fields={modals.previewFields}
+        source={modals.pendingSource}
         currentSeries={series}
-        isApplying={isApplyingMetadata}
+        isApplying={modals.isApplyingMetadata}
       />
 
       {/* Link Series Modal */}
       {series && seriesId && (
         <LinkSeriesModal
-          isOpen={showLinkSeriesModal}
-          onClose={() => setShowLinkSeriesModal(false)}
+          isOpen={modals.showLinkSeriesModal}
+          onClose={modals.closeLinkSeriesModal}
           currentSeries={{ id: seriesId, name: series.name }}
           existingParentIds={parentSeries.map((p) => p.id)}
           existingChildIds={childSeries.map((c) => c.id)}
@@ -1570,8 +1256,8 @@ export function SeriesDetailPage() {
       {/* Manage Relationships Modal */}
       {series && seriesId && (
         <ManageRelationshipsModal
-          isOpen={showManageRelationshipsModal}
-          onClose={() => setShowManageRelationshipsModal(false)}
+          isOpen={modals.showManageRelationshipsModal}
+          onClose={modals.closeManageRelationshipsModal}
           seriesId={seriesId}
           seriesName={series.name}
           parents={parentSeries}
@@ -1583,23 +1269,23 @@ export function SeriesDetailPage() {
       {/* Community Ratings Modal */}
       {seriesId && (
         <CommunityRatingsModal
-          isOpen={showRatingsModal}
+          isOpen={modals.showRatingsModal}
           seriesId={seriesId}
           seriesName={series?.name}
           issueCount={series?._count?.issues ?? issues.length}
-          onClose={() => setShowRatingsModal(false)}
+          onClose={modals.closeRatingsModal}
         />
       )}
 
       {/* Reader Settings Modal */}
-      {showReaderSettingsModal && seriesId && (
-        <div className="modal-overlay" onClick={() => setShowReaderSettingsModal(false)}>
+      {modals.showReaderSettingsModal && seriesId && (
+        <div className="modal-overlay" onClick={modals.closeReaderSettingsModal}>
           <div className="modal-content reader-settings-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Reader Settings</h3>
               <button
                 className="modal-close"
-                onClick={() => setShowReaderSettingsModal(false)}
+                onClick={modals.closeReaderSettingsModal}
                 aria-label="Close"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1608,8 +1294,8 @@ export function SeriesDetailPage() {
                 </svg>
               </button>
             </div>
-            <div className={`modal-body${loadingReaderSettings ? ' modal-body--loading' : ''}`}>
-              {loadingReaderSettings ? (
+            <div className={`modal-body${modals.loadingReaderSettings ? ' modal-body--loading' : ''}`}>
+              {modals.loadingReaderSettings ? (
                 <span>Loading...</span>
               ) : (
                 <>
@@ -1623,10 +1309,10 @@ export function SeriesDetailPage() {
                     <div className="reader-settings-status-text">
                       <span className="reader-settings-status-label">Active Profile</span>
                       <span className="reader-settings-status-value">
-                        {seriesReaderSettings?.presetName
-                          ? `Series: ${seriesReaderSettings.presetName}`
-                          : libraryReaderSettingsInfo?.presetName
-                            ? `Library: ${libraryReaderSettingsInfo.presetName}`
+                        {modals.seriesReaderSettings?.presetName
+                          ? `Series: ${modals.seriesReaderSettings.presetName}`
+                          : modals.libraryReaderSettingsInfo?.presetName
+                            ? `Library: ${modals.libraryReaderSettingsInfo.presetName}`
                             : 'Global Defaults'}
                       </span>
                     </div>
@@ -1637,36 +1323,36 @@ export function SeriesDetailPage() {
                     <label htmlFor="preset-select">Reader Profile</label>
                     <select
                       id="preset-select"
-                      value={seriesReaderSettings?.presetId || ''}
+                      value={modals.seriesReaderSettings?.presetId || ''}
                       onChange={async (e) => {
                         const presetId = e.target.value;
                         if (presetId === '') {
                           await deleteSeriesReaderSettingsById(seriesId);
-                          setSeriesReaderSettings(null);
+                          modals.setSeriesReaderSettings(null);
                         } else {
-                          const allPresets = [...(readerPresets?.bundled || []), ...(readerPresets?.system || []), ...(readerPresets?.user || [])];
+                          const allPresets = [...(modals.readerPresets?.bundled || []), ...(modals.readerPresets?.system || []), ...(modals.readerPresets?.user || [])];
                           const preset = allPresets.find(p => p.id === presetId);
                           await applyPresetToSeries(presetId, seriesId);
-                          setSeriesReaderSettings({ presetId, presetName: preset?.name || 'Custom' });
+                          modals.setSeriesReaderSettings({ presetId, presetName: preset?.name || 'Custom' });
                         }
                       }}
                     >
                       <option value="">Use Inherited Settings</option>
                       <optgroup label="Bundled">
-                        {readerPresets?.bundled?.map(p => (
+                        {modals.readerPresets?.bundled?.map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </optgroup>
-                      {readerPresets?.system && readerPresets.system.length > 0 && (
+                      {modals.readerPresets?.system && modals.readerPresets.system.length > 0 && (
                         <optgroup label="System">
-                          {readerPresets.system.map(p => (
+                          {modals.readerPresets.system.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
                         </optgroup>
                       )}
-                      {readerPresets?.user && readerPresets.user.length > 0 && (
+                      {modals.readerPresets?.user && modals.readerPresets.user.length > 0 && (
                         <optgroup label="My Presets">
-                          {readerPresets.user.map(p => (
+                          {modals.readerPresets.user.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
                         </optgroup>
@@ -1677,7 +1363,7 @@ export function SeriesDetailPage() {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn-primary" onClick={() => setShowReaderSettingsModal(false)}>Done</button>
+              <button className="btn-primary" onClick={modals.closeReaderSettingsModal}>Done</button>
             </div>
           </div>
         </div>

@@ -12,7 +12,7 @@
 
 import { getDatabase } from './database.service.js';
 import { createServiceLogger } from './logger.service.js';
-import { recalculateCollectionMetadata } from './collection.service.js';
+import { recalculateCollectionMetadata } from './collection/index.js';
 
 const logger = createServiceLogger('smart-collection');
 

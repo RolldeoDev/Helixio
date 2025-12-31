@@ -13,3 +13,6 @@ export * from './useMenuActions';
 export * from './useAdaptivePolling';
 export * from './useDeviceDetection';
 export * from './usePullToRefresh';
+export * from './useIssueSelection';
+export * from './useSeriesData';
+export * from './useSeriesModals';

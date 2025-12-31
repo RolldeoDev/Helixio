@@ -582,7 +582,7 @@ async function startServer(): Promise<void> {
     // This runs after everything else so it doesn't delay startup
     setTimeout(async () => {
       try {
-        const { scheduleMosaicRegeneration } = await import('./services/collection.service.js');
+        const { scheduleMosaicRegeneration } = await import('./services/collection/index.js');
         const db = getDatabase();
         const collectionsNeedingMosaic = await db.collection.findMany({
           where: {

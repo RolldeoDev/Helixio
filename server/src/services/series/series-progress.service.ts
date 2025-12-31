@@ -480,7 +480,7 @@ export async function getUnifiedGridItems(
 
   // 4. Get promoted collections with filtering
   // Import dynamically to avoid circular dependency
-  const { getPromotedCollectionsForGrid } = await import('../collection.service.js');
+  const { getPromotedCollectionsForGrid } = await import('../collection/index.js');
 
   const promotedCollections = await getPromotedCollectionsForGrid(userId, {
     search: seriesOptions.search,
