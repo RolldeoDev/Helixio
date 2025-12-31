@@ -1,7 +1,7 @@
 /**
  * SeriesBrowserPage Component
  *
- * New series browser page built following LIBRARY_ARCH.md principles.
+ * New series browser page built for performance.
  * Created for A/B testing, intended to eventually replace SeriesPage.
  *
  * Design Principles:
@@ -26,7 +26,10 @@ import { useVirtualGrid } from '../hooks/useVirtualGrid';
 import { CoverSizeSlider } from '../components/CoverSizeSlider';
 import { Spinner } from '../components/LoadingState';
 import { SeriesBrowserCard } from '../components/SeriesBrowserCard';
-import { SmartSeriesFilterPanel } from '../components/SmartSeriesFilter';
+import {
+  SmartSeriesFilterPanel,
+  SmartSeriesFilterModal,
+} from '../components/SmartSeriesFilter';
 import { NavigationSidebar } from '../components/NavigationSidebar';
 import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
@@ -91,7 +94,12 @@ function SeriesBrowserPageContent() {
   } = useApp();
 
   // Smart filter context
-  const { applyFilterToSeries, isFilterActive: isSmartFilterActive } = useSmartSeriesFilter();
+  const {
+    applyFilterToSeries,
+    isFilterActive: isSmartFilterActive,
+    isFilterPanelOpen,
+    closeFilterPanel,
+  } = useSmartSeriesFilter();
 
   // Toast notifications
   const { addToast } = useToast();
@@ -171,7 +179,7 @@ function SeriesBrowserPageContent() {
 
   // Set breadcrumbs on mount
   useEffect(() => {
-    setBreadcrumbs([{ label: 'Series Browser', path: '/series-browser' }]);
+    setBreadcrumbs([{ label: 'Series', path: '/series' }]);
   }, [setBreadcrumbs]);
 
   // Fetch filter options (publishers)
@@ -191,7 +199,7 @@ function SeriesBrowserPageContent() {
   const options = useMemo(() => ({
     sortBy,
     sortOrder,
-    all: true, // Load ALL data at once (LIBRARY_ARCH.md principle)
+    all: true, // Load ALL data at once for client-side filtering
     includePromotedCollections: true, // Include promoted collections in grid
     ...(search && { search }),
     ...(publisher && { publisher }),
@@ -223,7 +231,7 @@ function SeriesBrowserPageContent() {
     fetchSeries();
   }, [fetchSeries]);
 
-  // Apply smart filter to raw items (client-side filtering per LIBRARY_ARCH.md)
+  // Apply smart filter to raw items (client-side filtering)
   // Note: Smart filter only applies to series, collections pass through
   const items = useMemo(() => {
     if (!isSmartFilterActive) return rawItems;
@@ -701,156 +709,189 @@ function SeriesBrowserPageContent() {
           )}
         </div>
 
-        {/* Filters and Toolbar */}
+        {/* Filters and Toolbar - Two Groups */}
         <div className="series-browser-filters">
-          {/* Search */}
-          <div className="series-browser-search">
-            <input
-              type="text"
-              placeholder="Search series..."
-              value={search}
-              onChange={handleSearchChange}
-              onKeyDown={handleSearchKeyDown}
-              className="series-browser-search-input"
-            />
-            {search && (
-              <button className="series-browser-search-clear" onClick={() => setSearch('')}>
-                &times;
+          {/* Group 1: Content Filters */}
+          <div className="series-browser-filter-group series-browser-filter-group--content">
+            {/* Smart Filters Toggle (integrated) */}
+            <SmartSeriesFilterPanel />
+
+            {/* Search */}
+            <div className="series-browser-search">
+              <svg className="series-browser-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search series..."
+                value={search}
+                onChange={handleSearchChange}
+                onKeyDown={handleSearchKeyDown}
+                className="series-browser-search-input"
+              />
+              {search && (
+                <button className="series-browser-search-clear" onClick={() => setSearch('')}>
+                  &times;
+                </button>
+              )}
+            </div>
+
+            {/* Library + Hidden toggle */}
+            <div className="series-browser-library-group">
+              <div className="series-browser-select-wrapper series-browser-select-wrapper--icon">
+                <svg className="series-browser-select-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                </svg>
+                <select
+                  className="series-browser-select series-browser-select--with-icon"
+                  value={libraryId}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '') {
+                      selectLibrary('all');
+                    } else {
+                      const lib = libraries.find(l => l.id === value);
+                      if (lib) selectLibrary(lib);
+                    }
+                  }}
+                  title="Library"
+                >
+                  <option value="">All Libraries</option>
+                  {libraries.map((lib) => (
+                    <option key={lib.id} value={lib.id}>
+                      {lib.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className={`series-browser-hidden-btn ${showHidden ? 'series-browser-hidden-btn--active' : ''}`}
+                onClick={() => setShowHidden(!showHidden)}
+                title={showHidden ? 'Hide hidden series' : 'Show hidden series'}
+                aria-label={showHidden ? 'Hide hidden series' : 'Show hidden series'}
+                type="button"
+              >
+                {showHidden ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                )}
+              </button>
+            </div>
+
+            {/* Publisher */}
+            <div className="series-browser-select-wrapper series-browser-select-wrapper--icon">
+              <svg className="series-browser-select-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 21h18" />
+                <path d="M9 8h1" />
+                <path d="M9 12h1" />
+                <path d="M9 16h1" />
+                <path d="M14 8h1" />
+                <path d="M14 12h1" />
+                <path d="M14 16h1" />
+                <path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16" />
+              </svg>
+              <select
+                className="series-browser-select series-browser-select--with-icon"
+                value={publisher}
+                onChange={(e) => setPublisher(e.target.value)}
+                title="Publisher"
+              >
+                <option value="">All Publishers</option>
+                {publishers.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Type */}
+            <select
+              className="series-browser-select"
+              value={type}
+              onChange={(e) => setType(e.target.value as 'western' | 'manga' | '')}
+              title="Type"
+            >
+              <option value="">All Types</option>
+              <option value="western">Western</option>
+              <option value="manga">Manga</option>
+            </select>
+
+            {/* Reading Status */}
+            <select
+              className="series-browser-select"
+              value={hasUnread === undefined ? '' : hasUnread ? 'unread' : 'complete'}
+              onChange={(e) => {
+                if (e.target.value === '') {
+                  setHasUnread(undefined);
+                } else {
+                  setHasUnread(e.target.value === 'unread');
+                }
+              }}
+              title="Reading Status"
+            >
+              <option value="">All Status</option>
+              <option value="unread">Has Unread</option>
+              <option value="complete">Complete</option>
+            </select>
+
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                className="series-browser-clear-btn"
+                onClick={clearFilters}
+                title="Clear all filters"
+                aria-label="Clear all filters"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             )}
           </div>
 
-          {/* Sort */}
-          <select
-            className="series-browser-select"
-            value={`${sortBy}-${sortOrder}`}
-            onChange={(e) => {
-              const [newSortBy, newSortOrder] = e.target.value.split('-') as [SeriesListOptions['sortBy'], 'asc' | 'desc'];
-              setSortBy(newSortBy);
-              setSortOrder(newSortOrder);
-            }}
-            title="Sort by"
-          >
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="startYear-desc">Year (Newest)</option>
-            <option value="startYear-asc">Year (Oldest)</option>
-            <option value="updatedAt-desc">Recently Updated</option>
-            <option value="issueCount-desc">Most Issues</option>
-            <option value="issueCount-asc">Fewest Issues</option>
-          </select>
+          {/* Separator */}
+          <div className="series-browser-filter-separator" />
 
-          {/* Library + Hidden toggle */}
-          <div className="series-browser-library-group">
+          {/* Group 2: Display Controls */}
+          <div className="series-browser-filter-group series-browser-filter-group--display">
+            {/* Sort */}
             <select
               className="series-browser-select"
-              value={libraryId}
+              value={`${sortBy}-${sortOrder}`}
               onChange={(e) => {
-                const value = e.target.value;
-                if (value === '') {
-                  selectLibrary('all');
-                } else {
-                  const lib = libraries.find(l => l.id === value);
-                  if (lib) selectLibrary(lib);
-                }
+                const [newSortBy, newSortOrder] = e.target.value.split('-') as [SeriesListOptions['sortBy'], 'asc' | 'desc'];
+                setSortBy(newSortBy);
+                setSortOrder(newSortOrder);
               }}
-              title="Library"
+              title="Sort by"
             >
-              <option value="">All Libraries</option>
-              {libraries.map((lib) => (
-                <option key={lib.id} value={lib.id}>
-                  {lib.name}
-                </option>
-              ))}
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+              <option value="startYear-desc">Year (Newest)</option>
+              <option value="startYear-asc">Year (Oldest)</option>
+              <option value="updatedAt-desc">Recently Updated</option>
+              <option value="issueCount-desc">Most Issues</option>
+              <option value="issueCount-asc">Fewest Issues</option>
             </select>
-            <button
-              className={`series-browser-hidden-btn ${showHidden ? 'series-browser-hidden-btn--active' : ''}`}
-              onClick={() => setShowHidden(!showHidden)}
-              title={showHidden ? 'Hide hidden series' : 'Show hidden series'}
-              type="button"
-            >
-              {showHidden ? (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-              )}
-            </button>
+
+            {/* Cover Size Slider */}
+            <CoverSizeSlider
+              value={coverSize}
+              onChange={handleCoverSizeChange}
+              label=""
+            />
           </div>
-
-          {/* Publisher */}
-          <select
-            className="series-browser-select"
-            value={publisher}
-            onChange={(e) => setPublisher(e.target.value)}
-            title="Publisher"
-          >
-            <option value="">All Publishers</option>
-            {publishers.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-
-          {/* Type */}
-          <select
-            className="series-browser-select"
-            value={type}
-            onChange={(e) => setType(e.target.value as 'western' | 'manga' | '')}
-            title="Type"
-          >
-            <option value="">All Types</option>
-            <option value="western">Western</option>
-            <option value="manga">Manga</option>
-          </select>
-
-          {/* Reading Status */}
-          <select
-            className="series-browser-select"
-            value={hasUnread === undefined ? '' : hasUnread ? 'unread' : 'complete'}
-            onChange={(e) => {
-              if (e.target.value === '') {
-                setHasUnread(undefined);
-              } else {
-                setHasUnread(e.target.value === 'unread');
-              }
-            }}
-            title="Reading Status"
-          >
-            <option value="">All Status</option>
-            <option value="unread">Has Unread</option>
-            <option value="complete">Complete</option>
-          </select>
-
-          {/* Clear Filters */}
-          {hasActiveFilters && (
-            <button
-              className="series-browser-clear-btn"
-              onClick={clearFilters}
-              title="Clear all filters"
-            >
-              &times;
-            </button>
-          )}
-
-          {/* Cover Size Slider */}
-          <CoverSizeSlider
-            value={coverSize}
-            onChange={handleCoverSizeChange}
-            label=""
-          />
         </div>
-      </div>
-
-      {/* Smart Series Filter Panel */}
-      <div className="series-browser-smart-filter">
-        <SmartSeriesFilterPanel />
       </div>
 
       {/* Loading State */}
@@ -1034,6 +1075,12 @@ function SeriesBrowserPageContent() {
           variant="context"
         />
       )}
+
+      {/* Smart Series Filter Modal */}
+      <SmartSeriesFilterModal
+        isOpen={isFilterPanelOpen}
+        onClose={closeFilterPanel}
+      />
     </div>
   );
 }

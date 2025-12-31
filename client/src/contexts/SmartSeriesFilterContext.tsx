@@ -5,7 +5,7 @@
  * multiple filter conditions, and saved filter presets.
  *
  * This is a series-specific version of SmartFilterContext, designed
- * for the SeriesBrowserPage following LIBRARY_ARCH.md principles.
+ * for the SeriesBrowserPage.
  */
 
 import {

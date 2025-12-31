@@ -700,7 +700,7 @@ export function CollectionDetailPage() {
       if (updates.rating !== undefined) basicUpdates.rating = updates.rating;
       if (updates.notes !== undefined) basicUpdates.notes = updates.notes;
       if (updates.visibility !== undefined) basicUpdates.visibility = updates.visibility;
-      if (updates.readingMode !== undefined) basicUpdates.readingMode = updates.readingMode;
+      if (updates.readerPresetId !== undefined) basicUpdates.readerPresetId = updates.readerPresetId;
 
       if (Object.keys(basicUpdates).length > 0) {
         await updateCollection(collectionForModal.id, basicUpdates);

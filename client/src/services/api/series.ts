@@ -1057,7 +1057,8 @@ export interface Collection {
   rating?: number | null;
   notes?: string | null;
   visibility?: 'public' | 'private' | 'unlisted';
-  readingMode?: 'single' | 'double' | 'webtoon' | null;
+  readingMode?: 'single' | 'double' | 'webtoon' | null;  // DEPRECATED: Use readerPresetId
+  readerPresetId?: string | null;  // Link to reader preset
   tags?: string | null;
   // Smart collection fields
   isSmart?: boolean;
@@ -2543,11 +2544,29 @@ export async function updateCollection(
     rating?: number | null;
     notes?: string | null;
     visibility?: 'public' | 'private' | 'unlisted';
-    readingMode?: 'single' | 'double' | 'webtoon' | null;
+    readingMode?: 'single' | 'double' | 'webtoon' | null;  // DEPRECATED: Use readerPresetId
+    readerPresetId?: string | null;  // Link to reader preset
     tags?: string | null;
   }
 ): Promise<Collection> {
   return put<Collection>(`/collections/${id}`, data);
+}
+
+/**
+ * Apply a reader preset to a collection
+ */
+export async function applyPresetToCollection(
+  presetId: string,
+  collectionId: string
+): Promise<void> {
+  await post(`/reader-presets/${presetId}/apply/collection/${collectionId}`, {});
+}
+
+/**
+ * Remove the reader preset from a collection
+ */
+export async function clearCollectionPreset(collectionId: string): Promise<void> {
+  await del(`/reader-presets/collection/${collectionId}`);
 }
 
 /**

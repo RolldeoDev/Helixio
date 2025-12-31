@@ -24,7 +24,9 @@ import {
   applyPresetToLibrary,
   applyPresetToSeries,
   applyPresetToIssue,
+  applyPresetToCollection,
 } from '../services/reader-settings.service.js';
+import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
 
 const router = Router();
@@ -257,6 +259,77 @@ router.post('/:id/apply/issue/:fileId', requireAuth, async (req: Request, res: R
     logError('reader-preset', error, { action: 'apply-preset-to-issue' });
     res.status(400).json({
       error: 'Failed to apply preset to issue',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/reader-presets/:id/apply/collection/:collectionId
+ * Apply a preset to a collection (links preset, does not copy settings)
+ */
+router.post('/:id/apply/collection/:collectionId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { id, collectionId } = req.params;
+    const userId = req.user!.id;
+
+    // Verify user owns the collection
+    const db = getDatabase();
+    const collection = await db.collection.findFirst({
+      where: { id: collectionId, userId },
+    });
+    if (!collection) {
+      res.status(404).json({ error: 'Collection not found or access denied' });
+      return;
+    }
+
+    // Get the preset
+    const preset = await getPresetById(id!);
+    if (!preset) {
+      res.status(404).json({ error: 'Preset not found' });
+      return;
+    }
+
+    // Apply preset to collection (links to preset)
+    await applyPresetToCollection(collectionId!, preset.id);
+
+    res.json({ success: true, message: `Preset "${preset.name}" applied to collection` });
+  } catch (error) {
+    logError('reader-preset', error, { action: 'apply-preset-to-collection' });
+    res.status(400).json({
+      error: 'Failed to apply preset to collection',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * DELETE /api/reader-presets/collection/:collectionId
+ * Remove preset from a collection (clear the link)
+ */
+router.delete('/collection/:collectionId', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { collectionId } = req.params;
+    const userId = req.user!.id;
+
+    // Verify user owns the collection
+    const db = getDatabase();
+    const collection = await db.collection.findFirst({
+      where: { id: collectionId, userId },
+    });
+    if (!collection) {
+      res.status(404).json({ error: 'Collection not found or access denied' });
+      return;
+    }
+
+    // Clear preset from collection
+    await applyPresetToCollection(collectionId!, null);
+
+    res.json({ success: true, message: 'Preset removed from collection' });
+  } catch (error) {
+    logError('reader-preset', error, { action: 'remove-preset-from-collection' });
+    res.status(400).json({
+      error: 'Failed to remove preset from collection',
       message: error instanceof Error ? error.message : String(error),
     });
   }

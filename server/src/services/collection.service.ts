@@ -53,7 +53,8 @@ export interface Collection {
   rating: number | null;
   notes: string | null;
   visibility: string;
-  readingMode: string | null;
+  readingMode: string | null;  // DEPRECATED: Use readerPresetId
+  readerPresetId: string | null;  // Link to reader preset
   tags: string | null;
   // Promotion fields
   isPromoted?: boolean;
@@ -162,7 +163,8 @@ export interface UpdateCollectionInput {
   rating?: number | null;
   notes?: string | null;
   visibility?: string;
-  readingMode?: string | null;
+  readingMode?: string | null;  // DEPRECATED: Use readerPresetId
+  readerPresetId?: string | null;  // Link to reader preset
   tags?: string | null;
 }
 
@@ -601,6 +603,7 @@ export async function getCollections(userId: string): Promise<Collection[]> {
     notes: c.notes,
     visibility: c.visibility,
     readingMode: c.readingMode,
+    readerPresetId: c.readerPresetId,
     tags: c.tags,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
@@ -770,6 +773,7 @@ export async function getCollection(userId: string, id: string): Promise<Collect
     notes: collection.notes,
     visibility: collection.visibility,
     readingMode: collection.readingMode,
+    readerPresetId: collection.readerPresetId,
     tags: collection.tags,
     // Smart collection fields
     isSmart: collection.isSmart,
@@ -1189,6 +1193,7 @@ export async function getCollectionsForItem(
     notes: c.notes,
     visibility: c.visibility,
     readingMode: c.readingMode,
+    readerPresetId: c.readerPresetId,
     tags: c.tags,
   }));
 }
@@ -2231,6 +2236,7 @@ export async function toggleCollectionPromotion(
     notes: updated.notes,
     visibility: updated.visibility,
     readingMode: updated.readingMode,
+    readerPresetId: updated.readerPresetId,
     tags: updated.tags,
   };
 }
@@ -2302,6 +2308,7 @@ export async function updateCollectionCover(
     notes: updated.notes,
     visibility: updated.visibility,
     readingMode: updated.readingMode,
+    readerPresetId: updated.readerPresetId,
     tags: updated.tags,
   };
 }
@@ -2359,6 +2366,7 @@ export async function setCollectionCoverHash(
     notes: updated.notes,
     visibility: updated.visibility,
     readingMode: updated.readingMode,
+    readerPresetId: updated.readerPresetId,
     tags: updated.tags,
   };
 }
@@ -2422,6 +2430,7 @@ export async function updateCollectionMetadata(
     notes: updated.notes,
     visibility: updated.visibility,
     readingMode: updated.readingMode,
+    readerPresetId: updated.readerPresetId,
     tags: updated.tags,
   };
 }

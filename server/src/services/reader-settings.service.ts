@@ -623,10 +623,10 @@ export async function deleteIssueSettings(fileId: string): Promise<void> {
 }
 
 // =============================================================================
-// Settings Resolution (4-Level Hierarchy with FULL OVERRIDE)
+// Settings Resolution (5-Level Hierarchy with FULL OVERRIDE)
 // =============================================================================
 
-export type SettingsSource = 'global' | 'library' | 'series' | 'issue';
+export type SettingsSource = 'global' | 'library' | 'collection' | 'series' | 'issue';
 
 export interface SettingsWithOrigin {
   settings: ReaderSettings;
@@ -682,6 +682,8 @@ export async function getResolvedSettings(fileId: string): Promise<ReaderSetting
 /**
  * Get resolved settings with origin information
  * Returns settings + which level they came from + preset origin if applicable
+ *
+ * Hierarchy (most specific wins): Issue > Series > Collection > Library > Global
  */
 export async function getResolvedSettingsWithOrigin(fileId: string): Promise<SettingsWithOrigin> {
   const db = getDatabase();
@@ -731,6 +733,51 @@ export async function getResolvedSettingsWithOrigin(fileId: string): Promise<Set
           : null,
       };
     }
+  }
+
+  // Check collection-level settings
+  // Find collections containing this file that have a reader preset, ordered by most recently updated
+  const collectionWithPreset = await db.collection.findFirst({
+    where: {
+      readerPresetId: { not: null },
+      items: {
+        some: {
+          OR: [
+            { fileId: fileId },
+            { seriesId: file.seriesId },
+          ],
+        },
+      },
+    },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      readerPreset: true,
+    },
+  });
+
+  if (collectionWithPreset?.readerPreset) {
+    const preset = collectionWithPreset.readerPreset;
+    const presetSettings: PartialReaderSettings = {
+      mode: preset.mode as ReadingMode,
+      direction: preset.direction as ReadingDirection,
+      scaling: preset.scaling as ImageScaling,
+      customWidth: preset.customWidth,
+      splitting: preset.splitting as ImageSplitting,
+      background: preset.background as BackgroundColor,
+      brightness: preset.brightness,
+      colorCorrection: preset.colorCorrection as ColorCorrection,
+      showPageShadow: preset.showPageShadow,
+      autoHideUI: preset.autoHideUI,
+      preloadCount: preset.preloadCount,
+      webtoonGap: preset.webtoonGap,
+      webtoonMaxWidth: preset.webtoonMaxWidth,
+      usePhysicalNavigation: preset.usePhysicalNavigation,
+    };
+    return {
+      settings: partialToFull(presetSettings, globalSettings),
+      source: 'collection',
+      basedOnPreset: { id: preset.id, name: preset.name },
+    };
   }
 
   // Check library-level settings
@@ -816,5 +863,20 @@ export async function applyPresetToIssue(
     ...presetSettings,
     basedOnPresetId: presetId,
     basedOnPresetName: presetName,
+  });
+}
+
+/**
+ * Apply a preset to a collection (links to preset, does not copy values)
+ * Unlike library/series/issue which copy settings, collections link directly to the preset
+ */
+export async function applyPresetToCollection(
+  collectionId: string,
+  presetId: string | null
+): Promise<void> {
+  const db = getDatabase();
+  await db.collection.update({
+    where: { id: collectionId },
+    data: { readerPresetId: presetId },
   });
 }

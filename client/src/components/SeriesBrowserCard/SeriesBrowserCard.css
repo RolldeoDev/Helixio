@@ -1,7 +1,7 @@
 /**
  * SeriesBrowserCard Styles
  *
- * Cover card for series browser, following LIBRARY_ARCH.md patterns.
+ * Cover card for series browser.
  * Optimized for scroll performance with minimal transitions.
  */
 
@@ -23,12 +23,14 @@
   /* Simplified transitions for Chrome performance */
   transition:
     box-shadow 150ms ease-out,
-    border-color 150ms ease-out;
+    border-color 150ms ease-out,
+    transform 200ms ease-out;
   box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
 }
 
 .series-browser-card:hover {
   box-shadow: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
+  transform: scale(1.03);
 }
 
 .series-browser-card:focus-visible {
@@ -123,14 +125,102 @@
 }
 
 /* =============================================================================
-   Progress Ring
+   Gradient Overlay (for badge visibility)
    ============================================================================= */
 
-.series-browser-card__progress-ring {
+.series-browser-card__gradient-overlay {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 5;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* =============================================================================
+   Hover Overlay with Read Button
+   ============================================================================= */
+
+.series-browser-card__hover-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.series-browser-card:hover .series-browser-card__hover-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.series-browser-card__read-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  cursor: pointer;
+  transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.series-browser-card__read-button:hover {
+  transform: scale(1.1);
+  background: var(--color-primary-hover, #4f46e5);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.series-browser-card__read-button:active {
+  transform: scale(0.95);
+}
+
+.series-browser-card__read-icon {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* =============================================================================
+   Progress Bar (bottom of cover)
+   ============================================================================= */
+
+.series-browser-card__progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 4;
+  overflow: hidden;
+}
+
+.series-browser-card__progress-fill {
+  height: 100%;
+  background: var(--color-primary, #6366f1);
+  transition: width 300ms ease-out;
+}
+
+.series-browser-card__progress-bar--complete .series-browser-card__progress-fill {
+  background: var(--color-success, #22c55e);
 }
 
 /* =============================================================================
@@ -139,9 +229,12 @@
 
 .series-browser-card__count-badge {
   position: absolute;
-  bottom: 8px;
+  bottom: 12px;
   right: 8px;
-  z-index: 5;
+  z-index: 7; /* Above hover overlay (z-index 6) to remain visible on hover */
+  display: flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 8px;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
@@ -152,10 +245,25 @@
   letter-spacing: 0.02em;
 }
 
+/* Complete state badge */
+.series-browser-card__count-badge--complete {
+  background: rgba(34, 197, 94, 0.9);
+}
+
+.series-browser-card__complete-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
 /* Compact mode: remove expensive blur effect for better performance at small sizes */
 .series-browser-card__count-badge--compact {
   backdrop-filter: none;
   background: rgba(0, 0, 0, 0.85); /* Slightly more opaque to compensate for no blur */
+}
+
+.series-browser-card__count-badge--compact.series-browser-card__count-badge--complete {
+  background: rgba(34, 197, 94, 0.95);
 }
 
 /* =============================================================================
@@ -301,10 +409,17 @@
 
 .scrolling .series-browser-card {
   transition: none !important;
+  transform: none !important;
 }
 
 .scrolling .series-browser-card:hover {
   box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3)) !important;
+  transform: none !important;
+}
+
+/* Hide hover overlay during scroll */
+.scrolling .series-browser-card__hover-overlay {
+  display: none !important;
 }
 
 /* Disable skeleton shimmer during scroll */
@@ -325,11 +440,17 @@
 @media (hover: none), (pointer: coarse) {
   .series-browser-card:hover {
     box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+    transform: none;
   }
 
   .series-browser-card:active {
     transform: scale(0.98);
     transition: transform 0.1s ease;
+  }
+
+  /* Hide hover overlay on touch devices - use tap to navigate instead */
+  .series-browser-card__hover-overlay {
+    display: none;
   }
 
   /* Always show checkbox on touch devices when selectable */
@@ -358,6 +479,10 @@
     transition: none;
   }
 
+  .series-browser-card:hover {
+    transform: none;
+  }
+
   .series-browser-card__skeleton {
     animation: none;
   }
@@ -365,5 +490,17 @@
   .series-browser-card__image--loaded {
     animation: none;
     opacity: 1;
+  }
+
+  .series-browser-card__hover-overlay {
+    transition: none;
+  }
+
+  .series-browser-card__read-button {
+    transition: none;
+  }
+
+  .series-browser-card__progress-fill {
+    transition: none;
   }
 }

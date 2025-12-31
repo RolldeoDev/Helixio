@@ -7,7 +7,6 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { getCoverUrl, getApiCoverUrl, getCollectionCoverUrl } from '../../services/api.service';
-import { ProgressRing } from '../Progress';
 import './CollectionCoverCard.css';
 
 // =============================================================================
@@ -232,6 +231,11 @@ export function CollectionCoverCard({
 
       {/* Cover */}
       <div className="collection-cover-card__cover">
+        {/* Skeleton placeholder - shown while loading */}
+        {coverStatus === 'loading' && (
+          <div className="collection-cover-card__skeleton" aria-hidden="true" />
+        )}
+
         {/* Placeholder for empty collections or cover not yet generated */}
         {showPlaceholder && (
           <div className="collection-cover-card__placeholder">
@@ -247,12 +251,6 @@ export function CollectionCoverCard({
         {/* Cover image (server-side mosaic, custom, issue, or series cover) */}
         {coverUrl && (
           <div className="collection-cover-card__cover-container">
-            {coverStatus === 'loading' && (
-              <div className="collection-cover-card__loading">
-                <div className="collection-cover-card__spinner" />
-              </div>
-            )}
-
             {coverStatus === 'error' && (
               <div className="collection-cover-card__placeholder">
                 <svg className="collection-cover-card__placeholder-icon" viewBox="0 0 24 24" fill="currentColor">
@@ -276,20 +274,60 @@ export function CollectionCoverCard({
           </div>
         )}
 
-        {/* Progress ring - shows percentage when in progress, 100% when completed */}
-        {totalIssues > 0 && (progressPercent > 0 || isComplete) && (
-          <ProgressRing
-            progress={isComplete ? 100 : progressPercent}
-            size="md"
-            showLabel
-            className="collection-cover-card__progress-ring"
-          />
-        )}
+        {/* Gradient overlay for better badge visibility */}
+        <div className="collection-cover-card__gradient-overlay" aria-hidden="true" />
 
-        {/* Issue count badge */}
-        <div className="collection-cover-card__count-badge">
+        {/* Hover overlay with view button */}
+        <div className="collection-cover-card__hover-overlay">
+          <button
+            className="collection-cover-card__view-button"
+            onClick={handleClick}
+            aria-label={`View ${collection.name}`}
+          >
+            <svg
+              className="collection-cover-card__view-icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+            >
+              <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Issue count badge with completion state */}
+        <div
+          className={[
+            'collection-cover-card__count-badge',
+            isComplete && 'collection-cover-card__count-badge--complete',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {isComplete && (
+            <svg className="collection-cover-card__complete-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z" />
+            </svg>
+          )}
           {readIssues}/{totalIssues}
         </div>
+
+        {/* Progress bar at bottom of cover */}
+        {totalIssues > 0 && (
+          <div
+            className={[
+              'collection-cover-card__progress-bar',
+              isComplete && 'collection-cover-card__progress-bar--complete',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <div
+              className="collection-cover-card__progress-fill"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Info */}

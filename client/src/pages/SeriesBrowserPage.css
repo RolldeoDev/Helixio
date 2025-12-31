@@ -1,7 +1,7 @@
 /* =============================================================================
    SeriesBrowserPage Styles
 
-   New series browser page following LIBRARY_ARCH.md performance principles.
+   New series browser page with optimized performance.
    ============================================================================= */
 
 .series-browser-page {
@@ -69,15 +69,52 @@
   flex-wrap: wrap;
 }
 
+/* Filter Groups */
+.series-browser-filter-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.series-browser-filter-group--content {
+  flex: 1;
+  min-width: 0;
+}
+
+.series-browser-filter-group--display {
+  flex-shrink: 0;
+}
+
+/* Filter Separator */
+.series-browser-filter-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+  margin: 0 var(--spacing-xs);
+  flex-shrink: 0;
+}
+
 /* Search Input */
 .series-browser-search {
   position: relative;
-  flex: 0 1 240px;
+  flex: 0 1 200px;
+}
+
+.series-browser-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .series-browser-search-input {
   width: 100%;
   padding: 6px var(--spacing-md);
+  padding-left: 28px;
   padding-right: 32px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -95,6 +132,11 @@
 .series-browser-search-input:focus {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px var(--color-primary-muted);
+}
+
+.series-browser-search-input:focus + .series-browser-search-icon,
+.series-browser-search-input:not(:placeholder-shown) + .series-browser-search-icon {
+  color: var(--color-primary);
 }
 
 .series-browser-search-clear {
@@ -145,6 +187,31 @@
   border-color: var(--color-text-muted);
 }
 
+/* Select wrapper with icon */
+.series-browser-select-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.series-browser-select-wrapper--icon .series-browser-select-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.series-browser-select--with-icon {
+  padding-left: 26px;
+}
+
+.series-browser-select-wrapper:hover .series-browser-select-icon,
+.series-browser-select-wrapper:focus-within .series-browser-select-icon {
+  color: var(--color-text);
+}
+
 /* Library Filter Group */
 .series-browser-library-group {
   display: flex;
@@ -152,6 +219,7 @@
   gap: 0;
 }
 
+.series-browser-library-group .series-browser-select-wrapper .series-browser-select,
 .series-browser-library-group .series-browser-select {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -210,25 +278,39 @@
 }
 
 /* =============================================================================
-   Smart Filter Panel Container
+   Smart Filter Panel - Now integrated in filter bar
    ============================================================================= */
 
-.series-browser-smart-filter {
-  padding: 0 var(--spacing-xl);
-  flex-shrink: 0;
-}
+/* The SmartSeriesFilterPanel is now placed inline in the filter bar.
+   It will expand below when opened, but the toggle button is part of the content group. */
 
 @media (max-width: 768px) {
-  .series-browser-smart-filter {
-    padding: 0 var(--spacing-md);
+  /* Hide separator on mobile */
+  .series-browser-filter-separator {
+    display: none;
+  }
+
+  /* Stack filter groups vertically on mobile */
+  .series-browser-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .series-browser-filter-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .series-browser-filter-group--content {
+    order: 1;
+  }
+
+  .series-browser-filter-group--display {
+    order: 2;
+    justify-content: flex-end;
   }
 }
 
-@media (max-width: 480px) {
-  .series-browser-smart-filter {
-    padding: 0 var(--spacing-sm);
-  }
-}
 
 /* =============================================================================
    Content Area - Grid + Sidebar Container
@@ -242,7 +324,7 @@
 }
 
 /* =============================================================================
-   Scroll Container - Following LIBRARY_ARCH.md patterns
+   Scroll Container
    ============================================================================= */
 
 .series-browser-scroll-container {
@@ -252,6 +334,7 @@
   -webkit-overflow-scrolling: touch; /* iOS momentum scrolling */
   min-height: 0; /* Important for flex child */
   padding-right: 48px; /* Reserve space for NavigationSidebar */
+  padding-bottom: 30px; /* Prevent final row hover flicker from triggering scroll */
 }
 
 /* Virtual grid container - positioned relative for absolute children */

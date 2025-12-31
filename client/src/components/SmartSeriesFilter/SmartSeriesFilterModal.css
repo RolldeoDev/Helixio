@@ -1,0 +1,857 @@
+/**
+ * SmartSeriesFilterModal Styles
+ *
+ * Modal dialog for Smart Series Filters following existing modal patterns.
+ * Uses portal rendering for proper stacking context.
+ */
+
+/* =============================================================================
+   Modal Overlay (Backdrop)
+   ============================================================================= */
+
+.smart-filter-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  animation: smart-filter-overlay-fade-in 200ms ease-out;
+}
+
+@keyframes smart-filter-overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* =============================================================================
+   Modal Container
+   ============================================================================= */
+
+.smart-filter-modal {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: smart-filter-modal-slide-up 250ms ease-out;
+}
+
+@keyframes smart-filter-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =============================================================================
+   Modal Header
+   ============================================================================= */
+
+.smart-filter-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.smart-filter-modal-title-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.smart-filter-modal-title-section svg {
+  color: var(--color-text-muted);
+}
+
+.smart-filter-modal-title-section h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.smart-filter-modal-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  border-radius: 9999px;
+}
+
+.smart-filter-modal-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.smart-filter-modal-close-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Modal Content (Scrollable)
+   ============================================================================= */
+
+.smart-filter-modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+/* =============================================================================
+   Sort Controls
+   ============================================================================= */
+
+.smart-filter-modal-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.smart-filter-modal-sort-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.smart-filter-modal-sort-select {
+  flex: 1;
+  max-width: 200px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.smart-filter-modal-sort-select:hover {
+  border-color: var(--color-border-hover);
+}
+
+.smart-filter-modal-sort-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.smart-filter-modal-sort-order {
+  display: flex;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.smart-filter-modal-sort-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.smart-filter-modal-sort-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.smart-filter-modal-sort-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* =============================================================================
+   Root Operator Toggle
+   ============================================================================= */
+
+.smart-filter-modal-root-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.smart-filter-modal-root-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.smart-filter-modal-operator-toggle {
+  display: inline-flex;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.smart-filter-modal-operator-toggle.root {
+  /* Slightly larger for root operator */
+}
+
+.smart-filter-modal-operator-btn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.smart-filter-modal-operator-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.smart-filter-modal-operator-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* =============================================================================
+   Filter Groups Container
+   ============================================================================= */
+
+.smart-filter-modal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.smart-filter-modal-group {
+  position: relative;
+}
+
+/* Root operator between groups */
+.smart-filter-modal-root-operator {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-sm) 0;
+}
+
+.smart-filter-modal-operator-label {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: var(--color-primary-muted);
+  border-radius: 9999px;
+}
+
+/* =============================================================================
+   Filter Group Box
+   ============================================================================= */
+
+.smart-filter-modal-group-box {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.smart-filter-modal-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary, var(--color-surface-hover));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.smart-filter-modal-group-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.smart-filter-modal-group-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.smart-filter-modal-remove-group-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.smart-filter-modal-remove-group-btn:hover {
+  background: var(--color-danger-muted, rgba(239, 68, 68, 0.1));
+  color: var(--color-danger, #ef4444);
+}
+
+/* =============================================================================
+   Filter Conditions
+   ============================================================================= */
+
+.smart-filter-modal-conditions {
+  padding: var(--spacing-sm);
+}
+
+.smart-filter-modal-condition-wrapper {
+  margin-bottom: var(--spacing-xs);
+}
+
+.smart-filter-modal-condition-wrapper:last-child {
+  margin-bottom: 0;
+}
+
+.smart-filter-modal-condition-operator {
+  display: flex;
+  justify-content: flex-start;
+  padding: var(--spacing-xs) 0;
+}
+
+.smart-filter-modal-operator-badge {
+  padding: 2px 8px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.smart-filter-modal-condition {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.smart-filter-modal-field-select,
+.smart-filter-modal-comparison-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.smart-filter-modal-field-select:hover,
+.smart-filter-modal-comparison-select:hover {
+  border-color: var(--color-border-hover);
+}
+
+.smart-filter-modal-field-select:focus,
+.smart-filter-modal-comparison-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.smart-filter-modal-field-select {
+  min-width: 140px;
+}
+
+.smart-filter-modal-comparison-select {
+  min-width: 120px;
+}
+
+.smart-filter-modal-value-input {
+  flex: 1;
+  min-width: 100px;
+  max-width: 180px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  color: var(--color-text);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color 150ms ease;
+}
+
+.smart-filter-modal-value-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.smart-filter-modal-value-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.smart-filter-modal-between-label {
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+
+.smart-filter-modal-remove-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.smart-filter-modal-remove-btn:hover {
+  background: var(--color-danger-muted, rgba(239, 68, 68, 0.1));
+  color: var(--color-danger, #ef4444);
+}
+
+/* =============================================================================
+   Add Buttons
+   ============================================================================= */
+
+.smart-filter-modal-add-condition-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-add-condition-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+.smart-filter-modal-add-group-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-add-group-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+/* =============================================================================
+   Modal Footer
+   ============================================================================= */
+
+.smart-filter-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.smart-filter-modal-footer-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.smart-filter-modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+/* =============================================================================
+   Presets Dropdown
+   ============================================================================= */
+
+.smart-filter-modal-presets-dropdown {
+  position: relative;
+}
+
+.smart-filter-modal-presets-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-presets-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-hover);
+}
+
+.smart-filter-modal-presets-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 100;
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: var(--spacing-xs);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.smart-filter-modal-presets-empty {
+  padding: var(--spacing-md);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.smart-filter-modal-preset-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.smart-filter-modal-preset-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.smart-filter-modal-preset-name {
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.smart-filter-modal-preset-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-preset-item:hover .smart-filter-modal-preset-delete-btn {
+  opacity: 1;
+}
+
+.smart-filter-modal-preset-delete-btn:hover {
+  color: var(--color-danger, #ef4444);
+  background: var(--color-danger-muted, rgba(239, 68, 68, 0.1));
+}
+
+/* =============================================================================
+   Footer Buttons
+   ============================================================================= */
+
+.smart-filter-modal-save-btn,
+.smart-filter-modal-clear-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-save-btn {
+  color: var(--color-text-muted);
+}
+
+.smart-filter-modal-save-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-hover);
+}
+
+.smart-filter-modal-clear-btn {
+  color: var(--color-danger, #ef4444);
+}
+
+.smart-filter-modal-clear-btn:hover {
+  background: var(--color-danger-muted, rgba(239, 68, 68, 0.1));
+  border-color: var(--color-danger, #ef4444);
+}
+
+.smart-filter-modal-done-btn {
+  padding: var(--spacing-xs) var(--spacing-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  background: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.smart-filter-modal-done-btn:hover {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+/* =============================================================================
+   Save Dialog Overlay
+   ============================================================================= */
+
+.smart-filter-modal-save-dialog-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  animation: smart-filter-overlay-fade-in 150ms ease-out;
+}
+
+.smart-filter-modal-save-dialog {
+  min-width: 300px;
+  padding: var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.smart-filter-modal-save-dialog h4 {
+  margin: 0 0 var(--spacing-md);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.smart-filter-modal-save-dialog input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: border-color 150ms ease;
+}
+
+.smart-filter-modal-save-dialog input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.smart-filter-modal-save-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.smart-filter-modal-save-dialog-actions button {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.smart-filter-modal-save-dialog-actions button:first-child {
+  color: var(--color-text-muted);
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+}
+
+.smart-filter-modal-save-dialog-actions button:first-child:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.smart-filter-modal-save-dialog-actions .btn-primary {
+  color: white;
+  background: var(--color-primary);
+  border: none;
+}
+
+.smart-filter-modal-save-dialog-actions .btn-primary:hover {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
+.smart-filter-modal-save-dialog-actions .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =============================================================================
+   Responsive Styles
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .smart-filter-modal-overlay {
+    padding: var(--spacing-sm);
+    align-items: flex-end;
+  }
+
+  .smart-filter-modal {
+    max-height: calc(100vh - 40px);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    animation: smart-filter-modal-slide-up-mobile 250ms ease-out;
+  }
+
+  @keyframes smart-filter-modal-slide-up-mobile {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .smart-filter-modal-sort-controls {
+    flex-wrap: wrap;
+  }
+
+  .smart-filter-modal-sort-select {
+    max-width: none;
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .smart-filter-modal-footer {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .smart-filter-modal-footer-left,
+  .smart-filter-modal-footer-right {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .smart-filter-modal-condition {
+    flex-wrap: wrap;
+  }
+
+  .smart-filter-modal-field-select,
+  .smart-filter-modal-comparison-select,
+  .smart-filter-modal-value-input {
+    min-width: calc(50% - var(--spacing-sm));
+    max-width: none;
+  }
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .smart-filter-modal-overlay,
+  .smart-filter-modal,
+  .smart-filter-modal-save-dialog-overlay {
+    animation: none;
+  }
+
+  .smart-filter-modal-close-btn,
+  .smart-filter-modal-sort-select,
+  .smart-filter-modal-sort-btn,
+  .smart-filter-modal-operator-btn,
+  .smart-filter-modal-remove-group-btn,
+  .smart-filter-modal-field-select,
+  .smart-filter-modal-comparison-select,
+  .smart-filter-modal-value-input,
+  .smart-filter-modal-remove-btn,
+  .smart-filter-modal-add-condition-btn,
+  .smart-filter-modal-add-group-btn,
+  .smart-filter-modal-presets-btn,
+  .smart-filter-modal-preset-item,
+  .smart-filter-modal-preset-delete-btn,
+  .smart-filter-modal-save-btn,
+  .smart-filter-modal-clear-btn,
+  .smart-filter-modal-done-btn {
+    transition: none;
+  }
+}

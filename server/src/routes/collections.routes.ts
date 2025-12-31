@@ -286,7 +286,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       // Override metadata
       overridePublisher, overrideStartYear, overrideEndYear, overrideGenres,
       // New fields
-      rating, notes, visibility, readingMode, tags
+      rating, notes, visibility, readingMode, readerPresetId, tags
     } = req.body as {
       name?: string;
       description?: string;
@@ -309,7 +309,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       rating?: number | null;
       notes?: string | null;
       visibility?: 'public' | 'private' | 'unlisted';
-      readingMode?: 'single' | 'double' | 'webtoon' | null;
+      readingMode?: 'single' | 'double' | 'webtoon' | null;  // DEPRECATED: Use readerPresetId
+      readerPresetId?: string | null;  // Link to reader preset
       tags?: string | null;
     };
 
@@ -317,7 +318,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       name, description, deck, sortOrder,
       lockName, lockDeck, lockDescription, lockPublisher, lockStartYear, lockEndYear, lockGenres,
       overridePublisher, overrideStartYear, overrideEndYear, overrideGenres,
-      rating, notes, visibility, readingMode, tags
+      rating, notes, visibility, readingMode, readerPresetId, tags
     });
     res.json(collection);
   } catch (error) {

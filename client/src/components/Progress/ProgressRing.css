@@ -1,7 +1,7 @@
 /* Progress Ring Component */
 .progress-ring {
   transform: rotate(-90deg);
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+  /* drop-shadow removed for performance - expensive filter with many instances */
 }
 
 /* Size variants */
@@ -59,4 +59,13 @@
 
 .progress-ring__checkmark {
   stroke: white;
+}
+
+/* =============================================================================
+   Scroll Performance Optimization
+   Disable transitions during rapid scroll for smoother performance
+   ============================================================================= */
+
+.scrolling .progress-ring__fill {
+  transition: none !important;
 }

@@ -41,6 +41,29 @@
   border-color: var(--color-primary);
 }
 
+.series-filter-toggle-text {
+  /* Hide text on very small screens, show badge */
+}
+
+/* Condition count badge */
+.series-filter-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: white;
+  background: var(--color-primary);
+  border-radius: 9px;
+}
+
+.series-filter-toggle-btn.active .series-filter-badge {
+  background: var(--color-primary-hover, #4f46e5);
+}
+
 .series-filter-clear-btn-small {
   display: flex;
   align-items: center;

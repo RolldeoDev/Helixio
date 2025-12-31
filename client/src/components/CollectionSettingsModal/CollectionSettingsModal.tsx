@@ -24,6 +24,7 @@ import {
   setCollectionCoverFromUrl,
   getCollectionDescriptionGenerationStatus,
   generateCollectionDescription,
+  getReaderPresetsGrouped,
 } from '../../services/api.service';
 import {
   type SmartFilter,
@@ -74,20 +75,13 @@ export interface CollectionUpdates {
   rating?: number | null;
   notes?: string | null;
   visibility?: 'public' | 'private' | 'unlisted';
-  readingMode?: 'single' | 'double' | 'webtoon' | null;
+  readerPresetId?: string | null;
 }
 
 const VISIBILITY_OPTIONS = [
   { value: 'private', label: 'Private', description: 'Only you can see this collection' },
   { value: 'unlisted', label: 'Unlisted', description: 'Anyone with the link can view' },
   { value: 'public', label: 'Public', description: 'Visible to all users' },
-] as const;
-
-const READING_MODE_OPTIONS = [
-  { value: null, label: 'Default', description: 'Use reader default settings' },
-  { value: 'single', label: 'Single Page', description: 'One page at a time' },
-  { value: 'double', label: 'Double Page', description: 'Two pages side by side' },
-  { value: 'webtoon', label: 'Webtoon', description: 'Continuous vertical scroll' },
 ] as const;
 
 export function CollectionSettingsModal({
@@ -137,7 +131,14 @@ export function CollectionSettingsModal({
   const [rating, setRating] = useState<number | null>(null);
   const [notes, setNotes] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'private' | 'unlisted'>('private');
-  const [readingMode, setReadingMode] = useState<'single' | 'double' | 'webtoon' | null>(null);
+  const [readerPresetId, setReaderPresetId] = useState<string | null>(null);
+
+  // Reader presets state
+  const [readerPresets, setReaderPresets] = useState<{
+    bundled: Array<{ id: string; name: string; description: string | null }>;
+    system: Array<{ id: string; name: string; description: string | null }>;
+    user: Array<{ id: string; name: string; description: string | null }>;
+  } | null>(null);
 
   // Items state
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
@@ -197,7 +198,7 @@ export function CollectionSettingsModal({
       setRating(collection.rating ?? null);
       setNotes(collection.notes || '');
       setVisibility(collection.visibility || 'private');
-      setReadingMode(collection.readingMode || null);
+      setReaderPresetId(collection.readerPresetId || null);
       setIsSmartEnabled(collection.isSmart || false);
       setSmartScope((collection.smartScope as SmartScope) || 'series');
       if (collection.filterDefinition) {
@@ -229,6 +230,21 @@ export function CollectionSettingsModal({
       }
     };
     checkLLMAvailability();
+    return () => { mounted = false; };
+  }, []);
+
+  // Fetch reader presets
+  useEffect(() => {
+    let mounted = true;
+    const fetchPresets = async () => {
+      try {
+        const presets = await getReaderPresetsGrouped();
+        if (mounted) setReaderPresets(presets);
+      } catch {
+        // Ignore errors, presets are optional
+      }
+    };
+    fetchPresets();
     return () => { mounted = false; };
   }, []);
 
@@ -397,7 +413,7 @@ export function CollectionSettingsModal({
         rating: rating !== (collection.rating ?? null) ? rating : undefined,
         notes: notes !== (collection.notes || '') ? (notes || null) : undefined,
         visibility: visibility !== (collection.visibility || 'private') ? visibility : undefined,
-        readingMode: readingMode !== (collection.readingMode || null) ? readingMode : undefined,
+        readerPresetId: readerPresetId !== (collection.readerPresetId || null) ? readerPresetId : undefined,
       };
       const cleanUpdates = Object.fromEntries(
         Object.entries(updates).filter(([, v]) => v !== undefined)
@@ -971,19 +987,44 @@ export function CollectionSettingsModal({
                   </div>
 
                   <div className="csm-field">
-                    <label htmlFor="csm-reading-mode" className="csm-field__label">Preferred Reading Mode</label>
+                    <label htmlFor="csm-reader-preset" className="csm-field__label">Preferred Reading Preset</label>
                     <select
-                      id="csm-reading-mode"
+                      id="csm-reader-preset"
                       className="csm-select"
-                      value={readingMode || ''}
-                      onChange={(e) => { setReadingMode(e.target.value as 'single' | 'double' | 'webtoon' | null || null); markChanged(); }}
+                      value={readerPresetId || ''}
+                      onChange={(e) => { setReaderPresetId(e.target.value || null); markChanged(); }}
                     >
-                      {READING_MODE_OPTIONS.map((opt) => (
-                        <option key={opt.value || 'default'} value={opt.value || ''}>{opt.label}</option>
-                      ))}
+                      <option value="">Use Inherited Settings</option>
+                      {readerPresets?.bundled && readerPresets.bundled.length > 0 && (
+                        <optgroup label="Bundled">
+                          {readerPresets.bundled.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {readerPresets?.system && readerPresets.system.length > 0 && (
+                        <optgroup label="System">
+                          {readerPresets.system.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {readerPresets?.user && readerPresets.user.length > 0 && (
+                        <optgroup label="My Presets">
+                          {readerPresets.user.map((p) => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     <span className="csm-field__hint">
-                      {READING_MODE_OPTIONS.find(o => o.value === readingMode)?.description || READING_MODE_OPTIONS[0].description}
+                      {readerPresetId
+                        ? (() => {
+                            const allPresets = [...(readerPresets?.bundled || []), ...(readerPresets?.system || []), ...(readerPresets?.user || [])];
+                            const selectedPreset = allPresets.find(p => p.id === readerPresetId);
+                            return selectedPreset?.description || selectedPreset?.name || 'Selected preset';
+                          })()
+                        : 'Use global or library reader settings'}
                     </span>
                   </div>
                 </div>

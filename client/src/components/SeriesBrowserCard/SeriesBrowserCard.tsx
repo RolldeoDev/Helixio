@@ -1,7 +1,7 @@
 /**
  * SeriesBrowserCard Component
  *
- * Cover card for the Series Browser page, built following LIBRARY_ARCH.md principles.
+ * Cover card for the Series Browser page.
  * Uses the same performance patterns as the Library page's CoverCard:
  * - Batched IntersectionObserver for lazy image loading
  * - CSS-only skeleton with shimmer animation
@@ -13,8 +13,9 @@
  */
 
 import React, { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSeriesCoverImage } from './useSeriesCoverImage';
-import { ProgressRing } from '../Progress';
+import { getNextSeriesIssue } from '../../services/api/series';
 import type { Series } from '../../services/api.service';
 import './SeriesBrowserCard.css';
 
@@ -140,6 +141,8 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
   compact = false,
   className = '',
 }: SeriesBrowserCardProps) {
+  const navigate = useNavigate();
+
   // Build cover data for the hook
   const coverData = useMemo(() => {
     // Get first issue info for fallback
@@ -181,7 +184,6 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
   const totalRead = series.progress?.totalRead ?? 0;
   const progressPercent = totalOwned > 0 ? Math.round((totalRead / totalOwned) * 100) : 0;
   const isComplete = totalOwned > 0 && totalRead >= totalOwned;
-  const showProgress = totalOwned > 0 && (progressPercent > 0 || isComplete);
 
   // Handle click with selection modifiers
   const handleClick = useCallback(
@@ -235,6 +237,26 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
       onContextMenu(e, series.id);
     },
     [contextMenuEnabled, onContextMenu, series.id, isSelected, onSelectionChange]
+  );
+
+  // Handle read button click - navigate to continue reading
+  const handleReadClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        const result = await getNextSeriesIssue(series.id);
+        if (result.nextIssue) {
+          navigate(`/read/${result.nextIssue.id}?filename=${encodeURIComponent(result.nextIssue.filename)}`);
+        } else {
+          // No unread issues - go to series detail
+          navigate(`/series/${series.id}`);
+        }
+      } catch {
+        // On error, fall back to series detail
+        navigate(`/series/${series.id}`);
+      }
+    },
+    [navigate, series.id]
   );
 
   // Build class names
@@ -316,27 +338,60 @@ export const SeriesBrowserCard = React.memo(function SeriesBrowserCard({
           />
         )}
 
-        {/* Progress ring - hidden in compact mode for performance */}
-        {showProgress && !compact && (
-          <ProgressRing
-            progress={isComplete ? 100 : progressPercent}
-            size="md"
-            showLabel
-            className="series-browser-card__progress-ring"
-          />
-        )}
+        {/* Gradient overlay for better badge visibility */}
+        <div className="series-browser-card__gradient-overlay" aria-hidden="true" />
 
-        {/* Issue count badge */}
+        {/* Hover overlay with read button */}
+        <div className="series-browser-card__hover-overlay">
+          <button
+            className="series-browser-card__read-button"
+            onClick={handleReadClick}
+            aria-label={`Read ${series.name}`}
+          >
+            <svg
+              className="series-browser-card__read-icon"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Issue count badge with completion state */}
         <div
           className={[
             'series-browser-card__count-badge',
             compact && 'series-browser-card__count-badge--compact',
+            isComplete && 'series-browser-card__count-badge--complete',
           ]
             .filter(Boolean)
             .join(' ')}
         >
+          {isComplete && (
+            <svg className="series-browser-card__complete-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z" />
+            </svg>
+          )}
           {totalRead}/{totalOwned}
         </div>
+
+        {/* Progress bar at bottom of cover */}
+        {totalOwned > 0 && (
+          <div
+            className={[
+              'series-browser-card__progress-bar',
+              isComplete && 'series-browser-card__progress-bar--complete',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <div
+              className="series-browser-card__progress-fill"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Info section */}

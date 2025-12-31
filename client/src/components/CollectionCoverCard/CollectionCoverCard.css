@@ -58,9 +58,13 @@
   width: var(--collection-card-width);
   background: var(--collection-card-bg);
   border-radius: var(--collection-card-radius);
-  border: var(--collection-card-border-width) solid var(--collection-card-border-color);
+  border: 2px solid transparent;
   cursor: pointer;
-  transition: box-shadow 150ms ease-out;
+  overflow: hidden;
+  transition:
+    box-shadow 150ms ease-out,
+    border-color 150ms ease-out,
+    transform 200ms ease-out;
   outline: none;
   box-shadow: var(--collection-card-shadow);
   animation: collection-card-enter 0.3s ease backwards;
@@ -70,11 +74,12 @@
 
 .collection-cover-card:hover {
   box-shadow: var(--collection-card-shadow-hover);
+  transform: scale(1.03);
 }
 
 .collection-cover-card:focus-visible {
   border-color: var(--collection-card-border-focus);
-  box-shadow: var(--collection-card-shadow-hover);
+  box-shadow: var(--collection-card-shadow-hover), 0 0 0 2px var(--color-primary-muted);
 }
 
 /* =============================================================================
@@ -190,35 +195,110 @@
 }
 
 .collection-cover-card__image--loaded {
-  opacity: 1;
+  animation: collection-card-fade-in 200ms ease-out forwards;
+}
+
+@keyframes collection-card-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* =============================================================================
-   Loading State
+   Gradient Overlay (for badge visibility)
    ============================================================================= */
 
-.collection-cover-card__loading {
+.collection-cover-card__gradient-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* =============================================================================
+   Hover Overlay with View Button
+   ============================================================================= */
+
+.collection-cover-card__hover-overlay {
   position: absolute;
   inset: 0;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--collection-card-bg);
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
 }
 
-.collection-cover-card__spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--collection-card-text-secondary);
+.collection-cover-card:hover .collection-cover-card__hover-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.collection-cover-card__view-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
   border-radius: 50%;
-  animation: collection-spin 0.8s linear infinite;
+  background: var(--color-primary, #6366f1);
+  color: white;
+  cursor: pointer;
+  transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
-@keyframes collection-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.collection-cover-card__view-button:hover {
+  transform: scale(1.1);
+  background: var(--color-primary-hover, #4f46e5);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.collection-cover-card__view-button:active {
+  transform: scale(0.95);
+}
+
+.collection-cover-card__view-icon {
+  width: 28px;
+  height: 28px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+/* =============================================================================
+   Skeleton Loading (CSS-only shimmer animation)
+   ============================================================================= */
+
+.collection-cover-card__skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-card, #1a1a2e) 25%,
+    var(--color-surface-hover, #252542) 50%,
+    var(--color-surface-card, #1a1a2e) 75%
+  );
+  background-size: 200% 100%;
+  animation: collection-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes collection-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 @keyframes collection-card-enter {
@@ -233,15 +313,28 @@
 }
 
 /* =============================================================================
-   Progress Indicators (using shared Progress components)
+   Progress Bar (bottom of cover)
    ============================================================================= */
 
-.collection-cover-card__progress-ring {
+.collection-cover-card__progress-bar {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 5;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6)) drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 4;
+  overflow: hidden;
+}
+
+.collection-cover-card__progress-fill {
+  height: 100%;
+  background: var(--color-primary, #6366f1);
+  transition: width 300ms ease-out;
+}
+
+.collection-cover-card__progress-bar--complete .collection-cover-card__progress-fill {
+  background: var(--color-success, #22c55e);
 }
 
 /* =============================================================================
@@ -250,16 +343,31 @@
 
 .collection-cover-card__count-badge {
   position: absolute;
-  bottom: 8px;
+  bottom: 12px;
   right: 8px;
-  z-index: 10;
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.75);
-  color: white;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: 4px;
+  z-index: 7; /* Above hover overlay (z-index 6) to remain visible on hover */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: white;
+  letter-spacing: 0.02em;
+}
+
+/* Complete state badge */
+.collection-cover-card__count-badge--complete {
+  background: rgba(34, 197, 94, 0.9);
+}
+
+.collection-cover-card__complete-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
 }
 
 /* =============================================================================
@@ -269,8 +377,11 @@
 .collection-cover-card__info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: var(--collection-card-gap);
+  gap: 2px;
+  padding: var(--spacing-sm, 8px);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  min-height: 48px;
   min-width: 0;
 }
 
@@ -313,6 +424,58 @@
 }
 
 /* =============================================================================
+   Scroll Performance Optimizations
+   When .scrolling class is on parent, disable expensive effects
+   ============================================================================= */
+
+.scrolling .collection-cover-card {
+  transition: none !important;
+  transform: none !important;
+}
+
+.scrolling .collection-cover-card:hover {
+  box-shadow: var(--collection-card-shadow) !important;
+  transform: none !important;
+}
+
+/* Hide hover overlay during scroll */
+.scrolling .collection-cover-card__hover-overlay {
+  display: none !important;
+}
+
+/* Disable skeleton shimmer during scroll */
+.scrolling .collection-cover-card__skeleton {
+  animation: none !important;
+  background: var(--color-surface-card) !important;
+}
+
+/* Preserve image fade-in even during scroll */
+.scrolling .collection-cover-card__image--loaded {
+  animation: collection-card-fade-in 200ms ease-out forwards;
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (hover: none), (pointer: coarse) {
+  .collection-cover-card:hover {
+    box-shadow: var(--collection-card-shadow);
+    transform: none;
+  }
+
+  .collection-cover-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* Hide hover overlay on touch devices - use tap to navigate instead */
+  .collection-cover-card__hover-overlay {
+    display: none;
+  }
+}
+
+/* =============================================================================
    Reduced Motion
    ============================================================================= */
 
@@ -322,27 +485,28 @@
     animation: none;
   }
 
-  .collection-cover-card__image {
+  .collection-cover-card:hover {
+    transform: none;
+  }
+
+  .collection-cover-card__skeleton {
+    animation: none;
+  }
+
+  .collection-cover-card__image--loaded {
+    animation: none;
+    opacity: 1;
+  }
+
+  .collection-cover-card__hover-overlay {
     transition: none;
   }
 
-  .collection-cover-card__spinner {
-    animation: none;
+  .collection-cover-card__view-button {
+    transition: none;
   }
 
   .collection-cover-card__progress-fill {
     transition: none;
   }
-}
-
-/* =============================================================================
-   Scroll Performance
-   ============================================================================= */
-
-.scrolling .collection-cover-card {
-  transition: none !important;
-}
-
-.scrolling .collection-cover-card:hover {
-  box-shadow: var(--collection-card-shadow) !important;
 }

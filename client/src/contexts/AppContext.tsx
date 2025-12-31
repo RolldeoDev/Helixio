@@ -57,7 +57,7 @@ interface AppState {
     pages: number;
   };
 
-  // Series selection (for bulk operations on SeriesPage)
+  // Series selection (for bulk operations on SeriesBrowserPage)
   selectedSeries: Set<string>;
 
   // Filters
@@ -96,7 +96,7 @@ interface AppContextValue extends AppState {
   clearSelection: () => void;
   lastSelectedFileId: string | null;
 
-  // Series selection actions (for bulk operations on SeriesPage)
+  // Series selection actions (for bulk operations on SeriesBrowserPage)
   selectSeries: (seriesId: string, multi?: boolean) => void;
   selectSeriesRange: (seriesIds: string[], fromId: string, toId: string) => void;
   selectAllSeries: (seriesIds: string[]) => void;
@@ -176,7 +176,7 @@ export function AppProvider({ children }: AppProviderProps) {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [lastSelectedFileId, setLastSelectedFileId] = useState<string | null>(null);
 
-  // Series selection (for bulk operations on SeriesPage)
+  // Series selection (for bulk operations on SeriesBrowserPage)
   const [selectedSeries, setSelectedSeries] = useState<Set<string>>(new Set());
   const [lastSelectedSeriesId, setLastSelectedSeriesId] = useState<string | null>(null);
 

@@ -1365,7 +1365,9 @@ model Collection {
   rating       Float?                        // 0.5-5.0 star rating (0.5 increments)
   notes        String?                       // Private notes/reminders
   visibility   String    @default("private") // "public", "private", "unlisted"
-  readingMode  String?                       // Preferred reader mode: "single", "double", "webtoon"
+  readingMode  String?                       // DEPRECATED: Use readerPresetId instead
+  readerPresetId String?                     // Link to reader preset for this collection
+  readerPreset   ReaderPreset? @relation(fields: [readerPresetId], references: [id], onDelete: SetNull)
   tags         String?                       // Comma-separated tags for filtering
 
   // ===========================================
@@ -1435,6 +1437,7 @@ model Collection {
   @@index([userId, isPromoted])  // Efficient query for promoted collections per user
   @@index([isSmart])             // Efficient query for smart collections
   @@index([filterPresetId])      // Efficient query for preset-linked collections
+  @@index([readerPresetId])      // Efficient query for reader preset lookup
 }
 
 model CollectionItem {
@@ -1542,6 +1545,7 @@ model ReaderPreset {
 
   // Relations
   user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collections     Collection[]  // Collections using this preset
 
   @@unique([name, userId])  // Unique name per user (or per system if userId is null)
   @@index([userId])

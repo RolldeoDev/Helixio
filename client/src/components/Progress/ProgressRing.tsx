@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import './ProgressRing.css';
 
 export interface ProgressRingProps {
@@ -19,20 +20,25 @@ const sizeConfig = {
   lg: { diameter: 40, strokeWidth: 3, radius: 14, fontSize: 11, checkScale: 0.55 },
 };
 
-export function ProgressRing({
+export const ProgressRing = memo(function ProgressRing({
   progress,
   size = 'md',
   showLabel = false,
   completed = false,
   className = '',
 }: ProgressRingProps) {
-  const config = sizeConfig[size];
-  const circumference = 2 * Math.PI * config.radius;
-  const strokeDasharray = `${(progress / 100) * circumference} ${circumference}`;
-  const viewBox = `0 0 ${config.diameter} ${config.diameter}`;
-  const center = config.diameter / 2;
-  // Background circle radius (fills the ring background)
-  const bgRadius = center - 1;
+  // Memoize calculations that depend on size and progress
+  const { config, strokeDasharray, viewBox, center, bgRadius } = useMemo(() => {
+    const cfg = sizeConfig[size];
+    const circumference = 2 * Math.PI * cfg.radius;
+    return {
+      config: cfg,
+      strokeDasharray: `${(progress / 100) * circumference} ${circumference}`,
+      viewBox: `0 0 ${cfg.diameter} ${cfg.diameter}`,
+      center: cfg.diameter / 2,
+      bgRadius: cfg.diameter / 2 - 1,
+    };
+  }, [size, progress]);
 
   // Show completed state when explicitly completed or at 100%
   const isCompleted = completed || progress >= 100;
@@ -114,4 +120,4 @@ export function ProgressRing({
       )}
     </svg>
   );
-}
+});
