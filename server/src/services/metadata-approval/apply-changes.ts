@@ -304,6 +304,9 @@ export async function applyChanges(
 
       const metadataUpdate: Partial<ComicInfo> = {};
       for (const [field, fc] of approvedFields) {
+        // Skip the special 'rename' field - it's not a ComicInfo.xml field
+        if (field === 'rename') continue;
+
         const value = fc.edited && fc.editedValue !== undefined ? fc.editedValue : fc.proposed;
         if (value !== null) {
           const comicInfoField = field.charAt(0).toUpperCase() + field.slice(1);
@@ -326,9 +329,15 @@ export async function applyChanges(
       let wasRenamed = false;
       let hadCollision = false;
 
+      // Check if user provided a custom rename value
+      const renameField = fileChange.fields.rename;
+      const userEditedFilename = renameField?.edited && renameField.editedValue !== undefined
+        ? String(renameField.editedValue)
+        : null;
+
       const completeMetadataResult = await readComicInfo(file.path);
       if (completeMetadataResult.success && completeMetadataResult.comicInfo) {
-        // Use template-based filename generation
+        // Use template-based filename generation (or user's custom name)
         const {
           result: generatedResult,
           finalFilename,
@@ -353,36 +362,45 @@ export async function applyChanges(
 
         hadCollision = collision;
 
+        // If user edited the filename, use that instead of the generated one
+        // (but only for simple renames, not folder moves)
+        const effectiveFilename = userEditedFilename || finalFilename;
+        const effectivePath = userEditedFilename
+          ? file.path.replace(/[^/\\]+$/, userEditedFilename)
+          : finalPath;
+
         // Check if rename/move is needed
-        const needsMove = file.path !== finalPath;
-        const needsRenameOnly = !needsMove && needsRename(filename, finalFilename);
+        const needsMove = file.path !== effectivePath && effectivePath !== file.path.replace(/[^/\\]+$/, effectiveFilename);
+        const needsRenameOnly = !needsMove && needsRename(filename, effectiveFilename);
 
         if (needsMove || needsRenameOnly) {
-          if (hadCollision) {
+          if (hadCollision && !userEditedFilename) {
             progress(
               `Collision detected: ${generatedResult.filename}`,
-              `Using: ${finalFilename} - you may want to review for duplicates`
+              `Using: ${effectiveFilename} - you may want to review for duplicates`
             );
           }
 
-          if (needsMove) {
+          if (userEditedFilename) {
+            progress(`Renaming: ${filename}`, `to ${effectiveFilename} (user specified)`);
+          } else if (needsMove) {
             progress(`Moving: ${filename}`, `to ${generatedResult.fullRelativePath}`);
           } else {
-            progress(`Renaming: ${filename}`, `to ${finalFilename}`);
+            progress(`Renaming: ${filename}`, `to ${effectiveFilename}`);
           }
 
           // Use move with tracking if folder changes, otherwise just rename
           const operationResult = needsMove
-            ? await moveFileWithTracking(fileChange.fileId, finalPath, {
+            ? await moveFileWithTracking(fileChange.fileId, effectivePath, {
                 createDirs: needsFolderCreation,
                 templateId: generatedResult.templateId || undefined,
               })
-            : await renameFileWithTracking(fileChange.fileId, finalFilename, {
+            : await renameFileWithTracking(fileChange.fileId, effectiveFilename, {
                 templateId: generatedResult.templateId || undefined,
               });
 
           if (operationResult.success) {
-            newFilename = finalFilename;
+            newFilename = effectiveFilename;
             wasRenamed = true;
           } else {
             logger.warn(

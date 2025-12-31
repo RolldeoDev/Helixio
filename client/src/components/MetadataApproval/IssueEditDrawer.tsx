@@ -497,6 +497,34 @@ export function IssueEditDrawer({
             </div>
           )}
 
+          {/* Rename Section - only show if rename field exists with a change */}
+          {(() => {
+            const renameFieldChange = getFieldChange('rename');
+            if (renameFieldChange && hasMeaningfulChange(renameFieldChange.proposed, renameFieldChange.current)) {
+              return (
+                <FieldSection
+                  key="rename"
+                  title="Rename"
+                  icon={'\u{1F4DD}'} // memo/document
+                  defaultExpanded={true}
+                  changeCount={1}
+                >
+                  <div className="fields-grid">
+                    <EditableField
+                      label="New Filename"
+                      fieldKey="rename"
+                      fieldChange={renameFieldChange}
+                      type="text"
+                      onChange={(value) => handleFieldChange('rename', value)}
+                      disabled={disabled}
+                    />
+                  </div>
+                </FieldSection>
+              );
+            }
+            return null;
+          })()}
+
           {/* Field Sections */}
           {Object.entries(FIELD_SECTIONS).map(([sectionKey, section]) => (
             <FieldSection
