@@ -933,7 +933,7 @@ export const RATING_ENGAGEMENT_ACHIEVEMENTS: Achievement[] = [
   { id: 're-37', key: 'rating_streak_14', name: 'Consistent Critic', description: 'Rate something 14 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 2, icon: 'flame', threshold: 14 },
   { id: 're-38', key: 'rating_streak_30', name: 'Monthly Dedication', description: 'Rate something 30 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 3, icon: 'flame', threshold: 30 },
   { id: 're-39', key: 'rating_streak_60', name: 'Rating Warrior', description: 'Rate something 60 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 4, icon: 'flame', threshold: 60 },
-  { id: 're-40', key: 'rating_streak_100', name: 'Rating Legend', description: 'Rate something 100 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 5, icon: 'crown', threshold: 100 },
+  { id: 're-40', key: 'rating_streak_100', name: 'Eternal Critic', description: 'Rate something 100 days in a row', category: 'ratings_engagement', type: 'rating_streak', stars: 5, icon: 'crown', threshold: 100 },
 
   // Review Quality (5)
   { id: 're-41', key: 'review_length_50', name: 'Brief Thoughts', description: 'Write a review with 50+ characters', category: 'ratings_engagement', type: 'review_length', stars: 1, icon: 'file-text', threshold: 50 },

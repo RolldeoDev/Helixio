@@ -148,6 +148,7 @@ describe('Filter Preset Service', () => {
 
       const result = await createFilterPreset('user-1', {
         name: 'My Filter',
+        type: 'file',
         filterDefinition: {
           id: 'filter-1',
           rootOperator: 'AND',
@@ -176,6 +177,7 @@ describe('Filter Preset Service', () => {
         'admin-1',
         {
           name: 'Global Filter',
+          type: 'file',
           filterDefinition: { id: 'f1', rootOperator: 'AND', groups: [] },
           isGlobal: true,
         },
@@ -200,6 +202,7 @@ describe('Filter Preset Service', () => {
         'user-1',
         {
           name: 'My Filter',
+          type: 'file',
           filterDefinition: { id: 'f1', rootOperator: 'AND', groups: [] },
           isGlobal: true, // Ignored for non-admin
         },
@@ -222,9 +225,10 @@ describe('Filter Preset Service', () => {
       await expect(
         createFilterPreset('user-1', {
           name: 'Duplicate',
+          type: 'file',
           filterDefinition: { id: 'f1', rootOperator: 'AND', groups: [] },
         })
-      ).rejects.toThrow('A preset named "Duplicate" already exists');
+      ).rejects.toThrow('A file preset named "Duplicate" already exists');
     });
   });
 
@@ -318,7 +322,7 @@ describe('Filter Preset Service', () => {
 
       await expect(
         updateFilterPreset('preset-1', 'user-1', { name: 'Already Taken' })
-      ).rejects.toThrow('A preset named "Already Taken" already exists');
+      ).rejects.toThrow('A file preset named "Already Taken" already exists');
     });
   });
 
@@ -537,7 +541,7 @@ describe('Filter Preset Service', () => {
 
       await expect(
         duplicatePreset('source', 'user-1', 'Duplicate Name')
-      ).rejects.toThrow('A preset named "Duplicate Name" already exists');
+      ).rejects.toThrow('A file preset named "Duplicate Name" already exists');
     });
   });
 

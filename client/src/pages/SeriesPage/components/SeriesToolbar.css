@@ -1,0 +1,486 @@
+/**
+ * SeriesToolbar Styles
+ *
+ * Filter controls with responsive layout.
+ * Collapses gracefully on smaller screens.
+ */
+
+/* =============================================================================
+   Base Container
+   ============================================================================= */
+
+.series-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* =============================================================================
+   Preset Mode Indicator
+   ============================================================================= */
+
+.series-toolbar__preset-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-primary-alpha, rgba(99, 102, 241, 0.1));
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--color-primary);
+}
+
+.series-toolbar__preset-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.series-toolbar__preset-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.series-toolbar__preset-label {
+  font-weight: 500;
+}
+
+.series-toolbar__preset-clear {
+  margin-left: auto;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.series-toolbar__preset-clear:hover {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* =============================================================================
+   Main Toolbar Row
+   ============================================================================= */
+
+.series-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+/* =============================================================================
+   Search Input
+   ============================================================================= */
+
+.series-toolbar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.series-toolbar__search-icon {
+  position: absolute;
+  left: 10px;
+  width: 18px;
+  height: 18px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.series-toolbar__search-input {
+  width: 100%;
+  padding: 8px 32px 8px 36px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.series-toolbar__search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.series-toolbar__search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-alpha, rgba(99, 102, 241, 0.2));
+}
+
+.series-toolbar__search-clear {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.series-toolbar__search-clear:hover {
+  color: var(--color-text);
+  background: var(--color-surface-hover);
+}
+
+.series-toolbar__search-clear svg {
+  width: 16px;
+  height: 16px;
+}
+
+.series-toolbar__search-spinner {
+  position: absolute;
+  right: 10px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: toolbar-spin 0.8s linear infinite;
+}
+
+@keyframes toolbar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============================================================================
+   Filter Dropdowns
+   ============================================================================= */
+
+.series-toolbar__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.series-toolbar__select {
+  padding: 8px 28px 8px 12px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+  /* Custom arrow */
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%239ca3af'%3E%3Cpath fill-rule='evenodd' d='M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+}
+
+.series-toolbar__select:hover {
+  border-color: var(--color-text-muted);
+}
+
+.series-toolbar__select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-alpha, rgba(99, 102, 241, 0.2));
+}
+
+/* =============================================================================
+   Checkbox
+   ============================================================================= */
+
+.series-toolbar__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+
+.series-toolbar__checkbox:hover {
+  border-color: var(--color-text-muted);
+}
+
+.series-toolbar__checkbox input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* =============================================================================
+   Sort Controls
+   ============================================================================= */
+
+.series-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.series-toolbar__sort-order {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.series-toolbar__sort-order:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+}
+
+.series-toolbar__sort-icon {
+  width: 18px;
+  height: 18px;
+  transition: transform 200ms ease;
+}
+
+.series-toolbar__sort-icon--desc {
+  transform: rotate(180deg);
+}
+
+/* =============================================================================
+   Card Size Slider
+   ============================================================================= */
+
+.series-toolbar__size {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-left: var(--spacing-md);
+  border-left: 1px solid var(--color-border);
+}
+
+.series-toolbar__size-label {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+}
+
+.series-toolbar__size-label svg {
+  width: 18px;
+  height: 18px;
+}
+
+.series-toolbar__size-slider {
+  width: 100px;
+  height: 4px;
+  appearance: none;
+  background: var(--color-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.series-toolbar__size-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.series-toolbar__size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.series-toolbar__size-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+/* =============================================================================
+   Active Filter Chips
+   ============================================================================= */
+
+.series-toolbar__chips {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  padding-top: var(--spacing-xs);
+}
+
+.series-toolbar__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--color-primary-alpha, rgba(99, 102, 241, 0.15));
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.series-toolbar__chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: currentColor;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.series-toolbar__chip-remove:hover {
+  opacity: 1;
+  background: var(--color-primary-alpha, rgba(99, 102, 241, 0.2));
+}
+
+.series-toolbar__chip-remove svg {
+  width: 12px;
+  height: 12px;
+}
+
+.series-toolbar__clear-all {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: border-color 150ms ease, color 150ms ease;
+}
+
+.series-toolbar__clear-all:hover {
+  border-color: var(--color-text-muted);
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Result Count
+   ============================================================================= */
+
+.series-toolbar__count {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  padding-top: var(--spacing-xs);
+}
+
+.series-toolbar__count-loading {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+/* =============================================================================
+   Responsive Breakpoints
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .series-toolbar__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .series-toolbar__search {
+    max-width: none;
+  }
+
+  .series-toolbar__filters {
+    order: 1;
+  }
+
+  .series-toolbar__sort {
+    margin-left: 0;
+    order: 2;
+  }
+
+  .series-toolbar__size {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--spacing-sm);
+    order: 3;
+  }
+}
+
+@media (max-width: 480px) {
+  .series-toolbar__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .series-toolbar__select {
+    width: 100%;
+  }
+
+  .series-toolbar__checkbox {
+    justify-content: space-between;
+  }
+
+  .series-toolbar__sort {
+    justify-content: space-between;
+  }
+
+  .series-toolbar__sort .series-toolbar__select {
+    flex: 1;
+  }
+
+  .series-toolbar__size-slider {
+    flex: 1;
+  }
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .series-toolbar__search-spinner {
+    animation: none;
+  }
+
+  .series-toolbar__sort-icon {
+    transition: none;
+  }
+
+  .series-toolbar__size-slider::-webkit-slider-thumb {
+    transition: none;
+  }
+}

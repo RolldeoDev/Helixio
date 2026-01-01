@@ -1,0 +1,499 @@
+/**
+ * SeriesCard Styles
+ *
+ * Simplified card for virtual grid with two rendering modes:
+ * - compact: Cover, title, badge (for large card sizes)
+ * - full: Everything including progress and hover effects
+ */
+
+/* =============================================================================
+   Base Component
+   ============================================================================= */
+
+.series-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-card);
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+  transition: border-color 150ms ease-out;
+}
+
+/* Border highlight on hover for all cards */
+.series-card:hover {
+  border-color: var(--color-primary-muted, rgba(99, 102, 241, 0.5));
+}
+
+/* Full mode: enable hover effects */
+.series-card--full {
+  transition:
+    box-shadow 150ms ease-out,
+    border-color 150ms ease-out,
+    transform 200ms ease-out;
+}
+
+.series-card--full:hover {
+  box-shadow: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
+  transform: scale(1.03);
+}
+
+/* Compact mode: minimal transitions */
+.series-card--compact {
+  transition: border-color 150ms ease-out;
+}
+
+/* Focus state */
+.series-card:focus-visible {
+  border-color: var(--color-focus-ring, #818cf8);
+  box-shadow: var(--shadow-card-elevated), 0 0 0 2px var(--color-primary-muted);
+}
+
+/* Selected state */
+.series-card--selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-muted);
+}
+
+/* =============================================================================
+   Cover Container
+   ============================================================================= */
+
+.series-card__cover {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface-card);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* =============================================================================
+   Cover Image
+   ============================================================================= */
+
+.series-card__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: transform 300ms ease-out;
+}
+
+/* Subtle zoom effect on hover */
+.series-card:hover .series-card__image {
+  transform: scale(1.05);
+}
+
+.series-card__image--loaded {
+  animation: series-card-fade-in 200ms ease-out forwards;
+}
+
+@keyframes series-card-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* =============================================================================
+   Skeleton Loading
+   ============================================================================= */
+
+.series-card__skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-card, #1a1a2e) 25%,
+    var(--color-surface-hover, #252542) 50%,
+    var(--color-surface-card, #1a1a2e) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =============================================================================
+   Error/Placeholder State
+   ============================================================================= */
+
+.series-card__error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    var(--color-surface-hover) 0%,
+    var(--color-surface-card) 100%
+  );
+}
+
+.series-card__initial {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* =============================================================================
+   Gradient Overlay
+   ============================================================================= */
+
+.series-card__gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.6) 0%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* =============================================================================
+   Selection Checkbox
+   ============================================================================= */
+
+.series-card__checkbox-wrapper {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+/* Show on hover or when selectable mode is active */
+.series-card:hover .series-card__checkbox-wrapper,
+.series-card--selectable .series-card__checkbox-wrapper,
+.series-card--selected .series-card__checkbox-wrapper {
+  opacity: 1;
+}
+
+.series-card__checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.series-card__checkbox-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-sm);
+  transition: all 150ms ease;
+}
+
+.series-card__checkbox-wrapper:hover .series-card__checkbox-custom {
+  border-color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.series-card__checkbox:checked + .series-card__checkbox-custom {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.series-card__checkbox:checked + .series-card__checkbox-custom::after {
+  content: '';
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+/* =============================================================================
+   Hover Overlay
+   ============================================================================= */
+
+.series-card__hover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  z-index: 3;
+}
+
+/* Show hover overlay for all cards (not just full mode) */
+.series-card:hover .series-card__hover-overlay {
+  opacity: 1;
+}
+
+.series-card__read-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: var(--color-primary, #6366f1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transform: scale(0.8);
+  transition: transform 150ms ease-out, background 150ms ease-out;
+}
+
+.series-card:hover .series-card__read-button {
+  transform: scale(1);
+}
+
+.series-card__read-button:hover {
+  background: var(--color-primary-hover, #818cf8);
+}
+
+.series-card__read-button:active {
+  transform: scale(0.95);
+}
+
+.series-card__read-icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* =============================================================================
+   Progress Bar
+   ============================================================================= */
+
+.series-card__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 4;
+  overflow: hidden;
+}
+
+.series-card__progress-fill {
+  height: 100%;
+  background: var(--color-primary, #6366f1);
+  transition: width 300ms ease-out;
+}
+
+.series-card__progress--complete .series-card__progress-fill {
+  background: var(--color-success, #22c55e);
+}
+
+/* =============================================================================
+   Issue Count Badge
+   ============================================================================= */
+
+.series-card__badge {
+  position: absolute;
+  bottom: 12px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: white;
+  letter-spacing: 0.02em;
+}
+
+.series-card__badge--complete {
+  background: rgba(34, 197, 94, 0.9);
+}
+
+.series-card__check-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* Compact mode: no blur for performance */
+.series-card--compact .series-card__badge {
+  backdrop-filter: none;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.series-card--compact .series-card__badge--complete {
+  background: rgba(34, 197, 94, 0.95);
+}
+
+/* =============================================================================
+   Collection Badge
+   ============================================================================= */
+
+.series-card__collection-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  border-radius: var(--radius-sm);
+  color: var(--color-primary);
+}
+
+.series-card__collection-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* =============================================================================
+   Info Section
+   ============================================================================= */
+
+.series-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border-top: 1px solid var(--color-border);
+  min-height: 48px;
+  min-width: 0;
+}
+
+.series-card__title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.series-card__meta {
+  display: flex;
+  gap: 6px;
+  font-size: 0.6875rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.series-card__year {
+  flex-shrink: 0;
+}
+
+.series-card__publisher {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.series-card__year + .series-card__publisher::before {
+  content: '\2022';
+  margin-right: 6px;
+  opacity: 0.5;
+}
+
+/* =============================================================================
+   Touch Device Optimizations
+   ============================================================================= */
+
+@media (hover: none), (pointer: coarse) {
+  .series-card:hover {
+    border-color: transparent;
+  }
+
+  .series-card--full:hover {
+    box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+    transform: none;
+  }
+
+  .series-card:hover .series-card__image {
+    transform: none;
+  }
+
+  .series-card:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* Hide hover overlay on touch devices */
+  .series-card__hover-overlay {
+    display: none;
+  }
+}
+
+/* =============================================================================
+   Reduced Motion
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .series-card {
+    transition: none;
+  }
+
+  .series-card--full:hover {
+    transform: none;
+  }
+
+  .series-card__skeleton {
+    animation: none;
+  }
+
+  .series-card__image {
+    transition: none;
+  }
+
+  .series-card:hover .series-card__image {
+    transform: none;
+  }
+
+  .series-card__image--loaded {
+    animation: none;
+    opacity: 1;
+  }
+
+  .series-card__progress-fill {
+    transition: none;
+  }
+
+  .series-card__hover-overlay {
+    transition: none;
+  }
+
+  .series-card__read-button {
+    transition: none;
+    transform: scale(1);
+  }
+}
