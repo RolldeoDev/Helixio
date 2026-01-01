@@ -184,20 +184,20 @@ export async function getApiKeyUsage(keyId: string, days: number = 30): Promise<
  * Get all API keys across all users (admin only)
  */
 export async function getAllApiKeys(): Promise<ApiKeyWithUser[]> {
-  const response = await get<{ success: boolean; data: { keys: ApiKeyWithUser[] } }>(
+  const response = await get<{ keys: ApiKeyWithUser[] }>(
     '/api-keys/admin/all'
   );
-  return response.data.keys;
+  return response.keys;
 }
 
 /**
  * Get system-wide API key statistics (admin only)
  */
 export async function getApiKeySystemStats(): Promise<SystemApiKeyStats> {
-  const response = await get<{ success: boolean; data: { stats: SystemApiKeyStats } }>(
+  const response = await get<{ stats: SystemApiKeyStats }>(
     '/api-keys/admin/stats'
   );
-  return response.data.stats;
+  return response.stats;
 }
 
 /**

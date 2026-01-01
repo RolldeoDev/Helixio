@@ -233,6 +233,15 @@ export interface ApprovalSession {
   sessionId: string;
   status: ApprovalSessionStatus;
   useLLMCleanup?: boolean;
+  /**
+   * Library type for metadata source prioritization.
+   * - 'manga': Prioritizes AniList/MAL sources, uses chapter/volume classification
+   * - 'western': Prioritizes ComicVine/Metron sources, uses issue-based classification
+   *
+   * Populated from the source library's type when creating the approval session.
+   * Used by SeriesApprovalStep and SeriesMetadataSearchModal to default the source selector.
+   */
+  libraryType?: 'western' | 'manga';
   fileCount: number;
   seriesGroups: Array<{
     displayName: string;
@@ -715,7 +724,7 @@ export async function skipSeries(sessionId: string): Promise<{
 }
 
 /**
- * Get all file changes for the session
+ * Get all file changes for the session (deprecated - use getFileChangesByJob)
  */
 export async function getFileChanges(sessionId: string): Promise<{
   status: ApprovalSessionStatus;
@@ -723,6 +732,18 @@ export async function getFileChanges(sessionId: string): Promise<{
   summary: ApprovalSession['fileChangesSummary'];
 }> {
   return get(`/metadata-approval/sessions/${sessionId}/files`);
+}
+
+/**
+ * Get all file changes for a job (restores session if needed)
+ * This is the preferred method as it handles session restoration.
+ */
+export async function getFileChangesByJob(jobId: string): Promise<{
+  status: ApprovalSessionStatus;
+  fileChanges: FileChange[];
+  summary: ApprovalSession['fileChangesSummary'];
+}> {
+  return get(`/metadata-jobs/${jobId}/files`);
 }
 
 /**

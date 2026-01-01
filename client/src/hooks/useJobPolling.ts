@@ -23,10 +23,41 @@ export interface CurrentProgress {
 }
 
 export interface ApplyProgress {
-  phase: 'idle' | 'converting' | 'applying' | 'creating_series_json' | 'complete';
+  phase: 'idle' | 'converting' | 'applying' | 'creating_series_json' | 'syncing_ratings' | 'complete';
   current: number;
   total: number;
   currentFile?: string;
+}
+
+/**
+ * Parse progress messages from the job into structured ApplyProgress data.
+ * This allows the UI to show accurate phase and progress during the apply step.
+ */
+export function parseApplyProgress(message?: string | null, detail?: string | null): ApplyProgress {
+  if (!message) return { phase: 'idle', current: 0, total: 0 };
+
+  // Parse "X of Y" from detail
+  const countMatch = detail?.match(/(\d+) of (\d+)/);
+  const current = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : 0;
+  const total = countMatch && countMatch[2] ? parseInt(countMatch[2], 10) : 0;
+
+  // Extract filename if present (Converting: X, Applying: X, Renaming: X, Moving: X)
+  const filenameMatch = message.match(/(?:Converting|Applying|Renaming|Moving): (.+)/);
+  const currentFile = filenameMatch?.[1];
+
+  // Determine phase from message content
+  let phase: ApplyProgress['phase'] = 'applying';
+  if (message.includes('Converting')) {
+    phase = 'converting';
+  } else if (message.includes('series metadata') || message.includes('series.json') || message.includes('mixed series')) {
+    phase = 'creating_series_json';
+  } else if (message.includes('rating') || message.includes('Rating')) {
+    phase = 'syncing_ratings';
+  } else if (message.includes('complete') || message.includes('Complete')) {
+    phase = 'complete';
+  }
+
+  return { phase, current, total, currentFile };
 }
 
 // Re-export ApplyResult from api.service

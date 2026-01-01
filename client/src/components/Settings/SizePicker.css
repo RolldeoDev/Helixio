@@ -1,0 +1,204 @@
+/* SizePicker - Size picker with slider, numeric input, and unit selector */
+
+.size-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+/* Font size preview */
+.size-picker__font-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  transition: font-size 150ms ease;
+  overflow: hidden;
+}
+
+/* Spacing preview */
+.size-picker__spacing-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.size-picker__spacing-box {
+  width: 24px;
+  height: 16px;
+  background: var(--color-primary);
+  border-radius: var(--radius-xs);
+  flex-shrink: 0;
+}
+
+.size-picker__spacing-gap {
+  height: 16px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--color-primary-muted) 10%,
+    var(--color-primary-muted) 90%,
+    transparent 100%
+  );
+  border-top: 1px dashed var(--color-border);
+  border-bottom: 1px dashed var(--color-border);
+  transition: width 150ms ease;
+  min-width: 2px;
+  max-width: 100px;
+}
+
+/* Visual bar showing relative size (for generic type) */
+.size-picker__bar {
+  height: 8px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.size-picker__bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent, var(--color-primary)));
+  border-radius: var(--radius-full);
+  transition: width 150ms ease;
+}
+
+/* Controls container */
+.size-picker__controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Presets row */
+.size-picker__presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.size-picker__preset {
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.size-picker__preset:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.size-picker__preset--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.size-picker__preset--active:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: white;
+}
+
+/* Slider and inputs row */
+.size-picker__input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.size-picker__slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.size-picker__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--color-primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.size-picker__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.size-picker__number {
+  width: 70px;
+  padding: 4px 8px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  text-align: right;
+}
+
+.size-picker__number:focus {
+  border-color: var(--color-primary);
+}
+
+.size-picker__unit {
+  padding: 4px 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  outline: none;
+}
+
+.size-picker__unit:focus {
+  border-color: var(--color-primary);
+}
+
+/* Text input for custom values */
+.size-picker__text {
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.size-picker__text:focus {
+  border-color: var(--color-primary);
+}
+
+.size-picker__text::placeholder {
+  color: var(--color-text-subtle);
+}

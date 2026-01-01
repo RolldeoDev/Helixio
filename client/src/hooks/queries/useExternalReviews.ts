@@ -12,6 +12,7 @@ import {
   syncSeriesReviews,
   deleteSeriesReviews,
   getIssueReviews,
+  syncIssueReviews,
   deleteIssueReviews,
   syncLibraryReviews,
   getReviewSyncJobs,
@@ -21,6 +22,7 @@ import {
   type SeriesReviewsResponse,
   type IssueReviewsResponse,
   type ReviewSyncResult,
+  type IssueSyncResult,
   type ReviewSyncOptions,
   type ReviewSyncJobStatus,
   type ReviewSourceStatus,
@@ -45,9 +47,15 @@ export function useSeriesReviews(
     includeUserReviews?: boolean;
   } = {}
 ) {
+  // Destructure options with defaults to ensure stable queryKey identity
+  const { source, limit, skipSpoilers = false, includeUserReviews = false } = options;
+
   return useQuery({
-    queryKey: [...queryKeys.externalReviews.series(seriesId!), options] as const,
-    queryFn: () => getSeriesReviews(seriesId!, options),
+    queryKey: [
+      ...queryKeys.externalReviews.series(seriesId!),
+      { source, limit, skipSpoilers, includeUserReviews },
+    ] as const,
+    queryFn: () => getSeriesReviews(seriesId!, { source, limit, skipSpoilers, includeUserReviews }),
     enabled: !!seriesId,
     staleTime: 5 * 60 * 1000, // Reviews are semi-static, 5 min stale time
   });
@@ -65,9 +73,15 @@ export function useIssueReviews(
     includeUserReviews?: boolean;
   } = {}
 ) {
+  // Destructure options with defaults to ensure stable queryKey identity
+  const { source, limit, skipSpoilers = false, includeUserReviews = false } = options;
+
   return useQuery({
-    queryKey: [...queryKeys.externalReviews.issue(fileId!), options] as const,
-    queryFn: () => getIssueReviews(fileId!, options),
+    queryKey: [
+      ...queryKeys.externalReviews.issue(fileId!),
+      { source, limit, skipSpoilers, includeUserReviews },
+    ] as const,
+    queryFn: () => getIssueReviews(fileId!, { source, limit, skipSpoilers, includeUserReviews }),
     enabled: !!fileId,
     staleTime: 5 * 60 * 1000,
   });
@@ -185,6 +199,33 @@ export function useDeleteSeriesReviews() {
 }
 
 /**
+ * Sync external reviews for an issue
+ */
+export function useSyncIssueReviews() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      fileId,
+      options = {},
+    }: {
+      fileId: string;
+      options?: {
+        forceRefresh?: boolean;
+        reviewLimit?: number;
+        skipSpoilers?: boolean;
+      };
+    }) => syncIssueReviews(fileId, options),
+    onSuccess: (_result, { fileId }) => {
+      // Invalidate the issue reviews query
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalReviews.issue(fileId),
+      });
+    },
+  });
+}
+
+/**
  * Delete all external reviews for an issue
  */
 export function useDeleteIssueReviews() {
@@ -265,6 +306,7 @@ export type {
   SeriesReviewsResponse,
   IssueReviewsResponse,
   ReviewSyncResult,
+  IssueSyncResult,
   ReviewSyncOptions,
   ReviewSyncJobStatus,
   ReviewSourceStatus,

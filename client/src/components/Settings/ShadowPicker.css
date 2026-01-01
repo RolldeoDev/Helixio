@@ -1,0 +1,296 @@
+/* ShadowPicker - Box shadow picker with presets and advanced controls */
+
+.shadow-picker {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  flex: 1;
+}
+
+/* Visual preview box */
+.shadow-picker__preview {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  padding: 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.shadow-picker__preview-box {
+  width: 100%;
+  height: 100%;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-sm);
+  transition: box-shadow 150ms ease;
+}
+
+/* Controls container */
+.shadow-picker__controls {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Presets row */
+.shadow-picker__presets {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.shadow-picker__preset {
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.shadow-picker__preset:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.shadow-picker__preset--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.shadow-picker__preset--active:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  color: white;
+}
+
+/* Advanced toggle */
+.shadow-picker__advanced-toggle {
+  align-self: flex-start;
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.shadow-picker__advanced-toggle:hover {
+  color: var(--color-text);
+}
+
+/* Layers container */
+.shadow-picker__layers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.shadow-picker__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-subtle);
+  text-align: center;
+  padding: var(--spacing-sm);
+}
+
+/* Individual layer */
+.shadow-picker__layer {
+  padding: var(--spacing-sm);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.shadow-picker__layer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.shadow-picker__layer-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.shadow-picker__layer-remove {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-text-subtle);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.shadow-picker__layer-remove:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.shadow-picker__layer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Inset checkbox */
+.shadow-picker__inset {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.shadow-picker__inset input {
+  margin: 0;
+}
+
+/* Slider rows */
+.shadow-picker__slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shadow-picker__slider-row label {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.shadow-picker__slider-row input[type='range'] {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--color-border);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.shadow-picker__slider-row input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+.shadow-picker__number {
+  width: 50px;
+  padding: 2px 4px;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  text-align: right;
+  outline: none;
+}
+
+.shadow-picker__number:focus {
+  border-color: var(--color-primary);
+}
+
+.shadow-picker__unit {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-subtle);
+}
+
+/* Color row */
+.shadow-picker__color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shadow-picker__color-row label {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.shadow-picker__color-input {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  outline: none;
+}
+
+.shadow-picker__color-input:focus {
+  border-color: var(--color-primary);
+}
+
+/* Add layer button */
+.shadow-picker__add-layer {
+  padding: 6px 12px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.shadow-picker__add-layer:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+}
+
+/* Text input for custom values */
+.shadow-picker__text {
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  outline: none;
+}
+
+.shadow-picker__text:focus {
+  border-color: var(--color-primary);
+}
+
+.shadow-picker__text::placeholder {
+  color: var(--color-text-subtle);
+}

@@ -35,6 +35,7 @@ export function MetadataApprovalModal() {
     options,
     applyResult,
     applyProgress,
+    currentProgress,
     setOptions,
     beginSession,
     closeModal,
@@ -552,7 +553,7 @@ export function MetadataApprovalModal() {
           <div className="step-content-centered">
             <div className="progress-display">
               <div className="spinner-large" />
-              <h3>Processing {fileIds.length} files...</h3>
+              <h3>Processing {filesToProcess.length} files...</h3>
               <p className="progress-hint">Progress details shown below</p>
             </div>
           </div>
@@ -580,8 +581,11 @@ export function MetadataApprovalModal() {
           <div className="step-content-centered">
             <div className="progress-display">
               <div className="spinner-large" />
-              <h3>Fetching Issue Details</h3>
-              <p className="progress-hint">Matching files to issues...</p>
+              <h3>{currentProgress.message || 'Fetching Issue Details'}</h3>
+              {currentProgress.detail && (
+                <p className="progress-detail">{currentProgress.detail}</p>
+              )}
+              <p className="progress-hint">Progress details shown below</p>
             </div>
           </div>
         );

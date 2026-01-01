@@ -10,16 +10,14 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { useMetadataJob, type ExpandedSeriesResult } from '../../contexts/MetadataJobContext';
+import { useMetadataJob } from '../../contexts/MetadataJobContext';
 import {
   type ApprovalSession,
   type SeriesMatch,
   type SeriesGroup,
-  type MergedSeriesMetadata,
   type MetadataSource,
 } from '../../services/api.service';
 import { SeriesDetailDrawer } from './SeriesDetailDrawer';
-import { MergedMetadataModal } from './MergedMetadataModal';
 import { MatchedFilesModal } from './MatchedFilesModal';
 import { useConfirmModal } from '../ConfirmModal';
 
@@ -41,11 +39,7 @@ export function SeriesApprovalStep({
     approveSeries: approveSeriesJob,
     skipSeries: skipSeriesJob,
     resetSeriesSelection,
-    expandResult,
-    searchAllSources,
-    options: _options,
   } = useMetadataJob();
-  void _options; // Reserved for future feature expansion
 
   // Confirmation modal hook
   const confirm = useConfirmModal();
@@ -97,14 +91,12 @@ export function SeriesApprovalStep({
   const [error, setError] = useState<string | null>(null);
   // Series detail drawer state
   const [drawerSeries, setDrawerSeries] = useState<SeriesMatch | null>(null);
-  // Merged metadata modal state (for expand functionality)
-  const [isExpandModalOpen, setIsExpandModalOpen] = useState(false);
-  const [expandedResult, setExpandedResult] = useState<ExpandedSeriesResult | null>(null);
-  const [isExpanding, setIsExpanding] = useState(false);
-  const [_expandingSeriesId, setExpandingSeriesId] = useState<string | null>(null);
-  void _expandingSeriesId; // Reserved for showing loading indicator on specific result
-  // Source selector state
-  const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>('all');
+  // Compute default source based on library type (manga → AniList, western → ComicVine)
+  const defaultSource = useMemo((): MetadataSource => {
+    return session.libraryType === 'manga' ? 'anilist' : 'comicvine';
+  }, [session.libraryType]);
+  // Source selector state - defaults based on library type
+  const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>(defaultSource);
   // Load more state
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // Matched files modal state
@@ -112,6 +104,16 @@ export function SeriesApprovalStep({
 
   // Track the last processed series index to avoid resetting user selections on polls
   const lastProcessedIndexRef = useRef<number | null>(null);
+  // Track library type to reset source when it changes (e.g., resuming a different job)
+  const lastLibraryTypeRef = useRef<string | undefined>(session.libraryType);
+
+  // Reset source selector when library type changes (e.g., resuming a different job)
+  useEffect(() => {
+    if (lastLibraryTypeRef.current !== session.libraryType) {
+      lastLibraryTypeRef.current = session.libraryType;
+      setSelectedSource(defaultSource);
+    }
+  }, [session.libraryType, defaultSource]);
 
   // Reset state when moving to a NEW series (index changes)
   useEffect(() => {
@@ -266,62 +268,6 @@ export function SeriesApprovalStep({
     resetSeriesSelection(index);
   }, [session.currentSeriesIndex, resetSeriesSelection]);
 
-  // Handler to expand a single series result (fetch from all sources)
-  // Reserved for future "expand to all sources" UI feature
-  const _handleExpandResult = useCallback(async (series: SeriesMatch) => {
-    setIsExpanding(true);
-    setExpandingSeriesId(series.sourceId);
-    setError(null);
-
-    try {
-      const result = await expandResult(series);
-      setExpandedResult(result);
-      setIsExpandModalOpen(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to expand search');
-    } finally {
-      setIsExpanding(false);
-      setExpandingSeriesId(null);
-    }
-  }, [expandResult]);
-  void _handleExpandResult;
-
-  // Handler to search all sources globally
-  // Reserved for future "search all sources" UI feature
-  const _handleSearchAllSources = useCallback(async () => {
-    if (!searchQuery.trim()) return;
-
-    setIsExpanding(true);
-    setExpandingSeriesId(null);
-    setError(null);
-
-    try {
-      const result = await searchAllSources(searchQuery.trim());
-      if (result) {
-        setExpandedResult(result);
-        setIsExpandModalOpen(true);
-      } else {
-        setError('No results found from any source');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to search all sources');
-    } finally {
-      setIsExpanding(false);
-    }
-  }, [searchQuery, searchAllSources]);
-  void _handleSearchAllSources;
-
-  // Handler when user accepts merged data from the modal
-  const handleAcceptMerged = useCallback((merged: MergedSeriesMetadata) => {
-    // Set as selected series
-    setSelectedSeriesId(merged.sourceId);
-    setIsExpandModalOpen(false);
-    setExpandedResult(null);
-
-    // Note: The merged data will be used when approving - the sourceId and source
-    // from the merged result point to the primary contributing source
-  }, []);
-
   if (!currentGroup) {
     // Show detailed diagnostic info when currentGroup is missing
     return (
@@ -416,7 +362,7 @@ export function SeriesApprovalStep({
           className="source-selector"
           value={selectedSource}
           onChange={(e) => setSelectedSource(e.target.value as MetadataSource | 'all')}
-          disabled={isSearching || isApproving || isExpanding}
+          disabled={isSearching || isApproving}
         >
           <option value="all">All Sources</option>
           <option value="comicvine">ComicVine</option>
@@ -431,12 +377,12 @@ export function SeriesApprovalStep({
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder="Search for series..."
-          disabled={isSearching || isApproving || isExpanding}
+          disabled={isSearching || isApproving}
         />
         <button
           className="btn-secondary"
           onClick={handleSearch}
-          disabled={isSearching || isApproving || isExpanding || !searchQuery.trim()}
+          disabled={isSearching || isApproving || !searchQuery.trim()}
         >
           {isSearching ? 'Searching...' : 'Search'}
         </button>
@@ -719,21 +665,6 @@ export function SeriesApprovalStep({
         }}
         isSelected={drawerSeries?.sourceId === selectedSeriesId}
       />
-
-      {/* Merged Metadata Modal - shows comparison when expanding */}
-      {expandedResult && (
-        <MergedMetadataModal
-          isOpen={isExpandModalOpen}
-          onClose={() => {
-            setIsExpandModalOpen(false);
-            setExpandedResult(null);
-          }}
-          onAccept={handleAcceptMerged}
-          sourceResults={expandedResult.sourceResults}
-          mergedPreview={expandedResult.merged}
-          isLoading={false}
-        />
-      )}
 
       {/* Matched Files Modal - shows all files in current series group */}
       <MatchedFilesModal

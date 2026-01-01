@@ -40,6 +40,44 @@ import { pulpLightTheme } from './bundled/pulp-light';
 // Re-export types
 export * from './types';
 
+// Default token values for backward compatibility with external themes
+// that may not have all the new properties
+export const DEFAULT_TOKENS: Partial<ThemeTokens> = {
+  // Radius
+  radiusXs: '2px',
+  // Overlays
+  overlayDarkSubtle: 'rgba(0, 0, 0, 0.1)',
+  overlayDarkLight: 'rgba(0, 0, 0, 0.2)',
+  overlayDarkMedium: 'rgba(0, 0, 0, 0.3)',
+  overlayDarkHeavy: 'rgba(0, 0, 0, 0.5)',
+  overlayDarkIntense: 'rgba(0, 0, 0, 0.7)',
+  overlayLightSubtle: 'rgba(255, 255, 255, 0.05)',
+  overlayLightLight: 'rgba(255, 255, 255, 0.1)',
+  overlayLightMedium: 'rgba(255, 255, 255, 0.15)',
+  overlayLightHeavy: 'rgba(255, 255, 255, 0.3)',
+  // Spacing
+  spacing2: '2px',
+  spacingXs: '4px',
+  spacing6: '6px',
+  spacingSm: '8px',
+  spacing10: '10px',
+  spacing12: '12px',
+  spacingMd: '16px',
+  spacing20: '20px',
+  spacingLg: '24px',
+  spacingXl: '32px',
+  spacing2xl: '48px',
+  // Font sizes
+  fontSizeXs: '0.75rem',
+  fontSizeSm: '0.875rem',
+  fontSizeBase: '1rem',
+  fontSizeLg: '1.125rem',
+  fontSizeXl: '1.25rem',
+  fontSize2xl: '1.5rem',
+  fontSize3xl: '1.875rem',
+  fontSize4xl: '2.25rem',
+};
+
 // Re-export theme effects components
 export { HelixEffects } from './helix';
 export { SandmanEffects } from './sandman';
@@ -104,6 +142,8 @@ export function getDefaultTheme(scheme: ColorScheme = 'dark'): ThemeDefinition {
 
 // Convert theme tokens to CSS variables
 export function tokensToCSSVariables(tokens: ThemeTokens): Record<string, string> {
+  // Merge with defaults for backward compatibility
+  const mergedTokens = { ...DEFAULT_TOKENS, ...tokens } as ThemeTokens;
   const cssVars: Record<string, string> = {};
 
   // Map token keys to CSS variable names
@@ -147,17 +187,49 @@ export function tokensToCSSVariables(tokens: ThemeTokens): Record<string, string
     colorIssueBadgeCompleted: '--color-issue-badge-completed',
     colorIssueBadgeText: '--color-issue-badge-text',
     colorIssueBadgeTextCompleted: '--color-issue-badge-text-completed',
+    radiusXs: '--radius-xs',
     radiusSm: '--radius-sm',
     radiusMd: '--radius-md',
     radiusLg: '--radius-lg',
     radiusXl: '--radius-xl',
     radiusFull: '--radius-full',
+    // Overlays
+    overlayDarkSubtle: '--overlay-dark-subtle',
+    overlayDarkLight: '--overlay-dark-light',
+    overlayDarkMedium: '--overlay-dark-medium',
+    overlayDarkHeavy: '--overlay-dark-heavy',
+    overlayDarkIntense: '--overlay-dark-intense',
+    overlayLightSubtle: '--overlay-light-subtle',
+    overlayLightLight: '--overlay-light-light',
+    overlayLightMedium: '--overlay-light-medium',
+    overlayLightHeavy: '--overlay-light-heavy',
+    // Spacing
+    spacing2: '--spacing-2',
+    spacingXs: '--spacing-xs',
+    spacing6: '--spacing-6',
+    spacingSm: '--spacing-sm',
+    spacing10: '--spacing-10',
+    spacing12: '--spacing-12',
+    spacingMd: '--spacing-md',
+    spacing20: '--spacing-20',
+    spacingLg: '--spacing-lg',
+    spacingXl: '--spacing-xl',
+    spacing2xl: '--spacing-2xl',
+    // Font sizes
+    fontSizeXs: '--font-size-xs',
+    fontSizeSm: '--font-size-sm',
+    fontSizeBase: '--font-size-base',
+    fontSizeLg: '--font-size-lg',
+    fontSizeXl: '--font-size-xl',
+    fontSize2xl: '--font-size-2xl',
+    fontSize3xl: '--font-size-3xl',
+    fontSize4xl: '--font-size-4xl',
   };
 
-  (Object.keys(tokens) as (keyof ThemeTokens)[]).forEach((key) => {
+  (Object.keys(mergedTokens) as (keyof ThemeTokens)[]).forEach((key) => {
     const cssVar = keyMap[key];
     if (cssVar) {
-      cssVars[cssVar] = tokens[key];
+      cssVars[cssVar] = mergedTokens[key];
     }
   });
 

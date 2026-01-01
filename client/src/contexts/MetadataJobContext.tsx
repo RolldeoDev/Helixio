@@ -48,7 +48,7 @@ import {
   convertDbLogsToStepLogs,
   getCompletedStepsFromStatus,
 } from '../hooks/useStepLogs';
-import type { CurrentProgress, ApplyProgress } from '../hooks/useJobPolling';
+import { parseApplyProgress, type CurrentProgress, type ApplyProgress } from '../hooks/useJobPolling';
 
 // =============================================================================
 // Session Normalization Helper
@@ -136,8 +136,8 @@ interface MetadataJobContextValue extends MetadataJobState {
   setOptions: (options: CreateApprovalSessionOptions) => void;
   /** Begin the session (after options are set) */
   beginSession: () => Promise<void>;
-  /** Open the modal to view current job */
-  openModal: () => void;
+  /** Open the modal to view current job (fetches fresh data) */
+  openModal: () => Promise<void>;
   /** Close the modal (job continues in background) */
   closeModal: () => void;
   /** Cancel the current job */
@@ -273,11 +273,14 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
         const { jobs } = await listMetadataJobs();
         setActiveJobs(jobs);
 
-        // If there's an in-progress job on initial load, show the banner
+        // If there's an in-progress job on initial load, show the banner and store the job ID
         if (jobs.length > 0) {
-          const activeJob = jobs[0];
-          if (activeJob && activeJob.status !== 'options' && activeJob.status !== 'complete') {
+          const activeJob = jobs.find(j =>
+            j.status !== 'options' && j.status !== 'complete' && j.status !== 'cancelled'
+          );
+          if (activeJob) {
             setHasActiveJob(true);
+            setJobId(activeJob.id);
           }
         }
       } catch (err) {
@@ -342,6 +345,11 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
           detail: job.currentProgressDetail,
         });
         setCompletedSteps(getCompletedStepsFromStatus(newStep));
+
+        // Parse and update apply progress during the applying phase
+        if (newStep === 'applying' || step === 'applying') {
+          setApplyProgress(parseApplyProgress(job.currentProgressMessage, job.currentProgressDetail));
+        }
 
         if (job.session) {
           setSession(normalizeSession(job.session));
@@ -486,9 +494,47 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
     // This prevents double-starts during the initialization phase
   }, [jobId, markStepCompleted]);
 
-  const openModal = useCallback(() => {
+  const openModal = useCallback(async () => {
+    let targetJobId = jobId;
+
+    // If no jobId but we know there's an active job, find it from activeJobs list
+    // This handles edge cases where the job ID wasn't set properly
+    if (!targetJobId && hasActiveJob && activeJobs.length > 0) {
+      const inProgressJob = activeJobs.find(j =>
+        j.status !== 'options' && j.status !== 'complete' && j.status !== 'cancelled'
+      );
+      if (inProgressJob) {
+        targetJobId = inProgressJob.id;
+      }
+    }
+
+    // Fetch fresh state when opening modal to ensure data is current
+    // This handles: 1) page refresh scenarios, 2) stale data after modal close
+    if (targetJobId) {
+      try {
+        const { job } = await getMetadataJob(targetJobId);
+        setJobId(job.id);
+        setFileIds(job.fileIds);
+        setStep(job.status as JobStep);
+        setSession(normalizeSession(job.session));
+        setStepLogs(convertDbLogsToStepLogs(job.logs));
+        setCurrentProgress({
+          message: job.currentProgressMessage,
+          detail: job.currentProgressDetail,
+        });
+        setCompletedSteps(getCompletedStepsFromStatus(job.status as JobStep));
+        setError(job.error);
+        setOptionsState(job.options);
+        if (job.applyResult) {
+          setApplyResultState(job.applyResult);
+        }
+      } catch (err) {
+        console.error('Failed to refresh job on modal open:', err);
+      }
+    }
+
     setIsModalOpen(true);
-  }, []);
+  }, [jobId, hasActiveJob, activeJobs]);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);

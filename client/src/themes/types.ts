@@ -86,11 +86,46 @@ export interface ThemeTokens {
   colorIssueBadgeTextCompleted: string; // Text color for completed issue badges
 
   // Border radius
+  radiusXs: string;
   radiusSm: string;
   radiusMd: string;
   radiusLg: string;
   radiusXl: string;
   radiusFull: string;
+
+  // Overlays
+  overlayDarkSubtle: string;
+  overlayDarkLight: string;
+  overlayDarkMedium: string;
+  overlayDarkHeavy: string;
+  overlayDarkIntense: string;
+  overlayLightSubtle: string;
+  overlayLightLight: string;
+  overlayLightMedium: string;
+  overlayLightHeavy: string;
+
+  // Spacing
+  spacing2: string;
+  spacingXs: string;
+  spacing6: string;
+  spacingSm: string;
+  spacing10: string;
+  spacing12: string;
+  spacingMd: string;
+  spacing20: string;
+  spacingLg: string;
+  spacingXl: string;
+  spacing2xl: string;
+
+  // Font sizes
+  fontSizeXs: string;
+  fontSizeSm: string;
+  fontSizeBase: string;
+  fontSizeLg: string;
+  fontSizeXl: string;
+  fontSize2xl: string;
+  fontSize3xl: string;
+  fontSize4xl: string;
 }
 
 export interface ThemeMeta {
@@ -287,11 +322,55 @@ export const VARIABLE_GROUPS: VariableGroup[] = [
   {
     name: 'Border Radius',
     variables: [
+      { key: 'radiusXs', label: '--radius-xs', type: 'radius' },
       { key: 'radiusSm', label: '--radius-sm', type: 'radius' },
       { key: 'radiusMd', label: '--radius-md', type: 'radius' },
       { key: 'radiusLg', label: '--radius-lg', type: 'radius' },
       { key: 'radiusXl', label: '--radius-xl', type: 'radius' },
       { key: 'radiusFull', label: '--radius-full', type: 'radius' },
+    ],
+  },
+  {
+    name: 'Overlays',
+    variables: [
+      { key: 'overlayDarkSubtle', label: '--overlay-dark-subtle', type: 'color' },
+      { key: 'overlayDarkLight', label: '--overlay-dark-light', type: 'color' },
+      { key: 'overlayDarkMedium', label: '--overlay-dark-medium', type: 'color' },
+      { key: 'overlayDarkHeavy', label: '--overlay-dark-heavy', type: 'color' },
+      { key: 'overlayDarkIntense', label: '--overlay-dark-intense', type: 'color' },
+      { key: 'overlayLightSubtle', label: '--overlay-light-subtle', type: 'color' },
+      { key: 'overlayLightLight', label: '--overlay-light-light', type: 'color' },
+      { key: 'overlayLightMedium', label: '--overlay-light-medium', type: 'color' },
+      { key: 'overlayLightHeavy', label: '--overlay-light-heavy', type: 'color' },
+    ],
+  },
+  {
+    name: 'Spacing',
+    variables: [
+      { key: 'spacing2', label: '--spacing-2', type: 'size' },
+      { key: 'spacingXs', label: '--spacing-xs', type: 'size' },
+      { key: 'spacing6', label: '--spacing-6', type: 'size' },
+      { key: 'spacingSm', label: '--spacing-sm', type: 'size' },
+      { key: 'spacing10', label: '--spacing-10', type: 'size' },
+      { key: 'spacing12', label: '--spacing-12', type: 'size' },
+      { key: 'spacingMd', label: '--spacing-md', type: 'size' },
+      { key: 'spacing20', label: '--spacing-20', type: 'size' },
+      { key: 'spacingLg', label: '--spacing-lg', type: 'size' },
+      { key: 'spacingXl', label: '--spacing-xl', type: 'size' },
+      { key: 'spacing2xl', label: '--spacing-2xl', type: 'size' },
+    ],
+  },
+  {
+    name: 'Font Sizes',
+    variables: [
+      { key: 'fontSizeXs', label: '--font-size-xs', type: 'size' },
+      { key: 'fontSizeSm', label: '--font-size-sm', type: 'size' },
+      { key: 'fontSizeBase', label: '--font-size-base', type: 'size' },
+      { key: 'fontSizeLg', label: '--font-size-lg', type: 'size' },
+      { key: 'fontSizeXl', label: '--font-size-xl', type: 'size' },
+      { key: 'fontSize2xl', label: '--font-size-2xl', type: 'size' },
+      { key: 'fontSize3xl', label: '--font-size-3xl', type: 'size' },
+      { key: 'fontSize4xl', label: '--font-size-4xl', type: 'size' },
     ],
   },
 ];

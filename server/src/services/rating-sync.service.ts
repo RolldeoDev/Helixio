@@ -574,7 +574,10 @@ export async function syncIssueRatings(
  */
 export async function syncSeriesIssueRatings(
   seriesId: string,
-  options: { forceRefresh?: boolean } = {}
+  options: {
+    forceRefresh?: boolean;
+    onProgress?: (message: string, detail: string) => void;
+  } = {}
 ): Promise<SeriesIssuesSyncResult> {
   const db = getDatabase();
 
@@ -642,9 +645,20 @@ export async function syncSeriesIssueRatings(
   logger.info({ seriesId, seriesName: series.name, issueCount: files.length }, 'Starting issue ratings sync');
 
   // Sync each issue
-  for (const file of files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]!;
+    const issueNumber = file.metadata?.number || 'Unknown';
+
+    // Report per-issue progress
+    if (options.onProgress) {
+      options.onProgress(
+        `${series.name} #${issueNumber}`,
+        `${i + 1} of ${files.length}`
+      );
+    }
+
     try {
-      const syncResult = await syncIssueRatings(file.id, options);
+      const syncResult = await syncIssueRatings(file.id, { forceRefresh: options.forceRefresh });
 
       if (syncResult.success) {
         result.syncedIssues++;

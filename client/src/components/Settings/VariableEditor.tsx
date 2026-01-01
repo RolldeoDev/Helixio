@@ -5,6 +5,9 @@ import { VARIABLE_GROUPS, toKebabCase } from '../../themes/types';
 import type { ThemeTokens, ThemeId, EffectToggleDefinition, EffectCategory } from '../../themes/types';
 import { RgbaColorPicker } from './RgbaColorPicker';
 import { RadiusPicker } from './RadiusPicker';
+import { ShadowPicker } from './ShadowPicker';
+import { FontPicker } from './FontPicker';
+import { SizePicker } from './SizePicker';
 import { useConfirmModal } from '../ConfirmModal';
 import './VariableEditor.css';
 
@@ -346,6 +349,41 @@ export function VariableEditor({ onClose }: VariableEditorProps) {
                                 variable.key as keyof ThemeTokens,
                                 newValue
                               )
+                            }
+                          />
+                        ) : variable.type === 'shadow' ? (
+                          <ShadowPicker
+                            value={value}
+                            onChange={(newValue) =>
+                              handleChange(
+                                variable.key as keyof ThemeTokens,
+                                newValue
+                              )
+                            }
+                          />
+                        ) : variable.type === 'font' ? (
+                          <FontPicker
+                            value={value}
+                            onChange={(newValue) =>
+                              handleChange(
+                                variable.key as keyof ThemeTokens,
+                                newValue
+                              )
+                            }
+                          />
+                        ) : variable.type === 'size' ? (
+                          <SizePicker
+                            value={value}
+                            onChange={(newValue) =>
+                              handleChange(
+                                variable.key as keyof ThemeTokens,
+                                newValue
+                              )
+                            }
+                            sizeType={
+                              variable.key.startsWith('spacing') ? 'spacing' :
+                              variable.key.startsWith('fontSize') ? 'fontSize' :
+                              'generic'
                             }
                           />
                         ) : (

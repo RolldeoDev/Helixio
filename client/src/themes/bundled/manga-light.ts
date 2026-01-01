@@ -29,13 +29,13 @@ export const mangaLightTheme: ThemeDefinition = {
     },
   },
   tokens: {
-    // Background colors - Warm cream and soft pink
+    // Background colors - Warm cream with pink warmth
     colorBg: '#faf9f7',
     colorBgSecondary: '#fff5f6',
     colorBgTertiary: '#f5f3f0',
     colorBgElevated: '#ffffff',
-    colorBgCard: '#ffffff',
-    colorSurfaceCardHover: 'rgba(212, 122, 140, 0.06)',
+    colorBgCard: '#fefbfc', // Subtle pink-warm tint
+    colorSurfaceCardHover: 'rgba(212, 122, 140, 0.08)',
 
     // Primary & Accent - Deep sakura and wisteria
     colorPrimary: '#d47a8c',
@@ -57,16 +57,16 @@ export const mangaLightTheme: ThemeDefinition = {
     colorDanger: '#d05858',
     colorInfo: '#6aaccc',
 
-    // Borders & interactions
-    colorBorder: '#e8e0e2',
-    colorBorderSubtle: '#f0e8ea',
+    // Borders & interactions - Ink-style borders
+    colorBorder: '#2a2530', // Darker ink-like border for manga panel feel
+    colorBorderSubtle: '#e8e0e2',
     colorDivider: 'linear-gradient(90deg, transparent, #e8e0e2 20%, #e8e0e2 80%, transparent)',
     colorHover: 'rgba(212, 122, 140, 0.08)',
     colorSelected: 'rgba(212, 122, 140, 0.12)',
     colorFocusRing: 'rgba(212, 122, 140, 0.35)',
 
-    // Typography - Elegant Japanese-inspired fonts
-    fontDisplay: "'Shippori Antique', 'Hiragino Mincho ProN', serif",
+    // Typography - Japanese-inspired with playful fallbacks
+    fontDisplay: "'Shippori Antique', 'Comic Neue', 'Hiragino Mincho ProN', serif",
     fontBody: "'Zen Kaku Gothic New', 'Hiragino Sans', system-ui, sans-serif",
 
     // Shadows - Soft, ethereal
@@ -86,12 +86,47 @@ export const mangaLightTheme: ThemeDefinition = {
     colorIssueBadgeText: '#1a1a1a',
     colorIssueBadgeTextCompleted: '#1a1a1a',
 
-    // Border radius - Soft, rounded edges
-    radiusSm: '6px',
-    radiusMd: '10px',
-    radiusLg: '14px',
-    radiusXl: '20px',
+    // Border radius - Extra soft, kawaii-rounded edges
+    radiusXs: '4px',
+    radiusSm: '8px',
+    radiusMd: '14px',
+    radiusLg: '18px',
+    radiusXl: '24px',
     radiusFull: '9999px',
+
+    // Overlays
+    overlayDarkSubtle: 'rgba(0, 0, 0, 0.1)',
+    overlayDarkLight: 'rgba(0, 0, 0, 0.2)',
+    overlayDarkMedium: 'rgba(0, 0, 0, 0.3)',
+    overlayDarkHeavy: 'rgba(0, 0, 0, 0.5)',
+    overlayDarkIntense: 'rgba(0, 0, 0, 0.7)',
+    overlayLightSubtle: 'rgba(255, 255, 255, 0.05)',
+    overlayLightLight: 'rgba(255, 255, 255, 0.1)',
+    overlayLightMedium: 'rgba(255, 255, 255, 0.15)',
+    overlayLightHeavy: 'rgba(255, 255, 255, 0.3)',
+
+    // Spacing
+    spacing2: '2px',
+    spacingXs: '4px',
+    spacing6: '6px',
+    spacingSm: '8px',
+    spacing10: '10px',
+    spacing12: '12px',
+    spacingMd: '16px',
+    spacing20: '20px',
+    spacingLg: '24px',
+    spacingXl: '32px',
+    spacing2xl: '48px',
+
+    // Font sizes
+    fontSizeXs: '0.75rem',
+    fontSizeSm: '0.875rem',
+    fontSizeBase: '1rem',
+    fontSizeLg: '1.125rem',
+    fontSizeXl: '1.25rem',
+    fontSize2xl: '1.5rem',
+    fontSize3xl: '1.875rem',
+    fontSize4xl: '2.25rem',
   },
   effects: mangaEffects,
 };

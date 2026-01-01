@@ -28,6 +28,7 @@ import type {
   ParsedFileData,
   ProgressCallback,
   SeriesMatch,
+  MetadataSource,
 } from './types.js';
 
 const logger = createServiceLogger('metadata-approval-session');
@@ -335,75 +336,114 @@ export async function createSessionWithProgress(
       };
     }
 
+    // Determine source and sourceId from series.json (if present)
+    // Check all possible sources in priority order
+    let seriesJsonSource: MetadataSource | null = null;
+    let seriesJsonSourceId: string | null = null;
+
     if (existingSeriesJson) {
-      let folderGroup = preApprovedGroups.find((g) =>
-        g.fileIds.some((fid) => {
-          const f = files.find((ff) => ff.id === fid);
-          return f && dirname(f.path) === folderPath;
-        })
-      );
-
-      if (!folderGroup) {
-        const seriesMatch: SeriesMatch = {
-          source: existingSeriesJson.comicVineSeriesId ? 'comicvine' : 'metron',
-          sourceId: existingSeriesJson.comicVineSeriesId || existingSeriesJson.metronSeriesId || '',
-          name: existingSeriesJson.seriesName,
-          startYear: existingSeriesJson.startYear,
-          endYear: existingSeriesJson.endYear,
-          publisher: existingSeriesJson.publisher,
-          issueCount: existingSeriesJson.issueCount,
-          description: existingSeriesJson.summary || existingSeriesJson.deck,
-          coverUrl: existingSeriesJson.coverUrl,
-          confidence: 1.0,
-          url: existingSeriesJson.siteUrl,
-        };
-
-        // Check if there's a separate issue matching series stored
-        let issueMatchingSeriesMatch: SeriesMatch | null = null;
-        if (existingSeriesJson.issueMatchingSeriesName) {
-          const issueMatchSource = existingSeriesJson.issueMatchingComicVineId ? 'comicvine' : 'metron';
-          const issueMatchSourceId =
-            existingSeriesJson.issueMatchingComicVineId || existingSeriesJson.issueMatchingMetronId || '';
-
-          if (issueMatchSourceId) {
-            issueMatchingSeriesMatch = {
-              source: issueMatchSource,
-              sourceId: issueMatchSourceId,
-              name: existingSeriesJson.issueMatchingSeriesName,
-              startYear: existingSeriesJson.issueMatchingStartYear,
-              publisher: existingSeriesJson.issueMatchingPublisher,
-              issueCount: existingSeriesJson.issueMatchingIssueCount,
-              confidence: 1.0,
-            };
-          }
-        }
-
-        folderGroup = {
-          query: { series: existingSeriesJson.seriesName, year: existingSeriesJson.startYear },
-          displayName: existingSeriesJson.seriesName,
-          fileIds: [],
-          filenames: [],
-          parsedFiles: {},
-          searchResults: [seriesMatch],
-          selectedSeries: seriesMatch,
-          issueMatchingSeries: issueMatchingSeriesMatch,
-          status: 'approved',
-          preApprovedFromSeriesJson: true,
-        };
-        preApprovedGroups.push(folderGroup);
-
-        const issueMatchNote = issueMatchingSeriesMatch
-          ? ` (issues: "${issueMatchingSeriesMatch.name}")`
-          : '';
-        progress(
-          `Using series.json: "${existingSeriesJson.seriesName}"${issueMatchNote}`,
-          `Folder: ${folderPath.split('/').pop()}`
-        );
+      if (existingSeriesJson.comicVineSeriesId) {
+        seriesJsonSource = 'comicvine';
+        seriesJsonSourceId = existingSeriesJson.comicVineSeriesId;
+      } else if (existingSeriesJson.metronSeriesId) {
+        seriesJsonSource = 'metron';
+        seriesJsonSourceId = existingSeriesJson.metronSeriesId;
+      } else if (existingSeriesJson.anilistId) {
+        seriesJsonSource = 'anilist';
+        seriesJsonSourceId = existingSeriesJson.anilistId;
+      } else if (existingSeriesJson.malId) {
+        seriesJsonSource = 'mal';
+        seriesJsonSourceId = existingSeriesJson.malId;
       }
 
-      folderGroup.fileIds.push(file.id);
-      folderGroup.filenames.push(file.filename);
-      folderGroup.parsedFiles[file.id] = parsedData;
+      if (!seriesJsonSource || !seriesJsonSourceId) {
+        logger.debug(
+          { folderPath, seriesName: existingSeriesJson.seriesName },
+          'series.json has no external ID, skipping pre-approval'
+        );
+      }
+    }
+
+    // Use series.json pre-approval only if we have a valid external ID
+    if (existingSeriesJson && seriesJsonSource && seriesJsonSourceId) {
+      let folderGroup = preApprovedGroups.find((g) =>
+          g.fileIds.some((fid) => {
+            const f = files.find((ff) => ff.id === fid);
+            return f && dirname(f.path) === folderPath;
+          })
+        );
+
+        if (!folderGroup) {
+          const seriesMatch: SeriesMatch = {
+            source: seriesJsonSource,
+            sourceId: seriesJsonSourceId,
+            name: existingSeriesJson.seriesName,
+            startYear: existingSeriesJson.startYear,
+            endYear: existingSeriesJson.endYear,
+            publisher: existingSeriesJson.publisher,
+            issueCount: existingSeriesJson.issueCount,
+            description: existingSeriesJson.summary || existingSeriesJson.deck,
+            coverUrl: existingSeriesJson.coverUrl,
+            confidence: 1.0,
+            url: existingSeriesJson.siteUrl,
+          };
+
+          // Check if there's a separate issue matching series stored
+          let issueMatchingSeriesMatch: SeriesMatch | null = null;
+          if (existingSeriesJson.issueMatchingSeriesName) {
+            // Determine issue matching source and ID
+            let issueMatchSource: MetadataSource | null = null;
+            let issueMatchSourceId: string | null = null;
+
+            if (existingSeriesJson.issueMatchingComicVineId) {
+              issueMatchSource = 'comicvine';
+              issueMatchSourceId = existingSeriesJson.issueMatchingComicVineId;
+            } else if (existingSeriesJson.issueMatchingMetronId) {
+              issueMatchSource = 'metron';
+              issueMatchSourceId = existingSeriesJson.issueMatchingMetronId;
+            }
+            // Note: Issue matching series are typically only for ComicVine/Metron
+            // (used for collected editions that map to a different main series)
+
+            if (issueMatchSource && issueMatchSourceId) {
+              issueMatchingSeriesMatch = {
+                source: issueMatchSource,
+                sourceId: issueMatchSourceId,
+                name: existingSeriesJson.issueMatchingSeriesName,
+                startYear: existingSeriesJson.issueMatchingStartYear,
+                publisher: existingSeriesJson.issueMatchingPublisher,
+                issueCount: existingSeriesJson.issueMatchingIssueCount,
+                confidence: 1.0,
+              };
+            }
+          }
+
+          folderGroup = {
+            query: { series: existingSeriesJson.seriesName, year: existingSeriesJson.startYear },
+            displayName: existingSeriesJson.seriesName,
+            fileIds: [],
+            filenames: [],
+            parsedFiles: {},
+            searchResults: [seriesMatch],
+            selectedSeries: seriesMatch,
+            issueMatchingSeries: issueMatchingSeriesMatch,
+            status: 'approved',
+            preApprovedFromSeriesJson: true,
+          };
+          preApprovedGroups.push(folderGroup);
+
+          const issueMatchNote = issueMatchingSeriesMatch
+            ? ` (issues: "${issueMatchingSeriesMatch.name}")`
+            : '';
+          progress(
+            `Using series.json: "${existingSeriesJson.seriesName}"${issueMatchNote}`,
+            `Folder: ${folderPath.split('/').pop()}`
+          );
+        }
+
+        folderGroup.fileIds.push(file.id);
+        folderGroup.filenames.push(file.filename);
+        folderGroup.parsedFiles[file.id] = parsedData;
     } else {
       const query = llmParsed?.series
         ? { series: llmParsed.series, issueNumber: llmParsed.number?.toString(), year: llmParsed.year }
