@@ -250,13 +250,36 @@ app.put('/api/config/api-keys', requireAdmin, (req, res) => {
 });
 
 // Test Metron credentials
-app.post('/api/config/test-metron', async (_req, res) => {
+// Accepts optional username/password in body to test unsaved credentials
+app.post('/api/config/test-metron', async (req, res) => {
   try {
-    const result = await checkMetronAvailability();
-    if (result.available) {
+    const { username, password } = req.body as { username?: string; password?: string };
+
+    // Use provided credentials or fall back to saved config
+    const testUsername = username || getApiKey('metronUsername');
+    const testPassword = password || getApiKey('metronPassword');
+
+    if (!testUsername || !testPassword) {
+      res.status(401).json({ success: false, error: 'Username and password are required' });
+      return;
+    }
+
+    // Make a direct test request to Metron API
+    const authString = Buffer.from(`${testUsername}:${testPassword}`).toString('base64');
+    const response = await fetch('https://metron.cloud/api/publisher/?page_size=1', {
+      headers: {
+        'Authorization': `Basic ${authString}`,
+        'User-Agent': 'Helixio/0.1.0 (Comic Book Management Tool)',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (response.ok) {
       res.json({ success: true, message: 'Metron credentials are valid' });
+    } else if (response.status === 401) {
+      res.status(401).json({ success: false, error: 'Invalid username or password' });
     } else {
-      res.status(401).json({ success: false, error: result.error || 'Authentication failed' });
+      res.status(response.status).json({ success: false, error: `API returned status ${response.status}` });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -265,13 +288,36 @@ app.post('/api/config/test-metron', async (_req, res) => {
 });
 
 // Test ComicVine API key
-app.post('/api/config/test-comicvine', async (_req, res) => {
+// Accepts optional apiKey in body to test unsaved credentials
+app.post('/api/config/test-comicvine', async (req, res) => {
   try {
-    const result = await checkComicVineAvailability();
-    if (result.available) {
-      res.json({ success: true, message: 'ComicVine API key is valid' });
+    const { apiKey } = req.body as { apiKey?: string };
+
+    // Use provided API key or fall back to saved config
+    const testApiKey = apiKey || getApiKey('comicVine');
+
+    if (!testApiKey) {
+      res.status(401).json({ success: false, error: 'API key is required' });
+      return;
+    }
+
+    // Make a direct test request to ComicVine API
+    const url = `https://comicvine.gamespot.com/api/publishers/?api_key=${testApiKey}&format=json&limit=1`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Helixio/0.1.0 (Comic Book Management Tool)',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json() as { error?: string; status_code?: number };
+      if (data.status_code === 1) {
+        res.json({ success: true, message: 'ComicVine API key is valid' });
+      } else {
+        res.status(401).json({ success: false, error: data.error || 'API key validation failed' });
+      }
     } else {
-      res.status(401).json({ success: false, error: result.error || 'API key validation failed' });
+      res.status(response.status).json({ success: false, error: `API returned status ${response.status}` });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
@@ -280,11 +326,16 @@ app.post('/api/config/test-comicvine', async (_req, res) => {
 });
 
 // Test Anthropic API key
-app.post('/api/config/test-anthropic', async (_req, res) => {
+// Accepts optional apiKey in body to test unsaved credentials
+app.post('/api/config/test-anthropic', async (req, res) => {
   try {
-    const apiKey = getApiKey('anthropic');
-    if (!apiKey) {
-      res.status(401).json({ success: false, error: 'API key not configured' });
+    const { apiKey } = req.body as { apiKey?: string };
+
+    // Use provided API key or fall back to saved config
+    const testApiKey = apiKey || getApiKey('anthropic');
+
+    if (!testApiKey) {
+      res.status(401).json({ success: false, error: 'API key is required' });
       return;
     }
 
@@ -293,7 +344,7 @@ app.post('/api/config/test-anthropic', async (_req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': testApiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({

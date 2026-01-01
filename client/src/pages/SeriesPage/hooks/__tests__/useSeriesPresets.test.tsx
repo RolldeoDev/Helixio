@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useSeriesPresets } from '../useSeriesPresets';
 import { GridItem, Series } from '../../../../services/api/series';
 
-// Mock SmartSeriesFilterContext
+// Mock AdvancedSeriesFilterContext
 interface MockFilter {
   id: string;
   name: string;
@@ -51,8 +51,8 @@ const mockDeleteFilter = vi.fn();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mockApplyFilterToSeries = vi.fn((series: any[]) => series);
 
-vi.mock('../../../../contexts/SmartSeriesFilterContext', () => ({
-  useSmartSeriesFilter: () => ({
+vi.mock('../../../../contexts/AdvancedSeriesFilterContext', () => ({
+  useAdvancedSeriesFilter: () => ({
     savedFilters: mockSavedFilters,
     activeFilter: mockActiveFilter,
     loadFilter: mockLoadFilter,
@@ -159,21 +159,21 @@ describe('useSeriesPresets', () => {
     expect(mockDeleteFilter).toHaveBeenCalledWith('preset-1');
   });
 
-  it('should return isSmartFilterActive false when no filter is active', () => {
+  it('should return isAdvancedFilterActive false when no filter is active', () => {
     const { result } = renderHook(() => useSeriesPresets());
 
-    expect(result.current.isSmartFilterActive).toBe(false);
+    expect(result.current.isAdvancedFilterActive).toBe(false);
   });
 
-  it('should return isSmartFilterActive true when filter has conditions', () => {
+  it('should return isAdvancedFilterActive true when filter has conditions', () => {
     mockActiveFilter = mockSavedFilters[0]!;
 
     const { result } = renderHook(() => useSeriesPresets());
 
-    expect(result.current.isSmartFilterActive).toBe(true);
+    expect(result.current.isAdvancedFilterActive).toBe(true);
   });
 
-  it('should return isSmartFilterActive false when filter has no conditions', () => {
+  it('should return isAdvancedFilterActive false when filter has no conditions', () => {
     mockActiveFilter = {
       id: 'empty-preset',
       name: 'Empty',
@@ -183,7 +183,7 @@ describe('useSeriesPresets', () => {
 
     const { result } = renderHook(() => useSeriesPresets());
 
-    expect(result.current.isSmartFilterActive).toBe(false);
+    expect(result.current.isAdvancedFilterActive).toBe(false);
   });
 
   it('should pass items through when no preset is active', () => {

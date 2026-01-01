@@ -59,6 +59,7 @@ const LEVEL_INFO: LevelInfo[] = [
     description: 'Remove cached data to free up disk space',
     details: [
       'Cover images (will be re-extracted)',
+      'Collection cover mosaics',
       'Thumbnail images',
       'Cached series metadata from APIs',
       'API response cache',
@@ -92,6 +93,7 @@ const LEVEL_INFO: LevelInfo[] = [
       'Everything in Level 2',
       'Entire database (libraries, series, files)',
       'Configuration file (settings)',
+      'User avatars (profile images)',
       'Application logs',
     ],
     preserves: ['Your comic files (NEVER touched)', 'Library folder structure on disk'],
@@ -190,7 +192,11 @@ export function FactoryResetModal({ isOpen, onClose }: FactoryResetModalProps) {
         pollingTimeoutRef.current = setTimeout(poll, 2000);
       } else {
         // Timeout - show manual restart instruction
-        setProgressMessage('Server restart is taking longer than expected. Please refresh the page manually.');
+        // In development mode (npm run dev), the server won't auto-restart
+        setProgressMessage(
+          'Server has not restarted automatically. ' +
+          'If running in development mode, please restart the server manually with "npm run dev", then refresh this page.'
+        );
       }
     };
 

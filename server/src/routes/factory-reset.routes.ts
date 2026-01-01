@@ -140,9 +140,16 @@ router.post(
         // Trigger server restart for Level 3 reset
         // Wait for response to be fully sent before exit
         // Docker's restart policy (or process manager) will restart the server
+        // NOTE: In development mode (npm run dev), the server won't auto-restart
         if (result.requiresRestart) {
           res.on('finish', () => {
             logger.warn('Response sent, scheduling restart...');
+            if (process.env.NODE_ENV === 'development') {
+              logger.warn(
+                'Running in development mode - server will exit but NOT auto-restart. ' +
+                'Please run "npm run dev" again to restart.'
+              );
+            }
             setTimeout(() => {
               logger.info('Exiting process for restart after factory reset');
               process.exit(0);
@@ -180,6 +187,7 @@ router.get(
         description: 'Remove cached data to free up disk space',
         details: [
           'Cover images (will be re-extracted on next view)',
+          'Collection cover mosaics',
           'Thumbnail images',
           'Cached series metadata from APIs',
           'API response cache',
@@ -218,6 +226,7 @@ router.get(
           'Everything in Level 2',
           'Entire database (libraries, series, files)',
           'Configuration file (settings)',
+          'User avatars (profile images)',
           'Application logs',
           'Optional: API keys from OS keychain',
         ],

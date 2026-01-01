@@ -557,21 +557,24 @@ export async function getSeriesBrowseList(
   // Build next cursor from last item
   let nextCursor: string | null = null;
   if (hasMore && items.length > 0) {
-    const lastItem = items[items.length - 1]!;
-    let sortValue: string;
+    const lastItem = items[items.length - 1];
+    // Defensive check - shouldn't happen if items.length > 0, but avoids non-null assertion
+    if (lastItem) {
+      let sortValue: string;
 
-    if (sortBy === 'issueCount') {
-      // For issueCount, cursor contains the offset for next page
-      sortValue = String(skipCount + effectiveLimit);
-    } else if (sortBy === 'name') {
-      sortValue = lastItem.name;
-    } else if (sortBy === 'startYear') {
-      sortValue = lastItem.startYear?.toString() ?? 'null';
-    } else {
-      sortValue = (lastItem as { updatedAt?: Date }).updatedAt?.toISOString() ?? '';
+      if (sortBy === 'issueCount') {
+        // For issueCount, cursor contains the offset for next page
+        sortValue = String(skipCount + effectiveLimit);
+      } else if (sortBy === 'name') {
+        sortValue = lastItem.name;
+      } else if (sortBy === 'startYear') {
+        sortValue = lastItem.startYear?.toString() ?? 'null';
+      } else {
+        sortValue = (lastItem as { updatedAt?: Date }).updatedAt?.toISOString() ?? '';
+      }
+
+      nextCursor = Buffer.from(`${sortValue}|${lastItem.id}`).toString('base64');
     }
-
-    nextCursor = Buffer.from(`${sortValue}|${lastItem.id}`).toString('base64');
   }
 
   // Transform to SeriesBrowseItem format
@@ -729,13 +732,37 @@ export async function getSeriesCover(
     return { type: 'none' };
   }
 
+  // Helper to validate coverFileId exists
+  const validateCoverFile = async (fileId: string): Promise<boolean> => {
+    const file = await db.comicFile.findUnique({
+      where: { id: fileId },
+      select: { id: true },
+    });
+    if (!file) {
+      // File was deleted - clear invalid reference
+      await db.series.update({
+        where: { id: seriesId },
+        data: { coverFileId: null },
+      });
+      // Trigger recalculation for next request (non-blocking)
+      import('../cover.service.js')
+        .then(({ recalculateSeriesCover }) => recalculateSeriesCover(seriesId))
+        .catch(() => { /* Non-critical */ });
+      return false;
+    }
+    return true;
+  };
+
   // Check cover source preference
   if (series.coverSource === 'api' && series.coverHash) {
     return { type: 'api', coverHash: series.coverHash };
   }
 
   if (series.coverSource === 'user' && series.coverFileId) {
-    return { type: 'user', fileId: series.coverFileId };
+    if (await validateCoverFile(series.coverFileId)) {
+      return { type: 'user', fileId: series.coverFileId };
+    }
+    // File was deleted, fall through to first issue
   }
 
   // Auto fallback: API (with downloaded cover) > User > First Issue
@@ -744,7 +771,10 @@ export async function getSeriesCover(
   }
 
   if (series.coverFileId) {
-    return { type: 'user', fileId: series.coverFileId };
+    if (await validateCoverFile(series.coverFileId)) {
+      return { type: 'user', fileId: series.coverFileId };
+    }
+    // File was deleted, fall through to first issue
   }
 
   // Use first issue as cover
@@ -764,6 +794,22 @@ export async function setSeriesCoverFromIssue(
   fileId: string
 ): Promise<void> {
   const db = getDatabase();
+
+  // Validate file exists and belongs to this series
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: { id: true, seriesId: true, filename: true },
+  });
+
+  if (!file) {
+    throw new Error(`File ${fileId} not found`);
+  }
+
+  if (file.seriesId !== seriesId) {
+    throw new Error(
+      `File "${file.filename}" does not belong to this series`
+    );
+  }
 
   await db.series.update({
     where: { id: seriesId },

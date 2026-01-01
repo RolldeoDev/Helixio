@@ -2094,8 +2094,11 @@ export async function recalculateSeriesCover(seriesId: string): Promise<void> {
   let resolvedHash: string | null = null;
   let resolvedFileId: string | null = null;
 
+  // Treat NULL/undefined coverSource as 'auto' (defensive - schema has default but old data may have NULL)
+  const effectiveCoverSource = series.coverSource || 'auto';
+
   // Apply resolution priority based on coverSource preference
-  if (series.coverSource === 'api') {
+  if (effectiveCoverSource === 'api') {
     if (series.coverHash) {
       resolvedSource = 'api';
       resolvedHash = series.coverHash;
@@ -2105,7 +2108,7 @@ export async function recalculateSeriesCover(seriesId: string): Promise<void> {
       resolvedFileId = firstIssue.id;
       resolvedHash = firstIssue.coverHash || firstIssue.hash;
     }
-  } else if (series.coverSource === 'user') {
+  } else if (effectiveCoverSource === 'user') {
     if (series.coverFileId) {
       // Verify the file still exists before using it
       const fileExists = await db.comicFile.findUnique({
@@ -2124,7 +2127,8 @@ export async function recalculateSeriesCover(seriesId: string): Promise<void> {
       resolvedFileId = firstIssue.id;
       resolvedHash = firstIssue.coverHash || firstIssue.hash;
     }
-  } else if (series.coverSource === 'auto') {
+  } else {
+    // 'auto' or any unexpected value - use fallback chain
     // Auto fallback chain: API > User > First Issue
     if (series.coverHash) {
       resolvedSource = 'api';

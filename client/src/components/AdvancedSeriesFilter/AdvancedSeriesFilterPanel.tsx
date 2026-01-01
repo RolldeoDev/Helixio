@@ -1,27 +1,27 @@
 /**
- * Smart Series Filter Panel Component
+ * Advanced Series Filter Panel Component
  *
- * A toggle button that opens the Smart Series Filter modal.
+ * A toggle button that opens the Advanced Series Filter modal.
  * Shows active state and condition count when filters are applied.
  *
  * Optimized for performance.
  */
 
 import { useMemo } from 'react';
-import { useSmartSeriesFilter } from '../../contexts/SmartSeriesFilterContext';
-import './SmartSeriesFilter.css';
+import { useAdvancedSeriesFilter } from '../../contexts/AdvancedSeriesFilterContext';
+import './AdvancedSeriesFilter.css';
 
 // =============================================================================
 // Main Component
 // =============================================================================
 
-export function SmartSeriesFilterPanel() {
+export function AdvancedSeriesFilterPanel() {
   const {
     activeFilter,
     isFilterActive,
     clearFilter,
     openFilterPanel,
-  } = useSmartSeriesFilter();
+  } = useAdvancedSeriesFilter();
 
   // Count total active conditions across all groups
   const conditionCount = useMemo(() => {
@@ -33,18 +33,18 @@ export function SmartSeriesFilterPanel() {
   }, [activeFilter?.groups]);
 
   return (
-    <div className="smart-series-filter-collapsed">
+    <div className="advanced-series-filter-collapsed">
       <button
         type="button"
         className={`series-filter-toggle-btn ${isFilterActive ? 'active' : ''}`}
         onClick={openFilterPanel}
         title="Open advanced filters"
-        aria-label={isFilterActive ? `Smart Filters (${conditionCount} active)` : 'Smart Filters'}
+        aria-label={isFilterActive ? `Advanced Filters (${conditionCount} active)` : 'Advanced Filters'}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
         </svg>
-        <span className="series-filter-toggle-text">Smart Filters</span>
+        <span className="series-filter-toggle-text">Advanced Filters</span>
         {isFilterActive && conditionCount > 0 && (
           <span className="series-filter-badge">{conditionCount}</span>
         )}
@@ -55,7 +55,7 @@ export function SmartSeriesFilterPanel() {
           className="series-filter-clear-btn-small"
           onClick={clearFilter}
           title="Clear filter"
-          aria-label="Clear smart filters"
+          aria-label="Clear advanced filters"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />

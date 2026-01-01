@@ -69,6 +69,9 @@ export function Settings() {
       try {
         // Load general config
         const configRes = await fetch(`${API_BASE}/config`);
+        if (!configRes.ok) {
+          throw new Error(`Failed to load configuration: ${configRes.status} ${configRes.statusText}`);
+        }
         const data: AppConfig = await configRes.json();
         setConfig(data);
 

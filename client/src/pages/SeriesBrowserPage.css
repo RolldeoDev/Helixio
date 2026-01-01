@@ -294,10 +294,10 @@
 }
 
 /* =============================================================================
-   Smart Filter Panel - Now integrated in filter bar
+   Advanced Filter Panel - Now integrated in filter bar
    ============================================================================= */
 
-/* The SmartSeriesFilterPanel is now placed inline in the filter bar.
+/* The AdvancedSeriesFilterPanel is now placed inline in the filter bar.
    It will expand below when opened, but the toggle button is part of the content group. */
 
 @media (max-width: 768px) {

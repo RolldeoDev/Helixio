@@ -9,13 +9,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
-import { useSmartFilter } from '../contexts/SmartFilterContext';
+import { useAdvancedFilter } from '../contexts/AdvancedFilterContext';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { GridView } from '../components/GridView';
 import { ListView } from '../components/ListView';
 import { FileList } from '../components/FileList';
 import { LibraryToolbar } from '../components/LibraryToolbar';
-import { SmartFilterPanel } from '../components/SmartFilter/SmartFilterPanel';
+import { AdvancedFilterPanel } from '../components/AdvancedFilter/AdvancedFilterPanel';
 import { LibraryDropdown } from '../components/Layout/LibraryDropdown';
 import { FolderBrowser } from '../components/FolderBrowser/FolderBrowser';
 import { MetadataEditor } from '../components/MetadataEditor';
@@ -59,7 +59,7 @@ export function FoldersPage() {
     sortField,
     sortOrder,
   } = useApp();
-  const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useSmartFilter();
+  const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useAdvancedFilter();
   const { startJob } = useMetadataJob();
   const confirm = useConfirmModal();
 
@@ -202,7 +202,7 @@ export function FoldersPage() {
     });
   }, [files, selectedFolder]);
 
-  // Apply smart filter to folder-filtered files
+  // Apply advanced filter to folder-filtered files
   const filteredFiles = applyFilterToFiles(folderFilteredFiles);
 
   // Get files in display order (flattened from groups when grouping is active)
@@ -839,11 +839,11 @@ export function FoldersPage() {
           onGroupChange={setGroupField}
         />
 
-        {/* Smart Filter Panel */}
+        {/* Advanced Filter Panel */}
         {isFilterPanelOpen && (
           <div className="filter-panel-overlay" onClick={closeFilterPanel}>
             <div className="filter-panel-container" onClick={(e) => e.stopPropagation()}>
-              <SmartFilterPanel />
+              <AdvancedFilterPanel />
             </div>
           </div>
         )}

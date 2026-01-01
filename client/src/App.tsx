@@ -12,7 +12,7 @@ import { AppProvider, useApp } from './contexts/AppContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { MetadataJobProvider, useMetadataJob } from './contexts/MetadataJobContext';
 import { LibraryScanProvider } from './contexts/LibraryScanContext';
-import { SmartFilterProvider, useSmartFilter } from './contexts/SmartFilterContext';
+import { AdvancedFilterProvider, useAdvancedFilter } from './contexts/AdvancedFilterContext';
 import { FilterPresetProvider } from './contexts/FilterPresetContext';
 import { CollectionsProvider } from './contexts/CollectionsContext';
 import { WantToReadProvider } from './contexts/WantToReadContext';
@@ -43,7 +43,7 @@ import { BatchPanel } from './components/BatchPanel';
 import { RollbackPanel } from './components/RollbackPanel';
 import { JobBanner } from './components/JobBanner';
 import { JobsPanel } from './components/JobsPanel';
-import { SmartFilterPanel } from './components/SmartFilter/SmartFilterPanel';
+import { AdvancedFilterPanel } from './components/AdvancedFilter/AdvancedFilterPanel';
 import { ReaderPage } from './pages/ReaderPage';
 import type { GroupField } from './components/SortGroup/SortGroupPanel';
 import { LoginPage } from './pages/LoginPage';
@@ -75,7 +75,7 @@ function LibraryView() {
   const { files, selectedFiles, pagination, refreshFiles, groupField: groupFieldRaw, setGroupField, sortField, sortOrder } = useApp();
   const groupField = groupFieldRaw as GroupField;
   const { startJob } = useMetadataJob();
-  const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useSmartFilter();
+  const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useAdvancedFilter();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [editingFileIds, setEditingFileIds] = useState<string[] | null>(null);
@@ -85,7 +85,7 @@ function LibraryView() {
   const contentRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 });
 
-  // Apply smart filter to files
+  // Apply advanced filter to files
   const filteredFiles = applyFilterToFiles(files);
 
   // Get files in display order (flattened from groups when grouping is active)
@@ -261,11 +261,11 @@ function LibraryView() {
         onGroupChange={setGroupField}
       />
 
-      {/* Smart Filter Panel - Slide in from right */}
+      {/* Advanced Filter Panel - Slide in from right */}
       {isFilterPanelOpen && (
         <div className="filter-panel-overlay" onClick={closeFilterPanel}>
           <div className="filter-panel-container" onClick={(e) => e.stopPropagation()}>
-            <SmartFilterPanel />
+            <AdvancedFilterPanel />
           </div>
         </div>
       )}
@@ -448,7 +448,7 @@ function App() {
             <BreadcrumbProvider>
               <LibraryScanProvider>
               <FilterPresetProvider>
-              <SmartFilterProvider>
+              <AdvancedFilterProvider>
                 <CollectionsProvider>
                   <WantToReadProvider>
                     <AnnotationsProvider>
@@ -475,7 +475,7 @@ function App() {
                     </AnnotationsProvider>
                   </WantToReadProvider>
                 </CollectionsProvider>
-              </SmartFilterProvider>
+              </AdvancedFilterProvider>
               </FilterPresetProvider>
               </LibraryScanProvider>
             </BreadcrumbProvider>
