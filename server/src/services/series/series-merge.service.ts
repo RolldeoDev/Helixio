@@ -619,6 +619,36 @@ export async function mergeSeries(
       }
     }
 
+    // Preserve reader settings: copy from first source that has settings if target has none.
+    // If target already has settings, they take precedence (user may have customized them).
+    // This intentionally discards source settings when target has existing settings.
+    const targetSettings = await db.seriesReaderSettingsNew.findUnique({
+      where: { seriesId: targetId },
+    });
+
+    if (!targetSettings) {
+      // Target has no settings - check if source has settings to preserve
+      const sourceSettings = await db.seriesReaderSettingsNew.findUnique({
+        where: { seriesId: sourceId },
+      });
+
+      if (sourceSettings) {
+        // Copy settings to target (exclude id, seriesId, timestamps)
+        const { id: _id, seriesId: _seriesId, createdAt: _createdAt, updatedAt: _updatedAt, ...settingsData } = sourceSettings;
+        await db.seriesReaderSettingsNew.create({
+          data: {
+            seriesId: targetId,
+            ...settingsData,
+          },
+        });
+      }
+    }
+
+    // Delete source reader settings explicitly (prevents cascade issues)
+    await db.seriesReaderSettingsNew.deleteMany({
+      where: { seriesId: sourceId },
+    });
+
     // Delete source series
     await db.series.delete({
       where: { id: sourceId },
@@ -707,6 +737,34 @@ export async function mergeSeriesEnhanced(
         }
       }
     }
+
+    // Preserve reader settings: copy from first source that has settings if target has none.
+    // If target already has settings, they take precedence (user may have customized them).
+    // This intentionally discards source settings when target has existing settings.
+    const targetSettings = await db.seriesReaderSettingsNew.findUnique({
+      where: { seriesId: targetId },
+    });
+
+    if (!targetSettings) {
+      const sourceSettings = await db.seriesReaderSettingsNew.findUnique({
+        where: { seriesId: sourceId },
+      });
+
+      if (sourceSettings) {
+        const { id: _id, seriesId: _seriesId, createdAt: _createdAt, updatedAt: _updatedAt, ...settingsData } = sourceSettings;
+        await db.seriesReaderSettingsNew.create({
+          data: {
+            seriesId: targetId,
+            ...settingsData,
+          },
+        });
+      }
+    }
+
+    // Delete source reader settings explicitly
+    await db.seriesReaderSettingsNew.deleteMany({
+      where: { seriesId: sourceId },
+    });
 
     // Delete source series
     await db.series.delete({

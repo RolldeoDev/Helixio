@@ -40,6 +40,7 @@ import { SeriesMetadataSearchModal } from '../SeriesMetadataSearchModal';
 import { MetadataGenerator } from '../MetadataGenerator';
 import { RatingStars } from '../RatingStars';
 import { useSeriesUserData, useUpdateSeriesUserData } from '../../hooks/queries';
+import { getSeriesCoverUrl } from '../../services/api/series';
 import './EditSeriesModal.css';
 
 // =============================================================================
@@ -321,6 +322,7 @@ const SECTION_FIELDS = {
 export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSeriesModalProps) {
   const [state, dispatch] = useReducer(editSeriesReducer, initialState);
   const [showCoverModal, setShowCoverModal] = useState(false);
+  const [coverLoadError, setCoverLoadError] = useState(false);
 
   // User data hooks for per-user rating and notes
   const { data: userDataResponse } = useSeriesUserData(isOpen ? seriesId : undefined);
@@ -333,6 +335,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
 
   useEffect(() => {
     if (!isOpen || !seriesId) return;
+
+    // Reset cover error state when loading new series
+    setCoverLoadError(false);
 
     async function loadData() {
       dispatch({ type: 'LOAD_START' });
@@ -863,20 +868,18 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
 
   // Get current cover preview URL
   const getCoverPreviewUrl = useCallback((): string | null => {
-    // Priority: uploaded cover hash > custom URL > API cover hash > file cover
+    // If user just uploaded a new cover during this session, show that preview
     if (uploadedCoverHash) {
       return getApiCoverUrl(uploadedCoverHash);
     }
-    if (series.coverUrl) {
+    // If user set a custom URL (not yet saved), show that preview
+    if (series.coverUrl && state.modifiedFields.has('coverUrl')) {
       return series.coverUrl;
     }
-    if (series.coverHash) {
-      return getApiCoverUrl(series.coverHash);
-    }
-    // For file-based covers, we'd need the file's cover URL
-    // This is handled by the CoverPicker component
-    return null;
-  }, [uploadedCoverHash, series.coverUrl, series.coverHash]);
+    // Use server endpoint which handles all fallbacks:
+    // resolvedCoverHash → coverHash → coverFileId → firstIssue → 404
+    return getSeriesCoverUrl(seriesId);
+  }, [uploadedCoverHash, series.coverUrl, state.modifiedFields, seriesId]);
 
   const handleEditCoverClick = useCallback(() => {
     setShowCoverModal(true);
@@ -975,8 +978,12 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
               {/* Cover Row - Top of modal */}
               <div className="series-cover-row">
                 <div className="series-cover-preview">
-                  {getCoverPreviewUrl() ? (
-                    <img src={getCoverPreviewUrl()!} alt={series.name || 'Series cover'} />
+                  {getCoverPreviewUrl() && !coverLoadError ? (
+                    <img
+                      src={getCoverPreviewUrl()!}
+                      alt={series.name || 'Series cover'}
+                      onError={() => setCoverLoadError(true)}
+                    />
                   ) : (
                     <div className="cover-placeholder">No Cover</div>
                   )}

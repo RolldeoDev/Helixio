@@ -1,10 +1,10 @@
 /**
- * Smart Series Filter Context
+ * Advanced Series Filter Context
  *
  * Advanced filtering system for series with AND/OR logic,
  * multiple filter conditions, and saved filter presets.
  *
- * This is a series-specific version of SmartFilterContext, designed
+ * This is a series-specific version of AdvancedFilterContext, designed
  * for the SeriesBrowserPage.
  */
 
@@ -21,6 +21,7 @@ import { useAuth } from './AuthContext';
 import {
   getFilterPresets,
   createFilterPreset as apiCreatePreset,
+  updateFilterPreset as apiUpdatePreset,
   deleteFilterPreset as apiDeletePreset,
   type FilterPreset,
 } from '../services/api/filter-presets';
@@ -113,7 +114,7 @@ export interface SeriesFilterGroup {
   conditions: SeriesFilterCondition[];
 }
 
-export interface SmartSeriesFilter {
+export interface AdvancedSeriesFilter {
   id: string;
   name: string;
   rootOperator: SeriesFilterOperator;
@@ -165,17 +166,18 @@ export interface FilterableSeries {
   isWantToRead?: boolean;
 }
 
-export interface SmartSeriesFilterState {
-  activeFilter: SmartSeriesFilter | null;
+export interface AdvancedSeriesFilterState {
+  activeFilter: AdvancedSeriesFilter | null;
   isFilterActive: boolean;
-  savedFilters: SmartSeriesFilter[];
+  savedFilters: AdvancedSeriesFilter[];
   isFilterPanelOpen: boolean;
   isLoading: boolean;
+  activePresetId: string | null; // ID of preset being edited, null if creating new
 }
 
-export interface SmartSeriesFilterContextValue extends SmartSeriesFilterState {
+export interface AdvancedSeriesFilterContextValue extends AdvancedSeriesFilterState {
   // Filter actions
-  setActiveFilter: (filter: SmartSeriesFilter | null) => void;
+  setActiveFilter: (filter: AdvancedSeriesFilter | null) => void;
   clearFilter: () => void;
 
   // Condition management
@@ -195,6 +197,8 @@ export interface SmartSeriesFilterContextValue extends SmartSeriesFilterState {
 
   // Preset management (API-backed)
   saveFilter: (name: string) => Promise<void>;
+  updateFilter: () => Promise<void>;
+  renameFilter: (filterId: string, newName: string) => Promise<void>;
   loadFilter: (filterId: string) => void;
   deleteFilter: (filterId: string) => Promise<void>;
   refetchPresets: () => Promise<void>;
@@ -320,7 +324,7 @@ function createEmptyGroup(): SeriesFilterGroup {
   };
 }
 
-function createEmptyFilter(): SmartSeriesFilter {
+function createEmptyFilter(): AdvancedSeriesFilter {
   return {
     id: generateId(),
     name: 'New Filter',
@@ -517,7 +521,7 @@ function evaluateGroup(
 
 function evaluateFilter(
   series: FilterableSeries,
-  filter: SmartSeriesFilter
+  filter: AdvancedSeriesFilter
 ): boolean {
   if (filter.groups.length === 0) return true;
 
@@ -529,11 +533,11 @@ function evaluateFilter(
 }
 
 // =============================================================================
-// API to SmartSeriesFilter conversion
+// API to AdvancedSeriesFilter conversion
 // =============================================================================
 
-function filterPresetToSmartSeriesFilter(preset: FilterPreset): SmartSeriesFilter {
-  // The filter definition is stored as a SmartFilter, we need to map it to SmartSeriesFilter
+function filterPresetToAdvancedSeriesFilter(preset: FilterPreset): AdvancedSeriesFilter {
+  // The filter definition is stored as an AdvancedFilter, we need to map it to AdvancedSeriesFilter
   const def = preset.filterDefinition as unknown as {
     id?: string;
     name?: string;
@@ -561,12 +565,12 @@ function filterPresetToSmartSeriesFilter(preset: FilterPreset): SmartSeriesFilte
 // Context
 // =============================================================================
 
-const SmartSeriesFilterContext = createContext<SmartSeriesFilterContextValue | null>(null);
+const AdvancedSeriesFilterContext = createContext<AdvancedSeriesFilterContextValue | null>(null);
 
-export function useSmartSeriesFilter(): SmartSeriesFilterContextValue {
-  const context = useContext(SmartSeriesFilterContext);
+export function useAdvancedSeriesFilter(): AdvancedSeriesFilterContextValue {
+  const context = useContext(AdvancedSeriesFilterContext);
   if (!context) {
-    throw new Error('useSmartSeriesFilter must be used within SmartSeriesFilterProvider');
+    throw new Error('useAdvancedSeriesFilter must be used within AdvancedSeriesFilterProvider');
   }
   return context;
 }
@@ -575,16 +579,17 @@ export function useSmartSeriesFilter(): SmartSeriesFilterContextValue {
 // Provider
 // =============================================================================
 
-interface SmartSeriesFilterProviderProps {
+interface AdvancedSeriesFilterProviderProps {
   children: ReactNode;
 }
 
-export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProviderProps) {
+export function AdvancedSeriesFilterProvider({ children }: AdvancedSeriesFilterProviderProps) {
   const { user } = useAuth();
-  const [activeFilter, setActiveFilterState] = useState<SmartSeriesFilter | null>(null);
+  const [activeFilter, setActiveFilterState] = useState<AdvancedSeriesFilter | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [savedFilters, setSavedFilters] = useState<SmartSeriesFilter[]>([]);
+  const [savedFilters, setSavedFilters] = useState<AdvancedSeriesFilter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   // Fetch presets from API
   const fetchPresets = useCallback(async () => {
@@ -597,7 +602,7 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     setIsLoading(true);
     try {
       const presets = await getFilterPresets({ type: 'series', includeGlobal: false });
-      setSavedFilters(presets.map(filterPresetToSmartSeriesFilter));
+      setSavedFilters(presets.map(filterPresetToAdvancedSeriesFilter));
     } catch (error) {
       console.error('Failed to fetch series filter presets:', error);
       setSavedFilters([]);
@@ -615,12 +620,13 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
   // Filter Actions
   // ---------------------------------------------------------------------------
 
-  const setActiveFilter = useCallback((filter: SmartSeriesFilter | null) => {
+  const setActiveFilter = useCallback((filter: AdvancedSeriesFilter | null) => {
     setActiveFilterState(filter);
   }, []);
 
   const clearFilter = useCallback(() => {
     setActiveFilterState(null);
+    setActivePresetId(null);
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -807,7 +813,12 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
       });
 
       // Add the new preset to the local list
-      setSavedFilters(prev => [...prev, filterPresetToSmartSeriesFilter(preset)]);
+      const newFilter = filterPresetToAdvancedSeriesFilter(preset);
+      setSavedFilters(prev => [...prev, newFilter]);
+
+      // Set the active filter to the new preset and track it as the active preset
+      setActiveFilterState(newFilter);
+      setActivePresetId(preset.id);
     } catch (error) {
       console.error('Failed to save series filter:', error);
       throw error;
@@ -817,11 +828,9 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
   const loadFilter = useCallback((filterId: string) => {
     const filter = savedFilters.find(f => f.id === filterId);
     if (filter) {
-      // Create a copy so edits don't affect the saved version
-      setActiveFilterState({
-        ...filter,
-        id: generateId(),
-      });
+      // Keep the original filter (preserves ID for update tracking)
+      setActiveFilterState({ ...filter });
+      setActivePresetId(filterId);
     }
   }, [savedFilters]);
 
@@ -829,15 +838,73 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     try {
       await apiDeletePreset(filterId);
       setSavedFilters(prev => prev.filter(f => f.id !== filterId));
+
+      // If we deleted the active preset, clear both the link and the active filter
+      if (activePresetId === filterId) {
+        setActivePresetId(null);
+        setActiveFilterState(null);
+      }
     } catch (error) {
       console.error('Failed to delete series filter:', error);
       throw error;
     }
-  }, []);
+  }, [activePresetId]);
 
   const refetchPresets = useCallback(async (): Promise<void> => {
     await fetchPresets();
   }, [fetchPresets]);
+
+  const updateFilter = useCallback(async (): Promise<void> => {
+    if (!activeFilter || !activePresetId) return;
+
+    // Create filter definition from the active filter
+    const filterDefinition = {
+      id: activeFilter.id,
+      name: activeFilter.name,
+      rootOperator: activeFilter.rootOperator,
+      groups: activeFilter.groups,
+      createdAt: activeFilter.createdAt,
+      updatedAt: activeFilter.updatedAt,
+    };
+
+    try {
+      const response = await apiUpdatePreset(activePresetId, {
+        filterDefinition: filterDefinition as unknown as Parameters<typeof apiUpdatePreset>[1]['filterDefinition'],
+        sortBy: activeFilter.sortBy as Parameters<typeof apiUpdatePreset>[1]['sortBy'],
+        sortOrder: activeFilter.sortOrder as Parameters<typeof apiUpdatePreset>[1]['sortOrder'],
+      });
+
+      // Update local state with the saved preset
+      const updatedFilter = filterPresetToAdvancedSeriesFilter(response.preset);
+      setSavedFilters(prev =>
+        prev.map(f => f.id === activePresetId ? updatedFilter : f)
+      );
+      setActiveFilterState(updatedFilter);
+    } catch (error) {
+      console.error('Failed to update series filter:', error);
+      throw error;
+    }
+  }, [activeFilter, activePresetId]);
+
+  const renameFilter = useCallback(async (filterId: string, newName: string): Promise<void> => {
+    try {
+      const response = await apiUpdatePreset(filterId, { name: newName });
+
+      // Update local saved filters list
+      const updatedFilter = filterPresetToAdvancedSeriesFilter(response.preset);
+      setSavedFilters(prev =>
+        prev.map(f => f.id === filterId ? updatedFilter : f)
+      );
+
+      // If this is the active preset, update the active filter name too
+      if (activePresetId === filterId && activeFilter) {
+        setActiveFilterState(prev => prev ? { ...prev, name: newName } : null);
+      }
+    } catch (error) {
+      console.error('Failed to rename series filter:', error);
+      throw error;
+    }
+  }, [activePresetId, activeFilter]);
 
   // ---------------------------------------------------------------------------
   // UI Actions
@@ -851,6 +918,7 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     setIsFilterPanelOpen(true);
     if (!activeFilter) {
       setActiveFilterState(createEmptyFilter());
+      setActivePresetId(null); // Clear preset tracking for new filters
     }
   }, [activeFilter]);
 
@@ -901,13 +969,14 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
   // Context Value
   // ---------------------------------------------------------------------------
 
-  const value: SmartSeriesFilterContextValue = {
+  const value: AdvancedSeriesFilterContextValue = {
     // State
     activeFilter,
     isFilterActive,
     savedFilters,
     isFilterPanelOpen,
     isLoading,
+    activePresetId,
 
     // Filter actions
     setActiveFilter,
@@ -930,6 +999,8 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
 
     // Preset management
     saveFilter,
+    updateFilter,
+    renameFilter,
     loadFilter,
     deleteFilter,
     refetchPresets,
@@ -944,8 +1015,8 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
   };
 
   return (
-    <SmartSeriesFilterContext.Provider value={value}>
+    <AdvancedSeriesFilterContext.Provider value={value}>
       {children}
-    </SmartSeriesFilterContext.Provider>
+    </AdvancedSeriesFilterContext.Provider>
   );
 }

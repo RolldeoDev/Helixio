@@ -18,7 +18,9 @@ import {
   getCoversDir,
   getSeriesCoversDir,
   getSeriesCacheDir,
+  getCollectionCoversDir,
   getThumbnailsDir,
+  getAvatarsDir,
   getLogsDir,
   getDatabasePath,
   getConfigPath,
@@ -85,6 +87,8 @@ const LEVEL_DESCRIPTIONS: Record<ResetLevel, string> = {
 const LEVEL_1_TABLES = ['APICache', 'CacheStats', 'SeriesCache'];
 
 // Tables cleared at Level 2 (reading data + level 1)
+// Note: Bookmarks are stored as JSON fields within ReadingProgress/UserReadingProgress,
+// not as a separate table, so they're cleared when those tables are deleted.
 const LEVEL_2_TABLES = [
   ...LEVEL_1_TABLES,
   'ReadingProgress',
@@ -100,7 +104,6 @@ const LEVEL_2_TABLES = [
   'LibraryStat',
   'StatsDirtyFlag',
   'UserStat',
-  'Bookmark', // If it exists as a field, we still list it
 ];
 
 // Level 3 deletes the entire database file
@@ -211,6 +214,7 @@ async function clearCacheDirectories(): Promise<{ deleted: string[]; freedBytes:
   const cacheDirectories = [
     { name: 'Cover cache', path: getCoversDir() },
     { name: 'Series covers cache', path: getSeriesCoversDir() },
+    { name: 'Collection covers cache', path: getCollectionCoversDir() },
     { name: 'Series metadata cache', path: getSeriesCacheDir() },
     { name: 'Thumbnails cache', path: getThumbnailsDir() },
   ];
@@ -389,6 +393,14 @@ async function deleteLogsDirectory(): Promise<{ deleted: boolean; freedBytes: nu
   return deleteDirectory(logsDir, 'Logs directory');
 }
 
+/**
+ * Delete avatars directory (user profile images)
+ */
+async function deleteAvatarsDirectory(): Promise<{ deleted: boolean; freedBytes: number }> {
+  const avatarsDir = getAvatarsDir();
+  return deleteDirectory(avatarsDir, 'Avatars directory');
+}
+
 // =============================================================================
 // Main Service Functions
 // =============================================================================
@@ -404,6 +416,7 @@ export async function getResetPreview(level: ResetLevel): Promise<ResetPreview> 
   const cacheDirectories = [
     { name: 'Cover cache', path: getCoversDir() },
     { name: 'Series covers', path: getSeriesCoversDir() },
+    { name: 'Collection covers', path: getCollectionCoversDir() },
     { name: 'Series metadata', path: getSeriesCacheDir() },
     { name: 'Thumbnails', path: getThumbnailsDir() },
   ];
@@ -457,6 +470,18 @@ export async function getResetPreview(level: ResetLevel): Promise<ResetPreview> 
       exists: logsExists,
     });
     estimatedSizeBytes += logsSize;
+
+    // Avatars
+    const avatarsDir = getAvatarsDir();
+    const avatarsExists = existsSync(avatarsDir);
+    const avatarsSize = avatarsExists ? await getDirectorySize(avatarsDir) : 0;
+    directories.push({
+      path: avatarsDir,
+      displayPath: formatPathForDisplay(avatarsDir),
+      sizeBytes: avatarsSize,
+      exists: avatarsExists,
+    });
+    estimatedSizeBytes += avatarsSize;
   }
 
   // Determine which tables are affected
@@ -521,7 +546,14 @@ export async function performReset(options: ResetOptions): Promise<ResetResult> 
         }
       }
 
-      // Delete logs first (while we can still log)
+      // Delete avatars (user profile images)
+      const avatarsResult = await deleteAvatarsDirectory();
+      if (avatarsResult.deleted) {
+        deletedItems.push('Avatars directory');
+        freedBytes += avatarsResult.freedBytes;
+      }
+
+      // Delete logs (while we can still log)
       const logsResult = await deleteLogsDirectory();
       if (logsResult.deleted) {
         deletedItems.push('Logs directory');

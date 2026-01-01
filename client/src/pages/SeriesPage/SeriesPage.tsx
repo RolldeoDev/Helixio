@@ -12,9 +12,9 @@
 
 import { useEffect, useCallback, useState } from 'react';
 import { useBreadcrumbs } from '../../contexts/BreadcrumbContext';
-import { SmartSeriesFilterProvider, useSmartSeriesFilter } from '../../contexts/SmartSeriesFilterContext';
+import { AdvancedSeriesFilterProvider, useAdvancedSeriesFilter } from '../../contexts/AdvancedSeriesFilterContext';
 import { UnifiedMenu } from '../../components/UnifiedMenu';
-import { SmartSeriesFilterModal } from '../../components/SmartSeriesFilter';
+import { AdvancedSeriesFilterModal } from '../../components/AdvancedSeriesFilter';
 import { CollectionPickerModal } from '../../components/CollectionPickerModal/CollectionPickerModal';
 import { BatchSeriesMetadataModal } from '../../components/BatchSeriesMetadataModal/BatchSeriesMetadataModal';
 import { NavigationSidebar } from '../../components/NavigationSidebar';
@@ -40,7 +40,7 @@ import { useBulkActions } from './hooks/useBulkActions';
 import './SeriesPage.css';
 
 // =============================================================================
-// Inner Component (needs SmartSeriesFilterProvider context)
+// Inner Component (needs AdvancedSeriesFilterProvider context)
 // =============================================================================
 
 function SeriesPageContent() {
@@ -72,14 +72,14 @@ function SeriesPageContent() {
   // Data fetching with React Query
   const { items: rawItems, total, isLoading, isFetching, refetch } = useSeriesData(filters);
 
-  // Apply preset filters (smart filters)
-  const { isSmartFilterActive, applyPresetFilter } = useSeriesPresets();
+  // Apply preset filters (advanced filters)
+  const { isAdvancedFilterActive, applyPresetFilter } = useSeriesPresets();
 
-  // Smart filter modal state
-  const { isFilterPanelOpen, closeFilterPanel } = useSmartSeriesFilter();
+  // Advanced filter modal state
+  const { isFilterPanelOpen, closeFilterPanel } = useAdvancedSeriesFilter();
 
   // Get filtered items
-  const items = isSmartFilterActive && rawItems
+  const items = isAdvancedFilterActive && rawItems
     ? applyPresetFilter(rawItems)
     : rawItems ?? [];
 
@@ -215,8 +215,8 @@ function SeriesPageContent() {
         />
       )}
 
-      {/* Smart Filter Modal */}
-      <SmartSeriesFilterModal
+      {/* Advanced Filter Modal */}
+      <AdvancedSeriesFilterModal
         isOpen={isFilterPanelOpen}
         onClose={closeFilterPanel}
       />
@@ -263,8 +263,8 @@ function SeriesPageContent() {
 
 export function SeriesPage() {
   return (
-    <SmartSeriesFilterProvider>
+    <AdvancedSeriesFilterProvider>
       <SeriesPageContent />
-    </SmartSeriesFilterProvider>
+    </AdvancedSeriesFilterProvider>
   );
 }

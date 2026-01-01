@@ -1,5 +1,5 @@
 /**
- * SmartSeriesFilterModal Component
+ * AdvancedSeriesFilterModal Component
  *
  * Modal for building complex series filters with AND/OR logic.
  * Replaces the inline expanding panel for better UX.
@@ -8,7 +8,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  useSmartSeriesFilter,
+  useAdvancedSeriesFilter,
   SeriesFilterCondition,
   SeriesFilterGroup,
   SeriesFilterOperator,
@@ -19,8 +19,8 @@ import {
   SERIES_BOOLEAN_COMPARISONS,
   SERIES_DATE_COMPARISONS,
   SERIES_SORT_FIELDS,
-} from '../../contexts/SmartSeriesFilterContext';
-import './SmartSeriesFilterModal.css';
+} from '../../contexts/AdvancedSeriesFilterContext';
+import './AdvancedSeriesFilterModal.css';
 
 // =============================================================================
 // Sub-components
@@ -62,9 +62,9 @@ function FilterConditionRow({
   const isDateComparison = condition.comparison === 'before' || condition.comparison === 'after';
 
   return (
-    <div className="smart-filter-modal-condition">
+    <div className="advanced-filter-modal-condition">
       <select
-        className="smart-filter-modal-field-select"
+        className="advanced-filter-modal-field-select"
         value={condition.field}
         onChange={(e) => onUpdate({ field: e.target.value as SeriesFilterCondition['field'] })}
         aria-label="Filter field"
@@ -77,7 +77,7 @@ function FilterConditionRow({
       </select>
 
       <select
-        className="smart-filter-modal-comparison-select"
+        className="advanced-filter-modal-comparison-select"
         value={condition.comparison}
         onChange={(e) => onUpdate({ comparison: e.target.value as SeriesFilterCondition['comparison'] })}
         aria-label="Filter comparison"
@@ -93,7 +93,7 @@ function FilterConditionRow({
         isDateField && isDateComparison ? (
           <input
             type="date"
-            className="smart-filter-modal-value-input"
+            className="advanced-filter-modal-value-input"
             value={condition.value}
             onChange={(e) => onUpdate({ value: e.target.value })}
             aria-label="Filter date value"
@@ -101,7 +101,7 @@ function FilterConditionRow({
         ) : (
           <input
             type={isNumberField || isWithinDays ? 'number' : 'text'}
-            className="smart-filter-modal-value-input"
+            className="advanced-filter-modal-value-input"
             value={condition.value}
             onChange={(e) => onUpdate({ value: e.target.value })}
             placeholder={isWithinDays ? 'days' : isNumberField ? '0' : 'Value...'}
@@ -112,10 +112,10 @@ function FilterConditionRow({
 
       {needsSecondValue && (
         <>
-          <span className="smart-filter-modal-between-label">and</span>
+          <span className="advanced-filter-modal-between-label">and</span>
           <input
             type="number"
-            className="smart-filter-modal-value-input"
+            className="advanced-filter-modal-value-input"
             value={condition.value2 || ''}
             onChange={(e) => onUpdate({ value2: e.target.value })}
             placeholder="0"
@@ -127,7 +127,7 @@ function FilterConditionRow({
       {!isOnly && (
         <button
           type="button"
-          className="smart-filter-modal-remove-btn"
+          className="advanced-filter-modal-remove-btn"
           onClick={onRemove}
           title="Remove condition"
           aria-label="Remove condition"
@@ -163,32 +163,32 @@ function FilterGroupBox({
     removeCondition,
     updateGroupOperator,
     removeGroup,
-  } = useSmartSeriesFilter();
+  } = useAdvancedSeriesFilter();
 
   return (
-    <div className="smart-filter-modal-group">
+    <div className="advanced-filter-modal-group">
       {showRootOperator && groupIndex > 0 && (
-        <div className="smart-filter-modal-root-operator">
-          <span className="smart-filter-modal-operator-label">{rootOperator}</span>
+        <div className="advanced-filter-modal-root-operator">
+          <span className="advanced-filter-modal-operator-label">{rootOperator}</span>
         </div>
       )}
 
-      <div className="smart-filter-modal-group-box">
-        <div className="smart-filter-modal-group-header">
-          <span className="smart-filter-modal-group-title">Filter Group {groupIndex + 1}</span>
+      <div className="advanced-filter-modal-group-box">
+        <div className="advanced-filter-modal-group-header">
+          <span className="advanced-filter-modal-group-title">Filter Group {groupIndex + 1}</span>
 
-          <div className="smart-filter-modal-group-controls">
-            <div className="smart-filter-modal-operator-toggle">
+          <div className="advanced-filter-modal-group-controls">
+            <div className="advanced-filter-modal-operator-toggle">
               <button
                 type="button"
-                className={`smart-filter-modal-operator-btn ${group.operator === 'AND' ? 'active' : ''}`}
+                className={`advanced-filter-modal-operator-btn ${group.operator === 'AND' ? 'active' : ''}`}
                 onClick={() => updateGroupOperator(group.id, 'AND')}
               >
                 AND
               </button>
               <button
                 type="button"
-                className={`smart-filter-modal-operator-btn ${group.operator === 'OR' ? 'active' : ''}`}
+                className={`advanced-filter-modal-operator-btn ${group.operator === 'OR' ? 'active' : ''}`}
                 onClick={() => updateGroupOperator(group.id, 'OR')}
               >
                 OR
@@ -198,7 +198,7 @@ function FilterGroupBox({
             {!isOnly && (
               <button
                 type="button"
-                className="smart-filter-modal-remove-group-btn"
+                className="advanced-filter-modal-remove-group-btn"
                 onClick={() => removeGroup(group.id)}
                 title="Remove group"
               >
@@ -211,12 +211,12 @@ function FilterGroupBox({
           </div>
         </div>
 
-        <div className="smart-filter-modal-conditions">
+        <div className="advanced-filter-modal-conditions">
           {group.conditions.map((condition, conditionIndex) => (
-            <div key={condition.id} className="smart-filter-modal-condition-wrapper">
+            <div key={condition.id} className="advanced-filter-modal-condition-wrapper">
               {conditionIndex > 0 && (
-                <div className="smart-filter-modal-condition-operator">
-                  <span className="smart-filter-modal-operator-badge">{group.operator}</span>
+                <div className="advanced-filter-modal-condition-operator">
+                  <span className="advanced-filter-modal-operator-badge">{group.operator}</span>
                 </div>
               )}
               <FilterConditionRow
@@ -231,7 +231,7 @@ function FilterGroupBox({
 
         <button
           type="button"
-          className="smart-filter-modal-add-condition-btn"
+          className="advanced-filter-modal-add-condition-btn"
           onClick={() => addCondition(group.id)}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -249,29 +249,35 @@ function FilterGroupBox({
 // Main Modal Component
 // =============================================================================
 
-export interface SmartSeriesFilterModalProps {
+export interface AdvancedSeriesFilterModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterModalProps) {
+export function AdvancedSeriesFilterModal({ isOpen, onClose }: AdvancedSeriesFilterModalProps) {
   const {
     activeFilter,
     isFilterActive,
     savedFilters,
+    activePresetId,
     clearFilter,
     addGroup,
     setRootOperator,
     setSortBy,
     setSortOrder,
     saveFilter,
+    updateFilter,
+    renameFilter,
     loadFilter,
     deleteFilter,
-  } = useSmartSeriesFilter();
+  } = useAdvancedSeriesFilter();
 
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [presetsOpen, setPresetsOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renamingPresetId, setRenamingPresetId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   // Count active conditions for display
   const activeConditionCount = useMemo(() => {
@@ -286,11 +292,16 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
       ).length, 0);
   }, [activeFilter]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (filterName.trim()) {
-      saveFilter(filterName.trim());
-      setFilterName('');
-      setSaveDialogOpen(false);
+      try {
+        await saveFilter(filterName.trim());
+        setFilterName('');
+        setSaveDialogOpen(false);
+      } catch (error) {
+        // Keep dialog open on error so user can retry
+        console.error('Failed to save filter:', error);
+      }
     }
   }, [filterName, saveFilter]);
 
@@ -299,10 +310,49 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
     setPresetsOpen(false);
   }, [loadFilter]);
 
-  const handleDeletePreset = useCallback((filterId: string, e: React.MouseEvent) => {
+  const handleDeletePreset = useCallback(async (filterId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    deleteFilter(filterId);
+    try {
+      await deleteFilter(filterId);
+    } catch (error) {
+      console.error('Failed to delete filter:', error);
+    }
   }, [deleteFilter]);
+
+  const handleUpdate = useCallback(async () => {
+    try {
+      await updateFilter();
+    } catch (error) {
+      console.error('Failed to update filter:', error);
+    }
+  }, [updateFilter]);
+
+  const handleSaveAs = useCallback(() => {
+    setFilterName('');
+    setSaveDialogOpen(true);
+  }, []);
+
+  const handleRenameClick = useCallback((filterId: string, currentName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingPresetId(filterId);
+    setRenameValue(currentName);
+    setRenameDialogOpen(true);
+    setPresetsOpen(false);
+  }, []);
+
+  const handleRenameSubmit = useCallback(async () => {
+    if (renamingPresetId && renameValue.trim()) {
+      try {
+        await renameFilter(renamingPresetId, renameValue.trim());
+        setRenameDialogOpen(false);
+        setRenamingPresetId(null);
+        setRenameValue('');
+      } catch (error) {
+        // Keep dialog open on error so user can retry
+        console.error('Failed to rename filter:', error);
+      }
+    }
+  }, [renamingPresetId, renameValue, renameFilter]);
 
   // Handle escape key
   useEffect(() => {
@@ -312,6 +362,10 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
       if (e.key === 'Escape') {
         if (saveDialogOpen) {
           setSaveDialogOpen(false);
+        } else if (renameDialogOpen) {
+          setRenameDialogOpen(false);
+          setRenamingPresetId(null);
+          setRenameValue('');
         } else if (presetsOpen) {
           setPresetsOpen(false);
         } else {
@@ -322,7 +376,7 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, saveDialogOpen, presetsOpen]);
+  }, [isOpen, onClose, saveDialogOpen, renameDialogOpen, presetsOpen]);
 
   // Close presets dropdown when clicking outside
   useEffect(() => {
@@ -336,28 +390,28 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="smart-filter-modal-overlay" onClick={onClose}>
+    <div className="advanced-filter-modal-overlay" onClick={onClose}>
       <div
-        className="smart-filter-modal"
+        className="advanced-filter-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="smart-filter-modal-title"
+        aria-labelledby="advanced-filter-modal-title"
       >
         {/* Header */}
-        <div className="smart-filter-modal-header">
-          <div className="smart-filter-modal-title-section">
+        <div className="advanced-filter-modal-header">
+          <div className="advanced-filter-modal-title-section">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            <h2 id="smart-filter-modal-title">Smart Series Filters</h2>
+            <h2 id="advanced-filter-modal-title">Advanced Series Filters</h2>
             {activeConditionCount > 0 && (
-              <span className="smart-filter-modal-badge">{activeConditionCount} active</span>
+              <span className="advanced-filter-modal-badge">{activeConditionCount} active</span>
             )}
           </div>
           <button
             type="button"
-            className="smart-filter-modal-close-btn"
+            className="advanced-filter-modal-close-btn"
             onClick={onClose}
             aria-label="Close"
           >
@@ -369,14 +423,14 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
         </div>
 
         {/* Content */}
-        <div className="smart-filter-modal-content">
+        <div className="advanced-filter-modal-content">
           {activeFilter && (
             <>
               {/* Sorting controls */}
-              <div className="smart-filter-modal-sort-controls">
-                <label className="smart-filter-modal-sort-label">Sort by:</label>
+              <div className="advanced-filter-modal-sort-controls">
+                <label className="advanced-filter-modal-sort-label">Sort by:</label>
                 <select
-                  className="smart-filter-modal-sort-select"
+                  className="advanced-filter-modal-sort-select"
                   value={activeFilter.sortBy || ''}
                   onChange={(e) => setSortBy((e.target.value || undefined) as SeriesSortField | undefined)}
                   aria-label="Sort field"
@@ -390,10 +444,10 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
                 </select>
 
                 {activeFilter.sortBy && (
-                  <div className="smart-filter-modal-sort-order">
+                  <div className="advanced-filter-modal-sort-order">
                     <button
                       type="button"
-                      className={`smart-filter-modal-sort-btn ${activeFilter.sortOrder !== 'desc' ? 'active' : ''}`}
+                      className={`advanced-filter-modal-sort-btn ${activeFilter.sortOrder !== 'desc' ? 'active' : ''}`}
                       onClick={() => setSortOrder('asc')}
                       title="Ascending"
                     >
@@ -401,7 +455,7 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
                     </button>
                     <button
                       type="button"
-                      className={`smart-filter-modal-sort-btn ${activeFilter.sortOrder === 'desc' ? 'active' : ''}`}
+                      className={`advanced-filter-modal-sort-btn ${activeFilter.sortOrder === 'desc' ? 'active' : ''}`}
                       onClick={() => setSortOrder('desc')}
                       title="Descending"
                     >
@@ -413,19 +467,19 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
 
               {/* Root operator toggle */}
               {activeFilter.groups.length > 1 && (
-                <div className="smart-filter-modal-root-toggle">
-                  <span className="smart-filter-modal-root-label">Match:</span>
-                  <div className="smart-filter-modal-operator-toggle root">
+                <div className="advanced-filter-modal-root-toggle">
+                  <span className="advanced-filter-modal-root-label">Match:</span>
+                  <div className="advanced-filter-modal-operator-toggle root">
                     <button
                       type="button"
-                      className={`smart-filter-modal-operator-btn ${activeFilter.rootOperator === 'AND' ? 'active' : ''}`}
+                      className={`advanced-filter-modal-operator-btn ${activeFilter.rootOperator === 'AND' ? 'active' : ''}`}
                       onClick={() => setRootOperator('AND')}
                     >
                       ALL groups
                     </button>
                     <button
                       type="button"
-                      className={`smart-filter-modal-operator-btn ${activeFilter.rootOperator === 'OR' ? 'active' : ''}`}
+                      className={`advanced-filter-modal-operator-btn ${activeFilter.rootOperator === 'OR' ? 'active' : ''}`}
                       onClick={() => setRootOperator('OR')}
                     >
                       ANY group
@@ -435,7 +489,7 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
               )}
 
               {/* Filter groups */}
-              <div className="smart-filter-modal-groups">
+              <div className="advanced-filter-modal-groups">
                 {activeFilter.groups.map((group, index) => (
                   <FilterGroupBox
                     key={group.id}
@@ -451,7 +505,7 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
               {/* Add group button */}
               <button
                 type="button"
-                className="smart-filter-modal-add-group-btn"
+                className="advanced-filter-modal-add-group-btn"
                 onClick={addGroup}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -465,13 +519,13 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
         </div>
 
         {/* Footer */}
-        <div className="smart-filter-modal-footer">
-          <div className="smart-filter-modal-footer-left">
+        <div className="advanced-filter-modal-footer">
+          <div className="advanced-filter-modal-footer-left">
             {/* Presets dropdown */}
-            <div className="smart-filter-modal-presets-dropdown">
+            <div className="advanced-filter-modal-presets-dropdown">
               <button
                 type="button"
-                className="smart-filter-modal-presets-btn"
+                className="advanced-filter-modal-presets-btn"
                 onClick={(e) => {
                   e.stopPropagation();
                   setPresetsOpen(!presetsOpen);
@@ -487,28 +541,41 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
                 </svg>
               </button>
               {presetsOpen && (
-                <div className="smart-filter-modal-presets-menu" onClick={(e) => e.stopPropagation()}>
+                <div className="advanced-filter-modal-presets-menu" onClick={(e) => e.stopPropagation()}>
                   {savedFilters.length === 0 ? (
-                    <div className="smart-filter-modal-presets-empty">No saved filters</div>
+                    <div className="advanced-filter-modal-presets-empty">No saved filters</div>
                   ) : (
                     savedFilters.map(filter => (
                       <div
                         key={filter.id}
-                        className="smart-filter-modal-preset-item"
+                        className="advanced-filter-modal-preset-item"
                         onClick={() => handleLoadPreset(filter.id)}
                       >
-                        <span className="smart-filter-modal-preset-name">{filter.name}</span>
-                        <button
-                          type="button"
-                          className="smart-filter-modal-preset-delete-btn"
-                          onClick={(e) => handleDeletePreset(filter.id, e)}
-                          title="Delete preset"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
-                          </svg>
-                        </button>
+                        <span className="advanced-filter-modal-preset-name">{filter.name}</span>
+                        <div className="advanced-filter-modal-preset-actions">
+                          <button
+                            type="button"
+                            className="advanced-filter-modal-preset-rename-btn"
+                            onClick={(e) => handleRenameClick(filter.id, filter.name, e)}
+                            title="Rename preset"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            className="advanced-filter-modal-preset-delete-btn"
+                            onClick={(e) => handleDeletePreset(filter.id, e)}
+                            title="Delete preset"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -516,31 +583,63 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
               )}
             </div>
 
-            {/* Save button */}
+            {/* Save/Update buttons */}
             {isFilterActive && (
-              <button
-                type="button"
-                className="smart-filter-modal-save-btn"
-                onClick={() => {
-                  setFilterName('');
-                  setSaveDialogOpen(true);
-                }}
-                title="Save filter as preset"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-                Save
-              </button>
+              activePresetId ? (
+                /* Editing existing preset - show Update and Save As */
+                <>
+                  <button
+                    type="button"
+                    className="advanced-filter-modal-update-btn"
+                    onClick={handleUpdate}
+                    title="Update this preset with current changes"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    Update Preset
+                  </button>
+                  <button
+                    type="button"
+                    className="advanced-filter-modal-save-as-btn"
+                    onClick={handleSaveAs}
+                    title="Save as new preset"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Save As
+                  </button>
+                </>
+              ) : (
+                /* Creating new filter - show Save */
+                <button
+                  type="button"
+                  className="advanced-filter-modal-save-btn"
+                  onClick={() => {
+                    setFilterName('');
+                    setSaveDialogOpen(true);
+                  }}
+                  title="Save filter as preset"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                  Save
+                </button>
+              )
             )}
 
             {/* Clear button */}
             {isFilterActive && (
               <button
                 type="button"
-                className="smart-filter-modal-clear-btn"
+                className="advanced-filter-modal-clear-btn"
                 onClick={clearFilter}
                 title="Clear all filters"
               >
@@ -549,10 +648,10 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
             )}
           </div>
 
-          <div className="smart-filter-modal-footer-right">
+          <div className="advanced-filter-modal-footer-right">
             <button
               type="button"
-              className="smart-filter-modal-done-btn"
+              className="advanced-filter-modal-done-btn"
               onClick={onClose}
             >
               Done
@@ -563,11 +662,11 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
         {/* Save dialog */}
         {saveDialogOpen && (
           <div
-            className="smart-filter-modal-save-dialog-overlay"
+            className="advanced-filter-modal-save-dialog-overlay"
             onClick={() => setSaveDialogOpen(false)}
           >
             <div
-              className="smart-filter-modal-save-dialog"
+              className="advanced-filter-modal-save-dialog"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
@@ -584,7 +683,7 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
                   if (e.key === 'Escape') setSaveDialogOpen(false);
                 }}
               />
-              <div className="smart-filter-modal-save-dialog-actions">
+              <div className="advanced-filter-modal-save-dialog-actions">
                 <button type="button" onClick={() => setSaveDialogOpen(false)}>
                   Cancel
                 </button>
@@ -595,6 +694,62 @@ export function SmartSeriesFilterModal({ isOpen, onClose }: SmartSeriesFilterMod
                   disabled={!filterName.trim()}
                 >
                   Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rename dialog */}
+        {renameDialogOpen && (
+          <div
+            className="advanced-filter-modal-save-dialog-overlay"
+            onClick={() => {
+              setRenameDialogOpen(false);
+              setRenamingPresetId(null);
+              setRenameValue('');
+            }}
+          >
+            <div
+              className="advanced-filter-modal-save-dialog"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              <h4>Rename Preset</h4>
+              <input
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                placeholder="Enter new name..."
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenameSubmit();
+                  if (e.key === 'Escape') {
+                    setRenameDialogOpen(false);
+                    setRenamingPresetId(null);
+                    setRenameValue('');
+                  }
+                }}
+              />
+              <div className="advanced-filter-modal-save-dialog-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenameDialogOpen(false);
+                    setRenamingPresetId(null);
+                    setRenameValue('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleRenameSubmit}
+                  disabled={!renameValue.trim()}
+                >
+                  Rename
                 </button>
               </div>
             </div>

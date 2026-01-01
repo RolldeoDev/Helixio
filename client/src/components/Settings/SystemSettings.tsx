@@ -123,10 +123,11 @@ export function SystemSettings() {
       // Load API keys
       const keysRes = await fetch(`${API_BASE}/config/api-keys`);
       const keys = await keysRes.json();
-      setComicVineKey(keys.comicVine || '');
-      setAnthropicKey(keys.anthropic || '');
-      setMetronUsername(keys.metronUsername || '');
-      setMetronPassword(keys.metronPassword || '');
+      // API returns objects with { value, source, readOnly } - extract the values
+      setComicVineKey(keys.comicVine?.value || '');
+      setAnthropicKey(keys.anthropic?.value || '');
+      setMetronUsername(keys.metronUsername?.value || '');
+      setMetronPassword(keys.metronPassword?.value || '');
 
       // Load general settings and config
       const configRes = await fetch(`${API_BASE}/config`);
@@ -173,7 +174,15 @@ export function SystemSettings() {
     setTestingMetron(true);
     setMetronTestResult(null);
     try {
-      const response = await fetch(`${API_BASE}/config/test-metron`, { method: 'POST' });
+      // Send current textbox values to test unsaved credentials
+      const response = await fetch(`${API_BASE}/config/test-metron`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: metronUsername || undefined,
+          password: metronPassword || undefined,
+        }),
+      });
       const data = await response.json();
 
       if (response.ok && data.success) {
@@ -195,7 +204,14 @@ export function SystemSettings() {
     setTestingComicVine(true);
     setComicVineTestResult(null);
     try {
-      const response = await fetch(`${API_BASE}/config/test-comicvine`, { method: 'POST' });
+      // Send current textbox value to test unsaved API key
+      const response = await fetch(`${API_BASE}/config/test-comicvine`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: comicVineKey || undefined,
+        }),
+      });
       const data = await response.json();
 
       if (response.ok && data.success) {
@@ -217,7 +233,14 @@ export function SystemSettings() {
     setTestingAnthropic(true);
     setAnthropicTestResult(null);
     try {
-      const response = await fetch(`${API_BASE}/config/test-anthropic`, { method: 'POST' });
+      // Send current textbox value to test unsaved API key
+      const response = await fetch(`${API_BASE}/config/test-anthropic`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: anthropicKey || undefined,
+        }),
+      });
       const data = await response.json();
 
       if (response.ok && data.success) {

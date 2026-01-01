@@ -1,5 +1,5 @@
 /**
- * Smart Filter Panel Component
+ * Advanced Filter Panel Component
  *
  * A collapsible panel for building complex filters with AND/OR logic.
  * Supports multiple filter groups, saved presets, and various field comparisons.
@@ -7,7 +7,7 @@
 
 import { useState, useCallback } from 'react';
 import {
-  useSmartFilter,
+  useAdvancedFilter,
   FilterCondition,
   FilterGroup,
   FilterOperator,
@@ -17,9 +17,9 @@ import {
   NUMBER_COMPARISONS,
   DATE_COMPARISONS,
   SORT_FIELDS,
-} from '../../contexts/SmartFilterContext';
+} from '../../contexts/AdvancedFilterContext';
 import { useFilterPresets } from '../../contexts/FilterPresetContext';
-import './SmartFilter.css';
+import './AdvancedFilter.css';
 
 // =============================================================================
 // Sub-components
@@ -161,7 +161,7 @@ function FilterGroupBox({
     removeCondition,
     updateGroupOperator,
     removeGroup,
-  } = useSmartFilter();
+  } = useAdvancedFilter();
 
   return (
     <div className="filter-group">
@@ -253,7 +253,7 @@ function FilterGroupBox({
 // Main Component
 // =============================================================================
 
-export function SmartFilterPanel() {
+export function AdvancedFilterPanel() {
   const {
     activeFilter,
     isFilterActive,
@@ -269,7 +269,7 @@ export function SmartFilterPanel() {
     deleteFilter,
     openFilterPanel,
     closeFilterPanel,
-  } = useSmartFilter();
+  } = useAdvancedFilter();
 
   const { presets, isLoading: presetsLoading } = useFilterPresets();
 
@@ -323,7 +323,7 @@ export function SmartFilterPanel() {
   // Collapsed view - just a toggle button
   if (!isFilterPanelOpen) {
     return (
-      <div className="smart-filter-collapsed">
+      <div className="advanced-filter-collapsed">
         <button
           type="button"
           className={`filter-toggle-btn ${isFilterActive ? 'active' : ''}`}
@@ -353,17 +353,17 @@ export function SmartFilterPanel() {
   }
 
   return (
-    <div className="smart-filter-panel">
+    <div className="advanced-filter-panel">
       {/* Header */}
-      <div className="smart-filter-header">
-        <div className="smart-filter-title">
+      <div className="advanced-filter-header">
+        <div className="advanced-filter-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
           </svg>
           <span>Advanced Filters</span>
         </div>
 
-        <div className="smart-filter-actions">
+        <div className="advanced-filter-actions">
           {/* Presets dropdown */}
           <div className="filter-presets-dropdown">
             <button
@@ -476,7 +476,7 @@ export function SmartFilterPanel() {
       </div>
 
       {/* Filter content */}
-      <div className="smart-filter-content">
+      <div className="advanced-filter-content">
         {activeFilter && (
           <>
             {/* Sorting controls */}

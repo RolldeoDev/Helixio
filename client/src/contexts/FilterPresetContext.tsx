@@ -33,7 +33,7 @@ import {
   linkCollectionToPreset as apiLinkCollection,
   unlinkCollectionFromPreset as apiUnlinkCollection,
 } from '../services/api/filter-presets';
-import type { SmartFilter } from './SmartFilterContext';
+import type { AdvancedFilter } from './AdvancedFilterContext';
 import { useAuth } from './AuthContext';
 
 // =============================================================================
@@ -61,7 +61,7 @@ interface FilterPresetContextValue {
   canDelete: (id: string) => Promise<CanDeleteResult>;
 
   // Migration
-  migrateLocalPresets: (localPresets: SmartFilter[]) => Promise<MigrateResult>;
+  migrateLocalPresets: (localPresets: AdvancedFilter[]) => Promise<MigrateResult>;
   hasPendingMigration: boolean;
   dismissMigration: () => void;
 
@@ -81,7 +81,7 @@ const FilterPresetContext = createContext<FilterPresetContextValue | null>(null)
 // Local Storage Keys
 // =============================================================================
 
-const LOCAL_STORAGE_KEY = 'helixio-smart-filters';
+const LOCAL_STORAGE_KEY = 'helixio-advanced-filters';
 const MIGRATION_COMPLETED_KEY = 'helixio-filter-presets-migrated';
 
 // =============================================================================
@@ -204,7 +204,7 @@ export function FilterPresetProvider({ children }: FilterPresetProviderProps) {
   // Migration
   // =============================================================================
 
-  const migrateLocalPresets = useCallback(async (localPresets: SmartFilter[]): Promise<MigrateResult> => {
+  const migrateLocalPresets = useCallback(async (localPresets: AdvancedFilter[]): Promise<MigrateResult> => {
     // This context handles 'file' type presets
     const result = await apiMigrateLocalPresets(localPresets, 'file');
 

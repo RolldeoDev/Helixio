@@ -19,18 +19,18 @@ import { useNavigate } from 'react-router-dom';
 import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import { useApp } from '../contexts/AppContext';
 import {
-  SmartSeriesFilterProvider,
-  useSmartSeriesFilter,
+  AdvancedSeriesFilterProvider,
+  useAdvancedSeriesFilter,
   FilterableSeries,
-} from '../contexts/SmartSeriesFilterContext';
+} from '../contexts/AdvancedSeriesFilterContext';
 import { useVirtualGrid } from '../hooks/useVirtualGrid';
 import { CoverSizeSlider } from '../components/CoverSizeSlider';
 import { Spinner } from '../components/LoadingState';
 import { SeriesBrowserCard } from '../components/SeriesBrowserCard';
 import {
-  SmartSeriesFilterPanel,
-  SmartSeriesFilterModal,
-} from '../components/SmartSeriesFilter';
+  AdvancedSeriesFilterPanel,
+  AdvancedSeriesFilterModal,
+} from '../components/AdvancedSeriesFilter';
 import { NavigationSidebar } from '../components/NavigationSidebar';
 import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
@@ -124,9 +124,9 @@ function filterReducer(state: FilterState, action: FilterAction): FilterState {
 
 export function SeriesBrowserPage() {
   return (
-    <SmartSeriesFilterProvider>
+    <AdvancedSeriesFilterProvider>
       <SeriesBrowserPageContent />
-    </SmartSeriesFilterProvider>
+    </AdvancedSeriesFilterProvider>
   );
 }
 
@@ -148,13 +148,13 @@ function SeriesBrowserPageContent() {
     clearSeriesSelection,
   } = useApp();
 
-  // Smart filter context
+  // Advanced filter context
   const {
     applyFilterToSeries,
-    isFilterActive: isSmartFilterActive,
+    isFilterActive: isAdvancedFilterActive,
     isFilterPanelOpen,
     closeFilterPanel,
-  } = useSmartSeriesFilter();
+  } = useAdvancedSeriesFilter();
 
   // Toast notifications
   const { addToast } = useToast();
@@ -301,10 +301,10 @@ function SeriesBrowserPageContent() {
     fetchSeries();
   }, [fetchSeries]);
 
-  // Apply smart filter to raw items (client-side filtering)
-  // Note: Smart filter only applies to series, collections pass through
+  // Apply advanced filter to raw items (client-side filtering)
+  // Note: Advanced filter only applies to series, collections pass through
   const items = useMemo(() => {
-    if (!isSmartFilterActive) return rawItems;
+    if (!isAdvancedFilterActive) return rawItems;
 
     // Separate series and collections
     const seriesItems = rawItems.filter((item): item is GridItem & { itemType: 'series' } =>
@@ -314,7 +314,7 @@ function SeriesBrowserPageContent() {
       item.itemType === 'collection'
     );
 
-    // Apply smart filter only to series
+    // Apply advanced filter only to series
     const filteredSeries = applyFilterToSeries(
       seriesItems.map(item => item.series) as unknown as FilterableSeries[]
     ) as unknown as Series[];
@@ -339,7 +339,7 @@ function SeriesBrowserPageContent() {
 
     // Collections appear first (promoted), then filtered series
     return [...collectionItems, ...filteredSeriesItems];
-  }, [rawItems, isSmartFilterActive, applyFilterToSeries]);
+  }, [rawItems, isAdvancedFilterActive, applyFilterToSeries]);
 
   // Update cached count values when data loads (for stable badge during loading)
   useEffect(() => {
@@ -424,7 +424,7 @@ function SeriesBrowserPageContent() {
     clearSeriesSelection();
   }, [selectLibrary, clearSeriesSelection]);
 
-  const hasActiveFilters = searchInput || publisher || type || hasUnread !== undefined || libraryId || showHidden || isSmartFilterActive;
+  const hasActiveFilters = searchInput || publisher || type || hasUnread !== undefined || libraryId || showHidden || isAdvancedFilterActive;
 
   // Keep allSeriesIdsRef in sync with current items for range selection
   // Only include series (not collections) for selection
@@ -793,8 +793,8 @@ function SeriesBrowserPageContent() {
         <div className="series-browser-filters">
           {/* Group 1: Content Filters */}
           <div className="series-browser-filter-group series-browser-filter-group--content">
-            {/* Smart Filters Toggle (integrated) */}
-            <SmartSeriesFilterPanel />
+            {/* Advanced Filters Toggle (integrated) */}
+            <AdvancedSeriesFilterPanel />
 
             {/* Search */}
             <div className="series-browser-search">
@@ -1154,8 +1154,8 @@ function SeriesBrowserPageContent() {
         />
       )}
 
-      {/* Smart Series Filter Modal */}
-      <SmartSeriesFilterModal
+      {/* Advanced Series Filter Modal */}
+      <AdvancedSeriesFilterModal
         isOpen={isFilterPanelOpen}
         onClose={closeFilterPanel}
       />

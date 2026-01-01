@@ -113,6 +113,12 @@ export function createMockPrismaClient() {
       upsert: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'prog-1', ...args.create })),
       delete: vi.fn().mockResolvedValue({}),
     },
+    seriesReaderSettingsNew: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args) => Promise.resolve({ id: 'srs-1', ...args.data })),
+      delete: vi.fn().mockResolvedValue({}),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
     collectionItem: {
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),

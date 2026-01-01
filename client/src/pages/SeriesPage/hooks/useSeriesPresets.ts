@@ -1,12 +1,12 @@
 /**
  * useSeriesPresets Hook
  *
- * Bridges SmartSeriesFilterContext with the SeriesPage filter system.
+ * Bridges AdvancedSeriesFilterContext with the SeriesPage filter system.
  * Provides preset management and application functionality.
  */
 
 import { useCallback, useMemo } from 'react';
-import { useSmartSeriesFilter } from '../../../contexts/SmartSeriesFilterContext';
+import { useAdvancedSeriesFilter } from '../../../contexts/AdvancedSeriesFilterContext';
 import { GridItem } from '../../../services/api/series';
 
 export interface SeriesPreset {
@@ -32,8 +32,8 @@ export interface UseSeriesPresetsReturn {
   saveAsPreset: (name: string) => void;
   /** Delete a preset by ID */
   deletePreset: (presetId: string) => void;
-  /** Whether the smart filter is active (has conditions) */
-  isSmartFilterActive: boolean;
+  /** Whether the advanced filter is active (has conditions) */
+  isAdvancedFilterActive: boolean;
 }
 
 export function useSeriesPresets(): UseSeriesPresetsReturn {
@@ -45,7 +45,7 @@ export function useSeriesPresets(): UseSeriesPresetsReturn {
     saveFilter,
     deleteFilter,
     applyFilterToSeries,
-  } = useSmartSeriesFilter();
+  } = useAdvancedSeriesFilter();
 
   // Map saved filters to preset format
   const presets = useMemo((): SeriesPreset[] => {
@@ -66,8 +66,8 @@ export function useSeriesPresets(): UseSeriesPresetsReturn {
     return activePresetId !== null;
   }, [activePresetId]);
 
-  // Check if smart filter has active conditions
-  const isSmartFilterActive = useMemo(() => {
+  // Check if advanced filter has active conditions
+  const isAdvancedFilterActive = useMemo(() => {
     if (!activeFilter) return false;
     return activeFilter.groups.some((group) => group.conditions.length > 0);
   }, [activeFilter]);
@@ -88,7 +88,7 @@ export function useSeriesPresets(): UseSeriesPresetsReturn {
   // Apply preset filter to items
   const applyPresetFilter = useCallback(
     (items: GridItem[]): GridItem[] => {
-      if (!isSmartFilterActive) {
+      if (!isAdvancedFilterActive) {
         return items;
       }
 
@@ -108,7 +108,7 @@ export function useSeriesPresets(): UseSeriesPresetsReturn {
 
       return [...filteredSeriesItems, ...otherItems];
     },
-    [isSmartFilterActive, applyFilterToSeries]
+    [isAdvancedFilterActive, applyFilterToSeries]
   );
 
   // Save current filter as preset
@@ -136,6 +136,6 @@ export function useSeriesPresets(): UseSeriesPresetsReturn {
     applyPresetFilter,
     saveAsPreset,
     deletePreset,
-    isSmartFilterActive,
+    isAdvancedFilterActive,
   };
 }

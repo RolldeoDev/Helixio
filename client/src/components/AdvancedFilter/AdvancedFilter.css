@@ -1,12 +1,12 @@
 /**
- * Smart Filter Panel Styles
+ * Advanced Filter Panel Styles
  */
 
 /* =============================================================================
    Collapsed State
    ============================================================================= */
 
-.smart-filter-collapsed {
+.advanced-filter-collapsed {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -62,7 +62,7 @@
    Panel Container
    ============================================================================= */
 
-.smart-filter-panel {
+.advanced-filter-panel {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -74,7 +74,7 @@
    Panel Header
    ============================================================================= */
 
-.smart-filter-header {
+.advanced-filter-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,7 +83,7 @@
   border-bottom: 1px solid var(--border-color);
 }
 
-.smart-filter-title {
+.advanced-filter-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -92,7 +92,7 @@
   color: var(--text-primary);
 }
 
-.smart-filter-actions {
+.advanced-filter-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -277,7 +277,7 @@
    Panel Content
    ============================================================================= */
 
-.smart-filter-content {
+.advanced-filter-content {
   padding: 1rem;
 }
 
@@ -732,12 +732,12 @@
    ============================================================================= */
 
 @media (max-width: 768px) {
-  .smart-filter-header {
+  .advanced-filter-header {
     flex-wrap: wrap;
     gap: 0.5rem;
   }
 
-  .smart-filter-actions {
+  .advanced-filter-actions {
     width: 100%;
     justify-content: flex-end;
   }

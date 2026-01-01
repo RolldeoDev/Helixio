@@ -9,10 +9,11 @@
  * - Featured currently reading with cinematic presentation
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, CSSProperties } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useDominantColor } from '../../hooks/useDominantColor';
 import {
   getCoverUrl,
   ContinueReadingItem,
@@ -167,6 +168,22 @@ export function HomeWelcome({
 
   const greeting = useMemo(() => getGreeting(), []);
 
+  // Extract dominant color from featured item's cover for dynamic backdrop
+  const coverUrl = featuredItem ? getCoverUrl(featuredItem.fileId) : null;
+  const { rgb: dominantColor } = useDominantColor(coverUrl);
+
+  // Generate CSS custom properties for the dynamic gradient
+  const heroStyle = useMemo((): CSSProperties => {
+    if (dominantColor) {
+      return {
+        '--hero-color-r': dominantColor.r,
+        '--hero-color-g': dominantColor.g,
+        '--hero-color-b': dominantColor.b,
+      } as CSSProperties;
+    }
+    return {};
+  }, [dominantColor]);
+
   // Reset cover error state when featured item changes
   useEffect(() => {
     setCoverError(false);
@@ -225,9 +242,15 @@ export function HomeWelcome({
   } : null;
 
   return (
-    <section className="welcome-section">
-      {/* Background Pattern */}
-      <div className="welcome-bg-pattern" aria-hidden="true" />
+    <section
+      className={`welcome-section ${dominantColor ? 'welcome-section--has-color' : ''}`}
+      style={heroStyle}
+    >
+      {/* Dynamic Gradient Backdrop */}
+      <div className="welcome-backdrop" aria-hidden="true">
+        <div className="welcome-backdrop__gradient" />
+        <div className="welcome-backdrop__glow" />
+      </div>
 
       {/* Main Content Grid */}
       <div className="welcome-grid">

@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../../contexts/AppContext';
-import { useSmartFilter } from '../../contexts/SmartFilterContext';
+import { useAdvancedFilter } from '../../contexts/AdvancedFilterContext';
 import {
   SORT_FIELDS,
   GROUP_FIELDS,
@@ -42,7 +42,7 @@ export function LibraryToolbar({
   onGroupChange,
 }: LibraryToolbarProps) {
   const { pagination, selectedFiles, clearSelection, setPage, setPageSize, sortField, sortOrder, setSort } = useApp();
-  const { isFilterActive, openFilterPanel, clearFilter, isFilterPanelOpen } = useSmartFilter();
+  const { isFilterActive, openFilterPanel, clearFilter, isFilterPanelOpen } = useAdvancedFilter();
 
   // Sort dropdown state
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);

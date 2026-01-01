@@ -1,5 +1,5 @@
 /**
- * Smart Filter Context
+ * Advanced Filter Context
  *
  * Advanced filtering system for the library with AND/OR logic,
  * multiple filter conditions, and saved filter presets.
@@ -38,7 +38,7 @@ export type FilterField =
   | 'status'
   | 'path'
   | 'rating'
-  // Smart collection fields
+  // Advanced filter fields
   | 'readStatus'
   | 'dateAdded'
   | 'lastReadAt'
@@ -105,7 +105,7 @@ export interface FilterGroup {
   conditions: FilterCondition[];
 }
 
-export interface SmartFilter {
+export interface AdvancedFilter {
   id: string;
   name: string;
   rootOperator: FilterOperator;
@@ -166,21 +166,21 @@ export interface FilterableFile {
   } | null;
 }
 
-export interface SmartFilterState {
+export interface AdvancedFilterState {
   // Current filter being edited/applied
-  activeFilter: SmartFilter | null;
+  activeFilter: AdvancedFilter | null;
   isFilterActive: boolean;
 
   // Saved presets
-  savedFilters: SmartFilter[];
+  savedFilters: AdvancedFilter[];
 
   // UI state
   isFilterPanelOpen: boolean;
 }
 
-export interface SmartFilterContextValue extends SmartFilterState {
+export interface AdvancedFilterContextValue extends AdvancedFilterState {
   // Filter actions
-  setActiveFilter: (filter: SmartFilter | null) => void;
+  setActiveFilter: (filter: AdvancedFilter | null) => void;
   clearFilter: () => void;
 
   // Condition management
@@ -324,7 +324,7 @@ function createEmptyGroup(): FilterGroup {
   };
 }
 
-function createEmptyFilter(): SmartFilter {
+function createEmptyFilter(): AdvancedFilter {
   return {
     id: generateId(),
     name: 'New Filter',
@@ -518,7 +518,7 @@ function evaluateGroup(
 
 function evaluateFilter(
   file: FilterableFile,
-  filter: SmartFilter
+  filter: AdvancedFilter
 ): boolean {
   if (filter.groups.length === 0) return true;
 
@@ -530,9 +530,9 @@ function evaluateFilter(
 }
 
 /**
- * Convert a FilterPreset (from API) to SmartFilter (for internal use)
+ * Convert a FilterPreset (from API) to AdvancedFilter (for internal use)
  */
-function presetToSmartFilter(preset: FilterPreset): SmartFilter {
+function presetToAdvancedFilter(preset: FilterPreset): AdvancedFilter {
   return {
     ...preset.filterDefinition,
     id: preset.id,
@@ -548,12 +548,12 @@ function presetToSmartFilter(preset: FilterPreset): SmartFilter {
 // Context
 // =============================================================================
 
-const SmartFilterContext = createContext<SmartFilterContextValue | null>(null);
+const AdvancedFilterContext = createContext<AdvancedFilterContextValue | null>(null);
 
-export function useSmartFilter(): SmartFilterContextValue {
-  const context = useContext(SmartFilterContext);
+export function useAdvancedFilter(): AdvancedFilterContextValue {
+  const context = useContext(AdvancedFilterContext);
   if (!context) {
-    throw new Error('useSmartFilter must be used within SmartFilterProvider');
+    throw new Error('useAdvancedFilter must be used within AdvancedFilterProvider');
   }
   return context;
 }
@@ -562,11 +562,11 @@ export function useSmartFilter(): SmartFilterContextValue {
 // Provider
 // =============================================================================
 
-interface SmartFilterProviderProps {
+interface AdvancedFilterProviderProps {
   children: ReactNode;
 }
 
-export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
+export function AdvancedFilterProvider({ children }: AdvancedFilterProviderProps) {
   const {
     presets,
     createPreset,
@@ -574,19 +574,19 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
     deletePreset: deletePresetApi,
   } = useFilterPresets();
 
-  const [activeFilter, setActiveFilterState] = useState<SmartFilter | null>(null);
+  const [activeFilter, setActiveFilterState] = useState<AdvancedFilter | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
-  // Convert presets to SmartFilter format
+  // Convert presets to AdvancedFilter format
   const savedFilters = useMemo(() => {
-    return presets.map(presetToSmartFilter);
+    return presets.map(presetToAdvancedFilter);
   }, [presets]);
 
   // ---------------------------------------------------------------------------
   // Filter Actions
   // ---------------------------------------------------------------------------
 
-  const setActiveFilter = useCallback((filter: SmartFilter | null) => {
+  const setActiveFilter = useCallback((filter: AdvancedFilter | null) => {
     setActiveFilterState(filter);
   }, []);
 
@@ -867,7 +867,7 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
   // Context Value
   // ---------------------------------------------------------------------------
 
-  const value: SmartFilterContextValue = {
+  const value: AdvancedFilterContextValue = {
     // State
     activeFilter,
     isFilterActive,
@@ -909,8 +909,8 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
   };
 
   return (
-    <SmartFilterContext.Provider value={value}>
+    <AdvancedFilterContext.Provider value={value}>
       {children}
-    </SmartFilterContext.Provider>
+    </AdvancedFilterContext.Provider>
   );
 }

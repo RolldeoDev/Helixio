@@ -7,10 +7,10 @@
 
 import { get, post, put, del } from './shared';
 import type {
-  SmartFilter,
+  AdvancedFilter,
   SortField,
   SortOrder,
-} from '../../contexts/SmartFilterContext';
+} from '../../contexts/AdvancedFilterContext';
 
 // =============================================================================
 // Types
@@ -26,7 +26,7 @@ export interface FilterPreset {
   name: string;
   description: string | null;
   icon: string | null;
-  filterDefinition: SmartFilter;
+  filterDefinition: AdvancedFilter;
   schemaVersion: number;
   sortBy: SortField | null;
   sortOrder: SortOrder | null;
@@ -39,7 +39,7 @@ export interface CreatePresetInput {
   type: FilterPresetType;
   description?: string;
   icon?: string;
-  filterDefinition: SmartFilter;
+  filterDefinition: AdvancedFilter;
   sortBy?: SortField;
   sortOrder?: SortOrder;
   isGlobal?: boolean;
@@ -49,7 +49,7 @@ export interface UpdatePresetInput {
   name?: string;
   description?: string;
   icon?: string;
-  filterDefinition?: SmartFilter;
+  filterDefinition?: AdvancedFilter;
   sortBy?: SortField;
   sortOrder?: SortOrder;
 }
@@ -174,7 +174,7 @@ export async function duplicatePreset(
  * Migrate local storage presets to database
  */
 export async function migrateLocalPresets(
-  presets: SmartFilter[],
+  presets: AdvancedFilter[],
   type?: FilterPresetType
 ): Promise<MigrateResult> {
   return post<MigrateResult>('/filter-presets/migrate-local', { presets, type });

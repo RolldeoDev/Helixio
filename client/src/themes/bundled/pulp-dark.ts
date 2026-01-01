@@ -78,20 +78,20 @@ export const pulpDarkTheme: ThemeDefinition = {
   },
   tokens: {
     // Background colors - Deep ink blacks like a noir film
-    colorBg: '#1a1512',                    // Ink black with warm undertone
-    colorBgSecondary: '#231e1a',           // Smoke-filled room
-    colorBgTertiary: '#120f0c',            // Deepest shadow
-    colorBgElevated: '#2d2620',            // Desk surface
-    colorBgCard: '#1f1a16',                // Worn leather
-    colorSurfaceCardHover: 'rgba(201, 162, 39, 0.08)', // Brass glint
+    colorBg: '#161210',                    // Deeper ink black
+    colorBgSecondary: '#1e1915',           // Smoke-filled room, darker
+    colorBgTertiary: '#0e0b09',            // Abyss shadow
+    colorBgElevated: '#282220',            // Weathered desk surface
+    colorBgCard: '#1a1512',                // Worn leather
+    colorSurfaceCardHover: 'rgba(212, 168, 32, 0.10)', // Rich brass glint
 
-    // Primary & Accent - Brass lamp and blood accents
-    colorPrimary: '#c9a227',               // Brass desk lamp
-    colorPrimaryHover: '#dab632',          // Polished brass
-    colorPrimaryMuted: 'rgba(201, 162, 39, 0.15)',
-    colorPrimaryText: '#1a1512',           // Dark text on brass backgrounds
-    colorSecondary: '#2d2620',             // Tobacco brown
-    colorAccent: '#8b2500',                // Dried blood / danger
+    // Primary & Accent - Rich brass lamp and blood accents
+    colorPrimary: '#d4a820',               // Rich polished brass
+    colorPrimaryHover: '#e0b830',          // Gleaming brass
+    colorPrimaryMuted: 'rgba(212, 168, 32, 0.18)',
+    colorPrimaryText: '#0e0b09',           // Deep ink text on brass backgrounds
+    colorSecondary: '#2a2420',             // Deep tobacco brown
+    colorAccent: '#7a1f00',                // Darker dried blood
 
     // Text colors - Aged paper and typewriter ink
     colorText: '#d4c4a8',                  // Yellowed paper
@@ -105,34 +105,34 @@ export const pulpDarkTheme: ThemeDefinition = {
     colorDanger: '#6b1a00',                // Dark crimson
     colorInfo: '#5c6b78',                  // Steel blue
 
-    // Borders & interactions - Subtle brass accents
-    colorBorder: 'rgba(201, 162, 39, 0.2)',
-    colorBorderSubtle: 'rgba(201, 162, 39, 0.1)',
-    colorDivider: 'rgba(201, 162, 39, 0.15)',
-    colorHover: 'rgba(201, 162, 39, 0.1)',
-    colorSelected: 'rgba(201, 162, 39, 0.2)',
-    colorFocusRing: 'rgba(201, 162, 39, 0.5)',
+    // Borders & interactions - Rich brass accents
+    colorBorder: 'rgba(212, 168, 32, 0.25)',
+    colorBorderSubtle: 'rgba(212, 168, 32, 0.12)',
+    colorDivider: 'rgba(212, 168, 32, 0.18)',
+    colorHover: 'rgba(212, 168, 32, 0.12)',
+    colorSelected: 'rgba(212, 168, 32, 0.25)',
+    colorFocusRing: 'rgba(212, 168, 32, 0.55)',
 
     // Typography - Bold noir headlines and readable body
     fontDisplay: "'Playfair Display', 'Bodoni Moda', Georgia, serif",
     fontBody: "'Crimson Pro', 'Libre Baskerville', Georgia, serif",
 
     // Shadows - Deep noir shadows with warm lamp glow
-    shadowSm: '0 2px 8px rgba(0, 0, 0, 0.5)',
-    shadowMd: '0 4px 20px rgba(0, 0, 0, 0.6)',
-    shadowLg: '0 8px 40px rgba(0, 0, 0, 0.7)',
-    shadowGlow: '0 0 30px rgba(201, 162, 39, 0.15), 0 0 60px rgba(139, 37, 0, 0.1)',
-    shadowHoverGlow: '0 0 35px rgba(201, 162, 39, 0.25), 0 0 70px rgba(139, 37, 0, 0.15)',
+    shadowSm: '0 2px 8px rgba(0, 0, 0, 0.6)',
+    shadowMd: '0 4px 20px rgba(0, 0, 0, 0.7)',
+    shadowLg: '0 8px 40px rgba(0, 0, 0, 0.8)',
+    shadowGlow: '0 0 35px rgba(212, 168, 32, 0.22), 0 0 70px rgba(122, 31, 0, 0.15)',
+    shadowHoverGlow: '0 0 45px rgba(212, 168, 32, 0.35), 0 0 90px rgba(122, 31, 0, 0.22)',
 
     // Title effects - Brass glow like a neon sign
     shadowTitleLocation: '2px 2px 0',
     colorShadowTitle: '#6b1a00',
 
-    // Issue badge - Brass and blood
-    colorIssueBadge: '#c9a227',
+    // Issue badge - Rich brass and blood
+    colorIssueBadge: '#d4a820',
     colorIssueBadgeCompleted: '#5a7247',
-    colorIssueBadgeText: '#1a1512',
-    colorIssueBadgeTextCompleted: '#1a1512',
+    colorIssueBadgeText: '#161210',
+    colorIssueBadgeTextCompleted: '#161210',
 
     // Border radius - Sharp edges like pulp magazine corners
     radiusSm: '2px',

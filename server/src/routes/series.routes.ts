@@ -918,7 +918,21 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
     }
   } else if (source === 'user' && fileId) {
     // User selected an issue cover
-    await setSeriesCoverFromIssue(seriesId, fileId);
+    try {
+      await setSeriesCoverFromIssue(seriesId, fileId);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not found')) {
+          sendNotFound(res, error.message);
+          return;
+        }
+        if (error.message.includes('does not belong')) {
+          sendBadRequest(res, error.message);
+          return;
+        }
+      }
+      throw error;
+    }
   } else if (source === 'user' && url) {
     // User provided a custom URL - download and use it
     const result = await setSeriesCoverFromUrl(seriesId, url);
@@ -937,7 +951,21 @@ router.post('/:id/cover', asyncHandler(async (req: Request, res: Response) => {
     await onCoverSourceChanged('series', seriesId);
   } else if (fileId) {
     // Legacy: just fileId provided (backwards compatibility)
-    await setSeriesCoverFromIssue(seriesId, fileId);
+    try {
+      await setSeriesCoverFromIssue(seriesId, fileId);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('not found')) {
+          sendNotFound(res, error.message);
+          return;
+        }
+        if (error.message.includes('does not belong')) {
+          sendBadRequest(res, error.message);
+          return;
+        }
+      }
+      throw error;
+    }
   } else if (url) {
     // Legacy: just url provided (backwards compatibility)
     const result = await setSeriesCoverFromUrl(seriesId, url);

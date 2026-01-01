@@ -342,7 +342,7 @@ export function getApiKeySource(name: keyof ApiKeys): ApiKeySource {
 
   const config = loadConfig();
   const configValue = config.apiKeys[name];
-  if (configValue && configValue.trim().length > 0) {
+  if (typeof configValue === 'string' && configValue.trim().length > 0) {
     return 'config';
   }
 

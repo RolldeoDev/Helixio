@@ -25,7 +25,7 @@ export interface SeriesFilterState {
   sortBy: SortByOption;
   sortOrder: SortOrder;
 
-  // Smart filter preset (mutually exclusive with core filters)
+  // Advanced filter preset (mutually exclusive with core filters)
   presetId: string | null;
 
   // View preferences (not sent to API)
