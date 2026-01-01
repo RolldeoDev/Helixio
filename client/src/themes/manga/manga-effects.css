@@ -16,12 +16,28 @@
    ============================================ */
 
 :root[data-theme^="manga"] {
+  /* Core sakura palette */
   --manga-sakura-pink: #ffb7c5;
   --manga-sakura-light: #ffd6de;
   --manga-sakura-dark: #e896a6;
   --manga-wisteria: #c4a7e7;
   --manga-cream: #fff9f5;
   --manga-ink: #2a2530;
+
+  /* Extended kawaii palette */
+  --manga-pink-soft: #ffe4ec;
+  --manga-pink-candy: #ff8fab;
+  --manga-mint: #98d4bb;
+  --manga-peach: #ffcab0;
+  --manga-lavender: #d4c4f0;
+
+  /* Halftone/screentone pattern */
+  --manga-halftone: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='0.8' fill='%23000' fill-opacity='0.03'/%3E%3C/svg%3E");
+  --manga-halftone-dark: url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='2' cy='2' r='0.8' fill='%23fff' fill-opacity='0.02'/%3E%3C/svg%3E");
+
+  /* Ink border styling */
+  --manga-border-weight: 2px;
+  --manga-border-style: solid;
 }
 
 /* ============================================
@@ -33,13 +49,12 @@
   inset: 0;
   pointer-events: none;
   z-index: 0; /* Subtle overlay behind content */
-  opacity: 0.02;
-  background: currentColor;
-  filter: url(#paper-noise);
+  background-image: var(--manga-halftone);
+  background-repeat: repeat;
 }
 
-[data-color-scheme="light"] .manga-paper-texture {
-  opacity: 0.03;
+[data-color-scheme="dark"] .manga-paper-texture {
+  background-image: var(--manga-halftone-dark);
 }
 
 /* ============================================

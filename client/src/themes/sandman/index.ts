@@ -1,11 +1,11 @@
 /**
- * Sandman Theme Module
+ * Endless Night Theme Module
  *
- * "For there are two gates of Sleep. One is of horn, easy of passage,
- *  through which true dreams pass. The other is of polished ivory,
- *  through which pass false dreams."
+ * "Everybody has a secret world inside of them."
+ * - Dream of the Endless
  *
- * This module exports all Sandman theme components and definitions.
+ * Gothic supernatural elegance meets impossible architecture.
+ * This module exports all Endless Night theme components and definitions.
  */
 
 export { sandmanDarkTheme } from '../bundled/sandman-dark';

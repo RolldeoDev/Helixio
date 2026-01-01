@@ -72,6 +72,22 @@ export interface SearchQuery {
 }
 
 // =============================================================================
+// ComicInfo Field Filtering
+// =============================================================================
+
+/**
+ * Fields that should NOT be written to ComicInfo.xml.
+ * These are internal fields used for UI display or processing.
+ */
+export const NON_COMICINFO_FIELDS = new Set([
+  'rename',        // Handled separately for file renaming
+  'contentType',   // Internal classification field (manga chapter/volume)
+  'parsedVolume',  // Internal parsed data from filename
+  'parsedChapter', // Internal parsed data from filename
+  'creator',       // Non-standard - split into Writer, Penciller, etc.
+]);
+
+// =============================================================================
 // Field Change Types
 // =============================================================================
 

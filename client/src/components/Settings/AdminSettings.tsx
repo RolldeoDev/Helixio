@@ -5,11 +5,22 @@
  * Only visible to admin users.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { ToggleSwitch } from '../ToggleSwitch';
 import { useApiToast } from '../../hooks';
 import { useConfirmModal } from '../ConfirmModal';
+import {
+  getAllApiKeys,
+  getApiKeySystemStats,
+  adminRevokeApiKey,
+  ApiKeyWithUser,
+  SystemApiKeyStats,
+  getKeyStatus,
+  getStatusColor,
+  formatLastUsed,
+  formatExpiration,
+} from '../../services/api/api-keys';
 import './AdminSettings.css';
 
 interface User {
@@ -52,12 +63,21 @@ export function AdminSettings() {
   const [userLibraryAccess, setUserLibraryAccess] = useState<LibraryAccess[]>([]);
   const [loadingAccess, setLoadingAccess] = useState(false);
 
+  // API Keys Admin state
+  const [apiKeys, setApiKeys] = useState<ApiKeyWithUser[]>([]);
+  const [apiKeyStats, setApiKeyStats] = useState<SystemApiKeyStats | null>(null);
+  const [loadingApiKeys, setLoadingApiKeys] = useState(true);
+  const [apiKeySearchQuery, setApiKeySearchQuery] = useState('');
+  const [apiKeyStatusFilter, setApiKeyStatusFilter] = useState<'all' | 'active' | 'revoked' | 'expired'>('all');
+  const [selectedApiKey, setSelectedApiKey] = useState<ApiKeyWithUser | null>(null);
+
   const { addToast } = useApiToast();
   const confirm = useConfirmModal();
 
   useEffect(() => {
     loadSettings();
     loadUsers();
+    loadApiKeys();
   }, []);
 
   // Load app settings
@@ -95,6 +115,67 @@ export function AdminSettings() {
       setLoadingUsers(false);
     }
   };
+
+  // Load API keys (admin)
+  const loadApiKeys = useCallback(async () => {
+    setLoadingApiKeys(true);
+    try {
+      const [keys, stats] = await Promise.all([
+        getAllApiKeys(),
+        getApiKeySystemStats(),
+      ]);
+      setApiKeys(keys);
+      setApiKeyStats(stats);
+    } catch {
+      addToast('error', 'Failed to load API keys');
+    } finally {
+      setLoadingApiKeys(false);
+    }
+  }, [addToast]);
+
+  // Revoke API key (admin)
+  const handleRevokeApiKey = async (key: ApiKeyWithUser) => {
+    const confirmed = await confirm({
+      title: 'Revoke API Key',
+      message: `Are you sure you want to revoke "${key.name}" belonging to ${key.user.username}? This action cannot be undone.`,
+      confirmText: 'Revoke',
+      variant: 'danger',
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await adminRevokeApiKey(key.id);
+      addToast('success', 'API key revoked');
+      loadApiKeys();
+      setSelectedApiKey(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to revoke API key';
+      addToast('error', message);
+    }
+  };
+
+  // Filter API keys
+  const filteredApiKeys = apiKeys.filter(key => {
+    // Search filter
+    if (apiKeySearchQuery) {
+      const query = apiKeySearchQuery.toLowerCase();
+      const matchesSearch =
+        key.name.toLowerCase().includes(query) ||
+        key.user.username.toLowerCase().includes(query) ||
+        key.user.displayName?.toLowerCase().includes(query) ||
+        key.keyPrefix.toLowerCase().includes(query);
+      if (!matchesSearch) return false;
+    }
+
+    // Status filter
+    if (apiKeyStatusFilter !== 'all') {
+      const status = getKeyStatus(key);
+      if (status !== apiKeyStatusFilter) return false;
+    }
+
+    return true;
+  });
 
   // Toggle registration
   const handleToggleRegistration = async () => {
@@ -469,6 +550,241 @@ export function AdminSettings() {
               <span className="label">Last Login:</span>
               <span className="value">{formatDate(selectedUser.lastLoginAt)}</span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* API Keys Administration */}
+      <div className="admin-section api-keys-admin-section">
+        <div className="section-header">
+          <h3>API Key Administration</h3>
+          <span className="user-count">{apiKeys.length} keys</span>
+        </div>
+
+        {/* Stats Cards */}
+        {apiKeyStats && (
+          <div className="api-keys-stats">
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.totalKeys}</div>
+              <div className="stat-label">Total Keys</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.activeKeys}</div>
+              <div className="stat-label">Active</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.expiredKeys}</div>
+              <div className="stat-label">Expired</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.revokedKeys}</div>
+              <div className="stat-label">Revoked</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.requestsLast24h.toLocaleString()}</div>
+              <div className="stat-label">Requests (24h)</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{apiKeyStats.requestsLast7d.toLocaleString()}</div>
+              <div className="stat-label">Requests (7d)</div>
+            </div>
+          </div>
+        )}
+
+        {/* Search and Filters */}
+        <div className="user-filters">
+          <input
+            type="text"
+            placeholder="Search by user, key name, or prefix..."
+            value={apiKeySearchQuery}
+            onChange={(e) => setApiKeySearchQuery(e.target.value)}
+            className="user-search"
+          />
+          <select
+            value={apiKeyStatusFilter}
+            onChange={(e) => setApiKeyStatusFilter(e.target.value as 'all' | 'active' | 'revoked' | 'expired')}
+            className="filter-select"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="revoked">Revoked</option>
+            <option value="expired">Expired</option>
+          </select>
+        </div>
+
+        {/* API Keys List */}
+        <div className="api-keys-list">
+          {loadingApiKeys ? (
+            <div className="loading-users">Loading API keys...</div>
+          ) : filteredApiKeys.length === 0 ? (
+            <div className="no-users">No API keys found</div>
+          ) : (
+            filteredApiKeys.map(key => {
+              const status = getKeyStatus(key);
+              const statusColor = getStatusColor(status);
+
+              return (
+                <div
+                  key={key.id}
+                  className={`api-key-row ${selectedApiKey?.id === key.id ? 'selected' : ''} ${status !== 'active' ? 'inactive' : ''}`}
+                  onClick={() => setSelectedApiKey(key)}
+                >
+                  <div className="api-key-info">
+                    <div className="api-key-header">
+                      <span className="api-key-name">{key.name}</span>
+                      <code className="api-key-prefix">{key.keyPrefix}...</code>
+                      <span className={`status-badge ${statusColor}`}>{status}</span>
+                    </div>
+                    <div className="api-key-meta">
+                      <span className="api-key-user">
+                        User: <strong>{key.user.username}</strong>
+                        {key.user.displayName && ` (${key.user.displayName})`}
+                      </span>
+                      <span>Created: {formatDate(key.createdAt)}</span>
+                      <span>Last used: {formatLastUsed(key.lastUsedAt)}</span>
+                      <span>{key.usageCount.toLocaleString()} requests</span>
+                    </div>
+                    <div className="api-key-scopes">
+                      {key.scopes.slice(0, 4).map((scope) => (
+                        <span key={scope} className="scope-badge-small">
+                          {scope}
+                        </span>
+                      ))}
+                      {key.scopes.length > 4 && (
+                        <span className="scope-badge-small more">
+                          +{key.scopes.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="api-key-actions" onClick={(e) => e.stopPropagation()}>
+                    {status === 'active' && (
+                      <button
+                        className="action-btn freeze"
+                        onClick={() => handleRevokeApiKey(key)}
+                        title="Revoke API key"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* API Key Details Panel */}
+      {selectedApiKey && (
+        <div className="admin-section api-key-details">
+          <div className="section-header">
+            <h3>API Key Details: {selectedApiKey.name}</h3>
+            <button
+              className="close-btn"
+              onClick={() => setSelectedApiKey(null)}
+            >
+              Close
+            </button>
+          </div>
+
+          <div className="api-key-details-content">
+            <div className="detail-row">
+              <span className="label">Owner:</span>
+              <span className="value">
+                {selectedApiKey.user.username}
+                {selectedApiKey.user.displayName && ` (${selectedApiKey.user.displayName})`}
+                {selectedApiKey.user.role === 'admin' && <span className="admin-badge">Admin</span>}
+              </span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Key Prefix:</span>
+              <code className="value">{selectedApiKey.keyPrefix}...</code>
+            </div>
+            <div className="detail-row">
+              <span className="label">Status:</span>
+              <span className={`value status-${getStatusColor(getKeyStatus(selectedApiKey))}`}>
+                {getKeyStatus(selectedApiKey)}
+              </span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Created:</span>
+              <span className="value">{formatDate(selectedApiKey.createdAt)}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Expires:</span>
+              <span className="value">{formatExpiration(selectedApiKey.expiresAt)}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Last Used:</span>
+              <span className="value">{formatLastUsed(selectedApiKey.lastUsedAt)}</span>
+            </div>
+            {selectedApiKey.lastUsedIp && (
+              <div className="detail-row">
+                <span className="label">Last IP:</span>
+                <span className="value">{selectedApiKey.lastUsedIp}</span>
+              </div>
+            )}
+            <div className="detail-row">
+              <span className="label">Total Requests:</span>
+              <span className="value">{selectedApiKey.usageCount.toLocaleString()}</span>
+            </div>
+            <div className="detail-row">
+              <span className="label">Rate Limit:</span>
+              <span className="value">{selectedApiKey.rateLimitTier}</span>
+            </div>
+            {selectedApiKey.revokedAt && (
+              <>
+                <div className="detail-row">
+                  <span className="label">Revoked At:</span>
+                  <span className="value">{formatDate(selectedApiKey.revokedAt)}</span>
+                </div>
+                {selectedApiKey.revokedReason && (
+                  <div className="detail-row">
+                    <span className="label">Revoke Reason:</span>
+                    <span className="value">{selectedApiKey.revokedReason}</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="detail-section">
+              <h4>Scopes ({selectedApiKey.scopes.length})</h4>
+              <div className="scope-list-full">
+                {selectedApiKey.scopes.map((scope) => (
+                  <span key={scope} className="scope-badge-small">{scope}</span>
+                ))}
+              </div>
+            </div>
+
+            {selectedApiKey.libraryIds && selectedApiKey.libraryIds.length > 0 && (
+              <div className="detail-section">
+                <h4>Library Restrictions</h4>
+                <p className="detail-note">This key can only access {selectedApiKey.libraryIds.length} specific libraries</p>
+              </div>
+            )}
+
+            {selectedApiKey.ipWhitelist && selectedApiKey.ipWhitelist.length > 0 && (
+              <div className="detail-section">
+                <h4>IP Whitelist</h4>
+                <div className="ip-list">
+                  {selectedApiKey.ipWhitelist.map((ip) => (
+                    <code key={ip} className="ip-item">{ip}</code>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {getKeyStatus(selectedApiKey) === 'active' && (
+              <div className="detail-actions">
+                <button
+                  className="action-btn freeze"
+                  onClick={() => handleRevokeApiKey(selectedApiKey)}
+                >
+                  Revoke This Key
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

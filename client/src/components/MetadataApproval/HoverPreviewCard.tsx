@@ -218,28 +218,6 @@ export function HoverPreviewCard({
         )}
       </div>
 
-      {/* Rename Preview */}
-      {fileChange.fields.rename && hasMeaningfulChange(fileChange.fields.rename.proposed, fileChange.fields.rename.current) && (
-        <div className="preview-rename-section">
-          <span className="rename-label">Rename:</span>
-          <div className="rename-preview">
-            <span className="rename-current" title={String(fileChange.fields.rename.current ?? '')}>
-              {(() => {
-                const current = String(fileChange.fields.rename.current ?? '');
-                return current.length > 35 ? current.slice(0, 32) + '...' : current;
-              })()}
-            </span>
-            <span className="rename-arrow">&rarr;</span>
-            <span className="rename-proposed" title={String((fileChange.fields.rename.edited ? fileChange.fields.rename.editedValue : fileChange.fields.rename.proposed) ?? '')}>
-              {(() => {
-                const proposed = String((fileChange.fields.rename.edited ? fileChange.fields.rename.editedValue : fileChange.fields.rename.proposed) ?? '');
-                return proposed.length > 35 ? proposed.slice(0, 32) + '...' : proposed;
-              })()}
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Field Changes */}
       {fileChange.status !== 'rejected' && changedFields.length > 0 ? (
         <div className="preview-changes-section">

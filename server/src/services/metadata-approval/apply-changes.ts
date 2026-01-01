@@ -37,7 +37,15 @@ import { getSession, setSession, deleteSessionFromStore } from './session-store.
 import { invalidateAfterApplyChanges } from '../metadata-invalidation.service.js';
 import { markDirtyForMetadataChange } from '../stats-dirty.service.js';
 import { syncSeriesRatings, syncSeriesIssueRatings } from '../rating-sync.service.js';
-import type { ApprovalSession, ApplyResult, ApplyChangesResult, ProgressCallback, FileChange } from './types.js';
+import { syncSeriesReviews } from '../review-sync.service.js';
+import {
+  NON_COMICINFO_FIELDS,
+  type ApprovalSession,
+  type ApplyResult,
+  type ApplyChangesResult,
+  type ProgressCallback,
+  type FileChange,
+} from './types.js';
 
 const logger = createServiceLogger('metadata-approval-apply');
 
@@ -304,19 +312,13 @@ export async function applyChanges(
 
       const metadataUpdate: Partial<ComicInfo> = {};
       for (const [field, fc] of approvedFields) {
-        // Skip the special 'rename' field - it's not a ComicInfo.xml field
-        if (field === 'rename') continue;
+        // Skip non-standard fields that shouldn't be written to ComicInfo.xml
+        if (NON_COMICINFO_FIELDS.has(field)) continue;
 
         const value = fc.edited && fc.editedValue !== undefined ? fc.editedValue : fc.proposed;
         if (value !== null) {
           const comicInfoField = field.charAt(0).toUpperCase() + field.slice(1);
           (metadataUpdate as Record<string, unknown>)[comicInfoField] = value;
-        }
-      }
-
-      if (fileChange.matchedIssue) {
-        if (fileChange.matchedIssue.source === 'comicvine') {
-          metadataUpdate.Web = `https://comicvine.gamespot.com/issue/4000-${fileChange.matchedIssue.sourceId}/`;
         }
       }
 
@@ -533,11 +535,19 @@ export async function applyChanges(
         });
 
         // Only fetch issue ratings from CBR (AniList doesn't have issue-level ratings)
-        progress('Fetching issue ratings', `${i + 1} of ${seriesIds.length} series`);
-        await syncSeriesIssueRatings(seriesId, { forceRefresh: true });
+        await syncSeriesIssueRatings(seriesId, {
+          forceRefresh: true,
+          onProgress: (message, detail) => {
+            progress(`Fetching ratings: ${message}`, detail);
+          },
+        });
+
+        // Fetch reviews alongside ratings
+        progress('Fetching reviews', `${i + 1} of ${seriesIds.length} series`);
+        await syncSeriesReviews(seriesId, { forceRefresh: true });
       } catch (error) {
         // Silent skip - log but don't fail workflow
-        logger.warn({ seriesId, error }, 'Failed to sync external ratings (continuing)');
+        logger.warn({ seriesId, error }, 'Failed to sync external ratings/reviews (continuing)');
       }
     }
 

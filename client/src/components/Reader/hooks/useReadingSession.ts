@@ -2,7 +2,7 @@
  * useReadingSession Hook
  *
  * Manages reading session lifecycle and tracks pages that have been
- * viewed for at least 3 seconds. This ensures accurate "pages read"
+ * viewed for at least 1 second. This ensures accurate "pages read"
  * statistics by not counting pages that were quickly skipped.
  */
 
@@ -14,7 +14,7 @@ import {
 } from '../../../services/api.service';
 
 // Time in milliseconds a page must be viewed to count as "read"
-const PAGE_READ_THRESHOLD_MS = 3000;
+const PAGE_READ_THRESHOLD_MS = 1000;
 
 interface UseReadingSessionOptions {
   fileId: string;

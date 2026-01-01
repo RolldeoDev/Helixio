@@ -5,7 +5,7 @@
  * Used when a series doesn't have an external ID linked yet.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type {
   SeriesMatch,
   MetadataSource,
@@ -49,8 +49,12 @@ export function SeriesMetadataSearchModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Source selection
-  const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>('all');
+  // Compute default source based on library type (manga → AniList, western → ComicVine)
+  const defaultSource = useMemo((): MetadataSource => {
+    return libraryType === 'manga' ? 'anilist' : 'comicvine';
+  }, [libraryType]);
+  // Source selection - defaults based on library type
+  const [selectedSource, setSelectedSource] = useState<MetadataSource | 'all'>(defaultSource);
 
   // Multi-source / expand functionality
   const [isExpanding, setIsExpanding] = useState(false);
@@ -127,6 +131,7 @@ export function SeriesMetadataSearchModal({
       setError(null);
       setHasSearched(false);
       setPagination(null);
+      setSelectedSource(defaultSource); // Reset to library-appropriate default
 
       // Focus input after a brief delay for animation
       setTimeout(() => {
@@ -139,7 +144,7 @@ export function SeriesMetadataSearchModal({
         doSearch(initialQuery);
       }
     }
-  }, [isOpen, initialQuery, doSearch]);
+  }, [isOpen, initialQuery, doSearch, defaultSource]);
 
   // Debounced search on input change
   const handleQueryChange = useCallback(

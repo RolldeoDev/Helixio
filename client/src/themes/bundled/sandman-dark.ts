@@ -1,50 +1,41 @@
 import type { EffectToggleDefinition, ThemeDefinition } from '../types';
 
-// Shared effect definitions for Sandman theme (used by both light and dark)
-export const sandmanEffects: EffectToggleDefinition[] = [
+// Shared effect definitions for Endless Night theme (used by both light and dark)
+export const endlessNightEffects: EffectToggleDefinition[] = [
   {
-    id: 'dreamSand',
-    label: 'Dream Sand',
-    description: 'Golden particles drifting across the screen',
+    id: 'ravenFeathers',
+    label: 'Raven Feathers',
+    description: 'Dark feathers drifting slowly through the void',
     defaultEnabled: true,
     category: 'particles',
   },
   {
-    id: 'morpheusSigil',
-    label: 'Morpheus Sigil',
-    description: 'Animated sigil in the corner inspired by the Dream Helm',
+    id: 'starfieldDrift',
+    label: 'Starfield Drift',
+    description: 'Distant stars rotating slowly in the infinite darkness',
     defaultEnabled: true,
-    category: 'ui',
-  },
-  {
-    id: 'dreamQuote',
-    label: 'Dream Quotes',
-    description: 'Ethereal quotes from The Sandman',
-    defaultEnabled: true,
-    category: 'ui',
-  },
-  {
-    id: 'vignette',
-    label: 'Vignette',
-    description: 'Dark edges creating a dreamlike focus effect',
-    defaultEnabled: true,
-    category: 'overlay',
+    category: 'background',
   },
 ];
 
 /**
- * Sandman Dark Theme - "The Dreaming"
+ * Endless Night Dark Theme
  *
- * Enter the realm of Morpheus, Lord of Dreams.
+ * Gothic supernatural elegance meets impossible architecture.
+ * Navigate the halls of Dream's palace - intimate darkness punctuated
+ * by warm candlelight, with glimpses of infinite starfields beyond
+ * impossible windows.
  *
- * This theme transforms the interface into an ethereal dreamscape:
- * - Deep void blacks that seem to extend infinitely
- * - Cosmic purples and blues reminiscent of the night sky
- * - Stardust gold accents like sand falling through an hourglass
- * - Typography that feels ancient yet timeless
- * - Shadows that breathe and glow with inner light
+ * Inspired by Neil Gaiman's The Sandman - The Endless aesthetic
+ * combined with the impossible architecture of The Dreaming.
  *
- * "It is a fool's prerogative to utter truths that no one else will speak."
+ * Color Philosophy:
+ * - True black void as the canvas of infinity
+ * - Moonlight ivory for text - pale and otherworldly
+ * - Amber candlelight for warmth in the darkness
+ * - Deep ocean teal for cool mystery and depth
+ *
+ * "Everybody has a secret world inside of them."
  * - Dream of the Endless
  */
 export const sandmanDarkTheme: ThemeDefinition = {
@@ -52,80 +43,115 @@ export const sandmanDarkTheme: ThemeDefinition = {
   scheme: 'dark',
   meta: {
     id: 'sandman',
-    name: 'The Dreaming',
-    description: 'Enter the realm of Morpheus, Lord of Dreams',
+    name: 'Endless Night',
+    description: 'Gothic elegance and impossible architecture in the realm of the Endless',
     author: 'Helixio',
     previewColors: {
-      primary: '#c9a227',      // Dream sand gold
-      secondary: '#000000',    // True black void
-      accent: '#b8c8e0',       // Ethereal pale blue
-      background: '#000000',   // Absolute black
+      primary: '#d4a574',      // Amber candlelight
+      secondary: '#050507',    // True void black
+      accent: '#2d7d8a',       // Deep ocean teal
+      background: '#050507',   // Absolute darkness
     },
   },
   tokens: {
-    // Background colors - True blacks inspired by Sandman artwork
-    colorBg: '#000000',                    // Absolute void - true black
-    colorBgSecondary: '#050508',           // Near-black with hint of blue
-    colorBgTertiary: '#0a0a0f',            // Deep space
-    colorBgElevated: '#101015',            // Elevated surface
-    colorBgCard: '#050508',                // Card background - near black
-    colorSurfaceCardHover: 'rgba(201, 162, 39, 0.1)', // Dream sand hover
+    // Background colors - True void blacks
+    colorBg: '#050507',                    // Absolute void - true black
+    colorBgSecondary: '#0a0b0f',           // Deep blue-black surface
+    colorBgTertiary: '#12141a',            // Elevated surfaces
+    colorBgElevated: '#14161e',            // Modal/dropdown surfaces
+    colorBgCard: '#08090d',                // Card background - near void
+    colorSurfaceCardHover: 'rgba(212, 165, 116, 0.08)', // Amber candlelight hover
 
-    // Primary & Accent - Dream sand gold and ethereal blue
-    colorPrimary: '#c9a227',               // Dream Sand - classic gold
-    colorPrimaryHover: '#e0b830',          // Bright gold on hover
-    colorPrimaryMuted: 'rgba(201, 162, 39, 0.15)', // Subtle gold presence
-    colorPrimaryText: '#1a1a1a',           // Dark text on gold backgrounds
-    colorSecondary: '#0a0a0f',             // Deep dark blue-black
-    colorAccent: '#b8c8e0',                // Ethereal pale blue
+    // Primary & Accent - Amber candlelight and ocean teal
+    colorPrimary: '#d4a574',               // Amber candlelight - warm accent
+    colorPrimaryHover: '#e0b88a',          // Brighter amber on hover
+    colorPrimaryMuted: 'rgba(212, 165, 116, 0.15)', // Subtle amber presence
+    colorPrimaryText: '#0a0b0f',           // Dark text on amber backgrounds
+    colorSecondary: '#0a0b0f',             // Deep surface color
+    colorAccent: '#2d7d8a',                // Deep ocean teal - cool mystery
 
-    // Text colors - Ghostly pale like Morpheus
-    colorText: '#f0f0f5',                  // Ghostly white
-    colorTextMuted: '#a0a0b0',             // Misty grey
-    colorTextSubtle: '#707080',            // Faded grey
+    // Text colors - Moonlight ivory
+    colorText: '#e8e4df',                  // Moonlight ivory
+    colorTextMuted: '#9a958d',             // Weathered stone grey
+    colorTextSubtle: '#6a665f',            // Distant shadow grey
 
-    // Semantic colors - Muted against the void
-    colorSuccess: '#70b080',               // Muted green
-    colorWarning: '#c9a227',               // Gold warning
-    colorError: '#c06060',                 // Muted red
-    colorDanger: '#a04040',                // Dark red
-    colorInfo: '#8090b0',                  // Light dream blue
+    // Semantic colors - Harmonized with the palette
+    colorSuccess: '#5a9e7a',               // Muted emerald
+    colorWarning: '#d4a574',               // Amber (matches primary)
+    colorError: '#b86a6a',                 // Muted crimson
+    colorDanger: '#944a4a',                // Deep blood red
+    colorInfo: '#5a9aaa',                  // Light teal
 
-    // Borders & interactions - Subtle ethereal blue
-    colorBorder: 'rgba(160, 180, 220, 0.15)', // Ethereal blue border
-    colorBorderSubtle: 'rgba(160, 180, 220, 0.08)', // Very subtle border
-    colorDivider: 'rgba(160, 180, 220, 0.1)', // Subtle divider
-    colorHover: 'rgba(201, 162, 39, 0.1)', // Gold hover
-    colorSelected: 'rgba(201, 162, 39, 0.2)', // Gold selected
-    colorFocusRing: 'rgba(201, 162, 39, 0.5)', // Gold focus ring
+    // Borders & interactions - Subtle amber and teal hints
+    colorBorder: 'rgba(212, 165, 116, 0.12)', // Subtle amber glow
+    colorBorderSubtle: 'rgba(212, 165, 116, 0.06)', // Very subtle border
+    colorDivider: 'rgba(45, 125, 138, 0.15)', // Teal divider
+    colorHover: 'rgba(212, 165, 116, 0.08)', // Amber hover
+    colorSelected: 'rgba(212, 165, 116, 0.15)', // Amber selected
+    colorFocusRing: 'rgba(45, 125, 138, 0.5)', // Teal focus ring
 
-    // Typography - Ancient Scripts
-    fontDisplay: "'Cinzel', 'Cormorant Garamond', Georgia, serif",
-    fontBody: "'Crimson Text', 'EB Garamond', Georgia, serif",
+    // Typography - Art Nouveau elegance
+    fontDisplay: "'Cormorant Garamond', Garamond, Georgia, serif",
+    fontBody: "'Libre Baskerville', Baskerville, Georgia, serif",
 
-    // Shadows - Deep blacks with subtle blue glow
-    shadowSm: '0 2px 8px rgba(0, 0, 0, 0.6)',
-    shadowMd: '0 4px 20px rgba(0, 0, 0, 0.7)',
-    shadowLg: '0 8px 40px rgba(0, 0, 0, 0.8)',
-    shadowGlow: '0 0 30px rgba(201, 162, 39, 0.25)',
-    shadowHoverGlow: '0 0 35px rgba(201, 162, 39, 0.35)',
+    // Shadows - Deep voids with subtle warm glows
+    shadowSm: '0 2px 8px rgba(0, 0, 0, 0.5)',
+    shadowMd: '0 4px 20px rgba(0, 0, 0, 0.6)',
+    shadowLg: '0 8px 40px rgba(0, 0, 0, 0.7)',
+    shadowGlow: '0 0 30px rgba(212, 165, 116, 0.15)',
+    shadowHoverGlow: '0 0 40px rgba(212, 165, 116, 0.25), 0 0 60px rgba(45, 125, 138, 0.1)',
 
-    // Title effects - Dream sand gold glow
-    shadowTitleLocation: '0 0 15px',
-    colorShadowTitle: '#c9a227',
+    // Title effects - Candlelight illumination
+    shadowTitleLocation: '0 0 20px',
+    colorShadowTitle: 'rgba(212, 165, 116, 0.3)',
 
-    // Issue badge - Dream sand gold
-    colorIssueBadge: '#c9a227',
-    colorIssueBadgeCompleted: '#70b080',
-    colorIssueBadgeText: '#1a1a1a',
-    colorIssueBadgeTextCompleted: '#1a1a1a',
+    // Issue badge - Amber candlelight
+    colorIssueBadge: '#d4a574',
+    colorIssueBadgeCompleted: '#5a9e7a',
+    colorIssueBadgeText: '#0a0b0f',
+    colorIssueBadgeTextCompleted: '#0a0b0f',
 
-    // Border radius
+    // Border radius - Soft, organic curves (Art Nouveau influence)
+    radiusXs: '2px',
     radiusSm: '4px',
     radiusMd: '8px',
     radiusLg: '12px',
     radiusXl: '16px',
     radiusFull: '9999px',
+
+    // Overlays
+    overlayDarkSubtle: 'rgba(0, 0, 0, 0.1)',
+    overlayDarkLight: 'rgba(0, 0, 0, 0.2)',
+    overlayDarkMedium: 'rgba(0, 0, 0, 0.3)',
+    overlayDarkHeavy: 'rgba(0, 0, 0, 0.5)',
+    overlayDarkIntense: 'rgba(0, 0, 0, 0.7)',
+    overlayLightSubtle: 'rgba(255, 255, 255, 0.05)',
+    overlayLightLight: 'rgba(255, 255, 255, 0.1)',
+    overlayLightMedium: 'rgba(255, 255, 255, 0.15)',
+    overlayLightHeavy: 'rgba(255, 255, 255, 0.3)',
+
+    // Spacing
+    spacing2: '2px',
+    spacingXs: '4px',
+    spacing6: '6px',
+    spacingSm: '8px',
+    spacing10: '10px',
+    spacing12: '12px',
+    spacingMd: '16px',
+    spacing20: '20px',
+    spacingLg: '24px',
+    spacingXl: '32px',
+    spacing2xl: '48px',
+
+    // Font sizes
+    fontSizeXs: '0.75rem',
+    fontSizeSm: '0.875rem',
+    fontSizeBase: '1rem',
+    fontSizeLg: '1.125rem',
+    fontSizeXl: '1.25rem',
+    fontSize2xl: '1.5rem',
+    fontSize3xl: '1.875rem',
+    fontSize4xl: '2.25rem',
   },
-  effects: sandmanEffects,
+  effects: endlessNightEffects,
 };

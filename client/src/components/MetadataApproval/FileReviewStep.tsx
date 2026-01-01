@@ -15,7 +15,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
-  getFileChanges,
+  getFileChangesByJob,
   updateFieldApprovals,
   rejectFile,
   acceptAllFiles,
@@ -122,10 +122,17 @@ export function FileReviewStep({
 
   // Load file changes
   useEffect(() => {
+    // Use jobId for loading file changes (handles session restoration)
+    if (!jobId) {
+      setError('Job ID not available');
+      setLoading(false);
+      return;
+    }
+
     const loadChanges = async () => {
       try {
         setLoading(true);
-        const result = await getFileChanges(session.sessionId);
+        const result = await getFileChangesByJob(jobId);
         setFileChanges(result.fileChanges);
         setSummary(result.summary);
 
@@ -146,7 +153,7 @@ export function FileReviewStep({
     };
 
     loadChanges();
-  }, [session.sessionId]);
+  }, [jobId]);
 
   // Filter file changes
   const filteredFiles = useMemo(() => {
@@ -195,67 +202,6 @@ export function FileReviewStep({
     estimateSize: () => 40, // Compact row height for better density
     overscan: 5,
   });
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      const currentIndex = filteredFiles.findIndex((f) => f.fileId === selectedFileId);
-
-      switch (e.key) {
-        case 'ArrowDown':
-        case 'j':
-          e.preventDefault();
-          if (currentIndex < filteredFiles.length - 1) {
-            const nextFile = filteredFiles[currentIndex + 1];
-            if (nextFile) {
-              setSelectedFileId(nextFile.fileId);
-              setHoveredFileId(nextFile.fileId);
-              const el = rowRefs.current.get(nextFile.fileId);
-              if (el) setAnchorRect(el.getBoundingClientRect());
-            }
-          }
-          break;
-        case 'ArrowUp':
-        case 'k':
-          e.preventDefault();
-          if (currentIndex > 0) {
-            const prevFile = filteredFiles[currentIndex - 1];
-            if (prevFile) {
-              setSelectedFileId(prevFile.fileId);
-              setHoveredFileId(prevFile.fileId);
-              const el = rowRefs.current.get(prevFile.fileId);
-              if (el) setAnchorRect(el.getBoundingClientRect());
-            }
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          setHoveredFileId(null);
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          if (selectedFileId) {
-            const fc = fileChanges.find((f) => f.fileId === selectedFileId);
-            if (fc) {
-              if (fc.status === 'rejected') {
-                handleRestoreFile(fc.fileId);
-              } else {
-                handleRejectFile(fc.fileId);
-              }
-            }
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredFiles, selectedFileId, fileChanges]);
 
   // Hover handlers
   const handleMouseEnter = useCallback((fileId: string, element: HTMLElement) => {
@@ -392,8 +338,70 @@ export function FileReviewStep({
     await handleFieldApproval(fileId, firstField, true);
   }, [fileChanges, handleFieldApproval]);
 
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const currentIndex = filteredFiles.findIndex((f) => f.fileId === selectedFileId);
+
+      switch (e.key) {
+        case 'ArrowDown':
+        case 'j':
+          e.preventDefault();
+          if (currentIndex < filteredFiles.length - 1) {
+            const nextFile = filteredFiles[currentIndex + 1];
+            if (nextFile) {
+              setSelectedFileId(nextFile.fileId);
+              setHoveredFileId(nextFile.fileId);
+              const el = rowRefs.current.get(nextFile.fileId);
+              if (el) setAnchorRect(el.getBoundingClientRect());
+            }
+          }
+          break;
+        case 'ArrowUp':
+        case 'k':
+          e.preventDefault();
+          if (currentIndex > 0) {
+            const prevFile = filteredFiles[currentIndex - 1];
+            if (prevFile) {
+              setSelectedFileId(prevFile.fileId);
+              setHoveredFileId(prevFile.fileId);
+              const el = rowRefs.current.get(prevFile.fileId);
+              if (el) setAnchorRect(el.getBoundingClientRect());
+            }
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setHoveredFileId(null);
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (selectedFileId) {
+            const fc = fileChanges.find((f) => f.fileId === selectedFileId);
+            if (fc) {
+              if (fc.status === 'rejected') {
+                handleRestoreFile(fc.fileId);
+              } else {
+                handleRejectFile(fc.fileId);
+              }
+            }
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredFiles, selectedFileId, fileChanges, handleRejectFile, handleRestoreFile]);
+
   // Batch operations
   const handleBatchAcceptHighConfidence = useCallback(async () => {
+    if (!jobId) return;
     const count = highConfidenceFiles.length;
     try {
       for (const fc of highConfidenceFiles) {
@@ -404,7 +412,7 @@ export function FileReviewStep({
         await updateFieldApprovals(session.sessionId, fc.fileId, updates);
       }
       // Reload all changes
-      const result = await getFileChanges(session.sessionId);
+      const result = await getFileChangesByJob(jobId);
       setFileChanges(result.fileChanges);
       setSummary(result.summary);
       setAnnouncement(`Accepted ${count} high confidence files`);
@@ -413,7 +421,7 @@ export function FileReviewStep({
     }
     setShowBatchConfirm(false);
     setBatchAction(null);
-  }, [session.sessionId, highConfidenceFiles]);
+  }, [jobId, session.sessionId, highConfidenceFiles]);
 
   const handleAcceptAll = useCallback(async () => {
     try {

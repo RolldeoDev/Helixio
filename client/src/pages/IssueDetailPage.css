@@ -336,12 +336,118 @@
 }
 
 /* =============================================================================
-   User Data Panel Section
+   Tabbed Content Section
    ============================================================================= */
 
-.issue-user-data-section {
-  padding: 0 var(--page-padding-x, var(--spacing-lg));
+.issue-content-section {
+  margin-top: var(--spacing-xl);
+}
+
+/* Tab navigation */
+.issue-content-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
   margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.issue-content-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: -1px;
+}
+
+.issue-content-tab:hover {
+  color: var(--color-text);
+}
+
+.issue-content-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.issue-content-tab .tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+.issue-content-tab.active .tab-count {
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+/* Dot indicator for tabs with content (Reviews) */
+.issue-content-tab .tab-count-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  margin-left: var(--spacing-xs);
+  opacity: 0.6;
+}
+
+.issue-content-tab.active .tab-count-dot {
+  opacity: 1;
+}
+
+/* Tab content area */
+.issue-tab-content {
+  min-height: 200px;
+}
+
+.issue-info-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+/* File info section in tab */
+.file-info-section {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.file-info-title,
+.reading-history-title {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+/* Reading history section in tab */
+.reading-history-section {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
 }
 
 /* =============================================================================
@@ -550,6 +656,12 @@
     padding: var(--spacing-sm) var(--spacing-md);
   }
 
+  /* Tab buttons - touch-friendly */
+  .issue-content-tab {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
   /* External links - touch-friendly */
   .external-link {
     min-height: 36px;
@@ -565,9 +677,29 @@
   /* Active feedback for touch */
   .issue-description-toggle:active,
   .issue-collapsible-toggle:active,
+  .issue-content-tab:active,
   .external-link:active {
     transform: scale(0.98);
     transition: transform 0.1s ease;
+  }
+}
+
+/* Mobile responsive tabs */
+@media (max-width: 640px) {
+  .issue-content-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .issue-content-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .issue-content-tab {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.8125rem;
+    white-space: nowrap;
   }
 }
 

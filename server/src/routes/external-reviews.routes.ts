@@ -9,6 +9,7 @@ import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import {
   syncSeriesReviews,
+  syncIssueReviews,
   getExternalReviews,
   getIssueExternalReviews,
   deleteSeriesReviews,
@@ -71,9 +72,12 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
       includeUserReviews?: string;
     };
 
+    // Validate and bound the limit parameter
+    const parsedLimit = limit ? Math.min(Math.max(parseInt(limit) || 50, 1), 100) : undefined;
+
     const externalReviews = await getExternalReviews(seriesId, {
       source,
-      limit: limit ? parseInt(limit) : undefined,
+      limit: parsedLimit,
       skipSpoilers: skipSpoilers === 'true',
     });
 
@@ -199,9 +203,12 @@ router.get('/issues/:fileId', async (req: Request, res: Response) => {
       includeUserReviews?: string;
     };
 
+    // Validate and bound the limit parameter
+    const parsedLimit = limit ? Math.min(Math.max(parseInt(limit) || 50, 1), 100) : undefined;
+
     const externalReviews = await getIssueExternalReviews(fileId, {
       source,
-      limit: limit ? parseInt(limit) : undefined,
+      limit: parsedLimit,
       skipSpoilers: skipSpoilers === 'true',
     });
 
@@ -235,6 +242,41 @@ router.get('/issues/:fileId', async (req: Request, res: Response) => {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error({ error: message }, 'Error getting issue reviews');
     return res.status(500).json({ error: 'Failed to get reviews' });
+  }
+});
+
+/**
+ * POST /api/external-reviews/sync/issues/:fileId
+ * Manually sync external reviews for an issue
+ */
+router.post('/sync/issues/:fileId', async (req: Request, res: Response) => {
+  try {
+    const fileId = req.params.fileId;
+    if (!fileId) {
+      return res.status(400).json({ error: 'File ID is required' });
+    }
+
+    const {
+      forceRefresh,
+      reviewLimit,
+      skipSpoilers,
+    } = req.body as {
+      forceRefresh?: boolean;
+      reviewLimit?: number;
+      skipSpoilers?: boolean;
+    };
+
+    const result = await syncIssueReviews(fileId, {
+      forceRefresh: forceRefresh ?? true,
+      reviewLimit: reviewLimit ?? 15,
+      skipSpoilers,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error({ error: message }, 'Error syncing issue reviews');
+    return res.status(500).json({ error: 'Failed to sync reviews' });
   }
 });
 
@@ -310,9 +352,12 @@ router.get('/jobs', async (req: Request, res: Response) => {
       limit?: string;
     };
 
+    // Validate and bound the limit parameter
+    const parsedLimit = limit ? Math.min(Math.max(parseInt(limit) || 20, 1), 100) : undefined;
+
     const jobs = await getRecentJobs({
       status,
-      limit: limit ? parseInt(limit) : undefined,
+      limit: parsedLimit,
     });
 
     res.json({ jobs });

@@ -1,48 +1,44 @@
 /**
- * SandmanEffects Component
+ * SandmanEffects Component - Endless Night Edition
  *
- * "I am the Lord of Dreams. And my realm is not a place of madness."
- * - Morpheus, Dream of the Endless
+ * "Everybody has a secret world inside of them."
+ * - Dream of the Endless
  *
- * This component renders the magical visual effects unique to the Sandman theme:
- * - Floating dream sand particles that drift across the screen
- * - Dynamic particle generation with varied sizes and speeds
- * - Performance-optimized with CSS animations
- * - Automatically detects theme changes and responds accordingly
+ * This component renders the atmospheric visual effects for the Endless Night theme:
+ * - Raven Feathers: Sparse dark feathers drifting slowly through the void (2-3 at a time)
+ * - Starfield Drift: Distant stars rotating slowly in infinite darkness
  *
- * The particles represent the dream sand that Morpheus uses to bring sleep
- * and dreams to the waking world. Each golden mote is a fragment of the
- * Dreaming itself.
+ * The effects evoke the gothic elegance of the Endless and the impossible
+ * architecture of the Dreaming - intimate darkness with glimpses of infinity.
  */
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useTheme } from '../ThemeContext';
 import './sandman-effects.css';
 
-interface Particle {
+// ============================================================================
+// RAVEN FEATHERS - Sparse, contemplative presence
+// ============================================================================
+
+interface Feather {
   id: number;
-  left: string;
-  animationDelay: string;
-  animationDuration: string;
+  left: number;
+  rotation: number;
   size: 'small' | 'medium' | 'large';
+  animationDuration: number;
+  swayOffset: number;
 }
 
-const PARTICLE_COUNT = 40;
-const BASE_DURATION = 20; // seconds
+const FEATHER_COUNT = 3; // Very sparse - only 2-3 visible at once
+const FEATHER_MIN_DURATION = 25; // Slow, deliberate fall
+const FEATHER_MAX_DURATION = 35;
 
-/**
- * Generate a random particle with varied properties
- */
-function generateParticle(id: number): Particle {
-  const left = Math.random() * 100;
-  const delay = Math.random() * BASE_DURATION;
-  const durationVariance = 0.5 + Math.random(); // 0.5x to 1.5x speed
+function generateFeather(id: number): Feather {
   const sizeRoll = Math.random();
-
   let size: 'small' | 'medium' | 'large';
-  if (sizeRoll < 0.5) {
+  if (sizeRoll < 0.4) {
     size = 'small';
-  } else if (sizeRoll < 0.85) {
+  } else if (sizeRoll < 0.8) {
     size = 'medium';
   } else {
     size = 'large';
@@ -50,217 +46,272 @@ function generateParticle(id: number): Particle {
 
   return {
     id,
-    left: `${left}%`,
-    animationDelay: `-${delay}s`,
-    animationDuration: `${BASE_DURATION * durationVariance}s`,
+    left: 5 + Math.random() * 90, // Keep away from edges
+    rotation: -30 + Math.random() * 60, // Initial rotation
     size,
+    animationDuration: FEATHER_MIN_DURATION + Math.random() * (FEATHER_MAX_DURATION - FEATHER_MIN_DURATION),
+    swayOffset: Math.random() * Math.PI * 2, // Phase offset for sway
   };
 }
 
 /**
- * Dream Quote Component - Displays ethereal quotes from the Sandman
+ * Individual Feather SVG Component
  */
-function DreamQuote() {
-  const quotes = useMemo(() => [
-    "I am hope.",
-    "Everybody has a secret world inside of them.",
-    "Sometimes you wake up. Sometimes the fall kills you.",
-    "Have you ever had one of those days when something just seems to be trying to tell you somebody?",
-    "You get what anybody gets - you get a lifetime.",
-    "I think I'll dismember the world and then I'll dance in the wreckage.",
-    "What power would hell have if those imprisoned here would not be able to dream of heaven?",
-    "Destiny smiles. And no one knows.",
-    "To absent friends, lost loves, old gods, and the season of mists.",
-  ], []);
+function FeatherSVG({ size }: { size: 'small' | 'medium' | 'large' }) {
+  const dimensions = {
+    small: { width: 12, height: 28 },
+    medium: { width: 16, height: 38 },
+    large: { width: 22, height: 52 },
+  };
+  const { width, height } = dimensions[size];
 
-  const [currentQuote, setCurrentQuote] = useState(() =>
-    quotes[Math.floor(Math.random() * quotes.length)]
-  );
-  const [isVisible, setIsVisible] = useState(true);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setIsVisible(false);
-      setTimeout(() => {
-        setCurrentQuote(quotes[Math.floor(Math.random() * quotes.length)]);
-        setIsVisible(true);
-      }, 1000);
-    }, 30000); // Change quote every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [quotes]);
-
-  return (
-    <div
-      className="sandman-quote"
-      style={{
-        position: 'fixed',
-        bottom: '60px',
-        right: '20px',
-        maxWidth: '300px',
-        fontFamily: "'Crimson Text', Georgia, serif",
-        fontStyle: 'italic',
-        fontSize: '0.875rem',
-        color: 'var(--color-text-subtle)',
-        opacity: isVisible ? 0.6 : 0,
-        transition: 'opacity 1s ease-in-out',
-        pointerEvents: 'none',
-        zIndex: 1,
-        textAlign: 'right',
-        lineHeight: 1.5,
-      }}
-    >
-      "{currentQuote}"
-      <div style={{
-        marginTop: '4px',
-        fontSize: '0.75rem',
-        fontStyle: 'normal',
-        color: 'var(--color-primary)',
-      }}>
-        — The Sandman
-      </div>
-    </div>
-  );
-}
-
-/**
- * Morpheus Sigil - A subtle animated sigil in the corner
- */
-function MorpheusSigil() {
   return (
     <svg
-      className="sandman-sigil"
-      viewBox="0 0 100 100"
-      style={{
-        position: 'fixed',
-        bottom: '80px',
-        left: '20px',
-        width: '40px',
-        height: '40px',
-        opacity: 0.15,
-        pointerEvents: 'none',
-        zIndex: 1,
-      }}
+      width={width}
+      height={height}
+      viewBox="0 0 22 52"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="endless-feather-svg"
     >
-      {/* Dream Helm inspired sigil */}
-      <defs>
-        <linearGradient id="sigilGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style={{ stopColor: 'var(--color-primary)', stopOpacity: 1 }} />
-          <stop offset="100%" style={{ stopColor: 'var(--color-accent)', stopOpacity: 1 }} />
-        </linearGradient>
-      </defs>
-      <g fill="none" stroke="url(#sigilGradient)" strokeWidth="2">
-        {/* Outer circle */}
-        <circle cx="50" cy="50" r="45" opacity="0.5">
-          <animate
-            attributeName="r"
-            values="45;47;45"
-            dur="4s"
-            repeatCount="indefinite"
-          />
-        </circle>
-        {/* Inner patterns - representing the Dream Helm */}
-        <ellipse cx="50" cy="35" rx="25" ry="15">
-          <animate
-            attributeName="opacity"
-            values="0.8;0.4;0.8"
-            dur="3s"
-            repeatCount="indefinite"
-          />
-        </ellipse>
-        <path d="M 25 50 Q 50 70 75 50" strokeWidth="3">
-          <animate
-            attributeName="stroke-opacity"
-            values="1;0.5;1"
-            dur="2.5s"
-            repeatCount="indefinite"
-          />
-        </path>
-        {/* Eye-like center */}
-        <circle cx="50" cy="45" r="8" fill="url(#sigilGradient)" stroke="none">
-          <animate
-            attributeName="r"
-            values="8;10;8"
-            dur="2s"
-            repeatCount="indefinite"
-          />
-        </circle>
-        {/* Radiating lines */}
-        <line x1="50" y1="5" x2="50" y2="15" opacity="0.5" />
-        <line x1="50" y1="85" x2="50" y2="95" opacity="0.5" />
-        <line x1="5" y1="50" x2="15" y2="50" opacity="0.5" />
-        <line x1="85" y1="50" x2="95" y2="50" opacity="0.5" />
+      {/* Feather body - dark with subtle blue-grey edge */}
+      <path
+        d="M11 0 C11 0 4 8 3 20 C2 32 5 44 11 52 C17 44 20 32 19 20 C18 8 11 0 11 0Z"
+        fill="#1a1c22"
+        stroke="#2a2d35"
+        strokeWidth="0.5"
+      />
+      {/* Central shaft */}
+      <line
+        x1="11"
+        y1="2"
+        x2="11"
+        y2="50"
+        stroke="#2a2d35"
+        strokeWidth="1"
+        strokeLinecap="round"
+      />
+      {/* Barb lines - subtle texture */}
+      <g stroke="#252830" strokeWidth="0.3" opacity="0.6">
+        <line x1="11" y1="10" x2="5" y2="14" />
+        <line x1="11" y1="10" x2="17" y2="14" />
+        <line x1="11" y1="18" x2="4" y2="24" />
+        <line x1="11" y1="18" x2="18" y2="24" />
+        <line x1="11" y1="26" x2="5" y2="34" />
+        <line x1="11" y1="26" x2="17" y2="34" />
+        <line x1="11" y1="36" x2="7" y2="44" />
+        <line x1="11" y1="36" x2="15" y2="44" />
       </g>
     </svg>
   );
 }
 
 /**
- * Vignette Effect Component
+ * Raven Feathers Effect Component
  */
-function VignetteEffect() {
-  return (
-    <div
-      className="sandman-vignette"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        pointerEvents: 'none',
-        zIndex: 0,
-        background: `
-          radial-gradient(
-            ellipse at center,
-            transparent 0%,
-            transparent 50%,
-            rgba(10, 6, 18, 0.3) 100%
-          )
-        `,
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-/**
- * Dream Sand Particles Component
- */
-function DreamSandParticles() {
-  const [particles, setParticles] = useState<Particle[]>([]);
+function RavenFeathers() {
+  const [feathers, setFeathers] = useState<Feather[]>([]);
 
   useEffect(() => {
-    const newParticles = Array.from(
-      { length: PARTICLE_COUNT },
-      (_, i) => generateParticle(i)
+    // Stagger initial feathers so they don't all appear at once
+    const initialFeathers = Array.from({ length: FEATHER_COUNT }, (_, i) =>
+      generateFeather(i)
     );
-    setParticles(newParticles);
+    setFeathers(initialFeathers);
   }, []);
 
-  const regenerateParticle = useCallback((id: number) => {
-    setParticles(prev =>
-      prev.map(p => p.id === id ? generateParticle(id) : p)
+  const handleAnimationEnd = (id: number) => {
+    setFeathers(prev =>
+      prev.map(f => (f.id === id ? generateFeather(id) : f))
     );
-  }, []);
+  };
 
   return (
-    <div className="sandman-particles" aria-hidden="true">
-      {particles.map(particle => (
+    <div className="endless-feathers" aria-hidden="true">
+      {feathers.map((feather, index) => (
         <div
-          key={particle.id}
-          className={`sandman-particle sandman-particle--${particle.size}`}
+          key={feather.id}
+          className={`endless-feather endless-feather--${feather.size}`}
           style={{
-            left: particle.left,
-            animationDelay: particle.animationDelay,
-            animationDuration: particle.animationDuration,
-          }}
-          onAnimationIteration={() => regenerateParticle(particle.id)}
-        />
+            left: `${feather.left}%`,
+            '--rotation': `${feather.rotation}deg`,
+            '--duration': `${feather.animationDuration}s`,
+            '--delay': `${index * 8}s`, // Stagger by 8 seconds
+            '--sway-offset': feather.swayOffset,
+          } as React.CSSProperties}
+          onAnimationIteration={() => handleAnimationEnd(feather.id)}
+        >
+          <FeatherSVG size={feather.size} />
+        </div>
       ))}
     </div>
   );
 }
 
+// ============================================================================
+// STARFIELD DRIFT - Infinite cosmic background
+// ============================================================================
+
+interface Star {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  opacity: number;
+  color: 'white' | 'teal' | 'amber';
+  layer: 'distant' | 'medium' | 'close';
+}
+
 /**
- * Main SandmanEffects Component
+ * Generate stars for each layer
+ */
+function generateStars(): Star[] {
+  const stars: Star[] = [];
+  let id = 0;
+
+  // Distant layer - many tiny dim stars
+  for (let i = 0; i < 60; i++) {
+    stars.push({
+      id: id++,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 0.5 + Math.random() * 0.5,
+      opacity: 0.3 + Math.random() * 0.3,
+      color: 'white',
+      layer: 'distant',
+    });
+  }
+
+  // Medium layer - smaller count, slightly brighter
+  for (let i = 0; i < 25; i++) {
+    const colorRoll = Math.random();
+    let color: Star['color'] = 'white';
+    if (colorRoll > 0.85) color = 'teal';
+    else if (colorRoll > 0.7) color = 'amber';
+
+    stars.push({
+      id: id++,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 1 + Math.random() * 0.5,
+      opacity: 0.5 + Math.random() * 0.3,
+      color,
+      layer: 'medium',
+    });
+  }
+
+  // Close layer - few bright stars with glow
+  for (let i = 0; i < 8; i++) {
+    const colorRoll = Math.random();
+    let color: Star['color'] = 'white';
+    if (colorRoll > 0.7) color = 'amber';
+    else if (colorRoll > 0.5) color = 'teal';
+
+    stars.push({
+      id: id++,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      size: 1.5 + Math.random() * 1,
+      opacity: 0.7 + Math.random() * 0.3,
+      color,
+      layer: 'close',
+    });
+  }
+
+  return stars;
+}
+
+/**
+ * Starfield Drift Effect Component
+ */
+function StarfieldDrift() {
+  const stars = useMemo(() => generateStars(), []);
+
+  const getStarColor = (color: Star['color']) => {
+    switch (color) {
+      case 'teal':
+        return '#a8c4c8';
+      case 'amber':
+        return '#d4a574';
+      default:
+        return '#e0e4ea';
+    }
+  };
+
+  return (
+    <div className="endless-starfield" aria-hidden="true">
+      {/* Distant stars - slowest rotation */}
+      <div className="endless-starfield-layer endless-starfield-layer--distant">
+        {stars
+          .filter(s => s.layer === 'distant')
+          .map(star => (
+            <div
+              key={star.id}
+              className="endless-star"
+              style={{
+                left: `${star.x}%`,
+                top: `${star.y}%`,
+                width: `${star.size}px`,
+                height: `${star.size}px`,
+                opacity: star.opacity,
+                backgroundColor: getStarColor(star.color),
+              }}
+            />
+          ))}
+      </div>
+
+      {/* Medium stars - medium rotation */}
+      <div className="endless-starfield-layer endless-starfield-layer--medium">
+        {stars
+          .filter(s => s.layer === 'medium')
+          .map(star => (
+            <div
+              key={star.id}
+              className="endless-star endless-star--glow"
+              style={{
+                left: `${star.x}%`,
+                top: `${star.y}%`,
+                width: `${star.size}px`,
+                height: `${star.size}px`,
+                opacity: star.opacity,
+                backgroundColor: getStarColor(star.color),
+                boxShadow: `0 0 ${star.size * 2}px ${getStarColor(star.color)}`,
+              }}
+            />
+          ))}
+      </div>
+
+      {/* Close stars - fastest rotation, with twinkle */}
+      <div className="endless-starfield-layer endless-starfield-layer--close">
+        {stars
+          .filter(s => s.layer === 'close')
+          .map(star => (
+            <div
+              key={star.id}
+              className="endless-star endless-star--bright"
+              style={{
+                left: `${star.x}%`,
+                top: `${star.y}%`,
+                width: `${star.size}px`,
+                height: `${star.size}px`,
+                opacity: star.opacity,
+                backgroundColor: getStarColor(star.color),
+                boxShadow: `0 0 ${star.size * 3}px ${getStarColor(star.color)}, 0 0 ${star.size * 6}px ${getStarColor(star.color)}`,
+                animationDelay: `${Math.random() * 10}s`,
+              }}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
+/**
+ * Main SandmanEffects Component - Endless Night Edition
  */
 export function SandmanEffects() {
   const { themeId, effectToggles } = useTheme();
@@ -272,15 +323,11 @@ export function SandmanEffects() {
 
   return (
     <>
-      {/* Particle Container */}
-      {effectToggles.dreamSand && <DreamSandParticles />}
+      {/* Background starfield - behind everything */}
+      {effectToggles.starfieldDrift && <StarfieldDrift />}
 
-      {/* Decorative Elements */}
-      {effectToggles.morpheusSigil && <MorpheusSigil />}
-      {effectToggles.dreamQuote && <DreamQuote />}
-
-      {/* Vignette Effect */}
-      {effectToggles.vignette && <VignetteEffect />}
+      {/* Floating feathers - subtle foreground presence */}
+      {effectToggles.ravenFeathers && <RavenFeathers />}
     </>
   );
 }

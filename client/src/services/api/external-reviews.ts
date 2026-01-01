@@ -84,6 +84,19 @@ export interface ReviewSyncResult {
   }>;
 }
 
+export interface IssueSyncResult {
+  fileId: string;
+  success: boolean;
+  reviewCount: number;
+  matchedSources: ReviewSource[];
+  unmatchedSources: ReviewSource[];
+  lastSyncedAt: string;
+  errors?: Array<{
+    source: ReviewSource;
+    error: string;
+  }>;
+}
+
 export interface ReviewSourceStatus {
   source: ReviewSource;
   displayName: string;
@@ -180,6 +193,20 @@ export async function getIssueReviews(
 
   const query = params.toString();
   return get(`/external-reviews/issues/${fileId}${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Sync external reviews for an issue
+ */
+export async function syncIssueReviews(
+  fileId: string,
+  options: {
+    forceRefresh?: boolean;
+    reviewLimit?: number;
+    skipSpoilers?: boolean;
+  } = {}
+): Promise<IssueSyncResult> {
+  return post(`/external-reviews/sync/issues/${fileId}`, options);
 }
 
 /**

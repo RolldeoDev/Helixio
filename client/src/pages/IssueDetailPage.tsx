@@ -44,7 +44,8 @@ import { RatingStars } from '../components/RatingStars';
 import { IssueUserDataPanel } from '../components/UserDataPanel';
 import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
 import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
-import { useIssueUserData, useUpdateIssueUserData, useHasExternalRatings } from '../hooks/queries';
+import { IssueReviewsTab } from '../components/IssueReviewsTab';
+import { useIssueUserData, useUpdateIssueUserData, useHasExternalRatings, useIssueReviews } from '../hooks/queries';
 import './IssueDetailPage.css';
 
 // =============================================================================
@@ -138,10 +139,11 @@ export function IssueDetailPage() {
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
   const [isChangeSeriesModalOpen, setIsChangeSeriesModalOpen] = useState(false);
-  const [isFileInfoExpanded, setIsFileInfoExpanded] = useState(false);
   const [showRatingsModal, setShowRatingsModal] = useState(false);
   const { addToast } = useApiToast();
-  const [isHistoryExpanded, setIsHistoryExpanded] = useState(true);
+
+  // Tab state for content sections
+  const [activeTab, setActiveTab] = useState<'info' | 'notes' | 'reviews'>('info');
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const [summaryNeedsTruncation, setSummaryNeedsTruncation] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,10 @@ export function IssueDetailPage() {
 
   // External ratings status (for showing fetch icon when no ratings exist)
   const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(undefined, fileId);
+
+  // Issue reviews (for tab badge)
+  const { data: reviewsData } = useIssueReviews(fileId, { limit: 1 });
+  const hasReviews = (reviewsData?.counts?.external ?? 0) + (reviewsData?.counts?.user ?? 0) > 0;
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -646,88 +652,106 @@ export function IssueDetailPage() {
         </div>
       </DetailHeroSection>
 
-      {/* User Rating & Notes Panel */}
-      {fileId && (
-        <div className="issue-user-data-section">
-          <IssueUserDataPanel fileId={fileId} defaultExpanded={false} />
-        </div>
-      )}
-
-      {/* Collapsible Reading History */}
-      {history.length > 0 && (
-        <div className="issue-collapsible-section">
+      {/* Tabbed Content Section */}
+      <div className="issue-content-section">
+        {/* Tab Navigation */}
+        <div className="issue-content-tabs">
           <button
-            className="issue-collapsible-toggle"
-            onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-            aria-expanded={isHistoryExpanded}
+            className={`issue-content-tab ${activeTab === 'info' ? 'active' : ''}`}
+            onClick={() => setActiveTab('info')}
           >
-            <span>Reading History</span>
-            <span className="toggle-icon">{isHistoryExpanded ? '−' : '+'}</span>
+            File Info
+            {history.length > 0 && (
+              <span className="tab-count">{history.length}</span>
+            )}
           </button>
-          {isHistoryExpanded && (
-            <div className="issue-collapsible-content">
-              <div className="history-compact">
-                {history.slice(0, 5).map((session) => (
-                  <div key={session.id} className="history-row">
-                    <span className="history-date">{formatDate(session.startedAt)}</span>
-                    <span className="history-info">
-                      {formatDuration(session.startedAt, session.endedAt)}
-                      {session.endPage !== null && ` · pp. ${session.startPage + 1}-${session.endPage + 1}`}
-                    </span>
-                    {session.completed && <span className="history-badge">Done</span>}
-                  </div>
-                ))}
-                {history.length > 5 && (
-                  <div className="history-more">+{history.length - 5} more sessions</div>
-                )}
-              </div>
-            </div>
-          )}
+          <button
+            className={`issue-content-tab ${activeTab === 'notes' ? 'active' : ''}`}
+            onClick={() => setActiveTab('notes')}
+          >
+            Your Rating & Notes
+          </button>
+          <button
+            className={`issue-content-tab ${activeTab === 'reviews' ? 'active' : ''}`}
+            onClick={() => setActiveTab('reviews')}
+          >
+            Reviews
+            {hasReviews && <span className="tab-count-dot" />}
+          </button>
         </div>
-      )}
 
-      {/* Collapsible File Information */}
-      <div className="issue-collapsible-section">
-        <button
-          className="issue-collapsible-toggle"
-          onClick={() => setIsFileInfoExpanded(!isFileInfoExpanded)}
-          aria-expanded={isFileInfoExpanded}
-        >
-          <span>File Information</span>
-          <span className="toggle-icon">{isFileInfoExpanded ? '−' : '+'}</span>
-        </button>
-        {isFileInfoExpanded && (
-          <div className="issue-collapsible-content">
-            <div className="file-info-grid">
-              <div className="file-info-item">
-                <span className="file-info-label">Filename</span>
-                <span className="file-info-value">{file.filename}</span>
+        {/* Tab Content */}
+        <div className="issue-tab-content">
+          {activeTab === 'info' && (
+            <div className="issue-info-tab-content">
+              {/* File Information */}
+              <div className="file-info-section">
+                <h3 className="file-info-title">File Information</h3>
+                <div className="file-info-grid">
+                  <div className="file-info-item">
+                    <span className="file-info-label">Filename</span>
+                    <span className="file-info-value">{file.filename}</span>
+                  </div>
+                  <div className="file-info-item">
+                    <span className="file-info-label">Size</span>
+                    <span className="file-info-value">{formatFileSize(file.size)}</span>
+                  </div>
+                  <div className="file-info-item">
+                    <span className="file-info-label">Format</span>
+                    <span className="file-info-value">{fileExtension}</span>
+                  </div>
+                  {archiveInfo?.archive.fileCount && (
+                    <div className="file-info-item">
+                      <span className="file-info-label">Pages</span>
+                      <span className="file-info-value">{archiveInfo.archive.fileCount}</span>
+                    </div>
+                  )}
+                  <div className="file-info-item">
+                    <span className="file-info-label">Modified</span>
+                    <span className="file-info-value">{formatDate(file.modifiedAt)}</span>
+                  </div>
+                </div>
+                <div className="file-path">
+                  <span className="file-info-label">Path</span>
+                  <span className="file-info-value path-value">{file.relativePath}</span>
+                </div>
               </div>
-              <div className="file-info-item">
-                <span className="file-info-label">Size</span>
-                <span className="file-info-value">{formatFileSize(file.size)}</span>
-              </div>
-              <div className="file-info-item">
-                <span className="file-info-label">Format</span>
-                <span className="file-info-value">{fileExtension}</span>
-              </div>
-              {archiveInfo?.archive.fileCount && (
-                <div className="file-info-item">
-                  <span className="file-info-label">Pages</span>
-                  <span className="file-info-value">{archiveInfo.archive.fileCount}</span>
+
+              {/* Reading History */}
+              {history.length > 0 && (
+                <div className="reading-history-section">
+                  <h3 className="reading-history-title">Reading History</h3>
+                  <div className="history-compact">
+                    {history.slice(0, 5).map((session) => (
+                      <div key={session.id} className="history-row">
+                        <span className="history-date">{formatDate(session.startedAt)}</span>
+                        <span className="history-info">
+                          {formatDuration(session.startedAt, session.endedAt)}
+                          {session.endPage !== null && ` · pp. ${session.startPage + 1}-${session.endPage + 1}`}
+                        </span>
+                        {session.completed && <span className="history-badge">Done</span>}
+                      </div>
+                    ))}
+                    {history.length > 5 && (
+                      <div className="history-more">+{history.length - 5} more sessions</div>
+                    )}
+                  </div>
                 </div>
               )}
-              <div className="file-info-item">
-                <span className="file-info-label">Modified</span>
-                <span className="file-info-value">{formatDate(file.modifiedAt)}</span>
-              </div>
             </div>
-            <div className="file-path">
-              <span className="file-info-label">Path</span>
-              <span className="file-info-value path-value">{file.relativePath}</span>
-            </div>
-          </div>
-        )}
+          )}
+
+          {activeTab === 'notes' && fileId && (
+            <IssueUserDataPanel fileId={fileId} defaultExpanded={true} />
+          )}
+
+          {activeTab === 'reviews' && fileId && (
+            <IssueReviewsTab
+              fileId={fileId}
+              issueName={series && comicInfo?.Number ? `${series} #${comicInfo.Number}` : file.filename}
+            />
+          )}
+        </div>
       </div>
 
       {/* Metadata Editor Modal */}

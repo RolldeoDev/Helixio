@@ -15,4 +15,4 @@ export { ReviewProviderRegistry, default as ReviewProviderRegistryDefault } from
 // These imports have side effects (self-registration)
 import './anilist.provider.js';
 import './mal.provider.js';
-// import './comicbookroundup.provider.js'; // TODO: Implement CBR review scraping
+import './comicbookroundup.provider.js';

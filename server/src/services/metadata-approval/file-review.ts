@@ -11,7 +11,7 @@ import { SeriesCache, type CachedIssuesData } from '../series-cache.service.js';
 import * as comicVine from '../comicvine.service.js';
 import { getSession, setSession } from './session-store.js';
 import { matchFileToIssue, getIssueNumber, getIssueTitle } from './helpers.js';
-import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, generateRenameField, type MangaChapterOptions, type ComicClassificationOptions } from './field-changes.js';
+import { issueToFieldChanges, metronIssueToFieldChanges, mangaChapterToFieldChanges, generateRenameField, type MangaChapterOptions, type ComicClassificationOptions, type FieldChangesResult } from './field-changes.js';
 import { getComicClassificationSettings } from '../config.service.js';
 import { classifyMangaFile, type MangaClassificationResult } from '../manga-classification.service.js';
 import { getMangaClassificationSettings } from '../config.service.js';
@@ -124,7 +124,7 @@ async function prepareMangaFileChanges(
         filename,
       };
 
-      const fields = await mangaChapterToFieldChanges(
+      const { fields, proposedMetadata } = await mangaChapterToFieldChanges(
         fileId,
         matchNumber,
         metadataSource,
@@ -132,14 +132,9 @@ async function prepareMangaFileChanges(
       );
 
       // Generate rename preview if we have library context
+      // Use complete proposedMetadata (not just changed fields) for accurate preview
       const filePath = filePathMap.get(fileId);
       if (libraryId && filePath) {
-        // Build proposed metadata for rename preview (use proposed values from fields)
-        const proposedMetadata: Record<string, string | number | null> = {};
-        for (const [key, fc] of Object.entries(fields)) {
-          proposedMetadata[key] = fc.proposed;
-        }
-
         const renameField = await generateRenameField(proposedMetadata, {
           libraryId,
           filePath,
@@ -558,7 +553,7 @@ export async function prepareFileChanges(
           pageCount: match.pageCount,
         };
 
-        const fields = await issueToFieldChanges(
+        const { fields, proposedMetadata } = await issueToFieldChanges(
           match.fileId,
           fullIssue,
           metadataSource,
@@ -566,13 +561,8 @@ export async function prepareFileChanges(
         );
 
         // Generate rename preview if we have library context
+        // Use complete proposedMetadata (not just changed fields) for accurate preview
         if (session.libraryId && match.filePath) {
-          // Build proposed metadata for rename preview
-          const proposedMetadata: Record<string, string | number | null> = {};
-          for (const [key, fc] of Object.entries(fields)) {
-            proposedMetadata[key] = fc.proposed;
-          }
-
           const renameField = await generateRenameField(proposedMetadata, {
             libraryId: session.libraryId,
             filePath: match.filePath,
@@ -613,7 +603,7 @@ export async function prepareFileChanges(
           pageCount: match.pageCount,
         };
 
-        const fields = await metronIssueToFieldChanges(
+        const { fields, proposedMetadata } = await metronIssueToFieldChanges(
           match.fileId,
           fullIssue as Parameters<typeof metronIssueToFieldChanges>[1],
           metadataSource,
@@ -621,13 +611,8 @@ export async function prepareFileChanges(
         );
 
         // Generate rename preview if we have library context
+        // Use complete proposedMetadata (not just changed fields) for accurate preview
         if (session.libraryId && match.filePath) {
-          // Build proposed metadata for rename preview
-          const proposedMetadata: Record<string, string | number | null> = {};
-          for (const [key, fc] of Object.entries(fields)) {
-            proposedMetadata[key] = fc.proposed;
-          }
-
           const renameField = await generateRenameField(proposedMetadata, {
             libraryId: session.libraryId,
             filePath: match.filePath,
@@ -766,7 +751,8 @@ export async function manualSelectIssue(
     coverDate: issue.cover_date,
   };
   fileChange.matchConfidence = 1.0;
-  fileChange.fields = await issueToFieldChanges(fileId, issue, seriesGroup.selectedSeries);
+  const { fields } = await issueToFieldChanges(fileId, issue, seriesGroup.selectedSeries);
+  fileChange.fields = fields;
   fileChange.status = 'manual';
 
   session.updatedAt = new Date();
@@ -920,7 +906,7 @@ export async function moveFileToSeriesGroup(
       const chapterNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
 
       if (chapterNumber) {
-        const fields = await mangaChapterToFieldChanges(fileId, chapterNumber, metadataSource, {
+        const { fields } = await mangaChapterToFieldChanges(fileId, chapterNumber, metadataSource, {
           filename,
           pageCount: 0,
         });
@@ -969,7 +955,7 @@ export async function moveFileToSeriesGroup(
             }
           }
 
-          const fields = issueSource.source === 'comicvine'
+          const result = issueSource.source === 'comicvine'
             ? await issueToFieldChanges(fileId, fullIssue as comicVine.ComicVineIssue, metadataSource)
             : await metronIssueToFieldChanges(
                 fileId,
@@ -988,7 +974,7 @@ export async function moveFileToSeriesGroup(
               coverDate: issue.cover_date,
             },
             matchConfidence: confidence,
-            fields,
+            fields: result.fields,
             status: 'matched',
           };
 

@@ -26,6 +26,21 @@ import { createServiceLogger } from '../logger.service.js';
 const logger = createServiceLogger('metadata-approval-field-changes');
 
 // =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Result from field change generation functions.
+ * Contains both the filtered field changes and the complete proposed metadata.
+ */
+export interface FieldChangesResult {
+  /** Field changes (only fields that differ from current values) */
+  fields: Record<string, FieldChange>;
+  /** Complete proposed metadata (all fields, for rename preview generation) */
+  proposedMetadata: Record<string, string | number | null>;
+}
+
+// =============================================================================
 // Current Metadata Extraction
 // =============================================================================
 
@@ -220,7 +235,7 @@ export async function issueToFieldChanges(
   issue: ComicVineIssue,
   seriesMatch: SeriesMatch,
   options: ComicClassificationOptions = {}
-): Promise<Record<string, FieldChange>> {
+): Promise<FieldChangesResult> {
   const currentMetadata = await getCurrentMetadata(fileId);
 
   // Build proposed metadata from issue
@@ -299,7 +314,10 @@ export async function issueToFieldChanges(
     format: classification?.formatLabel ?? null,
   };
 
-  return buildFieldChanges(currentMetadata, proposedMetadata);
+  return {
+    fields: buildFieldChanges(currentMetadata, proposedMetadata),
+    proposedMetadata,
+  };
 }
 
 // =============================================================================
@@ -314,7 +332,7 @@ export async function metronIssueToFieldChanges(
   issue: MetronIssue,
   seriesMatch: SeriesMatch,
   options: ComicClassificationOptions = {}
-): Promise<Record<string, FieldChange>> {
+): Promise<FieldChangesResult> {
   const currentMetadata = await getCurrentMetadata(fileId);
 
   // Build proposed metadata from Metron issue
@@ -388,7 +406,10 @@ export async function metronIssueToFieldChanges(
     format: classification?.formatLabel ?? null,
   };
 
-  return buildFieldChanges(currentMetadata, proposedMetadata);
+  return {
+    fields: buildFieldChanges(currentMetadata, proposedMetadata),
+    proposedMetadata,
+  };
 }
 
 // =============================================================================
@@ -419,7 +440,7 @@ export async function mangaChapterToFieldChanges(
   chapterNumber: string,
   seriesMatch: SeriesMatch,
   options: MangaChapterOptions = {}
-): Promise<Record<string, FieldChange>> {
+): Promise<FieldChangesResult> {
   const currentMetadata = await getCurrentMetadata(fileId);
   const settings = getMangaClassificationSettings();
 
@@ -447,12 +468,21 @@ export async function mangaChapterToFieldChanges(
   // Determine the primary number to use
   const primaryNumber = classification?.primaryNumber || chapterNumber;
 
+  // For manga volumes, also set the Volume field (ComicInfo.xml standard)
+  // This ensures both {Number} and {Volume} tokens work in filename templates
+  const volumeNumber = classification?.contentType === 'volume'
+    ? parseInt(classification?.volume || primaryNumber || '1', 10)
+    : null;
+
   const proposedMetadata: Record<string, string | number | null> = {
     // Basic Info
     series: seriesMatch.name,
     number: primaryNumber,
     title: displayTitle, // Use generated display title
     summary: seriesMatch.description ?? null,
+
+    // Volume field for volume-type content (ComicInfo.xml standard)
+    volume: volumeNumber,
 
     // Dates - use series start year for manga
     year: seriesMatch.startYear ?? null,
@@ -477,13 +507,16 @@ export async function mangaChapterToFieldChanges(
     manga: 'Yes', // Mark as manga format
     format: classification?.contentType === 'volume' ? 'Volume' : 'Chapter',
 
-    // Manga classification fields (new)
+    // Manga classification fields (for UI display - not written to ComicInfo.xml)
     contentType: classification?.contentType ?? null,
     parsedVolume: classification?.volume ?? null,
     parsedChapter: classification?.chapter ?? null,
   };
 
-  return buildFieldChanges(currentMetadata, proposedMetadata);
+  return {
+    fields: buildFieldChanges(currentMetadata, proposedMetadata),
+    proposedMetadata,
+  };
 }
 
 // =============================================================================

@@ -84,11 +84,46 @@ export const synthwaveLightTheme: ThemeDefinition = {
     colorIssueBadgeTextCompleted: '#ffffff',
 
     // Border radius
+    radiusXs: '2px',
     radiusSm: '4px',
     radiusMd: '8px',
     radiusLg: '12px',
     radiusXl: '16px',
     radiusFull: '9999px',
+
+    // Overlays
+    overlayDarkSubtle: 'rgba(0, 0, 0, 0.1)',
+    overlayDarkLight: 'rgba(0, 0, 0, 0.2)',
+    overlayDarkMedium: 'rgba(0, 0, 0, 0.3)',
+    overlayDarkHeavy: 'rgba(0, 0, 0, 0.5)',
+    overlayDarkIntense: 'rgba(0, 0, 0, 0.7)',
+    overlayLightSubtle: 'rgba(255, 255, 255, 0.05)',
+    overlayLightLight: 'rgba(255, 255, 255, 0.1)',
+    overlayLightMedium: 'rgba(255, 255, 255, 0.15)',
+    overlayLightHeavy: 'rgba(255, 255, 255, 0.3)',
+
+    // Spacing
+    spacing2: '2px',
+    spacingXs: '4px',
+    spacing6: '6px',
+    spacingSm: '8px',
+    spacing10: '10px',
+    spacing12: '12px',
+    spacingMd: '16px',
+    spacing20: '20px',
+    spacingLg: '24px',
+    spacingXl: '32px',
+    spacing2xl: '48px',
+
+    // Font sizes
+    fontSizeXs: '0.75rem',
+    fontSizeSm: '0.875rem',
+    fontSizeBase: '1rem',
+    fontSizeLg: '1.125rem',
+    fontSizeXl: '1.25rem',
+    fontSize2xl: '1.5rem',
+    fontSize3xl: '1.875rem',
+    fontSize4xl: '2.25rem',
   },
   effects: synthwaveEffects,
 };

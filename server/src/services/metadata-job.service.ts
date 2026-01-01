@@ -731,6 +731,49 @@ export async function jobResetSeriesGroup(
 }
 
 /**
+ * Get file changes for a job (wrapper)
+ * Restores session to memory if needed and returns file changes.
+ */
+export async function jobGetFileChanges(jobId: string): Promise<{
+  status: string;
+  fileChanges: FileChange[];
+  summary: {
+    total: number;
+    matched: number;
+    unmatched: number;
+    manual: number;
+    rejected: number;
+  };
+}> {
+  const job = await getJob(jobId);
+  if (!job?.session) throw new Error('Job session not found');
+
+  // Ensure session is in memory before operating
+  ensureSessionInMemory(job);
+
+  const session = getSession(job.session.id);
+  if (!session) {
+    throw new Error('Session not found after restore');
+  }
+
+  if (session.status !== 'file_review' && session.status !== 'applying' && session.status !== 'complete') {
+    throw new Error(`Session is in ${session.status} state, file changes are not yet available`);
+  }
+
+  return {
+    status: session.status,
+    fileChanges: session.fileChanges,
+    summary: {
+      total: session.fileChanges.length,
+      matched: session.fileChanges.filter((fc) => fc.status === 'matched').length,
+      unmatched: session.fileChanges.filter((fc) => fc.status === 'unmatched').length,
+      manual: session.fileChanges.filter((fc) => fc.status === 'manual').length,
+      rejected: session.fileChanges.filter((fc) => fc.status === 'rejected').length,
+    },
+  };
+}
+
+/**
  * Get available issues for manual selection (wrapper)
  */
 export async function jobGetAvailableIssuesForFile(

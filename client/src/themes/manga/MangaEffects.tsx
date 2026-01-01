@@ -13,6 +13,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTheme } from '../ThemeContext';
 import './manga-effects.css';
+import './manga-components.css';
 
 /**
  * Sakura Petal - Individual floating cherry blossom petal

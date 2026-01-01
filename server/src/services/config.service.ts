@@ -188,7 +188,7 @@ const DEFAULT_CONFIG: AppConfig = {
   },
   externalRatings: {
     enabledSources: ['comicbookroundup', 'leagueofcomicgeeks'],
-    enabledReviewSources: ['anilist'],
+    enabledReviewSources: ['comicbookroundup', 'anilist', 'myanimelist'],
     syncSchedule: 'weekly',
     syncHour: 3, // 3 AM
     ratingTTLDays: 7,

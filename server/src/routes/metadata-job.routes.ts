@@ -19,6 +19,7 @@ import {
   jobSkipSeries,
   jobNavigateToSeriesGroup,
   jobResetSeriesGroup,
+  jobGetFileChanges,
   jobGetAvailableIssuesForFile,
   jobUpdateFieldApprovals,
   jobRejectFile,
@@ -412,6 +413,30 @@ router.post('/:id/reset-series/:index', async (req: Request, res: Response) => {
 // =============================================================================
 // File Review
 // =============================================================================
+
+/**
+ * GET /api/metadata-jobs/:id/files
+ * Get all file changes for the job (restores session if needed)
+ */
+router.get('/:id/files', async (req: Request, res: Response) => {
+  try {
+    const result = await jobGetFileChanges(req.params.id!);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Job session not found') {
+      res.status(404).json({ error: 'Job session not found' });
+      return;
+    }
+    if (error instanceof Error && error.message.includes('not yet available')) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    logError('metadata-job', error, { action: 'get-file-changes', jobId: req.params.id });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get file changes',
+    });
+  }
+});
 
 /**
  * GET /api/metadata-jobs/:id/files/:fileId/available-issues
