@@ -150,6 +150,28 @@
 }
 
 /* =============================================================================
+   Inline Skeleton Items (for scrolling)
+   ============================================================================= */
+
+.series-virtual-grid__skeleton-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  z-index: 0; /* Below actual cards */
+}
+
+.series-virtual-grid__skeleton-item .series-virtual-grid__skeleton-cover {
+  flex: 1;
+  min-height: 0;
+}
+
+.series-virtual-grid__skeleton-item .series-virtual-grid__skeleton-info {
+  flex-shrink: 0;
+}
+
+/* =============================================================================
    Empty State
    ============================================================================= */
 
@@ -187,16 +209,6 @@
   font-size: 0.875rem;
   color: var(--color-text-muted);
   margin: 0;
-}
-
-/* =============================================================================
-   Scrolling State Optimizations
-   ============================================================================= */
-
-/* Disable expensive effects during scroll */
-.series-virtual-grid--scrolling .series-virtual-grid__content {
-  /* Will-change hint for compositor */
-  will-change: transform;
 }
 
 /* =============================================================================

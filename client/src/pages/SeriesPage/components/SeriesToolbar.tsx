@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getSeriesPublishers } from '../../../services/api/series';
+import { SmartSeriesFilterPanel } from '../../../components/SmartSeriesFilter';
 import {
   SeriesFilterState,
   SortByOption,
@@ -329,6 +330,9 @@ export function SeriesToolbar({
             </label>
           </div>
         )}
+
+        {/* Smart Filters */}
+        <SmartSeriesFilterPanel />
 
         {/* Sort controls */}
         <div className="series-toolbar__sort">

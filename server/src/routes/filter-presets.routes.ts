@@ -24,6 +24,7 @@ import {
   duplicatePreset,
   migrateLocalPresets,
   type SmartFilter,
+  type FilterPresetType,
 } from '../services/filter-preset.service.js';
 
 const router = Router();
@@ -38,13 +39,26 @@ router.use(requireAuth);
 /**
  * GET /api/filter-presets
  * Get all filter presets accessible to the current user (own + global)
+ * Query params:
+ * - includeGlobal: boolean (default true)
+ * - type: 'file' | 'series' (optional, filter by type)
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
     const includeGlobal = req.query.includeGlobal !== 'false';
+    const type = req.query.type as FilterPresetType | undefined;
 
-    const presets = await getFilterPresets(userId, { includeGlobal });
+    // Validate type if provided
+    if (type && type !== 'file' && type !== 'series') {
+      res.status(400).json({
+        error: 'Invalid type',
+        message: 'Type must be either "file" or "series"',
+      });
+      return;
+    }
+
+    const presets = await getFilterPresets(userId, { includeGlobal, type });
 
     res.json({ presets });
   } catch (error) {
@@ -95,6 +109,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     const isAdmin = req.user!.role === 'admin';
     const {
       name,
+      type,
       description,
       icon,
       filterDefinition,
@@ -111,6 +126,14 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    if (!type || (type !== 'file' && type !== 'series')) {
+      res.status(400).json({
+        error: 'Invalid type',
+        message: 'Type is required and must be either "file" or "series"',
+      });
+      return;
+    }
+
     if (!filterDefinition || typeof filterDefinition !== 'object') {
       res.status(400).json({
         error: 'Invalid filter definition',
@@ -123,6 +146,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       userId,
       {
         name: name.trim(),
+        type: type as FilterPresetType,
         description,
         icon,
         filterDefinition: filterDefinition as SmartFilter,
@@ -136,6 +160,7 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
     logInfo('filter-presets.routes', 'Created filter preset', {
       presetId: preset.id,
       name: preset.name,
+      type: preset.type,
       userId,
       isGlobal: preset.isGlobal,
     });
@@ -403,7 +428,7 @@ router.post('/:id/duplicate', async (req: Request, res: Response): Promise<void>
 router.post('/migrate-local', async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user!.id;
-    const { presets } = req.body;
+    const { presets, type } = req.body;
 
     if (!Array.isArray(presets)) {
       res.status(400).json({
@@ -413,7 +438,16 @@ router.post('/migrate-local', async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const result = await migrateLocalPresets(userId, presets);
+    // Validate type if provided (defaults to 'file' in service)
+    if (type && type !== 'file' && type !== 'series') {
+      res.status(400).json({
+        error: 'Invalid type',
+        message: 'Type must be either "file" or "series"',
+      });
+      return;
+    }
+
+    const result = await migrateLocalPresets(userId, presets, type);
 
     logInfo('filter-presets.routes', 'Migrated local presets', {
       userId,

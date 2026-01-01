@@ -1492,6 +1492,9 @@ model FilterPreset {
   user             User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   isGlobal         Boolean  @default(false)  // true = visible to all users
 
+  // Type discrimination (file filters vs series filters)
+  type             String   @default("file")  // "file" | "series"
+
   // Metadata
   name             String
   description      String?
@@ -1512,9 +1515,10 @@ model FilterPreset {
   // Relations
   linkedCollections Collection[]
 
-  @@unique([userId, name])  // Unique name per user (null userId = global namespace)
+  @@unique([userId, name, type])  // Unique name per user per type
   @@index([userId])
   @@index([isGlobal])
+  @@index([type])
 }
 
 // =============================================================================

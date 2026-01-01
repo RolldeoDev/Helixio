@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, RefObject } from 'react';
-import { calculateVisibleRange, GridLayout, VisibleRange } from '../utils/gridCalculations';
+import { calculateVisibleRange, GridLayout, VisibleRangeResult } from '../utils/gridCalculations';
 
 interface VirtualItem<T> {
   data: T;
@@ -22,12 +22,15 @@ interface UseVirtualWindowOptions {
 interface UseVirtualWindowReturn<T> {
   visibleItems: VirtualItem<T>[];
   totalHeight: number;
-  isScrolling: boolean;
+  /** Range actually visible in viewport (for NavigationSidebar) */
+  visibleRange: { start: number; end: number };
+  /** Range being rendered including overscan (for skeleton generation) */
+  renderRange: { start: number; end: number };
+  scrollToIndex: (index: number) => void;
 }
 
 const DEFAULT_OVERSCAN = 2;
 const SCROLL_THROTTLE = 16; // ~60fps
-const SCROLL_END_DELAY = 150;
 
 export function useVirtualWindow<T extends { id: string }>(
   containerRef: RefObject<HTMLElement>,
@@ -37,8 +40,10 @@ export function useVirtualWindow<T extends { id: string }>(
 ): UseVirtualWindowReturn<T> {
   const { overscanRows = DEFAULT_OVERSCAN, scrollThrottle = SCROLL_THROTTLE } = options;
 
-  const [visibleRange, setVisibleRange] = useState<VisibleRange>({ startIndex: 0, endIndex: 0 });
-  const [isScrolling, setIsScrolling] = useState(false);
+  const [rangeResult, setRangeResult] = useState<VisibleRangeResult>({
+    renderRange: { startIndex: 0, endIndex: 0 },
+    viewportRange: { startIndex: 0, endIndex: 0 },
+  });
 
   // Calculate visible range on scroll
   const handleScroll = useCallback(() => {
@@ -48,7 +53,7 @@ export function useVirtualWindow<T extends { id: string }>(
     const scrollTop = container.scrollTop;
     const viewportHeight = container.clientHeight;
 
-    const newRange = calculateVisibleRange(
+    const newResult = calculateVisibleRange(
       scrollTop,
       viewportHeight,
       layout,
@@ -56,12 +61,17 @@ export function useVirtualWindow<T extends { id: string }>(
       overscanRows
     );
 
-    setVisibleRange((prev) => {
-      // Only update if range actually changed
-      if (prev.startIndex === newRange.startIndex && prev.endIndex === newRange.endIndex) {
+    setRangeResult((prev) => {
+      // Only update if render range actually changed (what we render)
+      if (
+        prev.renderRange.startIndex === newResult.renderRange.startIndex &&
+        prev.renderRange.endIndex === newResult.renderRange.endIndex &&
+        prev.viewportRange.startIndex === newResult.viewportRange.startIndex &&
+        prev.viewportRange.endIndex === newResult.viewportRange.endIndex
+      ) {
         return prev;
       }
-      return newRange;
+      return newResult;
     });
   }, [containerRef, layout, items.length, overscanRows]);
 
@@ -72,25 +82,15 @@ export function useVirtualWindow<T extends { id: string }>(
 
     let lastScrollTime = 0;
     let rafId: number;
-    let scrollEndTimeout: ReturnType<typeof setTimeout>;
 
     const onScroll = () => {
       const now = Date.now();
-      setIsScrolling(true);
-
-      // Clear previous scroll end timeout
-      clearTimeout(scrollEndTimeout);
 
       // Throttle updates
       if (now - lastScrollTime >= scrollThrottle) {
         lastScrollTime = now;
         rafId = requestAnimationFrame(handleScroll);
       }
-
-      // Set scroll end timeout
-      scrollEndTimeout = setTimeout(() => {
-        setIsScrolling(false);
-      }, SCROLL_END_DELAY);
     };
 
     container.addEventListener('scroll', onScroll, { passive: true });
@@ -101,7 +101,6 @@ export function useVirtualWindow<T extends { id: string }>(
     return () => {
       container.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafId);
-      clearTimeout(scrollEndTimeout);
     };
   }, [containerRef, handleScroll, scrollThrottle]);
 
@@ -110,11 +109,24 @@ export function useVirtualWindow<T extends { id: string }>(
     handleScroll();
   }, [layout, handleScroll]);
 
-  // Build visible items array
+  // Scroll to a specific item index
+  const scrollToIndex = useCallback((index: number) => {
+    const container = containerRef.current;
+    if (!container || !layout) return;
+
+    const position = layout.getItemPosition(index);
+    container.scrollTo({
+      top: position.y,
+      behavior: 'smooth',
+    });
+  }, [containerRef, layout]);
+
+  // Build visible items array using render range (includes overscan)
   const visibleItems: VirtualItem<T>[] = [];
+  const { renderRange, viewportRange } = rangeResult;
 
   if (layout) {
-    for (let i = visibleRange.startIndex; i < visibleRange.endIndex && i < items.length; i++) {
+    for (let i = renderRange.startIndex; i < renderRange.endIndex && i < items.length; i++) {
       const item = items[i];
       if (!item) continue;
 
@@ -138,6 +150,10 @@ export function useVirtualWindow<T extends { id: string }>(
   return {
     visibleItems,
     totalHeight,
-    isScrolling,
+    // Return viewport range (not render range) for NavigationSidebar indicator
+    visibleRange: { start: viewportRange.startIndex, end: viewportRange.endIndex },
+    // Return render range (with overscan) for skeleton generation
+    renderRange: { start: renderRange.startIndex, end: renderRange.endIndex },
+    scrollToIndex,
   };
 }

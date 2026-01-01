@@ -62,27 +62,38 @@ describe('gridCalculations', () => {
     };
 
     it('should calculate visible range based on scroll position', () => {
-      const range = calculateVisibleRange(0, 800, mockLayout, 100);
-      expect(range.startIndex).toBe(0);
-      expect(range.endIndex).toBeGreaterThan(0);
+      const result = calculateVisibleRange(0, 800, mockLayout, 100);
+      expect(result.renderRange.startIndex).toBe(0);
+      expect(result.renderRange.endIndex).toBeGreaterThan(0);
+      expect(result.viewportRange.startIndex).toBe(0);
+      expect(result.viewportRange.endIndex).toBeGreaterThan(0);
     });
 
-    it('should include overscan rows', () => {
-      const rangeWithOverscan = calculateVisibleRange(0, 800, mockLayout, 100, 2);
-      const rangeWithoutOverscan = calculateVisibleRange(0, 800, mockLayout, 100, 0);
-      expect(rangeWithOverscan.endIndex).toBeGreaterThan(rangeWithoutOverscan.endIndex);
+    it('should include overscan rows in render range', () => {
+      const resultWithOverscan = calculateVisibleRange(0, 800, mockLayout, 100, 2);
+      const resultWithoutOverscan = calculateVisibleRange(0, 800, mockLayout, 100, 0);
+      // Render range should be larger with overscan
+      expect(resultWithOverscan.renderRange.endIndex).toBeGreaterThan(
+        resultWithoutOverscan.renderRange.endIndex
+      );
+      // Viewport range should be the same (no overscan affects it)
+      expect(resultWithOverscan.viewportRange.endIndex).toBe(
+        resultWithoutOverscan.viewportRange.endIndex
+      );
     });
 
     it('should clamp to valid range', () => {
-      const range = calculateVisibleRange(10000, 800, mockLayout, 10);
-      expect(range.startIndex).toBeGreaterThanOrEqual(0);
-      expect(range.endIndex).toBeLessThanOrEqual(10);
+      const result = calculateVisibleRange(10000, 800, mockLayout, 10);
+      expect(result.renderRange.startIndex).toBeGreaterThanOrEqual(0);
+      expect(result.renderRange.endIndex).toBeLessThanOrEqual(10);
     });
 
     it('should handle empty list', () => {
-      const range = calculateVisibleRange(0, 800, mockLayout, 0);
-      expect(range.startIndex).toBe(0);
-      expect(range.endIndex).toBe(0);
+      const result = calculateVisibleRange(0, 800, mockLayout, 0);
+      expect(result.renderRange.startIndex).toBe(0);
+      expect(result.renderRange.endIndex).toBe(0);
+      expect(result.viewportRange.startIndex).toBe(0);
+      expect(result.viewportRange.endIndex).toBe(0);
     });
   });
 });

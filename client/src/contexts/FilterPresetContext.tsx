@@ -119,6 +119,7 @@ export function FilterPresetProvider({ children }: FilterPresetProviderProps) {
   }, [user]);
 
   // Fetch presets when user changes
+  // This context only handles 'file' type presets for backward compatibility
   const fetchPresets = useCallback(async () => {
     if (!user) {
       setPresets([]);
@@ -130,7 +131,7 @@ export function FilterPresetProvider({ children }: FilterPresetProviderProps) {
     setError(null);
 
     try {
-      const fetchedPresets = await getFilterPresets({ includeGlobal: true });
+      const fetchedPresets = await getFilterPresets({ includeGlobal: true, type: 'file' });
       setPresets(fetchedPresets);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load presets';
@@ -204,7 +205,8 @@ export function FilterPresetProvider({ children }: FilterPresetProviderProps) {
   // =============================================================================
 
   const migrateLocalPresets = useCallback(async (localPresets: SmartFilter[]): Promise<MigrateResult> => {
-    const result = await apiMigrateLocalPresets(localPresets);
+    // This context handles 'file' type presets
+    const result = await apiMigrateLocalPresets(localPresets, 'file');
 
     // Mark migration as completed
     localStorage.setItem(MIGRATION_COMPLETED_KEY, 'true');

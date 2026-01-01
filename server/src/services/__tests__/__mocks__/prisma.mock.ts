@@ -1085,6 +1085,7 @@ export function createMockFilterPreset(overrides: Partial<{
   id: string;
   userId: string | null;
   isGlobal: boolean;
+  type: string;
   name: string;
   description: string | null;
   icon: string | null;
@@ -1100,6 +1101,7 @@ export function createMockFilterPreset(overrides: Partial<{
     id: 'preset-1',
     userId: 'user-1',
     isGlobal: false,
+    type: 'file',
     name: 'Test Preset',
     description: null,
     icon: null,

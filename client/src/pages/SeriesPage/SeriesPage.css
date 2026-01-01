@@ -1,4 +1,23 @@
-/* client/src/pages/SeriesPage/SeriesPage.css */
+/**
+ * SeriesPage Styles
+ *
+ * Main container for the series browser page.
+ * Uses flexbox layout with toolbar at top and grid filling remaining space.
+ */
+
 .series-page {
-  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  padding: var(--spacing-md);
+  padding-right: calc(var(--spacing-md) + 32px); /* Account for NavigationSidebar */
+  gap: var(--spacing-md);
+}
+
+/* Ensure the grid fills available space */
+.series-page > .series-virtual-grid {
+  flex: 1;
+  min-height: 0; /* Important for flexbox overflow */
 }

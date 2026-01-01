@@ -5,14 +5,13 @@
  * Receives data, renders it, reports interactions. No internal state management.
  *
  * Rendering modes:
- * - Scrolling: Minimal render (cover + title only)
- * - Compact: Cover, title, issue count
+ * - Compact: Cover, title, issue count (for large card sizes)
  * - Full: Everything including progress bar, badges, hover actions
  */
 
 import React, { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GridItem } from '../../../services/api/series';
+import { GridItem, getNextSeriesIssue } from '../../../services/api/series';
 import { useCardCoverImage } from './useCardCoverImage';
 import './SeriesCard.css';
 
@@ -25,10 +24,10 @@ export interface SeriesCardProps {
   item: GridItem;
   /** Whether this card is selected */
   isSelected: boolean;
-  /** Whether the grid is currently scrolling (simplified render) */
-  isScrolling: boolean;
   /** Card size setting (1-10, affects rendering mode) */
   cardSize: number;
+  /** Whether selection mode is active (shows checkboxes) */
+  selectable?: boolean;
   /** Selection handler */
   onSelect: (id: string, event: React.MouseEvent) => void;
   /** Context menu handler */
@@ -73,17 +72,17 @@ function getItemCoverData(item: GridItem) {
 function SeriesCardInner({
   item,
   isSelected,
-  isScrolling,
   cardSize,
+  selectable = false,
   onSelect,
   onContextMenu,
   style,
 }: SeriesCardProps) {
   const navigate = useNavigate();
 
-  // Determine rendering mode
+  // Determine rendering mode based on card size
   const isCompact = cardSize >= 7;
-  const renderMode = isScrolling ? 'scrolling' : isCompact ? 'compact' : 'full';
+  const renderMode = isCompact ? 'compact' : 'full';
 
   // Extract display data
   const { id, name, issueCount, readCount } = item;
@@ -148,11 +147,44 @@ function SeriesCardInner({
     [id, item.itemType, navigate]
   );
 
+  // Checkbox change handler
+  const handleCheckboxChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      e.stopPropagation();
+      // Create a synthetic mouse event for the selection handler
+      onSelect(id, { ctrlKey: true, metaKey: false, shiftKey: false } as React.MouseEvent);
+    },
+    [id, onSelect]
+  );
+
+  // Read button click - navigate to continue reading
+  const handleReadClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (item.itemType !== 'series') return;
+
+      try {
+        const result = await getNextSeriesIssue(id);
+        if (result.nextIssue) {
+          navigate(`/read/${result.nextIssue.id}?filename=${encodeURIComponent(result.nextIssue.filename)}`);
+        } else {
+          // No unread issues - go to series detail
+          navigate(`/series/${id}`);
+        }
+      } catch {
+        // On error, fall back to series detail
+        navigate(`/series/${id}`);
+      }
+    },
+    [id, item.itemType, navigate]
+  );
+
   // Build class names
   const cardClassName = [
     'series-card',
     `series-card--${renderMode}`,
     isSelected && 'series-card--selected',
+    selectable && 'series-card--selectable',
     item.itemType === 'collection' && 'series-card--collection',
   ]
     .filter(Boolean)
@@ -172,6 +204,21 @@ function SeriesCardInner({
     >
       {/* Cover */}
       <div ref={containerRef} className="series-card__cover">
+        {/* Selection checkbox - always rendered, visibility controlled by CSS */}
+        <label
+          className="series-card__checkbox-wrapper"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleCheckboxChange}
+            className="series-card__checkbox"
+            aria-label={`Select ${name}`}
+          />
+          <span className="series-card__checkbox-custom" />
+        </label>
+
         {/* Skeleton placeholder */}
         {status === 'loading' && (
           <div className="series-card__skeleton" aria-hidden="true" />
@@ -199,29 +246,44 @@ function SeriesCardInner({
           />
         )}
 
-        {/* Gradient overlay (not in scrolling mode) */}
-        {renderMode !== 'scrolling' && (
-          <div className="series-card__gradient" aria-hidden="true" />
-        )}
+        {/* Gradient overlay */}
+        <div className="series-card__gradient" aria-hidden="true" />
 
-        {/* Issue count badge (not in scrolling mode) */}
-        {renderMode !== 'scrolling' && (
-          <div
-            className={[
-              'series-card__badge',
-              isComplete && 'series-card__badge--complete',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            {isComplete && (
-              <svg className="series-card__check-icon" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z" />
+        {/* Hover overlay with read button (series only) */}
+        {item.itemType === 'series' && (
+          <div className="series-card__hover-overlay">
+            <button
+              className="series-card__read-button"
+              onClick={handleReadClick}
+              aria-label={`Read ${name}`}
+            >
+              <svg
+                className="series-card__read-icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
-            )}
-            {readCount}/{issueCount}
+            </button>
           </div>
         )}
+
+        {/* Issue count badge */}
+        <div
+          className={[
+            'series-card__badge',
+            isComplete && 'series-card__badge--complete',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {isComplete && (
+            <svg className="series-card__check-icon" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z" />
+            </svg>
+          )}
+          {readCount}/{issueCount}
+        </div>
 
         {/* Progress bar (full mode only) */}
         {renderMode === 'full' && issueCount > 0 && (
@@ -255,7 +317,7 @@ function SeriesCardInner({
         <span className="series-card__title" title={name}>
           {name}
         </span>
-        {renderMode !== 'scrolling' && (startYear || publisher) && (
+        {(startYear || publisher) && (
           <div className="series-card__meta">
             {startYear && <span className="series-card__year">{startYear}</span>}
             {publisher && <span className="series-card__publisher">{publisher}</span>}
@@ -279,11 +341,13 @@ function arePropsEqual(prev: SeriesCardProps, next: SeriesCardProps): boolean {
   if (prev.item.id !== next.item.id) return false;
   if (prev.item.updatedAt !== next.item.updatedAt) return false;
   if (prev.isSelected !== next.isSelected) return false;
-  if (prev.isScrolling !== next.isScrolling) return false;
   if (prev.cardSize !== next.cardSize) return false;
+  if (prev.selectable !== next.selectable) return false;
 
-  // Check style transform (position changes)
+  // Check style properties (position and dimensions)
   if (prev.style.transform !== next.style.transform) return false;
+  if (prev.style.width !== next.style.width) return false;
+  if (prev.style.height !== next.style.height) return false;
 
   return true;
 }

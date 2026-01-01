@@ -14,8 +14,16 @@ import {
   useState,
   useCallback,
   useMemo,
+  useEffect,
   ReactNode,
 } from 'react';
+import { useAuth } from './AuthContext';
+import {
+  getFilterPresets,
+  createFilterPreset as apiCreatePreset,
+  deleteFilterPreset as apiDeletePreset,
+  type FilterPreset,
+} from '../services/api/filter-presets';
 
 // =============================================================================
 // Types
@@ -162,6 +170,7 @@ export interface SmartSeriesFilterState {
   isFilterActive: boolean;
   savedFilters: SmartSeriesFilter[];
   isFilterPanelOpen: boolean;
+  isLoading: boolean;
 }
 
 export interface SmartSeriesFilterContextValue extends SmartSeriesFilterState {
@@ -184,10 +193,11 @@ export interface SmartSeriesFilterContextValue extends SmartSeriesFilterState {
   setSortBy: (sortBy: SeriesSortField | undefined) => void;
   setSortOrder: (sortOrder: SeriesSortOrder) => void;
 
-  // Preset management (localStorage only for now)
-  saveFilter: (name: string) => void;
+  // Preset management (API-backed)
+  saveFilter: (name: string) => Promise<void>;
   loadFilter: (filterId: string) => void;
-  deleteFilter: (filterId: string) => void;
+  deleteFilter: (filterId: string) => Promise<void>;
+  refetchPresets: () => Promise<void>;
 
   // UI actions
   toggleFilterPanel: () => void;
@@ -519,26 +529,32 @@ function evaluateFilter(
 }
 
 // =============================================================================
-// LocalStorage helpers
+// API to SmartSeriesFilter conversion
 // =============================================================================
 
-const STORAGE_KEY = 'helixio-series-smart-filters';
+function filterPresetToSmartSeriesFilter(preset: FilterPreset): SmartSeriesFilter {
+  // The filter definition is stored as a SmartFilter, we need to map it to SmartSeriesFilter
+  const def = preset.filterDefinition as unknown as {
+    id?: string;
+    name?: string;
+    rootOperator?: SeriesFilterOperator;
+    groups?: SeriesFilterGroup[];
+    sortBy?: SeriesSortField;
+    sortOrder?: SeriesSortOrder;
+    createdAt?: string;
+    updatedAt?: string;
+  };
 
-function loadSavedFilters(): SmartSeriesFilter[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSavedFilters(filters: SmartSeriesFilter[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
-  } catch {
-    console.error('Failed to save series filters to localStorage');
-  }
+  return {
+    id: preset.id,
+    name: preset.name,
+    rootOperator: def.rootOperator ?? 'AND',
+    groups: def.groups ?? [{ id: generateId(), operator: 'AND', conditions: [] }],
+    sortBy: (preset.sortBy as SeriesSortField) ?? def.sortBy,
+    sortOrder: (preset.sortOrder as SeriesSortOrder) ?? def.sortOrder,
+    createdAt: preset.createdAt,
+    updatedAt: preset.updatedAt,
+  };
 }
 
 // =============================================================================
@@ -564,9 +580,36 @@ interface SmartSeriesFilterProviderProps {
 }
 
 export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProviderProps) {
+  const { user } = useAuth();
   const [activeFilter, setActiveFilterState] = useState<SmartSeriesFilter | null>(null);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [savedFilters, setSavedFilters] = useState<SmartSeriesFilter[]>(() => loadSavedFilters());
+  const [savedFilters, setSavedFilters] = useState<SmartSeriesFilter[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch presets from API
+  const fetchPresets = useCallback(async () => {
+    if (!user) {
+      setSavedFilters([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const presets = await getFilterPresets({ type: 'series', includeGlobal: false });
+      setSavedFilters(presets.map(filterPresetToSmartSeriesFilter));
+    } catch (error) {
+      console.error('Failed to fetch series filter presets:', error);
+      setSavedFilters([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Fetch on mount and when user changes
+  useEffect(() => {
+    fetchPresets();
+  }, [fetchPresets]);
 
   // ---------------------------------------------------------------------------
   // Filter Actions
@@ -738,25 +781,37 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Preset Management
+  // Preset Management (API-backed)
   // ---------------------------------------------------------------------------
 
-  const saveFilter = useCallback((name: string) => {
+  const saveFilter = useCallback(async (name: string): Promise<void> => {
     if (!activeFilter) return;
 
-    const filterToSave: SmartSeriesFilter = {
-      ...activeFilter,
-      id: generateId(),
-      name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    // Create filter definition from the active filter
+    const filterDefinition = {
+      id: activeFilter.id,
+      name: activeFilter.name,
+      rootOperator: activeFilter.rootOperator,
+      groups: activeFilter.groups,
+      createdAt: activeFilter.createdAt,
+      updatedAt: activeFilter.updatedAt,
     };
 
-    setSavedFilters(prev => {
-      const updated = [...prev, filterToSave];
-      saveSavedFilters(updated);
-      return updated;
-    });
+    try {
+      const preset = await apiCreatePreset({
+        name,
+        type: 'series',
+        filterDefinition: filterDefinition as unknown as Parameters<typeof apiCreatePreset>[0]['filterDefinition'],
+        sortBy: activeFilter.sortBy as Parameters<typeof apiCreatePreset>[0]['sortBy'],
+        sortOrder: activeFilter.sortOrder as Parameters<typeof apiCreatePreset>[0]['sortOrder'],
+      });
+
+      // Add the new preset to the local list
+      setSavedFilters(prev => [...prev, filterPresetToSmartSeriesFilter(preset)]);
+    } catch (error) {
+      console.error('Failed to save series filter:', error);
+      throw error;
+    }
   }, [activeFilter]);
 
   const loadFilter = useCallback((filterId: string) => {
@@ -770,13 +825,19 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     }
   }, [savedFilters]);
 
-  const deleteFilter = useCallback((filterId: string) => {
-    setSavedFilters(prev => {
-      const updated = prev.filter(f => f.id !== filterId);
-      saveSavedFilters(updated);
-      return updated;
-    });
+  const deleteFilter = useCallback(async (filterId: string): Promise<void> => {
+    try {
+      await apiDeletePreset(filterId);
+      setSavedFilters(prev => prev.filter(f => f.id !== filterId));
+    } catch (error) {
+      console.error('Failed to delete series filter:', error);
+      throw error;
+    }
   }, []);
+
+  const refetchPresets = useCallback(async (): Promise<void> => {
+    await fetchPresets();
+  }, [fetchPresets]);
 
   // ---------------------------------------------------------------------------
   // UI Actions
@@ -846,6 +907,7 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     isFilterActive,
     savedFilters,
     isFilterPanelOpen,
+    isLoading,
 
     // Filter actions
     setActiveFilter,
@@ -870,6 +932,7 @@ export function SmartSeriesFilterProvider({ children }: SmartSeriesFilterProvide
     saveFilter,
     loadFilter,
     deleteFilter,
+    refetchPresets,
 
     // UI actions
     toggleFilterPanel,

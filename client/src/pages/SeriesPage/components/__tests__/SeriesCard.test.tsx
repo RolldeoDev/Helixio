@@ -54,7 +54,6 @@ function createMockSeriesItem(overrides: Partial<SeriesGridItem> = {}): SeriesGr
 const defaultProps = {
   item: createMockSeriesItem(),
   isSelected: false,
-  isScrolling: false,
   cardSize: 5,
   onSelect: vi.fn(),
   onContextMenu: vi.fn(),
@@ -90,14 +89,6 @@ describe('SeriesCard', () => {
     expect(container.querySelector('.series-card--selected')).toBeInTheDocument();
   });
 
-  it('should apply scrolling class when isScrolling is true', () => {
-    const { container } = render(
-      <SeriesCard {...defaultProps} isScrolling={true} />,
-      { wrapper }
-    );
-    expect(container.querySelector('.series-card--scrolling')).toBeInTheDocument();
-  });
-
   it('should apply compact class when cardSize >= 7', () => {
     const { container } = render(
       <SeriesCard {...defaultProps} cardSize={8} />,
@@ -113,7 +104,8 @@ describe('SeriesCard', () => {
       { wrapper }
     );
 
-    const card = screen.getByRole('button');
+    // Get the card button by its aria-label which includes the series name
+    const card = screen.getByRole('button', { name: /batman \(2020\)/i });
     fireEvent.contextMenu(card);
 
     expect(onContextMenu).toHaveBeenCalledWith('series-1', expect.any(Object));
@@ -126,7 +118,8 @@ describe('SeriesCard', () => {
       { wrapper }
     );
 
-    const card = screen.getByRole('button');
+    // Get the card button by its aria-label which includes the series name
+    const card = screen.getByRole('button', { name: /batman \(2020\)/i });
     fireEvent.click(card, { ctrlKey: true });
 
     expect(onSelect).toHaveBeenCalledWith('series-1', expect.any(Object));

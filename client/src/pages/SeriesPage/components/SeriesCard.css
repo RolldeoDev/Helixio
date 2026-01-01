@@ -1,9 +1,8 @@
 /**
  * SeriesCard Styles
  *
- * Simplified card for virtual grid with three rendering modes:
- * - scrolling: Minimal render for smooth scrolling
- * - compact: Cover, title, badge
+ * Simplified card for virtual grid with two rendering modes:
+ * - compact: Cover, title, badge (for large card sizes)
  * - full: Everything including progress and hover effects
  */
 
@@ -21,6 +20,12 @@
   outline: none;
   overflow: hidden;
   box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+  transition: border-color 150ms ease-out;
+}
+
+/* Border highlight on hover for all cards */
+.series-card:hover {
+  border-color: var(--color-primary-muted, rgba(99, 102, 241, 0.5));
 }
 
 /* Full mode: enable hover effects */
@@ -34,11 +39,6 @@
 .series-card--full:hover {
   box-shadow: var(--shadow-card-elevated, 0 10px 20px -3px rgba(0, 0, 0, 0.5));
   transform: scale(1.03);
-}
-
-/* Scrolling mode: no transitions for performance */
-.series-card--scrolling {
-  transition: none;
 }
 
 /* Compact mode: minimal transitions */
@@ -83,16 +83,16 @@
   height: 100%;
   object-fit: cover;
   opacity: 0;
+  transition: transform 300ms ease-out;
+}
+
+/* Subtle zoom effect on hover */
+.series-card:hover .series-card__image {
+  transform: scale(1.05);
 }
 
 .series-card__image--loaded {
   animation: series-card-fade-in 200ms ease-out forwards;
-}
-
-/* Disable animation in scrolling mode */
-.series-card--scrolling .series-card__image--loaded {
-  animation: none;
-  opacity: 1;
 }
 
 @keyframes series-card-fade-in {
@@ -117,12 +117,6 @@
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.5s ease-in-out infinite;
-}
-
-/* Disable shimmer in scrolling mode */
-.series-card--scrolling .series-card__skeleton {
-  animation: none;
-  background: var(--color-surface-card);
 }
 
 @keyframes skeleton-shimmer {
@@ -172,6 +166,122 @@
   );
   pointer-events: none;
   z-index: 2;
+}
+
+/* =============================================================================
+   Selection Checkbox
+   ============================================================================= */
+
+.series-card__checkbox-wrapper {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+/* Show on hover or when selectable mode is active */
+.series-card:hover .series-card__checkbox-wrapper,
+.series-card--selectable .series-card__checkbox-wrapper,
+.series-card--selected .series-card__checkbox-wrapper {
+  opacity: 1;
+}
+
+.series-card__checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.series-card__checkbox-custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-sm);
+  transition: all 150ms ease;
+}
+
+.series-card__checkbox-wrapper:hover .series-card__checkbox-custom {
+  border-color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.series-card__checkbox:checked + .series-card__checkbox-custom {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.series-card__checkbox:checked + .series-card__checkbox-custom::after {
+  content: '';
+  width: 6px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-bottom: 2px;
+}
+
+/* =============================================================================
+   Hover Overlay
+   ============================================================================= */
+
+.series-card__hover-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+  z-index: 3;
+}
+
+/* Show hover overlay for all cards (not just full mode) */
+.series-card:hover .series-card__hover-overlay {
+  opacity: 1;
+}
+
+.series-card__read-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background: var(--color-primary, #6366f1);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transform: scale(0.8);
+  transition: transform 150ms ease-out, background 150ms ease-out;
+}
+
+.series-card:hover .series-card__read-button {
+  transform: scale(1);
+}
+
+.series-card__read-button:hover {
+  background: var(--color-primary-hover, #818cf8);
+}
+
+.series-card__read-button:active {
+  transform: scale(0.95);
+}
+
+.series-card__read-icon {
+  width: 28px;
+  height: 28px;
 }
 
 /* =============================================================================
@@ -320,14 +430,27 @@
    ============================================================================= */
 
 @media (hover: none), (pointer: coarse) {
+  .series-card:hover {
+    border-color: transparent;
+  }
+
   .series-card--full:hover {
     box-shadow: var(--shadow-card, 0 4px 6px -1px rgba(0, 0, 0, 0.3));
+    transform: none;
+  }
+
+  .series-card:hover .series-card__image {
     transform: none;
   }
 
   .series-card:active {
     transform: scale(0.98);
     transition: transform 0.1s ease;
+  }
+
+  /* Hide hover overlay on touch devices */
+  .series-card__hover-overlay {
+    display: none;
   }
 }
 
@@ -348,6 +471,14 @@
     animation: none;
   }
 
+  .series-card__image {
+    transition: none;
+  }
+
+  .series-card:hover .series-card__image {
+    transform: none;
+  }
+
   .series-card__image--loaded {
     animation: none;
     opacity: 1;
@@ -355,5 +486,14 @@
 
   .series-card__progress-fill {
     transition: none;
+  }
+
+  .series-card__hover-overlay {
+    transition: none;
+  }
+
+  .series-card__read-button {
+    transition: none;
+    transform: scale(1);
   }
 }

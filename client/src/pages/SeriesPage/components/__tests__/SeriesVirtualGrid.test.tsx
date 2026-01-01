@@ -33,7 +33,9 @@ vi.mock('../../hooks/useVirtualWindow', () => ({
       },
     })),
     totalHeight: Math.ceil(items.length / 5) * 376,
-    isScrolling: false,
+    visibleRange: { start: 0, end: Math.min(10, items.length) },
+    renderRange: { start: 0, end: Math.min(10, items.length) },
+    scrollToIndex: vi.fn(),
   }),
 }));
 

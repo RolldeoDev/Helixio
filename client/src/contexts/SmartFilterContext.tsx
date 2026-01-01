@@ -771,6 +771,7 @@ export function SmartFilterProvider({ children }: SmartFilterProviderProps) {
     try {
       await createPreset({
         name,
+        type: 'file',
         filterDefinition,
         sortBy: activeFilter.sortBy,
         sortOrder: activeFilter.sortOrder,

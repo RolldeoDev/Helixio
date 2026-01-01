@@ -24,6 +24,13 @@ export interface VisibleRange {
   endIndex: number;
 }
 
+export interface VisibleRangeResult {
+  /** Range for rendering (includes overscan) */
+  renderRange: VisibleRange;
+  /** Range actually visible in viewport (no overscan) */
+  viewportRange: VisibleRange;
+}
+
 // =============================================================================
 // Constants
 // =============================================================================
@@ -108,7 +115,7 @@ export function calculateGridLayout(containerWidth: number, cardSize: number): G
 
 /**
  * Calculate which items are visible based on scroll position.
- * Includes overscan rows for smooth scrolling.
+ * Returns both render range (with overscan) and viewport range (actual visible items).
  */
 export function calculateVisibleRange(
   scrollTop: number,
@@ -116,25 +123,33 @@ export function calculateVisibleRange(
   layout: GridLayout,
   itemCount: number,
   overscanRows: number = 2
-): VisibleRange {
+): VisibleRangeResult {
   if (itemCount === 0) {
-    return { startIndex: 0, endIndex: 0 };
+    return {
+      renderRange: { startIndex: 0, endIndex: 0 },
+      viewportRange: { startIndex: 0, endIndex: 0 },
+    };
   }
 
   const { columns, itemHeight, gap } = layout;
   const rowHeight = itemHeight + gap;
 
-  // Calculate visible row range
+  // Calculate visible row range (actual viewport, no overscan)
   const firstVisibleRow = Math.floor(scrollTop / rowHeight);
   const lastVisibleRow = Math.ceil((scrollTop + viewportHeight) / rowHeight);
 
-  // Add overscan
-  const startRow = Math.max(0, firstVisibleRow - overscanRows);
-  const endRow = lastVisibleRow + overscanRows;
+  // Viewport range - exactly what's visible
+  const viewportStartIndex = firstVisibleRow * columns;
+  const viewportEndIndex = Math.min((lastVisibleRow + 1) * columns, itemCount);
 
-  // Convert to indices
-  const startIndex = startRow * columns;
-  const endIndex = Math.min((endRow + 1) * columns, itemCount);
+  // Render range - includes overscan for smooth scrolling
+  const renderStartRow = Math.max(0, firstVisibleRow - overscanRows);
+  const renderEndRow = lastVisibleRow + overscanRows;
+  const renderStartIndex = renderStartRow * columns;
+  const renderEndIndex = Math.min((renderEndRow + 1) * columns, itemCount);
 
-  return { startIndex, endIndex };
+  return {
+    renderRange: { startIndex: renderStartIndex, endIndex: renderEndIndex },
+    viewportRange: { startIndex: viewportStartIndex, endIndex: viewportEndIndex },
+  };
 }

@@ -37,6 +37,18 @@ export interface UseBulkActionsReturn {
   unhideSeries: (seriesIds: string[]) => Promise<void>;
   /** Fetch metadata for all issues in selected series */
   fetchMetadata: (seriesIds: string[]) => Promise<void>;
+  /** Whether collection picker modal is open */
+  showCollectionPicker: boolean;
+  /** Open collection picker modal */
+  openCollectionPicker: () => void;
+  /** Close collection picker modal */
+  closeCollectionPicker: () => void;
+  /** Whether batch edit modal is open */
+  showBatchEdit: boolean;
+  /** Open batch edit modal */
+  openBatchEdit: () => void;
+  /** Close batch edit modal */
+  closeBatchEdit: () => void;
 }
 
 export interface UseBulkActionsOptions {
@@ -51,6 +63,14 @@ export function useBulkActions(options: UseBulkActionsOptions = {}): UseBulkActi
   const { startJob } = useMetadataJob();
 
   const [isLoading, setIsLoading] = useState(false);
+  const [showCollectionPicker, setShowCollectionPicker] = useState(false);
+  const [showBatchEdit, setShowBatchEdit] = useState(false);
+
+  // Modal handlers
+  const openCollectionPicker = useCallback(() => setShowCollectionPicker(true), []);
+  const closeCollectionPicker = useCallback(() => setShowCollectionPicker(false), []);
+  const openBatchEdit = useCallback(() => setShowBatchEdit(true), []);
+  const closeBatchEdit = useCallback(() => setShowBatchEdit(false), []);
 
   // Helper to wrap async operations with loading state and error handling
   const withLoading = useCallback(
@@ -196,5 +216,11 @@ export function useBulkActions(options: UseBulkActionsOptions = {}): UseBulkActi
     hideSeries,
     unhideSeries,
     fetchMetadata,
+    showCollectionPicker,
+    openCollectionPicker,
+    closeCollectionPicker,
+    showBatchEdit,
+    openBatchEdit,
+    closeBatchEdit,
   };
 }

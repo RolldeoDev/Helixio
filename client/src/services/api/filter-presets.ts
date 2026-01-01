@@ -16,10 +16,13 @@ import type {
 // Types
 // =============================================================================
 
+export type FilterPresetType = 'file' | 'series';
+
 export interface FilterPreset {
   id: string;
   userId: string | null;
   isGlobal: boolean;
+  type: FilterPresetType;
   name: string;
   description: string | null;
   icon: string | null;
@@ -33,6 +36,7 @@ export interface FilterPreset {
 
 export interface CreatePresetInput {
   name: string;
+  type: FilterPresetType;
   description?: string;
   icon?: string;
   filterDefinition: SmartFilter;
@@ -85,10 +89,14 @@ export interface MigrateResult {
  */
 export async function getFilterPresets(options?: {
   includeGlobal?: boolean;
+  type?: FilterPresetType;
 }): Promise<FilterPreset[]> {
   const params = new URLSearchParams();
   if (options?.includeGlobal === false) {
     params.set('includeGlobal', 'false');
+  }
+  if (options?.type) {
+    params.set('type', options.type);
   }
   const query = params.toString();
   const response = await get<{ presets: FilterPreset[] }>(
@@ -166,9 +174,10 @@ export async function duplicatePreset(
  * Migrate local storage presets to database
  */
 export async function migrateLocalPresets(
-  presets: SmartFilter[]
+  presets: SmartFilter[],
+  type?: FilterPresetType
 ): Promise<MigrateResult> {
-  return post<MigrateResult>('/filter-presets/migrate-local', { presets });
+  return post<MigrateResult>('/filter-presets/migrate-local', { presets, type });
 }
 
 // =============================================================================

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AuthProvider } from '../../../../contexts/AuthContext';
+import { SmartSeriesFilterProvider } from '../../../../contexts/SmartSeriesFilterContext';
 import { SeriesToolbar } from '../SeriesToolbar';
 import { SeriesFilterState } from '../../utils/filterUtils';
 
@@ -48,7 +50,11 @@ const createQueryClient = () =>
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <QueryClientProvider client={createQueryClient()}>
-    {children}
+    <AuthProvider>
+      <SmartSeriesFilterProvider>
+        {children}
+      </SmartSeriesFilterProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

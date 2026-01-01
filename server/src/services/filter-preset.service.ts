@@ -22,10 +22,13 @@ const logger = createServiceLogger('filter-preset');
 // Types
 // =============================================================================
 
+export type FilterPresetType = 'file' | 'series';
+
 export interface FilterPreset {
   id: string;
   userId: string | null;
   isGlobal: boolean;
+  type: FilterPresetType;
   name: string;
   description: string | null;
   icon: string | null;
@@ -39,6 +42,7 @@ export interface FilterPreset {
 
 export interface CreatePresetInput {
   name: string;
+  type: FilterPresetType;
   description?: string;
   icon?: string;
   filterDefinition: SmartFilter;
@@ -101,6 +105,7 @@ function toFilterPreset(record: {
   id: string;
   userId: string | null;
   isGlobal: boolean;
+  type: string;
   name: string;
   description: string | null;
   icon: string | null;
@@ -113,6 +118,7 @@ function toFilterPreset(record: {
 }): FilterPreset {
   return {
     ...record,
+    type: record.type as FilterPresetType,
     filterDefinition: parseFilterDefinition(record.filterDefinition),
   };
 }
@@ -126,13 +132,14 @@ function toFilterPreset(record: {
  */
 export async function getFilterPresets(
   userId: string,
-  options?: { includeGlobal?: boolean }
+  options?: { includeGlobal?: boolean; type?: FilterPresetType }
 ): Promise<FilterPreset[]> {
   const db = getDatabase();
   const includeGlobal = options?.includeGlobal ?? true;
 
   const presets = await db.filterPreset.findMany({
     where: {
+      ...(options?.type && { type: options.type }),
       OR: [
         { userId }, // User's own presets
         ...(includeGlobal ? [{ isGlobal: true }] : []), // Global presets
@@ -176,22 +183,24 @@ export async function createFilterPreset(
   // Only admins can create global presets
   const isGlobal = Boolean(input.isGlobal && isAdmin);
 
-  // Check for duplicate name
+  // Check for duplicate name within same type
   const existing = await db.filterPreset.findFirst({
     where: {
       name: input.name,
+      type: input.type,
       ...(isGlobal ? { isGlobal: true } : { userId }),
     },
   });
 
   if (existing) {
-    throw new Error(`A preset named "${input.name}" already exists`);
+    throw new Error(`A ${input.type} preset named "${input.name}" already exists`);
   }
 
   const preset = await db.filterPreset.create({
     data: {
       userId: isGlobal ? null : userId,
       isGlobal,
+      type: input.type,
       name: input.name,
       description: input.description ?? null,
       icon: input.icon ?? null,
@@ -203,7 +212,7 @@ export async function createFilterPreset(
   });
 
   logger.info(
-    `Created filter preset: ${preset.name} (${preset.id}) by user ${userId}${isGlobal ? ' [GLOBAL]' : ''}`
+    `Created ${input.type} filter preset: ${preset.name} (${preset.id}) by user ${userId}${isGlobal ? ' [GLOBAL]' : ''}`
   );
 
   return toFilterPreset(preset);
@@ -241,18 +250,19 @@ export async function updateFilterPreset(
     throw new Error('Not authorized to edit this preset');
   }
 
-  // Check for duplicate name if changing name
+  // Check for duplicate name if changing name (within same type)
   if (input.name && input.name !== existing.name) {
     const duplicate = await db.filterPreset.findFirst({
       where: {
         name: input.name,
+        type: existing.type,
         id: { not: id },
         ...(existing.isGlobal ? { isGlobal: true } : { userId }),
       },
     });
 
     if (duplicate) {
-      throw new Error(`A preset named "${input.name}" already exists`);
+      throw new Error(`A ${existing.type} preset named "${input.name}" already exists`);
     }
   }
 
@@ -443,19 +453,20 @@ export async function duplicatePreset(
     throw new Error('Preset not found');
   }
 
-  // Check for duplicate name
+  // Check for duplicate name within same type
   const existing = await db.filterPreset.findFirst({
-    where: { userId, name: newName },
+    where: { userId, name: newName, type: source.type },
   });
 
   if (existing) {
-    throw new Error(`A preset named "${newName}" already exists`);
+    throw new Error(`A ${source.type} preset named "${newName}" already exists`);
   }
 
   const duplicate = await db.filterPreset.create({
     data: {
       userId,
       isGlobal: false,
+      type: source.type,
       name: newName,
       description: source.description,
       icon: source.icon,
@@ -478,16 +489,17 @@ export async function duplicatePreset(
  */
 export async function migrateLocalPresets(
   userId: string,
-  localPresets: SmartFilter[]
+  localPresets: SmartFilter[],
+  type: FilterPresetType = 'file'
 ): Promise<MigrateResult> {
   const db = getDatabase();
   const result: MigrateResult = { migrated: 0, skipped: 0, errors: [] };
 
   for (const preset of localPresets) {
     try {
-      // Check for existing preset with same name
+      // Check for existing preset with same name and type
       const existing = await db.filterPreset.findFirst({
-        where: { userId, name: preset.name || 'Unnamed Filter' },
+        where: { userId, name: preset.name || 'Unnamed Filter', type },
       });
 
       if (existing) {
@@ -499,6 +511,7 @@ export async function migrateLocalPresets(
         data: {
           userId,
           isGlobal: false,
+          type,
           name: preset.name || 'Unnamed Filter',
           filterDefinition: serializeFilterDefinition(preset),
           sortBy: preset.sortBy ?? null,
@@ -516,7 +529,7 @@ export async function migrateLocalPresets(
   }
 
   logger.info(
-    `Migrated ${result.migrated} presets for user ${userId}, skipped ${result.skipped}, ${result.errors.length} errors`
+    `Migrated ${result.migrated} ${type} presets for user ${userId}, skipped ${result.skipped}, ${result.errors.length} errors`
   );
 
   return result;
