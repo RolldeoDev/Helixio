@@ -787,6 +787,16 @@ export async function mergeSeriesEnhanced(
   // Update progress for target series
   await updateSeriesProgress(targetId);
 
+  // Sync merged series to series.json (fire-and-forget)
+  // This persists the new aliases and any other metadata changes
+  import('../series-json-sync.service.js').then(({ syncSeriesToSeriesJson }) => {
+    syncSeriesToSeriesJson(targetId).catch(() => {
+      // Errors are logged inside syncSeriesToSeriesJson
+    });
+  }).catch(() => {
+    // Import error - non-critical
+  });
+
   return {
     success: true,
     targetSeriesId: targetId,

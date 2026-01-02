@@ -19,6 +19,16 @@ import {
 } from './comicinfo.service.js';
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+/** Current schema version for series.json files */
+export const SERIES_JSON_SCHEMA_VERSION = 1;
+
+/** Maximum number of reviews to persist in series.json */
+export const MAX_REVIEWS_IN_SERIES_JSON = 10;
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -105,6 +115,69 @@ export interface SeriesMetadata {
   issueMatchingPublisher?: string;
   /** Issue matching series issue count */
   issueMatchingIssueCount?: number;
+
+  // ==========================================================================
+  // Schema Version (for future migrations)
+  // ==========================================================================
+
+  /** Schema version for migration compatibility (current: 1) */
+  schemaVersion?: number;
+
+  // ==========================================================================
+  // Creator Credits with Roles
+  // ==========================================================================
+
+  /** Creator roles with structured format (aggregated from issues) */
+  creatorRoles?: {
+    writers?: string[];
+    pencillers?: string[];
+    inkers?: string[];
+    colorists?: string[];
+    letterers?: string[];
+    coverArtists?: string[];
+    editors?: string[];
+  };
+
+  // ==========================================================================
+  // Series Aliases
+  // ==========================================================================
+
+  /** Alternative series names (for search/matching) */
+  aliases?: string[];
+
+  // ==========================================================================
+  // External Ratings
+  // ==========================================================================
+
+  /** External community/critic ratings */
+  externalRatings?: Array<{
+    source: string;
+    ratingType: 'community' | 'critic';
+    value: number;
+    scale: number;
+    voteCount?: number;
+    fetchedAt?: string;
+  }>;
+
+  // ==========================================================================
+  // External Reviews (top 10 only)
+  // ==========================================================================
+
+  /** Top external reviews (limited to prevent file bloat) */
+  externalReviews?: Array<{
+    source: string;
+    authorName: string;
+    reviewText: string;
+    summary?: string;
+    rating?: number;
+    originalRating?: number;
+    ratingScale?: number;
+    reviewType: 'user' | 'critic';
+    hasSpoilers?: boolean;
+    likes?: number;
+    reviewDate?: string;
+    fetchedAt?: string;
+  }>;
 }
 
 export interface SeriesMetadataResult {

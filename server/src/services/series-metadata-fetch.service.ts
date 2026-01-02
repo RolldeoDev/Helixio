@@ -566,50 +566,14 @@ export async function unlinkExternalId(
 // =============================================================================
 
 /**
- * Sync series data to series.json file
+ * Sync series data to series.json file.
+ *
+ * This is a wrapper around the unified sync service for backward compatibility.
+ * @see syncSeriesToSeriesJson in series-json-sync.service.ts
  */
 export async function syncToSeriesJson(seriesId: string): Promise<void> {
-  const series = await getSeries(seriesId);
-
-  if (!series || !series.primaryFolder) {
-    logger.debug({ seriesId }, 'Cannot sync to series.json - no primary folder');
-    return;
-  }
-
-  const metadata: SeriesMetadata = {
-    seriesName: series.name,
-    startYear: series.startYear ?? undefined,
-    endYear: series.endYear ?? undefined,
-    publisher: series.publisher ?? undefined,
-    comicVineSeriesId: series.comicVineId ?? undefined,
-    metronSeriesId: series.metronId ?? undefined,
-    anilistId: series.anilistId ?? undefined,
-    malId: series.malId ?? undefined,
-    gcdId: series.gcdId ?? undefined,
-    issueCount: series.issueCount ?? undefined,
-    deck: series.deck ?? undefined,
-    summary: series.summary ?? undefined,
-    coverUrl: series.coverUrl ?? undefined,
-    genres: series.genres?.split(',').map((g) => g.trim()) ?? undefined,
-    tags: series.tags?.split(',').map((t) => t.trim()) ?? undefined,
-    characters: series.characters?.split(',').map((c) => c.trim()) ?? undefined,
-    teams: series.teams?.split(',').map((t) => t.trim()) ?? undefined,
-    storyArcs: series.storyArcs?.split(',').map((s) => s.trim()) ?? undefined,
-    locations: series.locations?.split(',').map((l) => l.trim()) ?? undefined,
-    userNotes: series.userNotes ?? undefined,
-    volume: series.volume ?? undefined,
-    type: series.type as 'western' | 'manga' | undefined,
-    ageRating: series.ageRating ?? undefined,
-    languageISO: series.languageISO ?? undefined,
-    lastUpdated: new Date().toISOString(),
-  };
-
-  try {
-    await writeSeriesJson(series.primaryFolder, metadata);
-    logger.debug({ seriesId, folder: series.primaryFolder }, 'Synced to series.json');
-  } catch (err) {
-    logger.error({ err, seriesId }, 'Failed to sync to series.json');
-  }
+  const { syncSeriesToSeriesJson } = await import('./series-json-sync.service.js');
+  await syncSeriesToSeriesJson(seriesId, { includeExternalData: true });
 }
 
 // =============================================================================

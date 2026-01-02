@@ -1221,13 +1221,24 @@ export async function bulkSetSeriesHidden(
 // =============================================================================
 
 /**
+ * Options for bulk series updates.
+ */
+export interface BulkUpdateSeriesOptions {
+  /** If false, skip syncing to series.json files (default: true) */
+  syncToSeriesJson?: boolean;
+}
+
+/**
  * Bulk update metadata fields across multiple series.
  * Only updates fields that are explicitly provided (not undefined).
+ * By default, syncs changes to series.json files (opt-out via options).
  */
 export async function bulkUpdateSeries(
   seriesIds: string[],
-  updates: BulkSeriesUpdateInput
+  updates: BulkSeriesUpdateInput,
+  options: BulkUpdateSeriesOptions = {}
 ): Promise<BulkOperationResult> {
+  const { syncToSeriesJson: shouldSync = true } = options;
   const db = getDatabase();
   const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
   let successful = 0;
@@ -1289,6 +1300,18 @@ export async function bulkUpdateSeries(
     }).catch(() => {
       // Errors are logged inside markSmartCollectionsDirty
     });
+
+    // Sync to series.json files if enabled (default: true, opt-out)
+    if (shouldSync) {
+      // Fire-and-forget bulk sync to avoid blocking response
+      import('../series-json-sync.service.js').then(({ bulkSyncToSeriesJson }) => {
+        bulkSyncToSeriesJson(successfulSeriesIds).catch(() => {
+          // Errors are logged inside bulkSyncToSeriesJson
+        });
+      }).catch(() => {
+        // Import error - non-critical
+      });
+    }
   }
 
   return {
@@ -1305,39 +1328,13 @@ export async function bulkUpdateSeries(
 
 /**
  * Sync a Series record to its series.json file.
+ *
+ * This is a wrapper around the unified sync service for backward compatibility.
+ * @see syncSeriesToSeriesJson in series-json-sync.service.ts
  */
 export async function syncSeriesToSeriesJson(seriesId: string): Promise<void> {
-  const series = await getSeries(seriesId);
-  if (!series || !series.primaryFolder) {
-    return;
-  }
-
-  const metadata: SeriesMetadata = {
-    seriesName: series.name,
-    startYear: series.startYear ?? undefined,
-    endYear: series.endYear ?? undefined,
-    publisher: series.publisher ?? undefined,
-    comicVineSeriesId: series.comicVineId ?? undefined,
-    metronSeriesId: series.metronId ?? undefined,
-    issueCount: series.issueCount ?? undefined,
-    deck: series.deck ?? undefined,
-    summary: series.summary ?? undefined,
-    coverUrl: series.coverUrl ?? undefined,
-    genres: series.genres?.split(',').map((g) => g.trim()) ?? undefined,
-    tags: series.tags?.split(',').map((t) => t.trim()) ?? undefined,
-    characters: series.characters?.split(',').map((c) => c.trim()) ?? undefined,
-    teams: series.teams?.split(',').map((t) => t.trim()) ?? undefined,
-    storyArcs: series.storyArcs?.split(',').map((s) => s.trim()) ?? undefined,
-    locations: series.locations?.split(',').map((l) => l.trim()) ?? undefined,
-    userNotes: series.userNotes ?? undefined,
-    volume: series.volume ?? undefined,
-    type: series.type as 'western' | 'manga' | undefined,
-    ageRating: series.ageRating ?? undefined,
-    languageISO: series.languageISO ?? undefined,
-    lastUpdated: new Date().toISOString(),
-  };
-
-  await writeSeriesJson(series.primaryFolder, metadata);
+  const { syncSeriesToSeriesJson: unifiedSync } = await import('../series-json-sync.service.js');
+  await unifiedSync(seriesId);
 }
 
 /**

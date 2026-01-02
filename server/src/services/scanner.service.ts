@@ -6,7 +6,7 @@
  */
 
 import { readdir, stat } from 'fs/promises';
-import { join, relative, extname, basename } from 'path';
+import { join, relative, extname, basename, dirname } from 'path';
 import { getDatabase } from './database.service.js';
 import { generatePartialHash, getFileInfo } from './hash.service.js';
 import { triggerCacheGenerationForNewFiles } from './cache-job.service.js';
@@ -14,9 +14,11 @@ import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
-import { checkAndSoftDeleteEmptySeries, restoreSeries } from './series/index.js';
+import { checkAndSoftDeleteEmptySeries, restoreSeries, syncSeriesFromSeriesJson } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+import { readSeriesJson, type SeriesMetadata } from './series-metadata.service.js';
+import { mergeSeriesJsonToDb } from './series-json-sync.service.js';
 
 const logger = createServiceLogger('scanner');
 
@@ -50,6 +52,8 @@ export interface ScanResult {
   unchangedFiles: number;
   errors: Array<{ path: string; error: string }>;
   scanDuration: number;
+  /** Map of folder paths to series.json metadata found during scan */
+  seriesJsonMap?: Map<string, SeriesMetadata>;
 }
 
 /**
@@ -61,19 +65,62 @@ function isComicFile(filename: string): boolean {
 }
 
 /**
+ * Options for file discovery during library scans.
+ */
+export interface DiscoverFilesOptions {
+  /** Include file hashes for move detection */
+  includeHash?: boolean;
+  /** Load series.json files during traversal for efficient scanning */
+  loadSeriesJson?: boolean;
+}
+
+/**
+ * Result of file discovery including optional series.json metadata.
+ */
+export interface DiscoverFilesResult {
+  files: DiscoveredFile[];
+  errors: Array<{ path: string; error: string }>;
+  /** Map of folder path to series.json metadata (if loadSeriesJson was enabled) */
+  seriesJsonMap?: Map<string, SeriesMetadata>;
+}
+
+/**
  * Recursively discover all comic files in a directory.
  * Does not compute hashes - that's done during sync.
+ *
+ * When loadSeriesJson is enabled, also reads series.json files during
+ * directory traversal for efficient metadata loading.
  */
 export async function discoverFiles(
   rootPath: string,
-  options: { includeHash?: boolean } = {}
-): Promise<{ files: DiscoveredFile[]; errors: Array<{ path: string; error: string }> }> {
+  options: DiscoverFilesOptions = {}
+): Promise<DiscoverFilesResult> {
   const files: DiscoveredFile[] = [];
   const errors: Array<{ path: string; error: string }> = [];
+  const seriesJsonMap = options.loadSeriesJson ? new Map<string, SeriesMetadata>() : undefined;
 
   async function scanDirectory(dirPath: string): Promise<void> {
     try {
       const entries = await readdir(dirPath, { withFileTypes: true });
+
+      // Check for series.json in current directory if enabled
+      if (options.loadSeriesJson && seriesJsonMap) {
+        const hasSeriesJson = entries.some((e) => e.name === 'series.json');
+        if (hasSeriesJson) {
+          try {
+            const result = await readSeriesJson(dirPath);
+            if (result.success && result.metadata) {
+              seriesJsonMap.set(dirPath, result.metadata);
+              logDebug('scanner', `Found series.json in ${dirPath}`, { seriesName: result.metadata.seriesName });
+            }
+          } catch (err) {
+            errors.push({
+              path: join(dirPath, 'series.json'),
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      }
 
       for (const entry of entries) {
         const fullPath = join(dirPath, entry.name);
@@ -115,7 +162,7 @@ export async function discoverFiles(
   }
 
   await scanDirectory(rootPath);
-  return { files, errors };
+  return { files, errors, seriesJsonMap };
 }
 
 /**
@@ -155,8 +202,10 @@ export async function scanLibrary(libraryId: string): Promise<ScanResult> {
     }
   }
 
-  // Discover files on disk
-  const { files: discoveredFiles, errors } = await discoverFiles(library.rootPath);
+  // Discover files on disk (with series.json loading for efficient metadata handling)
+  const { files: discoveredFiles, errors, seriesJsonMap } = await discoverFiles(library.rootPath, {
+    loadSeriesJson: true,
+  });
 
   // Track results
   const newFiles: DiscoveredFile[] = [];
@@ -228,6 +277,7 @@ export async function scanLibrary(libraryId: string): Promise<ScanResult> {
     unchangedFiles,
     errors,
     scanDuration,
+    seriesJsonMap,
   };
 }
 
@@ -381,7 +431,8 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
 
     // Auto-link new files to series (Series-Centric Architecture)
     // This runs in the background and doesn't block the scan completion
-    autoLinkNewFilesToSeries(newFileIds).catch((err) => {
+    // Pass seriesJsonMap for efficient series.json-based linking
+    autoLinkNewFilesToSeries(newFileIds, scanResult.libraryPath, scanResult.seriesJsonMap).catch((err) => {
       logError('scanner', err, { action: 'auto-link-files' });
     });
   }
@@ -411,18 +462,60 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
  * Called after scan results are applied.
  *
  * This function:
- * 1. Extracts ComicInfo.xml metadata from each file and caches it
- * 2. Uses the extracted metadata to create/link to series
+ * 1. Checks for series.json in file's folder and uses it to create/link series
+ * 2. Extracts ComicInfo.xml metadata from each file and caches it
+ * 3. Uses the extracted metadata to create/link to series (if no series.json)
+ * 4. Merges series.json metadata into existing series (if any)
  */
-async function autoLinkNewFilesToSeries(fileIds: string[]): Promise<void> {
+async function autoLinkNewFilesToSeries(
+  fileIds: string[],
+  libraryPath: string,
+  seriesJsonMap?: Map<string, SeriesMetadata>
+): Promise<void> {
   let metadataCached = 0;
   let linked = 0;
   let created = 0;
   let failed = 0;
+  let seriesJsonLinked = 0;
   const db = getDatabase();
+
+  // Track processed folders to avoid duplicate series.json processing
+  const processedFolders = new Set<string>();
 
   for (const fileId of fileIds) {
     try {
+      // Get file info to determine its folder
+      const file = await db.comicFile.findUnique({
+        where: { id: fileId },
+        select: { path: true, seriesId: true },
+      });
+
+      if (!file) continue;
+
+      const folderPath = dirname(file.path);
+
+      // Check for series.json in this folder (if not already processed)
+      if (seriesJsonMap && !processedFolders.has(folderPath)) {
+        processedFolders.add(folderPath);
+
+        const metadata = seriesJsonMap.get(folderPath);
+        if (metadata) {
+          // Create or find series from series.json
+          const series = await syncSeriesFromSeriesJson(folderPath);
+
+          if (series) {
+            // Merge series.json data into the series (fill empty fields)
+            await mergeSeriesJsonToDb(series.id, folderPath);
+            seriesJsonLinked++;
+            logDebug('scanner', `Linked series from series.json`, {
+              seriesId: series.id,
+              seriesName: series.name,
+              folder: folderPath,
+            });
+          }
+        }
+      }
+
       // Step 1: Extract and cache metadata from ComicInfo.xml
       const metadataSuccess = await refreshMetadataCache(fileId);
       if (metadataSuccess) {
@@ -450,12 +543,13 @@ async function autoLinkNewFilesToSeries(fileIds: string[]): Promise<void> {
     }
   }
 
-  if (metadataCached > 0 || linked > 0 || created > 0) {
+  if (metadataCached > 0 || linked > 0 || created > 0 || seriesJsonLinked > 0) {
     logInfo('scanner', `Processed ${fileIds.length} files`, {
       totalFiles: fileIds.length,
       metadataCached,
       linked,
       newSeries: created,
+      seriesJsonLinked,
       failed,
     });
   }
