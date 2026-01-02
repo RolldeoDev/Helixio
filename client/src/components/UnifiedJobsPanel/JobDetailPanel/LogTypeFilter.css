@@ -1,0 +1,49 @@
+/* LogTypeFilter.css */
+
+.log-type-filter {
+  display: flex;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-border-hover);
+}
+
+.filter-btn.active {
+  background: var(--color-surface-alt);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.filter-btn.active.error {
+  border-color: var(--color-error);
+  background: var(--color-error-soft);
+}
+
+.filter-count {
+  font-size: 11px;
+  padding: 1px 5px;
+  background: var(--color-surface-alt);
+  border-radius: 8px;
+}
+
+.filter-btn.active .filter-count {
+  background: var(--color-surface);
+}
