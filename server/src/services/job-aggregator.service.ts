@@ -766,6 +766,32 @@ export async function getJobDetails(
         return { ...unified, logs: [] };
       }
 
+      case 'batch': {
+        const batch = await getBatch(id);
+        if (!batch) return null;
+
+        // Get operations for this batch
+        const operations = await db.operationLog.findMany({
+          where: { batchId: id },
+          orderBy: { timestamp: 'desc' },
+          take: 1000,
+        });
+
+        const unified = convertBatch(batch);
+        return {
+          ...unified,
+          operations: operations.map(op => ({
+            id: op.id,
+            operation: op.operation,
+            source: op.source,
+            destination: op.destination,
+            status: op.status as 'pending' | 'success' | 'failed',
+            error: op.error,
+            timestamp: op.timestamp,
+          })),
+        };
+      }
+
       case 'download': {
         // Download jobs don't have structured logs yet
         // Return null as download handling is not implemented

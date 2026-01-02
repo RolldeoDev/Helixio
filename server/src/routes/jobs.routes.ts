@@ -76,7 +76,7 @@ router.get('/:type/:id', async (req: Request, res: Response) => {
   const { type, id } = req.params;
 
   try {
-    const validTypes = ['metadata', 'library-scan', 'rating-sync', 'review-sync', 'similarity', 'download'];
+    const validTypes = ['metadata', 'library-scan', 'rating-sync', 'review-sync', 'similarity', 'download', 'batch'];
     if (!validTypes.includes(type!)) {
       res.status(400).json({
         success: false,
@@ -155,6 +155,64 @@ router.post('/:type/:id/cancel', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to cancel job',
+    });
+  }
+});
+
+// =============================================================================
+// Batch-specific actions
+// =============================================================================
+
+router.post('/batch/:id/resume', async (req, res) => {
+  try {
+    const { executeBatch } = await import('../services/batch.service.js');
+    // Resume by re-executing the paused batch
+    const result = await executeBatch(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to resume batch',
+    });
+  }
+});
+
+router.post('/batch/:id/abandon', async (req, res) => {
+  try {
+    const { abandonBatch } = await import('../services/batch.service.js');
+    await abandonBatch(req.params.id);
+    res.json({ success: true, message: 'Batch abandoned' });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to abandon batch',
+    });
+  }
+});
+
+router.post('/batch/:id/retry', async (req, res) => {
+  try {
+    const { retryFailedItems } = await import('../services/batch.service.js');
+    const result = await retryFailedItems(req.params.id);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to retry batch',
+    });
+  }
+});
+
+router.delete('/batch/:id', async (req, res) => {
+  try {
+    const { getDatabase } = await import('../services/database.service.js');
+    const db = getDatabase();
+    await db.batchOperation.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Batch deleted' });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete batch',
     });
   }
 });
