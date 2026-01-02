@@ -4,7 +4,7 @@
  * API functions for the unified jobs panel.
  */
 
-import { get, post } from './shared';
+import { get, post, del } from './shared';
 
 // =============================================================================
 // Types
@@ -16,14 +16,16 @@ export type UnifiedJobType =
   | 'rating-sync'
   | 'review-sync'
   | 'similarity'
-  | 'download';
+  | 'download'
+  | 'batch';
 
 export type UnifiedJobStatus =
   | 'queued'
   | 'running'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'interrupted';
 
 export interface UnifiedJob {
   id: string;
@@ -38,6 +40,14 @@ export interface UnifiedJob {
   error?: string;
   canCancel: boolean;
   canRetry: boolean;
+  // Batch-specific fields
+  batchType?: 'convert' | 'rename' | 'move' | 'delete' | 'metadata_update' | 'template_rename' | 'restore_original';
+  stats?: {
+    total: number;
+    completed: number;
+    failed: number;
+    pending: number;
+  };
 }
 
 export type UnifiedLogType = 'info' | 'success' | 'warning' | 'error';
@@ -51,8 +61,19 @@ export interface UnifiedJobLog {
   timestamp: string;
 }
 
+export interface BatchOperationItem {
+  id: string;
+  operation: string;
+  source: string;
+  destination: string | null;
+  status: 'pending' | 'success' | 'failed';
+  error: string | null;
+  timestamp: string;
+}
+
 export interface UnifiedJobDetails extends UnifiedJob {
-  logs: UnifiedJobLog[];
+  logs?: UnifiedJobLog[];
+  operations?: BatchOperationItem[];
 }
 
 export interface JobSchedulerStatus {
@@ -139,4 +160,32 @@ export async function getJobDetails(
   id: string
 ): Promise<UnifiedJobDetails> {
   return get<UnifiedJobDetails>(`/jobs/${type}/${id}`);
+}
+
+/**
+ * Resume an interrupted batch via unified jobs API
+ */
+export async function resumeBatchJob(id: string): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>(`/jobs/batch/${id}/resume`, {});
+}
+
+/**
+ * Abandon an interrupted batch via unified jobs API
+ */
+export async function abandonBatchJob(id: string): Promise<{ success: boolean }> {
+  return post<{ success: boolean }>(`/jobs/batch/${id}/abandon`, {});
+}
+
+/**
+ * Retry failed items in a batch via unified jobs API
+ */
+export async function retryBatchJob(id: string): Promise<{ id: string; itemCount: number }> {
+  return post<{ id: string; itemCount: number }>(`/jobs/batch/${id}/retry`, {});
+}
+
+/**
+ * Delete a batch via unified jobs API
+ */
+export async function deleteBatchJob(id: string): Promise<{ success: boolean }> {
+  return del<{ success: boolean }>(`/jobs/batch/${id}`);
 }

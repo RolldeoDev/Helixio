@@ -129,7 +129,7 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
                   ))
                 ) : (
                   <div className="panel-empty">
-                    {job.logs.length === 0
+                    {(job.logs?.length ?? 0) === 0
                       ? job.status === 'queued'
                         ? 'No log entries yet'
                         : 'No logs recorded'
