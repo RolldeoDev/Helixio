@@ -14,14 +14,16 @@ export type UnifiedJobType =
   | 'rating-sync'
   | 'review-sync'
   | 'similarity'
-  | 'download';
+  | 'download'
+  | 'batch';
 
 export type UnifiedJobStatus =
   | 'queued'
   | 'running'
   | 'completed'
   | 'failed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'interrupted';
 
 export interface UnifiedJob {
   id: string;
@@ -38,6 +40,14 @@ export interface UnifiedJob {
   canRetry: boolean;
   /** Original job data for type-specific handling */
   _raw?: unknown;
+  // Batch-specific fields
+  batchType?: 'convert' | 'rename' | 'move' | 'delete' | 'metadata_update' | 'template_rename' | 'restore_original';
+  stats?: {
+    total: number;
+    completed: number;
+    failed: number;
+    pending: number;
+  };
 }
 
 // =============================================================================
@@ -83,6 +93,17 @@ export interface UnifiedJobLog {
   timestamp: Date;
 }
 
+export interface BatchOperationItem {
+  id: string;
+  operation: string;
+  source: string;
+  destination: string | null;
+  status: 'pending' | 'success' | 'failed';
+  error: string | null;
+  timestamp: Date;
+}
+
 export interface UnifiedJobDetails extends UnifiedJob {
-  logs: UnifiedJobLog[];
+  logs?: UnifiedJobLog[];
+  operations?: BatchOperationItem[];
 }
