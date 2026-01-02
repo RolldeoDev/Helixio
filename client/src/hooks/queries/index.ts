@@ -201,3 +201,13 @@ export type {
   UserReview,
   ReviewSource,
 } from './useExternalReviews';
+
+// Unified Jobs (all job types)
+export {
+  useUnifiedJobs,
+  useActiveJobCount,
+  useCancelJob,
+  useInvalidateUnifiedJobs,
+  useJobDetails,
+  unifiedJobsKeys,
+} from './useUnifiedJobs';
