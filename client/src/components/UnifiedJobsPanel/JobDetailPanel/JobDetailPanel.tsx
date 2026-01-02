@@ -9,6 +9,14 @@ import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { useJobDetails } from '../../../hooks/queries/useUnifiedJobs';
 import type { UnifiedJobType, UnifiedLogType } from '../../../services/api/jobs';
+import { BatchDetailTabs } from './BatchDetailTabs';
+import {
+  resumeBatchJob,
+  abandonBatchJob,
+  retryBatchJob,
+  deleteBatchJob,
+} from '../../../services/api/jobs';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { JobLogEntry } from './JobLogEntry';
 import { LogTypeFilter } from './LogTypeFilter';
 import './JobDetailPanel.css';
@@ -70,6 +78,84 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
     });
   }, []);
 
+  const queryClient = useQueryClient();
+
+  const resumeMutation = useMutation({
+    mutationFn: () => resumeBatchJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unified-jobs'] });
+      refetch();
+    },
+  });
+
+  const abandonMutation = useMutation({
+    mutationFn: () => abandonBatchJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unified-jobs'] });
+      onClose();
+    },
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: () => retryBatchJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unified-jobs'] });
+      refetch();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteBatchJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unified-jobs'] });
+      onClose();
+    },
+  });
+
+  // Get available actions for batch jobs
+  const getBatchActions = () => {
+    if (job?.type !== 'batch') return [];
+
+    const actions: Array<{ label: string; action: () => void; variant: 'primary' | 'secondary' | 'danger'; loading?: boolean }> = [];
+
+    if (job.status === 'interrupted') {
+      actions.push({
+        label: 'Resume',
+        action: () => resumeMutation.mutate(),
+        variant: 'primary',
+        loading: resumeMutation.isPending,
+      });
+      actions.push({
+        label: 'Abandon',
+        action: () => abandonMutation.mutate(),
+        variant: 'secondary',
+        loading: abandonMutation.isPending,
+      });
+    }
+
+    if (job.status === 'completed' && job.stats?.failed && job.stats.failed > 0) {
+      actions.push({
+        label: 'Retry Failed',
+        action: () => retryMutation.mutate(),
+        variant: 'primary',
+        loading: retryMutation.isPending,
+      });
+    }
+
+    if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+      actions.push({
+        label: 'Delete',
+        action: () => deleteMutation.mutate(),
+        variant: 'danger',
+        loading: deleteMutation.isPending,
+      });
+    }
+
+    return actions;
+  };
+
+  const batchActions = getBatchActions();
+
   // Use portal to render at document body level
   // This bypasses stacking context issues from parent containers
   return createPortal(
@@ -81,6 +167,20 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
             <h2 className="panel-title">{job?.title || 'Loading...'}</h2>
             {job?.subtitle && <p className="panel-subtitle">{job.subtitle}</p>}
           </div>
+          {batchActions.length > 0 && (
+            <div className="panel-header-actions">
+              {batchActions.map((action) => (
+                <button
+                  key={action.label}
+                  className={`panel-action-btn ${action.variant}`}
+                  onClick={action.action}
+                  disabled={action.loading}
+                >
+                  {action.loading ? '...' : action.label}
+                </button>
+              ))}
+            </div>
+          )}
           <button className="panel-close-btn" onClick={onClose}>
             ×
           </button>
@@ -116,28 +216,32 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
               </button>
             </div>
           ) : job ? (
-            <>
-              <LogTypeFilter
-                counts={logCounts}
-                visibleTypes={visibleTypes}
-                onToggle={handleToggleType}
-              />
-              <div className="panel-logs">
-                {filteredLogs.length > 0 ? (
-                  filteredLogs.map((log) => (
-                    <JobLogEntry key={log.id} log={log} />
-                  ))
-                ) : (
-                  <div className="panel-empty">
-                    {(job.logs?.length ?? 0) === 0
-                      ? job.status === 'queued'
-                        ? 'No log entries yet'
-                        : 'No logs recorded'
-                      : 'No logs match the current filter'}
-                  </div>
-                )}
-              </div>
-            </>
+            job.type === 'batch' ? (
+              <BatchDetailTabs job={job} />
+            ) : (
+              <>
+                <LogTypeFilter
+                  counts={logCounts}
+                  visibleTypes={visibleTypes}
+                  onToggle={handleToggleType}
+                />
+                <div className="panel-logs">
+                  {filteredLogs.length > 0 ? (
+                    filteredLogs.map((log) => (
+                      <JobLogEntry key={log.id} log={log} />
+                    ))
+                  ) : (
+                    <div className="panel-empty">
+                      {(job.logs?.length ?? 0) === 0
+                        ? job.status === 'queued'
+                          ? 'No log entries yet'
+                          : 'No logs recorded'
+                        : 'No logs match the current filter'}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
           ) : (
             <div className="panel-error">Job not found</div>
           )}
