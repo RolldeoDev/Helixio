@@ -26,6 +26,13 @@ import { getJobs as getRatingSyncJobs } from './rating-sync-job.service.js';
 import { getSchedulerStatus as getStatsSchedulerStatus } from './stats-scheduler.service.js';
 import { getSchedulerStatus as getRatingSyncSchedulerStatus } from './rating-sync-scheduler.service.js';
 import { getSimilaritySchedulerStatus } from './similarity/index.js';
+import {
+  getRecentBatches,
+  findInterruptedBatches,
+  getBatch,
+  getActiveBatchId,
+  type BatchProgress,
+} from './batch.service.js';
 import { getDatabase } from './database.service.js';
 import { createServiceLogger } from './logger.service.js';
 
@@ -89,6 +96,25 @@ function mapRatingSyncStatus(status: string): UnifiedJobStatus {
       return 'failed';
     case 'cancelled':
       return 'cancelled';
+    default:
+      return 'running';
+  }
+}
+
+function mapBatchStatus(status: string): UnifiedJobStatus {
+  switch (status) {
+    case 'pending':
+      return 'queued';
+    case 'in_progress':
+      return 'running';
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'cancelled':
+      return 'cancelled';
+    case 'paused':
+      return 'interrupted';
     default:
       return 'running';
   }
@@ -221,6 +247,43 @@ function convertRatingSyncJob(job: {
     canCancel: status === 'queued' || status === 'running',
     canRetry: false,
     _raw: job,
+  };
+}
+
+function convertBatch(batch: BatchProgress): UnifiedJob {
+  const status = mapBatchStatus(batch.status);
+
+  const typeLabels: Record<string, string> = {
+    convert: 'Convert to CBZ',
+    rename: 'Rename Files',
+    move: 'Move Files',
+    delete: 'Delete Files',
+    metadata_update: 'Update Metadata',
+    template_rename: 'Template Rename',
+    restore_original: 'Restore Original Names',
+  };
+
+  return {
+    id: batch.id,
+    type: 'batch',
+    status,
+    title: typeLabels[batch.type] || `Batch ${batch.type}`,
+    subtitle: `${batch.completedItems}/${batch.totalItems} files`,
+    progress: batch.progress,
+    createdAt: batch.startedAt || new Date(),
+    startedAt: batch.startedAt,
+    completedAt: batch.completedAt,
+    error: batch.errors.length > 0 ? `${batch.errors.length} errors` : undefined,
+    canCancel: status === 'running',
+    canRetry: status === 'completed' && batch.failedItems > 0,
+    batchType: batch.type as UnifiedJob['batchType'],
+    stats: {
+      total: batch.totalItems,
+      completed: batch.completedItems,
+      failed: batch.failedItems,
+      pending: batch.totalItems - batch.completedItems - batch.failedItems,
+    },
+    _raw: batch,
   };
 }
 
@@ -411,6 +474,47 @@ export async function getAggregatedJobs(
         }
       } catch (err) {
         logger.error({ err }, 'Failed to fetch similarity jobs');
+      }
+    }
+
+    // 6. Batch Operations
+    if (shouldInclude('batch')) {
+      try {
+        // Get active batch
+        const activeBatchId = getActiveBatchId();
+        if (activeBatchId) {
+          const activeBatch = await getBatch(activeBatchId);
+          if (activeBatch) {
+            const unified = convertBatch(activeBatch);
+            active.push(unified);
+          }
+        }
+
+        // Get interrupted batches
+        const interrupted = await findInterruptedBatches();
+        for (const batch of interrupted) {
+          if (batch.id !== activeBatchId) {
+            const unified = convertBatch(batch);
+            active.push(unified);
+          }
+        }
+
+        // Get recent completed batches for history
+        if (status !== 'active') {
+          const recent = await getRecentBatches(limit);
+          for (const batch of recent) {
+            if (batch.id !== activeBatchId && !interrupted.some(i => i.id === batch.id)) {
+              const unified = convertBatch(batch);
+              if (unified.status === 'queued' || unified.status === 'running' || unified.status === 'interrupted') {
+                // Should already be in active, skip
+              } else {
+                history.push(unified);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, 'Failed to fetch batch operations');
       }
     }
 
