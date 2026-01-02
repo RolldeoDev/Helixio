@@ -11,12 +11,15 @@ import type {
   UnifiedJobStatus,
   SchedulerStatus,
   AggregatedJobsResponse,
+  UnifiedJobLog,
+  UnifiedJobDetails,
 } from './job-aggregator.types.js';
 
 // Import job services
-import { listJobs as listMetadataJobs } from './metadata-job.service.js';
+import { listJobs as listMetadataJobs, getJob as getMetadataJob } from './metadata-job.service.js';
 import {
   listActiveScanJobs,
+  getScanJob,
   type LibraryScanJobData,
 } from './library-scan-job.service.js';
 import { getJobs as getRatingSyncJobs } from './rating-sync-job.service.js';
@@ -506,12 +509,182 @@ export async function getActiveJobCount(): Promise<number> {
 }
 
 // =============================================================================
+// Get Job Details
+// =============================================================================
+
+export async function getJobDetails(
+  type: UnifiedJobType,
+  id: string
+): Promise<UnifiedJobDetails | null> {
+  const db = getDatabase();
+
+  try {
+    switch (type) {
+      case 'metadata': {
+        const job = await getMetadataJob(id);
+        if (!job) return null;
+
+        // Flatten logs from step-grouped format
+        const logs: UnifiedJobLog[] = [];
+        for (const [step, stepLogs] of Object.entries(job.logs)) {
+          for (const log of stepLogs) {
+            logs.push({
+              id: log.id,
+              stage: step,
+              message: log.message,
+              detail: log.detail,
+              type: log.type,
+              timestamp: log.timestamp,
+            });
+          }
+        }
+
+        // Sort by timestamp descending (newest first)
+        logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+        const unified = convertMetadataJob(job);
+        return {
+          ...unified,
+          logs: logs.slice(0, 1000),
+        };
+      }
+
+      case 'library-scan': {
+        const job = await getScanJob(id);
+        if (!job) return null;
+
+        // Flatten logs from stage-grouped format
+        const logs: UnifiedJobLog[] = [];
+        for (const [stage, stageLogs] of Object.entries(job.logs)) {
+          for (const log of stageLogs) {
+            logs.push({
+              id: log.id,
+              stage,
+              message: log.message,
+              detail: log.detail,
+              type: log.type,
+              timestamp: log.timestamp,
+            });
+          }
+        }
+
+        // Sort by timestamp descending (newest first)
+        logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+        // Get library name
+        const library = await db.library.findUnique({
+          where: { id: job.libraryId },
+          select: { name: true },
+        });
+
+        const unified = convertScanJob(job, library?.name);
+        return {
+          ...unified,
+          logs: logs.slice(0, 1000),
+        };
+      }
+
+      case 'rating-sync': {
+        const job = await db.ratingSyncJob.findUnique({
+          where: { id },
+        });
+        if (!job) return null;
+
+        const unified: UnifiedJob = {
+          id: job.id,
+          type: 'rating-sync',
+          status: mapRatingSyncStatus(job.status),
+          title: 'Rating Sync',
+          subtitle: `${job.processedItems}/${job.totalItems} items`,
+          progress: job.totalItems > 0
+            ? Math.round((job.processedItems / job.totalItems) * 100)
+            : undefined,
+          createdAt: job.createdAt,
+          startedAt: job.startedAt || undefined,
+          completedAt: job.completedAt || undefined,
+          error: job.error || undefined,
+          canCancel: job.status === 'pending' || job.status === 'processing',
+          canRetry: false,
+        };
+
+        return { ...unified, logs: [] };
+      }
+
+      case 'review-sync': {
+        const job = await db.reviewSyncJob.findUnique({
+          where: { id },
+        });
+        if (!job) return null;
+
+        const unified: UnifiedJob = {
+          id: job.id,
+          type: 'review-sync',
+          status: mapRatingSyncStatus(job.status),
+          title: 'Review Sync',
+          subtitle: `${job.processedItems}/${job.totalItems} items`,
+          progress: job.totalItems > 0
+            ? Math.round((job.processedItems / job.totalItems) * 100)
+            : undefined,
+          createdAt: job.createdAt,
+          startedAt: job.startedAt || undefined,
+          completedAt: job.completedAt || undefined,
+          error: job.error || undefined,
+          canCancel: job.status === 'pending' || job.status === 'processing',
+          canRetry: false,
+        };
+
+        return { ...unified, logs: [] };
+      }
+
+      case 'similarity': {
+        const job = await db.similarityJob.findUnique({
+          where: { id },
+        });
+        if (!job) return null;
+
+        const unified: UnifiedJob = {
+          id: job.id,
+          type: 'similarity',
+          status: mapRatingSyncStatus(job.status),
+          title: job.type === 'full' ? 'Similarity Rebuild' : 'Similarity Update',
+          subtitle: `${job.processedPairs}/${job.totalPairs} pairs`,
+          progress: job.totalPairs > 0
+            ? Math.round((job.processedPairs / job.totalPairs) * 100)
+            : undefined,
+          createdAt: job.createdAt,
+          startedAt: job.startedAt || undefined,
+          completedAt: job.completedAt || undefined,
+          error: job.error || undefined,
+          canCancel: false,
+          canRetry: false,
+        };
+
+        return { ...unified, logs: [] };
+      }
+
+      case 'download': {
+        // Download jobs don't have structured logs yet
+        // Return null as download handling is not implemented
+        return null;
+      }
+
+      default:
+        return null;
+    }
+  } catch (err) {
+    logger.error({ err, type, id }, 'Failed to get job details');
+    return null;
+  }
+}
+
+// =============================================================================
 // Exports
 // =============================================================================
 
 export const JobAggregatorService = {
   getAggregatedJobs,
   getActiveJobCount,
+  getJobDetails,
 };
 
 export default JobAggregatorService;
