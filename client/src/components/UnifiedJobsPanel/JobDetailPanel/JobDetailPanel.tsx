@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { format } from 'date-fns';
 import { useJobDetails } from '../../../hooks/queries/useUnifiedJobs';
 import type { UnifiedJobType, UnifiedLogType } from '../../../services/api/jobs';
@@ -69,7 +70,9 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
     });
   }, []);
 
-  return (
+  // Use portal to render at document body level
+  // This bypasses stacking context issues from parent containers
+  return createPortal(
     <>
       <div className="job-detail-backdrop" onClick={onClose} />
       <div className="job-detail-panel">
@@ -140,7 +143,8 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
