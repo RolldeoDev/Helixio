@@ -13,6 +13,11 @@ interface RgbaColor {
   a: number;
 }
 
+interface PopoverPosition {
+  top: number;
+  left: number;
+}
+
 /**
  * RgbaColorPicker - Color picker with alpha/transparency support
  * Supports hex, rgb(), rgba(), and named colors
@@ -21,6 +26,7 @@ export function RgbaColorPicker({ value, onChange }: RgbaColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [rgba, setRgba] = useState<RgbaColor>(() => parseColor(value));
   const [hexInput, setHexInput] = useState(() => rgbaToHex(parseColor(value)));
+  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({ top: 0, left: 0 });
   const popoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -30,6 +36,43 @@ export function RgbaColorPicker({ value, onChange }: RgbaColorPickerProps) {
     setRgba(parsed);
     setHexInput(rgbaToHex(parsed));
   }, [value]);
+
+  // Calculate popover position based on trigger element
+  const calculatePosition = useCallback((): PopoverPosition => {
+    if (!triggerRef.current) return { top: 0, left: 0 };
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const popoverWidth = 280;
+    const popoverHeight = 400; // Approximate height
+
+    // Position below the trigger, but adjust if it would go off-screen
+    let top = rect.bottom + 8;
+    let left = rect.left;
+
+    // Check if popover would go off the right edge
+    if (left + popoverWidth > window.innerWidth - 16) {
+      left = window.innerWidth - popoverWidth - 16;
+    }
+
+    // Check if popover would go off the bottom edge
+    if (top + popoverHeight > window.innerHeight - 16) {
+      // Position above the trigger instead
+      top = rect.top - popoverHeight - 8;
+    }
+
+    // Ensure left doesn't go negative
+    if (left < 16) left = 16;
+
+    return { top, left };
+  }, []);
+
+  // Handle opening the popover
+  const handleOpen = useCallback(() => {
+    // Calculate position synchronously before opening to avoid flicker
+    const position = calculatePosition();
+    setPopoverPosition(position);
+    setIsOpen(true);
+  }, [calculatePosition]);
 
   // Close popover on outside click
   useEffect(() => {
@@ -108,7 +151,7 @@ export function RgbaColorPicker({ value, onChange }: RgbaColorPickerProps) {
         ref={triggerRef}
         type="button"
         className="rgba-color-picker__trigger"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => isOpen ? setIsOpen(false) : handleOpen()}
         aria-label="Pick color"
       >
         <span
@@ -139,7 +182,14 @@ export function RgbaColorPicker({ value, onChange }: RgbaColorPickerProps) {
       />
 
       {isOpen && (
-        <div ref={popoverRef} className="rgba-color-picker__popover">
+        <div
+          ref={popoverRef}
+          className="rgba-color-picker__popover rgba-color-picker__popover--fixed"
+          style={{
+            top: popoverPosition.top,
+            left: popoverPosition.left,
+          }}
+        >
           <div className="rgba-color-picker__section">
             <label className="rgba-color-picker__label">Color</label>
             <div className="rgba-color-picker__hex-row">

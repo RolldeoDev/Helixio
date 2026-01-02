@@ -1,5 +1,6 @@
 import type { EntityStatResult, EntityType } from '../../../services/api.service';
 import { EntityMiniList } from './EntityMiniList';
+import type { ViewMode, PagesSubMode } from './EntityInsights';
 import './EntityInsights.css';
 
 interface EntityInsightCardProps {
@@ -9,6 +10,8 @@ interface EntityInsightCardProps {
   entities: EntityStatResult[];
   onViewAll: () => void;
   animationDelay?: number;
+  viewMode: ViewMode;
+  pagesSubMode: PagesSubMode;
 }
 
 export function EntityInsightCard({
@@ -17,6 +20,8 @@ export function EntityInsightCard({
   entities,
   onViewAll,
   animationDelay = 0,
+  viewMode,
+  pagesSubMode,
 }: EntityInsightCardProps) {
   return (
     <div
@@ -31,7 +36,12 @@ export function EntityInsightCard({
         <h4 className="entity-insight-card__title">{title}</h4>
       </div>
 
-      <EntityMiniList entities={entities} maxItems={3} />
+      <EntityMiniList
+        entities={entities}
+        maxItems={3}
+        viewMode={viewMode}
+        pagesSubMode={pagesSubMode}
+      />
 
       <button className="entity-insight-card__view-all" onClick={(e) => {
         e.stopPropagation();

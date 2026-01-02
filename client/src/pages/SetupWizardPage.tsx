@@ -10,14 +10,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../themes/ThemeContext';
 import { WelcomeStep } from '../components/Setup/WelcomeStep';
+import { ApiKeysStep } from '../components/Setup/ApiKeysStep';
 import { LibraryStep } from '../components/Setup/LibraryStep';
 import { ScanStep } from '../components/Setup/ScanStep';
 import { PreferencesStep } from '../components/Setup/PreferencesStep';
 import '../components/Setup/SetupWizard.css';
 
-type SetupStep = 'welcome' | 'library' | 'scan' | 'preferences';
+type SetupStep = 'welcome' | 'apikeys' | 'library' | 'scan' | 'preferences';
 
-const STEPS: SetupStep[] = ['welcome', 'library', 'scan', 'preferences'];
+const STEPS: SetupStep[] = ['welcome', 'apikeys', 'library', 'scan', 'preferences'];
 
 export function SetupWizardPage() {
   const navigate = useNavigate();
@@ -101,6 +102,9 @@ export function SetupWizardPage() {
     switch (currentStep) {
       case 'welcome':
         return <WelcomeStep onNext={handleNext} onSkip={handleSkip} />;
+
+      case 'apikeys':
+        return <ApiKeysStep onNext={handleNext} onSkip={handleNext} />;
 
       case 'library':
         return <LibraryStep onLibraryCreated={handleLibraryCreated} onSkip={handleSkip} />;

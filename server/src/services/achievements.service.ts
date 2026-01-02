@@ -73,6 +73,7 @@ export interface UserStats {
   pagesTotal: number;
   comicsTotal: number;
   comicsCompleted: number;
+  comicsOpened: number;
   currentStreak: number;
   longestStreak: number;
   totalReadingTime: number;
@@ -80,6 +81,8 @@ export interface UserStats {
   uniquePencillers: number;
   uniqueInkers: number;
   uniqueColorists: number;
+  uniqueLetterers: number;
+  uniqueCoverArtists: number;
   uniqueGenres: number;
   uniqueCharacters: number;
   uniquePublishers: number;
@@ -87,6 +90,8 @@ export interface UserStats {
   seriesStarted: number;
   collectionSize: number;
   uniqueTeams: number;
+  uniqueLocations: number;
+  uniqueFormats: number;
   uniqueDecades: number;
   sessionsTotal: number;
   maxPagesDay: number;
@@ -103,6 +108,15 @@ export interface UserStats {
   seriesWithCompleteRatings: number;
   maxRatingsSameDay: number;
   maxReviewsSameDay: number;
+
+  // Hidden gems (comics with CV votes > 0 and < 1000)
+  hiddenGemsFound: number;
+
+  // Bookmarks
+  bookmarksTotal: number;
+
+  // Manga
+  mangaTotal: number;
 }
 
 /**
@@ -155,10 +169,12 @@ export async function seedAchievements(achievements?: AchievementSeedData[]): Pr
 /**
  * Get all achievements with user progress
  */
-export async function getAllAchievementsWithProgress(): Promise<AchievementWithProgress[]> {
+export async function getAllAchievementsWithProgress(userId: string): Promise<AchievementWithProgress[]> {
   const achievements = await prisma.achievement.findMany({
     include: {
-      userAchievements: true,
+      userAchievements: {
+        where: { userId },
+      },
     },
     orderBy: [
       { category: 'asc' },
@@ -188,11 +204,13 @@ export async function getAllAchievementsWithProgress(): Promise<AchievementWithP
 /**
  * Get achievements by category
  */
-export async function getAchievementsByCategory(category: string): Promise<AchievementWithProgress[]> {
+export async function getAchievementsByCategory(userId: string, category: string): Promise<AchievementWithProgress[]> {
   const achievements = await prisma.achievement.findMany({
     where: { category },
     include: {
-      userAchievements: true,
+      userAchievements: {
+        where: { userId },
+      },
     },
     orderBy: [
       { stars: 'asc' },
@@ -221,9 +239,9 @@ export async function getAchievementsByCategory(category: string): Promise<Achie
 /**
  * Get unlocked achievements
  */
-export async function getUnlockedAchievements(): Promise<AchievementWithProgress[]> {
+export async function getUnlockedAchievements(userId: string): Promise<AchievementWithProgress[]> {
   const userAchievements = await prisma.userAchievement.findMany({
-    where: { unlockedAt: { not: null } },
+    where: { userId, unlockedAt: { not: null } },
     include: { achievement: true },
     orderBy: { unlockedAt: 'desc' },
   });
@@ -247,9 +265,10 @@ export async function getUnlockedAchievements(): Promise<AchievementWithProgress
 /**
  * Get recently unlocked achievements (for notifications)
  */
-export async function getRecentUnlocks(limit = 5): Promise<AchievementWithProgress[]> {
+export async function getRecentUnlocks(userId: string, limit = 5): Promise<AchievementWithProgress[]> {
   const userAchievements = await prisma.userAchievement.findMany({
     where: {
+      userId,
       unlockedAt: { not: null },
       notified: false,
     },
@@ -277,9 +296,9 @@ export async function getRecentUnlocks(limit = 5): Promise<AchievementWithProgre
 /**
  * Mark achievements as notified
  */
-export async function markAchievementsNotified(achievementIds: string[]): Promise<void> {
+export async function markAchievementsNotified(userId: string, achievementIds: string[]): Promise<void> {
   await prisma.userAchievement.updateMany({
-    where: { achievementId: { in: achievementIds } },
+    where: { userId, achievementId: { in: achievementIds } },
     data: { notified: true },
   });
 }
@@ -287,11 +306,11 @@ export async function markAchievementsNotified(achievementIds: string[]): Promis
 /**
  * Get achievement summary statistics
  */
-export async function getAchievementSummary(): Promise<AchievementSummary> {
+export async function getAchievementSummary(userId: string): Promise<AchievementSummary> {
   const [achievements, userAchievements] = await Promise.all([
     prisma.achievement.findMany(),
     prisma.userAchievement.findMany({
-      where: { unlockedAt: { not: null } },
+      where: { userId, unlockedAt: { not: null } },
       include: { achievement: true },
       orderBy: { unlockedAt: 'desc' },
     }),
@@ -348,9 +367,13 @@ export async function getAchievementSummary(): Promise<AchievementSummary> {
  * Update achievement progress and check for unlocks
  * Returns newly unlocked achievements
  */
-export async function checkAndUpdateAchievements(stats: UserStats): Promise<AchievementWithProgress[]> {
+export async function checkAndUpdateAchievements(userId: string, stats: UserStats): Promise<AchievementWithProgress[]> {
   const achievements = await prisma.achievement.findMany({
-    include: { userAchievements: true },
+    include: {
+      userAchievements: {
+        where: { userId },
+      },
+    },
   });
 
   const newlyUnlocked: AchievementWithProgress[] = [];
@@ -371,12 +394,18 @@ export async function checkAndUpdateAchievements(stats: UserStats): Promise<Achi
     // Update or create user achievement record
     if (isUnlocked) {
       const ua = await prisma.userAchievement.upsert({
-        where: { achievementId: achievement.id },
+        where: {
+          userId_achievementId: {
+            userId,
+            achievementId: achievement.id,
+          },
+        },
         update: {
           progress: 100,
           unlockedAt: new Date(),
         },
         create: {
+          userId,
           achievementId: achievement.id,
           progress: 100,
           unlockedAt: new Date(),
@@ -401,9 +430,15 @@ export async function checkAndUpdateAchievements(stats: UserStats): Promise<Achi
     } else if (progress > 0) {
       // Update progress if changed
       await prisma.userAchievement.upsert({
-        where: { achievementId: achievement.id },
+        where: {
+          userId_achievementId: {
+            userId,
+            achievementId: achievement.id,
+          },
+        },
         update: { progress },
         create: {
+          userId,
           achievementId: achievement.id,
           progress,
           unlockedAt: null,
@@ -453,7 +488,29 @@ function getRelevantStat(achievement: AchievementRecord, stats: UserStats): numb
     return key.includes('day') ? stats.maxPagesDay : stats.pagesTotal;
   }
   if (key.startsWith('comics_') || category === 'comic_completions') {
-    return key.includes('day') ? stats.maxComicsDay : stats.comicsTotal;
+    return key.includes('day') ? stats.maxComicsDay : stats.comicsCompleted;
+  }
+  if (category === 'discovery') {
+    // Discovery achievements have different types
+    if (key.startsWith('first_discovery') || key.startsWith('comics_opened')) {
+      // First discovery and comics opened achievements
+      return stats.comicsOpened;
+    }
+    if (key.includes('hidden_gem') || key.includes('gem_hunter') || key.includes('treasure_hunter')) {
+      // Hidden gem achievements - comics with CV votes > 0 and < 1000
+      return stats.hiddenGemsFound;
+    }
+    if (key.includes('series')) {
+      return stats.seriesStarted;
+    }
+    if (key.includes('author') || key.includes('writer')) {
+      return stats.uniqueWriters;
+    }
+    if (key.includes('genre')) {
+      return stats.uniqueGenres;
+    }
+    // Default for other discovery achievements
+    return stats.comicsOpened;
   }
   if (key.startsWith('streak_') || category === 'reading_streaks') {
     return key.includes('current') ? stats.currentStreak : stats.longestStreak;
@@ -488,8 +545,30 @@ function getRelevantStat(achievement: AchievementRecord, stats: UserStats): numb
   if (category === 'decade_explorer') {
     return stats.uniqueDecades;
   }
+  if (category === 'format_variety') {
+    return stats.uniqueFormats;
+  }
+  if (category === 'manga_international') {
+    return stats.mangaTotal;
+  }
+  if (category === 'location_explorer') {
+    return stats.uniqueLocations;
+  }
+  if (category === 'bookmarks_notes') {
+    return stats.bookmarksTotal;
+  }
   if (category === 'sessions') {
     return stats.sessionsTotal;
+  }
+  if (category === 'collection_completion') {
+    return stats.comicsCompleted;
+  }
+  if (category === 'binge_reading') {
+    // Binge reading uses max comics in a day
+    if (key.includes('pages')) {
+      return stats.maxPagesDay;
+    }
+    return stats.maxComicsDay;
   }
 
   // Rating & Review achievements
@@ -536,7 +615,7 @@ export function getCategoryInfo() {
 /**
  * Get all categories with counts
  */
-export async function getCategoriesWithCounts(): Promise<Array<{
+export async function getCategoriesWithCounts(userId: string): Promise<Array<{
   key: string;
   name: string;
   icon: string;
@@ -547,7 +626,7 @@ export async function getCategoriesWithCounts(): Promise<Array<{
   const [achievements, userAchievements] = await Promise.all([
     prisma.achievement.findMany(),
     prisma.userAchievement.findMany({
-      where: { unlockedAt: { not: null } },
+      where: { userId, unlockedAt: { not: null } },
     }),
   ]);
 

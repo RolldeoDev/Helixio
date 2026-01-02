@@ -741,6 +741,128 @@
 }
 
 /* =============================================================================
+   API Keys Step
+   ============================================================================= */
+
+.apikeys-step .form-hint {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.5rem 0;
+}
+
+.apikeys-step .form-hint a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.apikeys-step .form-hint a:hover {
+  text-decoration: underline;
+}
+
+.label-required,
+.label-optional {
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+}
+
+.label-required {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.label-optional {
+  background: rgba(156, 163, 175, 0.1);
+  color: var(--text-secondary);
+}
+
+.api-key-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.api-key-input-row input {
+  flex: 1;
+}
+
+.test-btn {
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.test-btn .spinner-tiny {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.test-btn .test-result {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.test-btn .test-result.success {
+  color: #22c55e;
+}
+
+.test-btn .test-result.error {
+  color: #ef4444;
+}
+
+.api-info-box {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--color-primary-muted);
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  margin-top: 0.5rem;
+}
+
+.api-info-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  color: var(--color-primary);
+}
+
+.api-info-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.api-info-content {
+  flex: 1;
+}
+
+.api-info-content strong {
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.api-info-content p {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.skip-warning {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+/* =============================================================================
    Responsive Adjustments
    ============================================================================= */
 

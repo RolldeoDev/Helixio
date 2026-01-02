@@ -956,12 +956,12 @@ function ToolsView({ activeJobs }: { activeJobs: number }) {
           </div>
         </button>
 
-        <button className="tool-link" onClick={() => navigate('/batches')}>
+        <button className="tool-link" onClick={() => navigate('/jobs')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
           <div className="tool-link-text">
-            <span className="tool-link-title">Batch Operations</span>
+            <span className="tool-link-title">Jobs</span>
           </div>
         </button>
 

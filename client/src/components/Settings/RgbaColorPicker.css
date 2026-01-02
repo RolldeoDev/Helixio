@@ -80,6 +80,14 @@
   gap: var(--spacing-md);
 }
 
+/* Fixed positioning variant - escapes all overflow constraints */
+.rgba-color-picker__popover--fixed {
+  position: fixed;
+  top: auto;
+  left: auto;
+  z-index: 10000;
+}
+
 /* Section within popover */
 .rgba-color-picker__section {
   display: flex;

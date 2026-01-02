@@ -9,16 +9,22 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   type: ToastType;
   message: string;
   timestamp: number;
+  action?: ToastAction;
 }
 
 export interface ToastContextType {
   toasts: Toast[];
-  addToast: (type: ToastType, message: string) => void;
+  addToast: (type: ToastType, message: string, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
   dismissAll: () => void;
 }
@@ -39,13 +45,14 @@ export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   // Add a new toast
-  const addToast = useCallback((type: ToastType, message: string) => {
+  const addToast = useCallback((type: ToastType, message: string, action?: ToastAction) => {
     const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const newToast: Toast = {
       id,
       type,
       message,
       timestamp: Date.now(),
+      action,
     };
 
     setToasts(prev => [...prev, newToast].slice(-MAX_TOASTS));

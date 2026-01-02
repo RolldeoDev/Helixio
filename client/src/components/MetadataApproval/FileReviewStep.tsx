@@ -526,6 +526,24 @@ export function FileReviewStep({
     onStartApply();
   }, [onStartApply]);
 
+  // Handle rename field regeneration from drawer
+  const handleRenameRegenerated = useCallback((fileId: string, renameField: import('../../services/api.service').FieldChange | null) => {
+    setFileChanges((prev) =>
+      prev.map((fc) => {
+        if (fc.fileId !== fileId) return fc;
+
+        const newFields = { ...fc.fields };
+        if (renameField) {
+          newFields.rename = renameField;
+        } else {
+          delete newFields.rename;
+        }
+
+        return { ...fc, fields: newFields };
+      })
+    );
+  }, []);
+
   // Helpers
   const getApprovedCount = (): number => {
     return fileChanges.filter(
@@ -898,6 +916,8 @@ export function FileReviewStep({
         onReject={handleRejectFile}
         onMoveToSeriesGroup={session.seriesGroups && session.seriesGroups.length > 1 ? openMoveToSeriesModal : undefined}
         disabled={applying}
+        sessionId={session.sessionId}
+        onRenameRegenerated={handleRenameRegenerated}
       />
 
       {/* Batch Confirmation Dialog */}

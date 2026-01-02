@@ -3,9 +3,10 @@
  *
  * Individual editable field with current value display below.
  * Shows the proposed value in the input with the current value as reference.
+ * Includes a revert icon to toggle between edited/proposed and original values.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { FieldChange } from '../../services/api.service';
 
 interface EditableFieldProps {
@@ -35,8 +36,13 @@ export function EditableField({
   onChange,
   disabled = false,
 }: EditableFieldProps) {
+  // Track whether we're showing the original value (toggled state)
+  const [showingOriginal, setShowingOriginal] = useState(false);
+  // Store the value we had before toggling to original
+  const [valueBeforeRevert, setValueBeforeRevert] = useState<string | number | null>(null);
+
   // Get the display value: edited > proposed > current > empty
-  const getDisplayValue = (): string | number => {
+  const getDisplayValue = useCallback((): string | number => {
     if (!fieldChange) return '';
     // Check if user has edited the field (edited flag is true)
     // editedValue can be null (user cleared field), undefined (not edited), or a value
@@ -51,7 +57,7 @@ export function EditableField({
       return fieldChange.current;
     }
     return '';
-  };
+  }, [fieldChange]);
 
   const [localValue, setLocalValue] = useState<string | number>(getDisplayValue());
 
@@ -68,6 +74,9 @@ export function EditableField({
       // No pending edits, sync with proposed/current
       setLocalValue(getDisplayValue());
     }
+    // Reset the toggle state when file changes
+    setShowingOriginal(false);
+    setValueBeforeRevert(null);
     // When isEdited is true, the local state drives the display
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdited, proposedValue, currentValue, fieldKey]);
@@ -76,13 +85,49 @@ export function EditableField({
     fieldChange.proposed !== fieldChange.current ||
     fieldChange.edited
   );
+
+  // Show revert icon when the field has been changed (proposed differs from current)
+  // and there's a current value to revert to
+  const canRevert = fieldChange &&
+    currentValue !== null &&
+    currentValue !== undefined &&
+    currentValue !== '' &&
+    (proposedValue !== currentValue || fieldChange.edited);
+
   const showCurrentValue = currentValue !== null &&
     currentValue !== undefined &&
     currentValue !== '' &&
     currentValue !== localValue;
 
+  // Handle revert icon click - toggle between original and edited/proposed value
+  const handleRevertClick = useCallback(() => {
+    if (!fieldChange || currentValue === null || currentValue === undefined) return;
+
+    if (showingOriginal) {
+      // Toggle back to the value we had before reverting
+      if (valueBeforeRevert !== null) {
+        setLocalValue(valueBeforeRevert);
+        onChange(valueBeforeRevert);
+      } else {
+        // Fallback to proposed
+        const newValue = proposedValue ?? '';
+        setLocalValue(newValue);
+        onChange(newValue === '' ? null : newValue);
+      }
+      setShowingOriginal(false);
+    } else {
+      // Store current value and switch to original
+      setValueBeforeRevert(localValue === '' ? null : localValue);
+      setLocalValue(currentValue);
+      onChange(currentValue);
+      setShowingOriginal(true);
+    }
+  }, [fieldChange, currentValue, proposedValue, localValue, showingOriginal, valueBeforeRevert, onChange]);
+
   const handleChange = (newValue: string | number) => {
     setLocalValue(newValue);
+    // When user types, we're no longer in "showing original" mode
+    setShowingOriginal(false);
 
     // Convert to appropriate type
     if (type === 'number') {
@@ -159,9 +204,22 @@ export function EditableField({
 
   return (
     <div className={`editable-field ${hasChange ? 'has-change' : ''}`}>
-      <label htmlFor={fieldKey} className="field-label">
-        {label}
-      </label>
+      <div className="field-label-row">
+        <label htmlFor={fieldKey} className="field-label">
+          {label}
+        </label>
+        {canRevert && (
+          <button
+            type="button"
+            className={`field-revert-btn ${showingOriginal ? 'showing-original' : ''}`}
+            onClick={handleRevertClick}
+            disabled={disabled}
+            title={showingOriginal ? 'Restore proposed value' : 'Use original value'}
+          >
+            <span className="revert-icon">{'\u21BA'}</span>
+          </button>
+        )}
+      </div>
       {renderInput()}
       {showCurrentValue && (
         <div className="field-current-value">

@@ -102,6 +102,21 @@
   opacity: 0.5;
 }
 
+.achievement-toast__link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-primary, #d4a574);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.achievement-toast__link:hover {
+  color: var(--color-accent, #e5b567);
+  text-decoration: underline;
+}
+
 .achievement-toast__close {
   display: flex;
   align-items: center;

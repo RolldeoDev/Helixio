@@ -31,6 +31,9 @@ import {
 // Mock Prisma Client
 // =============================================================================
 
+// Mock user ID for all tests
+const MOCK_USER_ID = 'user-test-123';
+
 const mockAchievements = [
   {
     id: 'ach-1',
@@ -90,6 +93,7 @@ const mockUserAchievements = [
   {
     id: 'ua-1',
     achievementId: 'ach-1',
+    userId: MOCK_USER_ID,
     progress: 100,
     unlockedAt: new Date('2025-01-15'),
     notified: true,
@@ -268,7 +272,7 @@ describe('AchievementsService', () => {
       }));
       mockPrisma.achievement.findMany.mockResolvedValue(achievementsWithUserData);
 
-      const result = await getAllAchievementsWithProgress();
+      const result = await getAllAchievementsWithProgress(MOCK_USER_ID);
 
       expect(result).toHaveLength(4);
       expect(result[0]).toEqual({
@@ -290,7 +294,7 @@ describe('AchievementsService', () => {
     it('should show isUnlocked=false for achievements without userAchievement', async () => {
       mockPrisma.achievement.findMany.mockResolvedValue(mockAchievements);
 
-      const result = await getAllAchievementsWithProgress();
+      const result = await getAllAchievementsWithProgress(MOCK_USER_ID);
 
       result.forEach(a => {
         expect(a.isUnlocked).toBe(false);
@@ -299,13 +303,13 @@ describe('AchievementsService', () => {
       });
     });
 
-    it('should order by category and stars', async () => {
+    it('should order by category and stars with user filter', async () => {
       mockPrisma.achievement.findMany.mockResolvedValue(mockAchievements);
 
-      await getAllAchievementsWithProgress();
+      await getAllAchievementsWithProgress(MOCK_USER_ID);
 
       expect(mockPrisma.achievement.findMany).toHaveBeenCalledWith({
-        include: { userAchievements: true },
+        include: { userAchievements: { where: { userId: MOCK_USER_ID } } },
         orderBy: [{ category: 'asc' }, { stars: 'asc' }],
       });
     });
@@ -322,11 +326,11 @@ describe('AchievementsService', () => {
       );
       mockPrisma.achievement.findMany.mockResolvedValue(pageMilestones);
 
-      const result = await getAchievementsByCategory('page_milestones');
+      const result = await getAchievementsByCategory(MOCK_USER_ID, 'page_milestones');
 
       expect(mockPrisma.achievement.findMany).toHaveBeenCalledWith({
         where: { category: 'page_milestones' },
-        include: { userAchievements: true },
+        include: { userAchievements: { where: { userId: MOCK_USER_ID } } },
         orderBy: [{ stars: 'asc' }],
       });
       expect(result).toHaveLength(2);
@@ -338,7 +342,7 @@ describe('AchievementsService', () => {
     it('should return empty array for unknown category', async () => {
       mockPrisma.achievement.findMany.mockResolvedValue([]);
 
-      const result = await getAchievementsByCategory('unknown_category');
+      const result = await getAchievementsByCategory(MOCK_USER_ID, 'unknown_category');
 
       expect(result).toHaveLength(0);
     });
@@ -349,13 +353,13 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('getUnlockedAchievements', () => {
-    it('should return only unlocked achievements', async () => {
+    it('should return only unlocked achievements for user', async () => {
       mockPrisma.userAchievement.findMany.mockResolvedValue(mockUserAchievements);
 
-      const result = await getUnlockedAchievements();
+      const result = await getUnlockedAchievements(MOCK_USER_ID);
 
       expect(mockPrisma.userAchievement.findMany).toHaveBeenCalledWith({
-        where: { unlockedAt: { not: null } },
+        where: { userId: MOCK_USER_ID, unlockedAt: { not: null } },
         include: { achievement: true },
         orderBy: { unlockedAt: 'desc' },
       });
@@ -366,7 +370,7 @@ describe('AchievementsService', () => {
     it('should return empty array when no achievements unlocked', async () => {
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      const result = await getUnlockedAchievements();
+      const result = await getUnlockedAchievements(MOCK_USER_ID);
 
       expect(result).toHaveLength(0);
     });
@@ -377,17 +381,18 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('getRecentUnlocks', () => {
-    it('should return unnotified recently unlocked achievements', async () => {
+    it('should return unnotified recently unlocked achievements for user', async () => {
       const unnotified = [{
         ...mockUserAchievements[0],
         notified: false,
       }];
       mockPrisma.userAchievement.findMany.mockResolvedValue(unnotified);
 
-      const result = await getRecentUnlocks(5);
+      const result = await getRecentUnlocks(MOCK_USER_ID, 5);
 
       expect(mockPrisma.userAchievement.findMany).toHaveBeenCalledWith({
         where: {
+          userId: MOCK_USER_ID,
           unlockedAt: { not: null },
           notified: false,
         },
@@ -401,7 +406,7 @@ describe('AchievementsService', () => {
     it('should respect limit parameter', async () => {
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      await getRecentUnlocks(10);
+      await getRecentUnlocks(MOCK_USER_ID, 10);
 
       expect(mockPrisma.userAchievement.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 10 })
@@ -411,7 +416,7 @@ describe('AchievementsService', () => {
     it('should use default limit of 5', async () => {
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      await getRecentUnlocks();
+      await getRecentUnlocks(MOCK_USER_ID);
 
       expect(mockPrisma.userAchievement.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 5 })
@@ -424,13 +429,13 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('markAchievementsNotified', () => {
-    it('should mark specified achievements as notified', async () => {
+    it('should mark specified achievements as notified for user', async () => {
       mockPrisma.userAchievement.updateMany.mockResolvedValue({ count: 2 });
 
-      await markAchievementsNotified(['ach-1', 'ach-2']);
+      await markAchievementsNotified(MOCK_USER_ID, ['ach-1', 'ach-2']);
 
       expect(mockPrisma.userAchievement.updateMany).toHaveBeenCalledWith({
-        where: { achievementId: { in: ['ach-1', 'ach-2'] } },
+        where: { userId: MOCK_USER_ID, achievementId: { in: ['ach-1', 'ach-2'] } },
         data: { notified: true },
       });
     });
@@ -438,10 +443,10 @@ describe('AchievementsService', () => {
     it('should handle empty array', async () => {
       mockPrisma.userAchievement.updateMany.mockResolvedValue({ count: 0 });
 
-      await markAchievementsNotified([]);
+      await markAchievementsNotified(MOCK_USER_ID, []);
 
       expect(mockPrisma.userAchievement.updateMany).toHaveBeenCalledWith({
-        where: { achievementId: { in: [] } },
+        where: { userId: MOCK_USER_ID, achievementId: { in: [] } },
         data: { notified: true },
       });
     });
@@ -452,11 +457,11 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('getAchievementSummary', () => {
-    it('should return correct summary statistics', async () => {
+    it('should return correct summary statistics for user', async () => {
       mockPrisma.achievement.findMany.mockResolvedValue(mockAchievements);
       mockPrisma.userAchievement.findMany.mockResolvedValue(mockUserAchievements);
 
-      const result = await getAchievementSummary();
+      const result = await getAchievementSummary(MOCK_USER_ID);
 
       expect(result.totalAchievements).toBe(4);
       expect(result.unlockedCount).toBe(1);
@@ -474,7 +479,7 @@ describe('AchievementsService', () => {
       mockPrisma.achievement.findMany.mockResolvedValue([]);
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      const result = await getAchievementSummary();
+      const result = await getAchievementSummary(MOCK_USER_ID);
 
       expect(result.totalAchievements).toBe(0);
       expect(result.unlockedCount).toBe(0);
@@ -486,7 +491,7 @@ describe('AchievementsService', () => {
       mockPrisma.achievement.findMany.mockResolvedValue([]);
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      const result = await getAchievementSummary();
+      const result = await getAchievementSummary(MOCK_USER_ID);
 
       Object.keys(CATEGORY_INFO).forEach(cat => {
         expect(result.categoryCounts).toHaveProperty(cat);
@@ -500,11 +505,11 @@ describe('AchievementsService', () => {
   // ===========================================================================
 
   describe('getCategoriesWithCounts', () => {
-    it('should return all categories with counts', async () => {
+    it('should return all categories with counts for user', async () => {
       mockPrisma.achievement.findMany.mockResolvedValue(mockAchievements);
       mockPrisma.userAchievement.findMany.mockResolvedValue(mockUserAchievements);
 
-      const result = await getCategoriesWithCounts();
+      const result = await getCategoriesWithCounts(MOCK_USER_ID);
 
       expect(result).toHaveLength(26);
       const pageMilestones = result.find(c => c.key === 'page_milestones');
@@ -522,7 +527,7 @@ describe('AchievementsService', () => {
       mockPrisma.achievement.findMany.mockResolvedValue([]);
       mockPrisma.userAchievement.findMany.mockResolvedValue([]);
 
-      const result = await getCategoriesWithCounts();
+      const result = await getCategoriesWithCounts(MOCK_USER_ID);
 
       result.forEach(category => {
         expect(category).toHaveProperty('key');
@@ -546,6 +551,7 @@ describe('AchievementsService', () => {
       pagesTotal: 0,
       comicsTotal: 0,
       comicsCompleted: 0,
+      comicsOpened: 0,
       currentStreak: 0,
       longestStreak: 0,
       totalReadingTime: 0,
@@ -553,6 +559,8 @@ describe('AchievementsService', () => {
       uniquePencillers: 0,
       uniqueInkers: 0,
       uniqueColorists: 0,
+      uniqueLetterers: 0,
+      uniqueCoverArtists: 0,
       uniqueGenres: 0,
       uniqueCharacters: 0,
       uniquePublishers: 0,
@@ -560,6 +568,8 @@ describe('AchievementsService', () => {
       seriesStarted: 0,
       collectionSize: 0,
       uniqueTeams: 0,
+      uniqueLocations: 0,
+      uniqueFormats: 0,
       uniqueDecades: 0,
       sessionsTotal: 0,
       maxPagesDay: 0,
@@ -575,6 +585,12 @@ describe('AchievementsService', () => {
       seriesWithCompleteRatings: 0,
       maxRatingsSameDay: 0,
       maxReviewsSameDay: 0,
+      // Hidden gems
+      hiddenGemsFound: 0,
+      // Bookmarks
+      bookmarksTotal: 0,
+      // Manga
+      mangaTotal: 0,
     };
 
     it('should unlock achievement when threshold is met', async () => {
@@ -582,21 +598,23 @@ describe('AchievementsService', () => {
       mockPrisma.userAchievement.upsert.mockResolvedValue({
         id: 'ua-new',
         achievementId: 'ach-1',
+        userId: MOCK_USER_ID,
         progress: 100,
         unlockedAt: new Date(),
         notified: false,
       });
 
       const stats = { ...baseStats, pagesTotal: 150 };
-      const result = await checkAndUpdateAchievements(stats);
+      const result = await checkAndUpdateAchievements(MOCK_USER_ID, stats);
 
       expect(result).toHaveLength(1);
       expect(result[0]!.key).toBe('pages_100');
       expect(result[0]!.isUnlocked).toBe(true);
       expect(mockPrisma.userAchievement.upsert).toHaveBeenCalledWith({
-        where: { achievementId: 'ach-1' },
+        where: { userId_achievementId: { userId: MOCK_USER_ID, achievementId: 'ach-1' } },
         update: { progress: 100, unlockedAt: expect.any(Date) },
         create: {
+          userId: MOCK_USER_ID,
           achievementId: 'ach-1',
           progress: 100,
           unlockedAt: expect.any(Date),
@@ -610,19 +628,21 @@ describe('AchievementsService', () => {
       mockPrisma.userAchievement.upsert.mockResolvedValue({
         id: 'ua-new',
         achievementId: 'ach-1',
+        userId: MOCK_USER_ID,
         progress: 50,
         unlockedAt: null,
         notified: false,
       });
 
       const stats = { ...baseStats, pagesTotal: 50 };
-      const result = await checkAndUpdateAchievements(stats);
+      const result = await checkAndUpdateAchievements(MOCK_USER_ID, stats);
 
       expect(result).toHaveLength(0); // Not unlocked
       expect(mockPrisma.userAchievement.upsert).toHaveBeenCalledWith({
-        where: { achievementId: 'ach-1' },
+        where: { userId_achievementId: { userId: MOCK_USER_ID, achievementId: 'ach-1' } },
         update: { progress: 50 },
         create: {
+          userId: MOCK_USER_ID,
           achievementId: 'ach-1',
           progress: 50,
           unlockedAt: null,
@@ -637,6 +657,7 @@ describe('AchievementsService', () => {
         userAchievements: [{
           id: 'ua-1',
           achievementId: 'ach-1',
+          userId: MOCK_USER_ID,
           progress: 100,
           unlockedAt: new Date(),
           notified: true,
@@ -645,7 +666,7 @@ describe('AchievementsService', () => {
       mockPrisma.achievement.findMany.mockResolvedValue([unlockedAchievement]);
 
       const stats = { ...baseStats, pagesTotal: 200 };
-      const result = await checkAndUpdateAchievements(stats);
+      const result = await checkAndUpdateAchievements(MOCK_USER_ID, stats);
 
       expect(result).toHaveLength(0);
       expect(mockPrisma.userAchievement.upsert).not.toHaveBeenCalled();
@@ -660,7 +681,7 @@ describe('AchievementsService', () => {
       mockPrisma.achievement.findMany.mockResolvedValue([achievementWithMinRequired]);
 
       const stats = { ...baseStats, pagesTotal: 300 }; // Below minRequired of 500
-      const result = await checkAndUpdateAchievements(stats);
+      const result = await checkAndUpdateAchievements(MOCK_USER_ID, stats);
 
       expect(result).toHaveLength(0);
       expect(mockPrisma.userAchievement.upsert).not.toHaveBeenCalled();
@@ -675,13 +696,14 @@ describe('AchievementsService', () => {
       mockPrisma.userAchievement.upsert.mockResolvedValue({
         id: 'ua-new',
         achievementId: 'ach-4',
+        userId: MOCK_USER_ID,
         progress: 100,
         unlockedAt: new Date(),
         notified: false,
       });
 
       const stats = { ...baseStats, longestStreak: 10 };
-      const result = await checkAndUpdateAchievements(stats);
+      const result = await checkAndUpdateAchievements(MOCK_USER_ID, stats);
 
       expect(result).toHaveLength(1);
       expect(result[0]!.key).toBe('streak_7');
@@ -737,6 +759,7 @@ describe('Achievement Types', () => {
       pagesTotal: 5000,
       comicsTotal: 200,
       comicsCompleted: 180,
+      comicsOpened: 190,
       currentStreak: 7,
       longestStreak: 30,
       totalReadingTime: 100,
@@ -744,6 +767,8 @@ describe('Achievement Types', () => {
       uniquePencillers: 40,
       uniqueInkers: 30,
       uniqueColorists: 25,
+      uniqueLetterers: 20,
+      uniqueCoverArtists: 35,
       uniqueGenres: 10,
       uniqueCharacters: 200,
       uniquePublishers: 15,
@@ -751,6 +776,8 @@ describe('Achievement Types', () => {
       seriesStarted: 50,
       collectionSize: 500,
       uniqueTeams: 30,
+      uniqueLocations: 15,
+      uniqueFormats: 5,
       uniqueDecades: 5,
       sessionsTotal: 100,
       maxPagesDay: 200,
@@ -766,6 +793,12 @@ describe('Achievement Types', () => {
       seriesWithCompleteRatings: 5,
       maxRatingsSameDay: 10,
       maxReviewsSameDay: 3,
+      // Hidden gems
+      hiddenGemsFound: 5,
+      // Bookmarks
+      bookmarksTotal: 25,
+      // Manga
+      mangaTotal: 30,
     };
 
     expect(stats.pagesTotal).toBeGreaterThanOrEqual(0);

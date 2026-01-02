@@ -1,0 +1,156 @@
+/* SchedulerCard.css - Premium Scheduler Status Cards */
+
+.scheduler-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle gradient on hover */
+.scheduler-card:hover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+/* =============================================================================
+   Left Section - Info
+   ============================================================================= */
+
+.scheduler-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.scheduler-indicator {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+/* Glow ring for active states */
+.scheduler-indicator::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.scheduler-indicator.enabled {
+  background: var(--color-success);
+}
+
+.scheduler-indicator.enabled::before {
+  background: radial-gradient(circle, var(--color-success) 0%, transparent 70%);
+  opacity: 0.3;
+}
+
+.scheduler-indicator.running {
+  background: var(--color-primary);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.scheduler-indicator.running::before {
+  background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
+  opacity: 0.4;
+  animation: pulseRing 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes pulseRing {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.1;
+  }
+}
+
+.scheduler-name {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* =============================================================================
+   Right Section - Timing Info
+   ============================================================================= */
+
+.scheduler-times {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.scheduler-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.scheduler-time-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-subtle);
+  padding: 2px 6px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+/* =============================================================================
+   Compact Grid Layout for Multiple Schedulers
+   ============================================================================= */
+
+.schedulers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+/* When inside grid, cards are more compact */
+.schedulers-grid .scheduler-card {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.schedulers-grid .scheduler-name {
+  font-size: 13px;
+}
+
+.schedulers-grid .scheduler-times {
+  gap: var(--spacing-md);
+}
+
+.schedulers-grid .scheduler-time {
+  font-size: 11px;
+}

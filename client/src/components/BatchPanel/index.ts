@@ -1,1 +1,0 @@
-export { BatchPanel } from './BatchPanel';

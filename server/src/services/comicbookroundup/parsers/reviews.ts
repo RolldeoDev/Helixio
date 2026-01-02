@@ -107,7 +107,17 @@ function parseDate(text: string): Date | undefined {
 
 /**
  * Parse critic reviews from the page.
- * Critic reviews typically have publication names and excerpts.
+ * Critic reviews typically have publication names, reviewer names, and excerpts.
+ *
+ * CBR HTML structure for critic reviews:
+ * <div class="critic-review">
+ *   <div class="rating">9.0</div>
+ *   <strong>Major Spoilers</strong> -
+ *   <a href="/comic-books/reviewer/matthew-peterson">Matthew Peterson</a>
+ *   Aug 23, 2014
+ *   <p>Review text excerpt...</p>
+ *   <a href="http://majorspoilers.com/...">Read Full Review</a>
+ * </div>
  */
 function parseCriticReviews(
   $: CheerioAPI,
@@ -115,64 +125,126 @@ function parseCriticReviews(
 ): CBRParsedReview[] {
   const reviews: CBRParsedReview[] = [];
 
-  // Strategy 1: Look for critic review section/table
-  const criticSection = $('#critic-reviews, [id*="critic-review"], .critic-reviews').first();
+  // Look for critic review containers
+  const criticSelectors = [
+    '.critic-review',
+    '#critic-reviews .review',
+    '[id*="critic-review"]',
+    '.critic-reviews .review',
+    'table.critic-reviews tr',
+    '#critics tr',
+  ];
 
-  if (criticSection.length) {
-    // Try table format first
-    criticSection.find('tr, .critic-review-item, .review-row').each((_, el) => {
+  for (const containerSelector of criticSelectors) {
+    $(containerSelector).each((_, el) => {
       if (reviews.length >= limit) return false;
 
       const $el = $(el);
-      const publication =
-        $el.find('.publication, .site-name, .source').text().trim() ||
-        $el.find('a[href*="/site/"]').first().text().trim();
-      const authorName =
-        $el.find('.reviewer-name, .critic-name, .author').text().trim() ||
-        publication;
-      const ratingText =
-        $el.find('.rating, .score, [class*="rating"]').text().trim();
-      const excerpt =
-        $el.find('.excerpt, .review-excerpt, .snippet, .review-text').text().trim() ||
-        $el.find('p').first().text().trim();
-      const dateText = $el.find('.date, time').text().trim();
 
+      // Extract publication name from <strong> or bold text
+      const publication =
+        $el.find('strong, b').first().text().trim() ||
+        $el.find('.publication, .site-name').text().trim();
+
+      // Extract reviewer name from /comic-books/reviewer/ links
+      const reviewerLink = $el.find('a[href*="/reviewer/"], a[href*="/comic-books/reviewer/"]').first();
+      const reviewerName = reviewerLink.text().trim();
+      const reviewerUrl = reviewerLink.attr('href');
+
+      // Prefer reviewer name if available, fall back to publication
+      const authorName = reviewerName || publication || 'Critic';
+
+      // Extract rating - look for .rating class or standalone numbers
+      let ratingText =
+        $el.find('.rating, .score, [class*="rating"]').first().text().trim();
+
+      // If no rating found in class, try to find a standalone number
+      if (!ratingText) {
+        const textContent = $el.text();
+        const ratingMatch = textContent.match(/\b(\d+\.?\d*)\s*$/m) ||
+          textContent.match(/\b(\d+\.?\d*)\b/);
+        if (ratingMatch?.[1]) {
+          const num = parseFloat(ratingMatch[1]);
+          if (num >= 0 && num <= 10) {
+            ratingText = ratingMatch[1];
+          }
+        }
+      }
+
+      // Extract review excerpt from <p> tags
+      const excerpt =
+        $el.find('p').first().text().trim() ||
+        $el.find('.excerpt, .review-excerpt, .snippet, .review-text').text().trim();
+
+      // Extract "Read Full Review" link
+      const reviewLinkEl = $el.find('a[href*="http"]').filter((_, a) => {
+        const text = $(a).text().toLowerCase();
+        return text.includes('read full review') ||
+          text.includes('full review') ||
+          text.includes('read review');
+      }).first();
+      const reviewUrl = reviewLinkEl.attr('href');
+
+      // Extract date - look for date pattern in text
+      const fullText = $el.text();
+      const dateMatch = fullText.match(/(\w{3,9})\s+(\d{1,2}),?\s+(\d{4})/);
+      const date = dateMatch ? parseDate(dateMatch[0]) : undefined;
+
+      // Must have either excerpt or a meaningful review
       if ((authorName || publication) && excerpt && excerpt.length >= 10) {
         reviews.push({
-          author: authorName || 'Critic',
+          author: reviewerName ? `${reviewerName} (${publication})` : authorName,
+          authorUrl: reviewerUrl ? `https://comicbookroundup.com${reviewerUrl}` : undefined,
           publication: publication || undefined,
           rating: parseRatingValue(ratingText),
           text: excerpt,
-          date: parseDate(dateText),
+          date,
           type: 'critic',
+          reviewUrl,
         });
       }
 
       return true;
     });
+
+    if (reviews.length > 0) break;
   }
 
-  // Strategy 2: Look for critic review list items
+  // Fallback: Look for critic review list items
   if (reviews.length === 0) {
     $('[class*="critic"] li, .critic-list li, .reviews-critic li').each((_, el) => {
       if (reviews.length >= limit) return false;
 
       const $el = $(el);
-      const fullText = $el.text().trim();
 
-      // Extract publication from links or bold text
-      const publication =
-        $el.find('a, strong, b').first().text().trim() ||
-        fullText.split(':')[0]?.trim();
+      // Extract reviewer from /comic-books/reviewer/ link
+      const reviewerLink = $el.find('a[href*="/reviewer/"]').first();
+      const reviewerName = reviewerLink.text().trim();
 
-      if (publication && fullText.length > publication.length + 10) {
-        const reviewText = fullText.replace(publication, '').replace(/^[:\s-]+/, '').trim();
+      // Extract publication from bold text
+      const publication = $el.find('strong, b').first().text().trim();
 
+      // Extract rating
+      const ratingText = $el.find('.rating').text().trim();
+
+      // Extract review text
+      const excerpt = $el.find('p').first().text().trim();
+
+      // Extract review URL
+      const reviewUrl = $el.find('a[href*="http"]').filter((_, a) =>
+        $(a).text().toLowerCase().includes('review')
+      ).first().attr('href');
+
+      if ((reviewerName || publication) && excerpt && excerpt.length >= 10) {
         reviews.push({
-          author: publication,
+          author: reviewerName
+            ? `${reviewerName} (${publication})`
+            : publication || 'Critic',
           publication,
-          text: reviewText,
+          rating: parseRatingValue(ratingText),
+          text: excerpt,
           type: 'critic',
+          reviewUrl,
         });
       }
 
@@ -190,6 +262,9 @@ function parseCriticReviews(
 
 /**
  * Parse user reviews from the page.
+ *
+ * CBR HTML structure: User reviews are in a section with class "user-review"
+ * or within a #user-reviews container.
  */
 function parseUserReviews(
   $: CheerioAPI,
@@ -197,14 +272,16 @@ function parseUserReviews(
 ): CBRParsedReview[] {
   const reviews: CBRParsedReview[] = [];
 
-  // Common selectors for review elements
+  // Selectors for user review elements (ordered by likelihood for CBR)
   const reviewSelectors = [
     '.user-review',
+    '#user-reviews .review',
+    '#user-reviews li',
+    '.user-reviews .review',
+    '.user-reviews li',
     '.review-item',
     '.review-card',
     '[class*="userReview"]',
-    '#user-reviews li',
-    '.user-reviews li',
     '.reviews-list > div',
     'ul.reviews > li',
   ];
@@ -260,20 +337,57 @@ function parseUserReviews(
 /**
  * Parse a single user review element.
  * Returns null if no actual review text is found (rating-only reviews are skipped).
+ *
+ * CBR HTML structure for user reviews:
+ * <div class="user-review">
+ *   <div class="rating">7.5</div>
+ *   <img src="/img/users/avatars/6506.png" />
+ *   <a href="/user/profile/6506">Adsun22</a>
+ *   Aug 25, 2024
+ *   [+ Like] • Comment
+ * </div>
+ *
+ * Note: Most CBR user reviews are rating-only with no text content.
  */
 function parseUserReviewElement(
   $: CheerioAPI,
   $el: Cheerio<AnyNode>
 ): CBRParsedReview | null {
-  // Extract author
-  const authorName =
-    $el.find('.author, .reviewer-name, .user-name, .username').first().text().trim() ||
-    $el.find('a[href*="/user/"], a[href*="/profile/"]').first().text().trim();
+  // Extract author from /user/profile/ links (primary method for CBR)
+  const userProfileLink = $el.find('a[href*="/user/profile/"]').first();
+  let authorName = userProfileLink.text().trim();
+  let authorUrl = userProfileLink.attr('href');
 
-  // Extract author URL
-  const authorUrl =
-    $el.find('a[href*="/user/"], a[href*="/profile/"]').attr('href') ||
-    undefined;
+  // Fallback to other selectors
+  if (!authorName) {
+    authorName =
+      $el.find('.author, .reviewer-name, .user-name, .username').first().text().trim() ||
+      $el.find('a[href*="/user/"]').first().text().trim();
+  }
+  if (!authorUrl) {
+    authorUrl = $el.find('a[href*="/user/"]').attr('href');
+  }
+
+  // Prepend base URL if relative
+  if (authorUrl && !authorUrl.startsWith('http')) {
+    authorUrl = `https://comicbookroundup.com${authorUrl}`;
+  }
+
+  // Extract rating - look for .rating class first
+  let ratingText =
+    $el.find('.rating, .score, [class*="rating"]').first().text().trim();
+
+  // If no rating from class, try to find standalone number in element
+  if (!ratingText) {
+    const textContent = $el.text();
+    const ratingMatch = textContent.match(/\b(\d+\.?\d*)\b/);
+    if (ratingMatch?.[1]) {
+      const num = parseFloat(ratingMatch[1]);
+      if (num >= 0 && num <= 10) {
+        ratingText = ratingMatch[1];
+      }
+    }
+  }
 
   // Extract review text - ONLY from dedicated text containers
   // Do NOT fall back to $el.text() as that grabs ratings, dates, buttons, etc.
@@ -309,15 +423,12 @@ function parseUserReviewElement(
     return null;
   }
 
-  // Extract rating
-  const ratingText =
-    $el.find('.rating, .score, [class*="rating"]').first().text().trim();
+  // Extract date - look for date pattern in text
+  const fullText = $el.text();
+  const dateMatch = fullText.match(/(\w{3,9})\s+(\d{1,2}),?\s+(\d{4})/);
+  const date = dateMatch ? parseDate(dateMatch[0]) : undefined;
 
-  // Extract date
-  const dateText =
-    $el.find('.date, .review-date, time').first().text().trim();
-
-  // Extract likes
+  // Extract likes - CBR shows as "X likes" or just a number near a like button
   const likesText =
     $el.find('.likes, [class*="like"], .helpful').first().text().trim();
   const likesMatch = likesText.match(/(\d+)/);
@@ -339,7 +450,7 @@ function parseUserReviewElement(
     authorUrl,
     rating: parseRatingValue(ratingText),
     text: cleanedText,
-    date: parseDate(dateText),
+    date,
     likes,
     type: 'user',
   };

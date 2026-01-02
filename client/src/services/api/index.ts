@@ -14,3 +14,4 @@ export * from './batch';
 export * from './metadata';
 export * from './reading';
 export * from './series';
+export * from './jobs';

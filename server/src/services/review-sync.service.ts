@@ -45,7 +45,8 @@ export interface ReviewSyncOptions {
 // =============================================================================
 
 /**
- * Get the existing external ID for a provider from series metadata
+ * Get the existing external ID for a provider from series metadata.
+ * Returns the ID if available - the presence of an external ID indicates compatibility.
  */
 function getExistingIdForProvider(
   providerName: ReviewSource,
@@ -56,14 +57,59 @@ function getExistingIdForProvider(
 ): string | undefined {
   switch (providerName) {
     case 'anilist':
+      // If series has an AniList ID, it's manga-compatible
       return series.anilistId || undefined;
     case 'myanimelist':
+      // If series has a MAL ID, it's manga-compatible
       return series.malId || undefined;
     case 'comicbookroundup':
-      // CBR uses URL slugs, not IDs - handled separately
+      // CBR uses URL slugs, not IDs - handled separately via search
       return undefined;
     default:
       return undefined;
+  }
+}
+
+/**
+ * Check if a provider is compatible with the series and has required external ID.
+ * For AniList/MAL, the presence of an external ID indicates manga compatibility.
+ * Returns true if the provider should be used, false if it should be skipped.
+ */
+function isProviderCompatibleWithSeries(
+  providerName: ReviewSource,
+  series: {
+    type: string;
+    anilistId: string | null;
+    malId: string | null;
+  }
+): { compatible: boolean; reason?: string } {
+  switch (providerName) {
+    case 'anilist':
+      // If series has an AniList ID, it's compatible (the ID proves it's manga)
+      if (!series.anilistId) {
+        return {
+          compatible: false,
+          reason: 'Series has no AniList ID',
+        };
+      }
+      return { compatible: true };
+
+    case 'myanimelist':
+      // If series has a MAL ID, it's compatible (the ID proves it's manga)
+      if (!series.malId) {
+        return {
+          compatible: false,
+          reason: 'Series has no MyAnimeList ID',
+        };
+      }
+      return { compatible: true };
+
+    case 'comicbookroundup':
+      // CBR supports both western and manga, and uses search (no ID required)
+      return { compatible: true };
+
+    default:
+      return { compatible: true };
   }
 }
 
@@ -152,12 +198,38 @@ export async function syncSeriesReviews(
     .map((source) => ReviewProviderRegistry.get(source))
     .filter((p) => p !== undefined);
 
+  // Filter out providers that are incompatible with the series type or missing required IDs
+  const skippedProviders: Array<{ name: string; reason: string }> = [];
+  providers = providers.filter((provider) => {
+    const compatibility = isProviderCompatibleWithSeries(provider.name, series);
+    if (!compatibility.compatible) {
+      skippedProviders.push({
+        name: provider.name,
+        reason: compatibility.reason || 'Incompatible',
+      });
+      return false;
+    }
+    return true;
+  });
+
+  // Log skipped providers for debugging
+  if (skippedProviders.length > 0) {
+    logger.debug(
+      { seriesId, seriesType: series.type, skippedProviders },
+      'Skipped incompatible review providers'
+    );
+  }
+
   // Apply type-based priority if sources weren't explicitly ordered
-  if (!options.sources && series) {
-    const isManga = series.type === 'manga';
+  // Note: Incompatible providers are already filtered out above, so priority
+  // arrays only need to include providers that could actually be present
+  if (!options.sources && providers.length > 0) {
+    // Consider manga if type is 'manga' or if it has AniList/MAL IDs
+    const isManga =
+      series.type?.toLowerCase() === 'manga' || !!series.anilistId || !!series.malId;
     const priorityOrder = isManga
-      ? ['anilist', 'myanimelist', 'comicbookroundup']
-      : ['comicbookroundup', 'anilist', 'myanimelist'];
+      ? ['anilist', 'myanimelist', 'comicbookroundup'] // Manga: prefer anime/manga sources
+      : ['comicbookroundup']; // Western: only CBR is compatible
 
     providers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name);
@@ -171,6 +243,7 @@ export async function syncSeriesReviews(
   logger.debug(
     {
       seriesId,
+      seriesType: series.type,
       sourcesToUse,
       providerCount: providers.length,
       providers: providers.map((p) => p.name),
@@ -317,6 +390,7 @@ export async function syncSeriesReviews(
             authorUrl: review.author.profileUrl,
             reviewText: review.text,
             summary: review.summary || generateSummary(review.text, 200),
+            reviewUrl: review.reviewUrl,
             rating: review.rating,
             originalRating: review.originalRating,
             ratingScale: review.ratingScale,
@@ -331,6 +405,7 @@ export async function syncSeriesReviews(
           update: {
             reviewText: review.text,
             summary: review.summary || generateSummary(review.text, 200),
+            reviewUrl: review.reviewUrl,
             rating: review.rating,
             originalRating: review.originalRating,
             ratingScale: review.ratingScale,
@@ -431,6 +506,7 @@ export async function getExternalReviews(
     lastSyncedAt: r.lastSyncedAt,
     isStale: r.expiresAt < new Date(),
     confidence: r.confidence,
+    reviewUrl: r.reviewUrl || undefined,
   }));
 }
 
@@ -494,6 +570,7 @@ export async function getIssueExternalReviews(
     lastSyncedAt: r.lastSyncedAt,
     isStale: r.expiresAt < new Date(),
     confidence: r.confidence,
+    reviewUrl: r.reviewUrl || undefined,
   }));
 }
 
@@ -671,6 +748,7 @@ export async function syncIssueReviews(
             authorUrl: review.author.profileUrl,
             reviewText: review.text,
             summary: review.summary || generateSummary(review.text, 200),
+            reviewUrl: review.reviewUrl,
             rating: review.rating,
             originalRating: review.originalRating,
             ratingScale: review.ratingScale,
@@ -685,6 +763,7 @@ export async function syncIssueReviews(
           update: {
             reviewText: review.text,
             summary: review.summary || generateSummary(review.text, 200),
+            reviewUrl: review.reviewUrl,
             rating: review.rating,
             originalRating: review.originalRating,
             ratingScale: review.ratingScale,

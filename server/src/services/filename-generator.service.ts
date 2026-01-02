@@ -411,19 +411,28 @@ async function fileExists(path: string): Promise<boolean> {
 /**
  * Generate a unique filename by adding a numeric suffix if needed.
  * Returns the unique filename and whether a collision was detected.
+ *
+ * @param directory - Directory where the file will be placed
+ * @param filename - Desired filename
+ * @param excludePath - Optional path to exclude from collision detection (the source file being renamed)
  */
 export async function resolveFilenameCollision(
   directory: string,
-  filename: string
+  filename: string,
+  excludePath?: string
 ): Promise<{ filename: string; hadCollision: boolean }> {
   const fullPath = join(directory, filename);
 
-  // Check if file exists
-  if (!(await fileExists(fullPath))) {
+  // Check if file exists - but not if it's the file we're renaming (excludePath)
+  // This prevents detecting the source file as a collision with itself
+  const exists = await fileExists(fullPath);
+  const isSameFile = excludePath && fullPath.toLowerCase() === excludePath.toLowerCase();
+
+  if (!exists || isSameFile) {
     return { filename, hadCollision: false };
   }
 
-  // File exists - add numeric suffix
+  // File exists (and it's not the source file) - add numeric suffix
   const ext = extname(filename);
   const baseName = filename.slice(0, -ext.length);
 
@@ -435,7 +444,8 @@ export async function resolveFilenameCollision(
     newFilename = `${baseName} (${counter})${ext}`;
     newPath = join(directory, newFilename);
     counter++;
-  } while (await fileExists(newPath));
+    // Also exclude the source file when checking suffixed names
+  } while ((await fileExists(newPath)) && !(excludePath && newPath.toLowerCase() === excludePath.toLowerCase()));
 
   return { filename: newFilename, hadCollision: true };
 }
@@ -684,10 +694,11 @@ export async function generateUniqueFilenameFromTemplate(
     targetDirectory = currentDirectory;
   }
 
-  // Resolve filename collisions
+  // Resolve filename collisions (exclude original path to prevent self-collision)
   const { filename: finalFilename, hadCollision } = await resolveFilenameCollision(
     targetDirectory,
-    result.filename
+    result.filename,
+    originalPath
   );
 
   if (hadCollision) {

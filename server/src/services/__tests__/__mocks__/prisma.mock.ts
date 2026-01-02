@@ -522,6 +522,8 @@ export function createMockSeries(overrides: Partial<{
   issueCount: number | null;
   comicVineId: string | null;
   metronId: string | null;
+  anilistId: string | null;
+  malId: string | null;
   summary: string | null;
   lockedFields: string | null;
   aliases: string | null;
@@ -546,6 +548,8 @@ export function createMockSeriesRecord(overrides: Partial<{
   issueCount: number | null;
   comicVineId: string | null;
   metronId: string | null;
+  anilistId: string | null;
+  malId: string | null;
   summary: string | null;
   lockedFields: string | null;
   aliases: string | null;
@@ -565,6 +569,8 @@ export function createMockSeriesRecord(overrides: Partial<{
     issueCount: 52,
     comicVineId: null,
     metronId: null,
+    anilistId: null,
+    malId: null,
     summary: null,
     lockedFields: null,
     aliases: null,

@@ -315,6 +315,244 @@ describe('Rating Sync Service', () => {
       expect(mockProvider.searchSeries).not.toHaveBeenCalled();
       expect(mockProvider.getSeriesRatings).toHaveBeenCalledWith('dc-comics/batman');
     });
+
+    // =========================================================================
+    // Provider Compatibility Tests
+    // =========================================================================
+
+    it('should use AniList provider for series with anilistId regardless of type field', async () => {
+      // Create a mock AniList provider
+      const mockAnilistProvider = {
+        name: 'anilist' as const,
+        displayName: 'AniList',
+        supportsIssueRatings: false,
+        ratingTypes: ['community'] as ('community' | 'critic')[],
+        checkAvailability: vi.fn().mockResolvedValue({ available: true }),
+        searchSeries: vi.fn(),
+        getSeriesRatings: vi.fn(),
+      };
+
+      // Mock registry to return both providers
+      const { RatingProviderRegistry } = await import(
+        '../rating-providers/index.js'
+      );
+      (
+        RatingProviderRegistry.get as ReturnType<typeof vi.fn>
+      ).mockImplementation((source: string) => {
+        if (source === 'anilist') return mockAnilistProvider;
+        if (source === 'comicbookroundup') return mockProvider;
+        return undefined;
+      });
+      (
+        RatingProviderRegistry.getAllSources as ReturnType<typeof vi.fn>
+      ).mockReturnValue(['anilist', 'comicbookroundup']);
+
+      // Create series with anilistId but type='western' (e.g., not yet updated)
+      // The presence of anilistId should be enough to use AniList provider
+      const series = createMockSeries({
+        id: 'series-1',
+        name: 'Mob Psycho 100',
+        type: 'western', // Type field not yet updated, but has anilistId
+        anilistId: '85189', // Has AniList ID - should use AniList
+      });
+      mockPrisma.series.findUnique.mockResolvedValue(series);
+      mockPrisma.externalRating.findMany.mockResolvedValue([]);
+      mockPrisma.externalRating.findFirst.mockResolvedValue(null);
+
+      // Mock AniList provider - searchSeries uses existingId directly for AniList
+      mockAnilistProvider.searchSeries.mockResolvedValue({
+        sourceId: '85189',
+        confidence: 1.0,
+        matchMethod: 'id',
+      });
+      mockAnilistProvider.getSeriesRatings.mockResolvedValue([
+        {
+          source: 'anilist',
+          sourceId: '85189',
+          ratingType: 'community',
+          value: 8.8,
+          originalValue: 88,
+          scale: 10,
+          voteCount: 15000,
+        },
+      ]);
+
+      // Mock CBR provider
+      mockProvider.searchSeries.mockResolvedValue({
+        sourceId: 'dark-horse/mob-psycho-100',
+        confidence: 0.9,
+        matchMethod: 'search',
+      });
+      mockProvider.getSeriesRatings.mockResolvedValue([
+        {
+          source: 'comicbookroundup',
+          sourceId: 'dark-horse/mob-psycho-100',
+          ratingType: 'community',
+          value: 8.5,
+          originalValue: 8.5,
+          scale: 10,
+        },
+      ]);
+
+      // Request both sources explicitly
+      const result = await syncSeriesRatings('series-1', {
+        forceRefresh: true,
+        sources: ['anilist', 'comicbookroundup'],
+      });
+
+      // AniList SHOULD be called because series has anilistId (ID proves compatibility)
+      expect(mockAnilistProvider.getSeriesRatings).toHaveBeenCalledWith('85189');
+
+      // CBR should also be called
+      expect(mockProvider.searchSeries).toHaveBeenCalled();
+      expect(result.matchedSources).toContain('anilist');
+      expect(result.matchedSources).toContain('comicbookroundup');
+    });
+
+    it('should use AniList provider for manga with anilistId', async () => {
+      // Create a mock AniList provider
+      const mockAnilistProvider = {
+        name: 'anilist' as const,
+        displayName: 'AniList',
+        supportsIssueRatings: false,
+        ratingTypes: ['community'] as ('community' | 'critic')[],
+        checkAvailability: vi.fn().mockResolvedValue({ available: true }),
+        searchSeries: vi.fn(),
+        getSeriesRatings: vi.fn(),
+      };
+
+      // Mock registry to return AniList provider
+      const { RatingProviderRegistry } = await import(
+        '../rating-providers/index.js'
+      );
+      (
+        RatingProviderRegistry.get as ReturnType<typeof vi.fn>
+      ).mockImplementation((source: string) => {
+        if (source === 'anilist') return mockAnilistProvider;
+        if (source === 'comicbookroundup') return mockProvider;
+        return undefined;
+      });
+      (
+        RatingProviderRegistry.getAllSources as ReturnType<typeof vi.fn>
+      ).mockReturnValue(['anilist', 'comicbookroundup']);
+
+      // Also override config to enable AniList
+      const { getExternalRatingsSettings } = await import(
+        '../config.service.js'
+      );
+      (getExternalRatingsSettings as ReturnType<typeof vi.fn>).mockReturnValue({
+        enabledSources: ['anilist', 'comicbookroundup'],
+        ratingTTLDays: 7,
+      });
+
+      // Create manga series with anilistId
+      const series = createMockSeries({
+        id: 'series-1',
+        name: 'One Punch Man',
+        type: 'manga',
+        anilistId: '74347',
+      });
+      mockPrisma.series.findUnique.mockResolvedValue(series);
+      mockPrisma.externalRating.findMany.mockResolvedValue([]);
+
+      // Return null for the first call (AniList) so it uses searchSeries
+      // Return null for the second call (CBR) so it uses searchSeries
+      mockPrisma.externalRating.findFirst.mockResolvedValue(null);
+
+      mockAnilistProvider.searchSeries.mockResolvedValue({
+        sourceId: '74347',
+        confidence: 1.0,
+        matchMethod: 'id',
+      });
+      mockAnilistProvider.getSeriesRatings.mockResolvedValue([
+        {
+          source: 'anilist',
+          sourceId: '74347',
+          ratingType: 'community',
+          value: 8.7,
+          originalValue: 87,
+          scale: 100,
+        },
+      ]);
+
+      // Also mock CBR
+      mockProvider.searchSeries.mockResolvedValue({
+        sourceId: 'one-punch-man',
+        confidence: 0.85,
+        matchMethod: 'search',
+      });
+      mockProvider.getSeriesRatings.mockResolvedValue([]);
+
+      const result = await syncSeriesRatings('series-1', { forceRefresh: true });
+
+      // AniList SHOULD be called because series.type is 'manga' and anilistId exists
+      // The provider.searchSeries will be called first (to find sourceId via existingId)
+      // Then getSeriesRatings will be called with the sourceId
+      expect(mockAnilistProvider.searchSeries).toHaveBeenCalled();
+      expect(mockAnilistProvider.getSeriesRatings).toHaveBeenCalledWith('74347');
+      expect(result.matchedSources).toContain('anilist');
+    });
+
+    it('should skip AniList for manga without anilistId', async () => {
+      // Create a mock AniList provider
+      const mockAnilistProvider = {
+        name: 'anilist' as const,
+        displayName: 'AniList',
+        supportsIssueRatings: false,
+        ratingTypes: ['community'] as ('community' | 'critic')[],
+        checkAvailability: vi.fn().mockResolvedValue({ available: true }),
+        searchSeries: vi.fn(),
+        getSeriesRatings: vi.fn(),
+      };
+
+      // Mock registry
+      const { RatingProviderRegistry } = await import(
+        '../rating-providers/index.js'
+      );
+      (
+        RatingProviderRegistry.get as ReturnType<typeof vi.fn>
+      ).mockImplementation((source: string) => {
+        if (source === 'anilist') return mockAnilistProvider;
+        if (source === 'comicbookroundup') return mockProvider;
+        return undefined;
+      });
+      (
+        RatingProviderRegistry.getAllSources as ReturnType<typeof vi.fn>
+      ).mockReturnValue(['anilist', 'comicbookroundup']);
+
+      // Create manga series WITHOUT anilistId
+      const series = createMockSeries({
+        id: 'series-1',
+        name: 'Some Manga',
+        type: 'manga',
+        anilistId: null, // No AniList ID
+      });
+      mockPrisma.series.findUnique.mockResolvedValue(series);
+      mockPrisma.externalRating.findMany.mockResolvedValue([]);
+      mockPrisma.externalRating.findFirst.mockResolvedValue(null);
+
+      mockProvider.searchSeries.mockResolvedValue({
+        sourceId: 'some-manga',
+        confidence: 0.8,
+        matchMethod: 'search',
+      });
+      mockProvider.getSeriesRatings.mockResolvedValue([
+        {
+          source: 'comicbookroundup',
+          sourceId: 'some-manga',
+          ratingType: 'community',
+          value: 7.5,
+          originalValue: 7.5,
+          scale: 10,
+        },
+      ]);
+
+      await syncSeriesRatings('series-1', { forceRefresh: true });
+
+      // AniList should NOT be called because there's no anilistId
+      expect(mockAnilistProvider.searchSeries).not.toHaveBeenCalled();
+      expect(mockAnilistProvider.getSeriesRatings).not.toHaveBeenCalled();
+    });
   });
 
   // ===========================================================================

@@ -75,10 +75,6 @@ export function QuickActions() {
     navigate('/jobs');
   };
 
-  const handleGoToBatches = () => {
-    navigate('/batches');
-  };
-
   return (
     <div className="quick-actions">
       <button
@@ -123,11 +119,11 @@ export function QuickActions() {
 
           <button
             className="quick-action-btn"
-            onClick={handleGoToBatches}
-            title="Batch operations"
+            onClick={handleGoToJobs}
+            title="View all jobs"
           >
             <span className="action-icon">⚡</span>
-            <span className="action-label">Batch Ops</span>
+            <span className="action-label">Jobs</span>
           </button>
         </div>
       )}

@@ -76,6 +76,7 @@ export {
   acceptAllFiles,
   rejectAllFiles,
   moveFileToSeriesGroup,
+  regenerateRenamePreview,
 } from './file-review.js';
 
 // =============================================================================
@@ -106,6 +107,7 @@ import {
   acceptAllFiles,
   rejectAllFiles,
   moveFileToSeriesGroup,
+  regenerateRenamePreview,
 } from './file-review.js';
 import { applyChanges } from './apply-changes.js';
 
@@ -128,6 +130,7 @@ export const MetadataApproval = {
   acceptAllFiles,
   rejectAllFiles,
   moveFileToSeriesGroup,
+  regenerateRenamePreview,
   applyChanges,
 };
 

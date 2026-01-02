@@ -5,19 +5,24 @@
  * Shows a subtle animation with the achievement name and star rating.
  */
 
+import { Link } from 'react-router-dom';
 import { useAchievements } from '../../contexts/AchievementContext';
 import { Star, Trophy, X } from 'lucide-react';
 import './AchievementToast.css';
 
 export function AchievementToast() {
-  const { notifications, dismissNotification } = useAchievements();
+  const { notifications, dismissNotification, pauseTimers, resumeTimers } = useAchievements();
 
   if (notifications.length === 0) {
     return null;
   }
 
   return (
-    <div className="achievement-toast-container">
+    <div
+      className="achievement-toast-container"
+      onMouseEnter={pauseTimers}
+      onMouseLeave={resumeTimers}
+    >
       {notifications.map(notification => (
         <div
           key={notification.id}
@@ -42,6 +47,13 @@ export function AchievementToast() {
                 />
               ))}
             </div>
+            <Link
+              to={`/achievements?highlight=${notification.achievement.id}`}
+              className="achievement-toast__link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View Achievement
+            </Link>
           </div>
           <button
             className="achievement-toast__close"

@@ -1,0 +1,116 @@
+/* LogTypeFilter.css - Premium Log Type Filter Pills */
+
+.log-type-filter {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+/* Filter button base */
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-btn:hover {
+  border-color: var(--color-text-subtle);
+  color: var(--color-text);
+}
+
+/* Active state - base */
+.filter-btn.active {
+  background: var(--color-bg-card);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+/* Type-specific active colors */
+.filter-btn.active.info {
+  border-color: var(--color-primary);
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+}
+
+.filter-btn.active.success {
+  border-color: var(--color-success);
+  background: rgba(125, 206, 160, 0.1);
+  color: var(--color-success);
+}
+
+.filter-btn.active.warning {
+  border-color: var(--color-warning);
+  background: rgba(229, 181, 103, 0.1);
+  color: var(--color-warning);
+}
+
+.filter-btn.active.error {
+  border-color: var(--color-error);
+  background: rgba(224, 122, 122, 0.1);
+  color: var(--color-error);
+}
+
+/* Count badge */
+.filter-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  min-width: 18px;
+  text-align: center;
+  background: var(--color-bg-secondary);
+  border-radius: 8px;
+  transition: all var(--transition-fast);
+}
+
+.filter-btn.active .filter-count {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Type-specific count colors when active */
+.filter-btn.active.info .filter-count {
+  background: rgba(212, 165, 116, 0.2);
+}
+
+.filter-btn.active.success .filter-count {
+  background: rgba(125, 206, 160, 0.2);
+}
+
+.filter-btn.active.warning .filter-count {
+  background: rgba(229, 181, 103, 0.2);
+}
+
+.filter-btn.active.error .filter-count {
+  background: rgba(224, 122, 122, 0.2);
+}
+
+/* When count is 0, make it subtle */
+.filter-btn .filter-count:empty,
+.filter-btn .filter-count[data-count="0"] {
+  opacity: 0.5;
+}
+
+/* Animation on toggle */
+@keyframes filterPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.filter-btn:active {
+  animation: filterPop 0.15s ease;
+}

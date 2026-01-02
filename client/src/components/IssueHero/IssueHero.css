@@ -166,7 +166,13 @@
   font-size: clamp(1.5rem, 3.5vw, 2.25rem);
   font-weight: 600;
   line-height: 1.2;
-  color: white;
+  /* Dynamic title color with subtle tint from cover accent */
+  color: rgb(var(--hero-title-r), var(--hero-title-g), var(--hero-title-b));
+  /* Reset theme gradient effects that would override our dynamic color */
+  background: none;
+  -webkit-background-clip: unset;
+  background-clip: unset;
+  -webkit-text-fill-color: currentColor;
   margin: 0;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
 }

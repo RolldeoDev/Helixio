@@ -12,6 +12,7 @@
 
 import { useMemo, CSSProperties, ReactNode } from 'react';
 import { useDominantColor } from '../../hooks/useDominantColor';
+import { createSubtleTint, rgbToHsl } from '../../utils/color';
 import './DetailHeroSection.css';
 
 // =============================================================================
@@ -36,20 +37,36 @@ export function DetailHeroSection({
   children,
   className = '',
 }: DetailHeroSectionProps) {
-  // Extract dominant color from cover
-  const { color: dominantColor, rgb } = useDominantColor(coverUrl);
+  // Extract dominant color and accent color from cover
+  const { color: dominantColor, rgb, accentRgb } = useDominantColor(coverUrl);
 
-  // Generate CSS custom properties for the gradient
+  // Generate CSS custom properties for the gradient and title tint
   const heroStyle = useMemo((): CSSProperties => {
-    if (rgb) {
-      return {
-        '--hero-color-r': rgb.r,
-        '--hero-color-g': rgb.g,
-        '--hero-color-b': rgb.b,
-      } as CSSProperties;
+    if (!rgb) {
+      return {};
     }
-    return {};
-  }, [rgb]);
+
+    // Calculate adaptive tint strength based on accent saturation
+    // More saturated colors get stronger tint (up to 60%), less saturated get weaker (30%)
+    let titleTint = { r: 255, g: 255, b: 255 };
+    if (accentRgb) {
+      const accentHsl = rgbToHsl(accentRgb);
+      // Map saturation 0-1 to tint strength 0.30-0.60
+      const tintStrength = 0.30 + (accentHsl.s * 0.30);
+      titleTint = createSubtleTint(accentRgb, tintStrength);
+    }
+
+    return {
+      // Background gradient colors
+      '--hero-color-r': rgb.r,
+      '--hero-color-g': rgb.g,
+      '--hero-color-b': rgb.b,
+      // Title tint colors
+      '--hero-title-r': titleTint.r,
+      '--hero-title-g': titleTint.g,
+      '--hero-title-b': titleTint.b,
+    } as CSSProperties;
+  }, [rgb, accentRgb]);
 
   return (
     <section

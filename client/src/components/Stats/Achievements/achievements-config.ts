@@ -1,6 +1,8 @@
 // =============================================================================
 // Achievement System Configuration
-// 530 achievements across 25 categories with star-based ranking
+// ~250 achievements across 26 categories with star-based ranking
+// NOTE: Many achievements were removed because they required complex aggregation
+// or tracking that is not currently implemented. See individual category notes.
 // =============================================================================
 
 export type AchievementCategory =
@@ -316,27 +318,7 @@ export const AUTHOR_ACHIEVEMENTS: Achievement[] = [
   { id: 'au-7', key: 'writers_200', name: 'Writer Collector', description: 'Read 200 different writers', category: 'author_aficionado', type: 'unique_writers', stars: 3, icon: 'pen', threshold: 200 },
   { id: 'au-8', key: 'writers_500', name: 'Author Connoisseur', description: 'Read 500 different writers', category: 'author_aficionado', type: 'unique_writers', stars: 4, icon: 'trophy', threshold: 500 },
   { id: 'au-9', key: 'writers_1000', name: 'Literary Legend', description: 'Read 1,000 different writers', category: 'author_aficionado', type: 'unique_writers', stars: 5, icon: 'crown', threshold: 1000 },
-  { id: 'au-10', key: 'same_writer_10', name: "Writer's Fan I", description: 'Read 10 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'heart', threshold: 10 },
-  { id: 'au-11', key: 'same_writer_25', name: "Writer's Fan II", description: 'Read 25 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'heart', threshold: 25 },
-  { id: 'au-12', key: 'same_writer_50', name: "Writer's Fan III", description: 'Read 50 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'heart', threshold: 50 },
-  { id: 'au-13', key: 'same_writer_100', name: 'Writer Devotee', description: 'Read 100 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'heart', threshold: 100 },
-  { id: 'au-14', key: 'same_writer_250', name: "Writer's Champion", description: 'Read 250 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 4, icon: 'trophy', threshold: 250 },
-  { id: 'au-15', key: 'same_writer_500', name: "Writer's Megafan", description: 'Read 500 comics by the same writer', category: 'author_aficionado', type: 'same_writer', stars: 5, icon: 'crown', threshold: 500 },
-  { id: 'au-16', key: 'dynamic_duo', name: 'Dynamic Duo', description: 'Read a comic with 2 writers', category: 'author_aficionado', type: 'same_writer', stars: 1, icon: 'users', threshold: 1, metadata: { writers: 2 } },
-  { id: 'au-17', key: 'writing_team', name: 'Writing Team', description: 'Read a comic with 3+ writers', category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'users', threshold: 1, metadata: { writers: 3 } },
-  { id: 'au-18', key: 'writers_room', name: 'Writers Room', description: 'Read comics with 10 different writing teams', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'users', threshold: 10 },
-  { id: 'au-19', key: 'prolific_reader_1', name: 'Prolific Reader I', description: "Read a writer's complete run on a series", category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'check-circle', threshold: 1 },
-  { id: 'au-20', key: 'prolific_reader_2', name: 'Prolific Reader II', description: 'Read 5 complete runs by different writers', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'check-circle', threshold: 5 },
-  { id: 'au-21', key: 'prolific_reader_3', name: 'Prolific Reader III', description: 'Read 25 complete runs by different writers', category: 'author_aficionado', type: 'same_writer', stars: 4, icon: 'check-circle', threshold: 25 },
-  { id: 'au-22', key: 'new_discovery', name: 'New Discovery', description: 'Read your first comic by a new writer (after 100+ comics)', category: 'author_aficionado', type: 'unique_writers', stars: 1, icon: 'search', threshold: 1, minRequired: 100 },
-  { id: 'au-23', key: 'fresh_perspectives', name: 'Fresh Perspectives', description: 'Discover 10 new writers (after 100+ comics)', category: 'author_aficionado', type: 'unique_writers', stars: 2, icon: 'search', threshold: 10, minRequired: 100 },
-  { id: 'au-24', key: 'always_exploring', name: 'Always Exploring', description: 'Discover 50 new writers (after 500+ comics)', category: 'author_aficionado', type: 'unique_writers', stars: 3, icon: 'search', threshold: 50, minRequired: 500 },
-  { id: 'au-25', key: 'writer_loyalty_1', name: 'Writer Loyalty I', description: 'Read the same writer 7 days in a row', category: 'author_aficionado', type: 'same_writer', stars: 1, icon: 'flame', threshold: 7 },
-  { id: 'au-26', key: 'writer_loyalty_2', name: 'Writer Loyalty II', description: 'Read the same writer 30 days in a row', category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'flame', threshold: 30 },
-  { id: 'au-27', key: 'writer_loyalty_3', name: 'Writer Loyalty III', description: 'Read the same writer 100 days in a row', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'flame', threshold: 100 },
-  { id: 'au-28', key: 'wordsmith_appreciation', name: 'Wordsmith Appreciation', description: 'Read 1,000 pages by a single writer', category: 'author_aficionado', type: 'same_writer', stars: 2, icon: 'book', threshold: 1000 },
-  { id: 'au-29', key: 'writer_immersion', name: 'Writer Immersion', description: 'Read 5,000 pages by a single writer', category: 'author_aficionado', type: 'same_writer', stars: 3, icon: 'book', threshold: 5000 },
-  { id: 'au-30', key: 'writer_encyclopedia', name: 'Writer Encyclopedia', description: 'Read 25,000 pages by a single writer', category: 'author_aficionado', type: 'same_writer', stars: 4, icon: 'book', threshold: 25000 },
+  // NOTE: same_writer achievements removed - require per-writer aggregation not currently tracked
 ];
 // =============================================================================
 // Category 6: ARTIST APPRECIATION (30 achievements)
@@ -363,16 +345,7 @@ export const ARTIST_ACHIEVEMENTS: Achievement[] = [
   { id: 'ar-18', key: 'cover_artists_10', name: 'Cover Collector', description: 'Read 10 different cover artists', category: 'artist_appreciation', type: 'unique_cover_artists', stars: 2, icon: 'image', threshold: 10 },
   { id: 'ar-19', key: 'cover_artists_50', name: 'Cover Hunter', description: 'Read 50 different cover artists', category: 'artist_appreciation', type: 'unique_cover_artists', stars: 3, icon: 'image', threshold: 50 },
   { id: 'ar-20', key: 'cover_artists_200', name: 'Cover Expert', description: 'Read 200 different cover artists', category: 'artist_appreciation', type: 'unique_cover_artists', stars: 4, icon: 'image', threshold: 200 },
-  { id: 'ar-21', key: 'same_artist_10', name: "Artist's Fan I", description: 'Read 10 comics by the same artist', category: 'artist_appreciation', type: 'same_artist', stars: 2, icon: 'heart', threshold: 10 },
-  { id: 'ar-22', key: 'same_artist_50', name: "Artist's Fan II", description: 'Read 50 comics by the same artist', category: 'artist_appreciation', type: 'same_artist', stars: 3, icon: 'heart', threshold: 50 },
-  { id: 'ar-23', key: 'same_artist_100', name: 'Artist Devotee', description: 'Read 100 comics by the same artist', category: 'artist_appreciation', type: 'same_artist', stars: 4, icon: 'heart', threshold: 100 },
-  { id: 'ar-24', key: 'same_artist_500', name: 'Artist Megafan', description: 'Read 500 comics by the same artist', category: 'artist_appreciation', type: 'same_artist', stars: 5, icon: 'crown', threshold: 500 },
-  { id: 'ar-25', key: 'art_team_10', name: 'Art Team', description: 'Read 10 comics with the same writer/artist team', category: 'artist_appreciation', type: 'same_artist', stars: 2, icon: 'users', threshold: 10 },
-  { id: 'ar-26', key: 'art_team_50', name: 'Dream Team', description: 'Read 50 comics with the same writer/artist team', category: 'artist_appreciation', type: 'same_artist', stars: 3, icon: 'users', threshold: 50 },
-  { id: 'ar-27', key: 'art_team_100', name: 'Legendary Duo', description: 'Read 100 comics with the same writer/artist team', category: 'artist_appreciation', type: 'same_artist', stars: 4, icon: 'users', threshold: 100 },
-  { id: 'ar-28', key: 'full_credits', name: 'Full Credits', description: 'Read a comic with all roles credited', category: 'artist_appreciation', type: 'same_artist', stars: 2, icon: 'list', threshold: 1 },
-  { id: 'ar-29', key: 'credits_collector_50', name: 'Credits Collector', description: 'Read 50 comics with all roles credited', category: 'artist_appreciation', type: 'same_artist', stars: 3, icon: 'list', threshold: 50 },
-  { id: 'ar-30', key: 'production_expert', name: 'Production Expert', description: 'Read 250 comics with all roles credited', category: 'artist_appreciation', type: 'same_artist', stars: 4, icon: 'list', threshold: 250 },
+  // NOTE: same_artist, art_team, full_credits achievements removed - require per-artist aggregation not currently tracked
 ];
 // =============================================================================
 // Category 7: GENRE EXPLORER (30 achievements)
@@ -386,29 +359,7 @@ export const GENRE_ACHIEVEMENTS: Achievement[] = [
   { id: 'ge-5', key: 'genres_15', name: 'Genre Master', description: 'Read 15 different genres', category: 'genre_explorer', type: 'unique_genres', stars: 3, icon: 'compass', threshold: 15 },
   { id: 'ge-6', key: 'genres_20', name: 'Genre Expert', description: 'Read 20 different genres', category: 'genre_explorer', type: 'unique_genres', stars: 4, icon: 'trophy', threshold: 20 },
   { id: 'ge-7', key: 'genres_25', name: 'Omnireader', description: 'Read 25+ different genres', category: 'genre_explorer', type: 'unique_genres', stars: 5, icon: 'crown', threshold: 25 },
-  { id: 'ge-8', key: 'superhero_25', name: 'Superhero Fan I', description: 'Read 25 superhero comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'zap', threshold: 25, metadata: { genre: 'superhero' } },
-  { id: 'ge-9', key: 'superhero_100', name: 'Superhero Fan II', description: 'Read 100 superhero comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'zap', threshold: 100, metadata: { genre: 'superhero' } },
-  { id: 'ge-10', key: 'superhero_500', name: 'Superhero Fan III', description: 'Read 500 superhero comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'zap', threshold: 500, metadata: { genre: 'superhero' } },
-  { id: 'ge-11', key: 'horror_10', name: 'Horror Enthusiast I', description: 'Read 10 horror comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'skull', threshold: 10, metadata: { genre: 'horror' } },
-  { id: 'ge-12', key: 'horror_50', name: 'Horror Enthusiast II', description: 'Read 50 horror comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'skull', threshold: 50, metadata: { genre: 'horror' } },
-  { id: 'ge-13', key: 'horror_200', name: 'Horror Master', description: 'Read 200 horror comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'skull', threshold: 200, metadata: { genre: 'horror' } },
-  { id: 'ge-14', key: 'scifi_10', name: 'Sci-Fi Reader I', description: 'Read 10 sci-fi comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'rocket', threshold: 10, metadata: { genre: 'sci-fi' } },
-  { id: 'ge-15', key: 'scifi_50', name: 'Sci-Fi Reader II', description: 'Read 50 sci-fi comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'rocket', threshold: 50, metadata: { genre: 'sci-fi' } },
-  { id: 'ge-16', key: 'scifi_200', name: 'Sci-Fi Master', description: 'Read 200 sci-fi comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'rocket', threshold: 200, metadata: { genre: 'sci-fi' } },
-  { id: 'ge-17', key: 'fantasy_10', name: 'Fantasy Fan I', description: 'Read 10 fantasy comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'wand', threshold: 10, metadata: { genre: 'fantasy' } },
-  { id: 'ge-18', key: 'fantasy_50', name: 'Fantasy Fan II', description: 'Read 50 fantasy comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'wand', threshold: 50, metadata: { genre: 'fantasy' } },
-  { id: 'ge-19', key: 'fantasy_200', name: 'Fantasy Master', description: 'Read 200 fantasy comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'wand', threshold: 200, metadata: { genre: 'fantasy' } },
-  { id: 'ge-20', key: 'crime_10', name: 'Crime Reader I', description: 'Read 10 crime/noir comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'briefcase', threshold: 10, metadata: { genre: 'crime' } },
-  { id: 'ge-21', key: 'crime_50', name: 'Crime Reader II', description: 'Read 50 crime/noir comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'briefcase', threshold: 50, metadata: { genre: 'crime' } },
-  { id: 'ge-22', key: 'crime_200', name: 'Crime Master', description: 'Read 200 crime/noir comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'briefcase', threshold: 200, metadata: { genre: 'crime' } },
-  { id: 'ge-23', key: 'comedy_10', name: 'Comedy Fan I', description: 'Read 10 comedy comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'smile', threshold: 10, metadata: { genre: 'comedy' } },
-  { id: 'ge-24', key: 'comedy_50', name: 'Comedy Fan II', description: 'Read 50 comedy comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'smile', threshold: 50, metadata: { genre: 'comedy' } },
-  { id: 'ge-25', key: 'comedy_200', name: 'Comedy Master', description: 'Read 200 comedy comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'smile', threshold: 200, metadata: { genre: 'comedy' } },
-  { id: 'ge-26', key: 'romance_10', name: 'Romance Reader I', description: 'Read 10 romance comics', category: 'genre_explorer', type: 'genre_specific', stars: 2, icon: 'heart', threshold: 10, metadata: { genre: 'romance' } },
-  { id: 'ge-27', key: 'romance_50', name: 'Romance Reader II', description: 'Read 50 romance comics', category: 'genre_explorer', type: 'genre_specific', stars: 3, icon: 'heart', threshold: 50, metadata: { genre: 'romance' } },
-  { id: 'ge-28', key: 'romance_200', name: 'Romance Master', description: 'Read 200 romance comics', category: 'genre_explorer', type: 'genre_specific', stars: 4, icon: 'heart', threshold: 200, metadata: { genre: 'romance' } },
-  { id: 'ge-29', key: 'genre_jumper', name: 'Genre Jumper', description: 'Read 5 different genres in one week', category: 'genre_explorer', type: 'unique_genres', stars: 3, icon: 'shuffle', threshold: 5, metadata: { timeframe: 'week' } },
-  { id: 'ge-30', key: 'genre_hopper', name: 'Genre Hopper', description: 'Read 10 different genres in one month', category: 'genre_explorer', type: 'unique_genres', stars: 4, icon: 'shuffle', threshold: 10, metadata: { timeframe: 'month' } },
+  // NOTE: genre_specific achievements removed - require per-genre aggregation not currently tracked
 ];
 // =============================================================================
 // Category 8: CHARACTER COLLECTOR (30 achievements)
@@ -424,27 +375,7 @@ export const CHARACTER_ACHIEVEMENTS: Achievement[] = [
   { id: 'ch-7', key: 'characters_200', name: 'Character Expert', description: 'Read comics featuring 200 different characters', category: 'character_collector', type: 'unique_characters', stars: 3, icon: 'users', threshold: 200 },
   { id: 'ch-8', key: 'characters_500', name: 'Character Master', description: 'Read comics featuring 500 different characters', category: 'character_collector', type: 'unique_characters', stars: 4, icon: 'trophy', threshold: 500 },
   { id: 'ch-9', key: 'characters_1000', name: 'Character Encyclopedia', description: 'Read comics featuring 1,000 different characters', category: 'character_collector', type: 'unique_characters', stars: 5, icon: 'crown', threshold: 1000 },
-  { id: 'ch-10', key: 'same_character_10', name: 'Character Fan I', description: 'Read 10 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 2, icon: 'heart', threshold: 10 },
-  { id: 'ch-11', key: 'same_character_25', name: 'Character Fan II', description: 'Read 25 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 2, icon: 'heart', threshold: 25 },
-  { id: 'ch-12', key: 'same_character_50', name: 'Character Fan III', description: 'Read 50 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 3, icon: 'heart', threshold: 50 },
-  { id: 'ch-13', key: 'same_character_100', name: 'Character Devotee', description: 'Read 100 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 3, icon: 'heart', threshold: 100 },
-  { id: 'ch-14', key: 'same_character_250', name: 'Character Superfan', description: 'Read 250 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 4, icon: 'trophy', threshold: 250 },
-  { id: 'ch-15', key: 'same_character_500', name: 'Character Obsessed', description: 'Read 500 comics featuring the same character', category: 'character_collector', type: 'same_character', stars: 5, icon: 'crown', threshold: 500 },
-  { id: 'ch-16', key: 'first_appearance', name: 'First Appearance', description: "Read a character's first appearance", category: 'character_collector', type: 'same_character', stars: 2, icon: 'star', threshold: 1 },
-  { id: 'ch-17', key: 'origin_hunter_10', name: 'Origin Hunter', description: "Read 10 characters' first appearances", category: 'character_collector', type: 'same_character', stars: 3, icon: 'star', threshold: 10 },
-  { id: 'ch-18', key: 'origin_collector', name: 'Origin Collector', description: "Read 50 characters' first appearances", category: 'character_collector', type: 'same_character', stars: 4, icon: 'star', threshold: 50 },
-  { id: 'ch-19', key: 'team_up', name: 'Team-Up', description: 'Read a comic with 2+ main characters', category: 'character_collector', type: 'same_character', stars: 2, icon: 'users', threshold: 1 },
-  { id: 'ch-20', key: 'ensemble_cast_25', name: 'Ensemble Cast', description: 'Read 25 comics with 5+ characters', category: 'character_collector', type: 'same_character', stars: 3, icon: 'users', threshold: 25 },
-  { id: 'ch-21', key: 'cast_of_thousands', name: 'Cast of Thousands', description: 'Read 100 comics with 5+ characters', category: 'character_collector', type: 'same_character', stars: 4, icon: 'users', threshold: 100 },
-  { id: 'ch-22', key: 'villain_spotlight', name: 'Villain Spotlight', description: 'Read a comic featuring a villain', category: 'character_collector', type: 'same_character', stars: 1, icon: 'skull', threshold: 1 },
-  { id: 'ch-23', key: 'villain_gallery_10', name: 'Villain Gallery I', description: 'Read comics featuring 10 different villains', category: 'character_collector', type: 'unique_characters', stars: 2, icon: 'skull', threshold: 10 },
-  { id: 'ch-24', key: 'villain_gallery_50', name: 'Villain Gallery II', description: 'Read comics featuring 50 different villains', category: 'character_collector', type: 'unique_characters', stars: 3, icon: 'skull', threshold: 50 },
-  { id: 'ch-25', key: 'villain_expert', name: 'Villain Expert', description: 'Read comics featuring 200 different villains', category: 'character_collector', type: 'unique_characters', stars: 4, icon: 'skull', threshold: 200 },
-  { id: 'ch-26', key: 'hero_journey_25', name: 'Hero Journey I', description: 'Read 25 comics featuring heroes', category: 'character_collector', type: 'same_character', stars: 2, icon: 'shield', threshold: 25 },
-  { id: 'ch-27', key: 'hero_journey_100', name: 'Hero Journey II', description: 'Read 100 comics featuring heroes', category: 'character_collector', type: 'same_character', stars: 3, icon: 'shield', threshold: 100 },
-  { id: 'ch-28', key: 'hero_master', name: 'Hero Master', description: 'Read 500 comics featuring heroes', category: 'character_collector', type: 'same_character', stars: 4, icon: 'shield', threshold: 500 },
-  { id: 'ch-29', key: 'crossover_reader', name: 'Crossover Reader', description: 'Read 10 crossover events', category: 'character_collector', type: 'events_completed', stars: 3, icon: 'git-merge', threshold: 10 },
-  { id: 'ch-30', key: 'event_expert', name: 'Event Expert', description: 'Read 50 crossover events', category: 'character_collector', type: 'events_completed', stars: 4, icon: 'git-merge', threshold: 50 },
+  // NOTE: same_character, first_appearance, villain/hero specific, and events_completed achievements removed - require complex aggregation not currently tracked
 ];
 // =============================================================================
 // Category 9: PUBLISHER CHAMPION (25 achievements)
@@ -458,24 +389,7 @@ export const PUBLISHER_ACHIEVEMENTS: Achievement[] = [
   { id: 'pu-5', key: 'publishers_20', name: 'Publisher Enthusiast', description: 'Read from 20 different publishers', category: 'publisher_champion', type: 'unique_publishers', stars: 3, icon: 'building', threshold: 20 },
   { id: 'pu-6', key: 'publishers_50', name: 'Publisher Expert', description: 'Read from 50 different publishers', category: 'publisher_champion', type: 'unique_publishers', stars: 4, icon: 'trophy', threshold: 50 },
   { id: 'pu-7', key: 'publishers_100', name: 'Publisher Master', description: 'Read from 100+ different publishers', category: 'publisher_champion', type: 'unique_publishers', stars: 5, icon: 'crown', threshold: 100 },
-  { id: 'pu-8', key: 'marvel_25', name: 'Marvel Fan I', description: 'Read 25 Marvel comics', category: 'publisher_champion', type: 'publisher_specific', stars: 2, icon: 'zap', threshold: 25, metadata: { publisher: 'Marvel' } },
-  { id: 'pu-9', key: 'marvel_100', name: 'Marvel Fan II', description: 'Read 100 Marvel comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'zap', threshold: 100, metadata: { publisher: 'Marvel' } },
-  { id: 'pu-10', key: 'marvel_500', name: 'Marvel Fan III', description: 'Read 500 Marvel comics', category: 'publisher_champion', type: 'publisher_specific', stars: 4, icon: 'zap', threshold: 500, metadata: { publisher: 'Marvel' } },
-  { id: 'pu-11', key: 'marvel_1000', name: 'True Believer', description: 'Read 1,000 Marvel comics', category: 'publisher_champion', type: 'publisher_specific', stars: 5, icon: 'crown', threshold: 1000, metadata: { publisher: 'Marvel' } },
-  { id: 'pu-12', key: 'dc_25', name: 'DC Fan I', description: 'Read 25 DC comics', category: 'publisher_champion', type: 'publisher_specific', stars: 2, icon: 'shield', threshold: 25, metadata: { publisher: 'DC' } },
-  { id: 'pu-13', key: 'dc_100', name: 'DC Fan II', description: 'Read 100 DC comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'shield', threshold: 100, metadata: { publisher: 'DC' } },
-  { id: 'pu-14', key: 'dc_500', name: 'DC Fan III', description: 'Read 500 DC comics', category: 'publisher_champion', type: 'publisher_specific', stars: 4, icon: 'shield', threshold: 500, metadata: { publisher: 'DC' } },
-  { id: 'pu-15', key: 'dc_1000', name: 'DC Devotee', description: 'Read 1,000 DC comics', category: 'publisher_champion', type: 'publisher_specific', stars: 5, icon: 'crown', threshold: 1000, metadata: { publisher: 'DC' } },
-  { id: 'pu-16', key: 'image_25', name: 'Image Fan I', description: 'Read 25 Image comics', category: 'publisher_champion', type: 'publisher_specific', stars: 2, icon: 'image', threshold: 25, metadata: { publisher: 'Image' } },
-  { id: 'pu-17', key: 'image_100', name: 'Image Fan II', description: 'Read 100 Image comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'image', threshold: 100, metadata: { publisher: 'Image' } },
-  { id: 'pu-18', key: 'image_500', name: 'Image Fan III', description: 'Read 500 Image comics', category: 'publisher_champion', type: 'publisher_specific', stars: 4, icon: 'image', threshold: 500, metadata: { publisher: 'Image' } },
-  { id: 'pu-19', key: 'indie_10', name: 'Indie Explorer', description: 'Read 10 indie publisher comics', category: 'publisher_champion', type: 'publisher_specific', stars: 2, icon: 'star', threshold: 10, metadata: { publisher: 'indie' } },
-  { id: 'pu-20', key: 'indie_50', name: 'Indie Collector', description: 'Read 50 indie publisher comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'star', threshold: 50, metadata: { publisher: 'indie' } },
-  { id: 'pu-21', key: 'indie_200', name: 'Indie Master', description: 'Read 200 indie publisher comics', category: 'publisher_champion', type: 'publisher_specific', stars: 4, icon: 'star', threshold: 200, metadata: { publisher: 'indie' } },
-  { id: 'pu-22', key: 'dark_horse_25', name: 'Dark Horse Fan', description: 'Read 25 Dark Horse comics', category: 'publisher_champion', type: 'publisher_specific', stars: 2, icon: 'horse', threshold: 25, metadata: { publisher: 'Dark Horse' } },
-  { id: 'pu-23', key: 'valiant_25', name: 'Valiant Fan', description: 'Read 25 Valiant comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'sword', threshold: 25, metadata: { publisher: 'Valiant' } },
-  { id: 'pu-24', key: 'idw_25', name: 'IDW Explorer', description: 'Read 25 IDW comics', category: 'publisher_champion', type: 'publisher_specific', stars: 3, icon: 'layers', threshold: 25, metadata: { publisher: 'IDW' } },
-  { id: 'pu-25', key: 'big_two_balance', name: 'Big Two Balance', description: 'Read 100+ from both Marvel and DC', category: 'publisher_champion', type: 'publisher_specific', stars: 4, icon: 'scale', threshold: 100 },
+  // NOTE: publisher_specific achievements removed - require per-publisher aggregation not currently tracked
 ];
 // =============================================================================
 // Category 10: SERIES COMPLETIONIST (25 achievements)
@@ -492,21 +406,11 @@ export const SERIES_ACHIEVEMENTS: Achievement[] = [
   { id: 'se-8', key: 'series_250', name: 'Series Champion', description: 'Complete 250 series', category: 'series_completionist', type: 'series_completed', stars: 4, icon: 'trophy', threshold: 250 },
   { id: 'se-9', key: 'series_500', name: 'Series Legend', description: 'Complete 500 series', category: 'series_completionist', type: 'series_completed', stars: 5, icon: 'crown', threshold: 500 },
   { id: 'se-10', key: 'series_1000', name: 'Ultimate Completionist', description: 'Complete 1,000 series', category: 'series_completionist', type: 'series_completed', stars: 5, icon: 'crown', threshold: 1000 },
-  { id: 'se-11', key: 'mini_series', name: 'Mini Series', description: 'Complete a series with 1-6 issues', category: 'series_completionist', type: 'series_completed', stars: 2, icon: 'file', threshold: 1, metadata: { issueRange: '1-6' } },
-  { id: 'se-12', key: 'limited_series', name: 'Limited Series', description: 'Complete a series with 7-12 issues', category: 'series_completionist', type: 'series_completed', stars: 2, icon: 'file-text', threshold: 1, metadata: { issueRange: '7-12' } },
-  { id: 'se-13', key: 'maxi_series', name: 'Maxi Series', description: 'Complete a series with 13-24 issues', category: 'series_completionist', type: 'series_completed', stars: 3, icon: 'files', threshold: 1, metadata: { issueRange: '13-24' } },
-  { id: 'se-14', key: 'long_runner', name: 'Long Runner', description: 'Complete a series with 25-50 issues', category: 'series_completionist', type: 'series_completed', stars: 4, icon: 'archive', threshold: 1, metadata: { issueRange: '25-50' } },
-  { id: 'se-15', key: 'epic_run', name: 'Epic Run', description: 'Complete a series with 51-100 issues', category: 'series_completionist', type: 'series_completed', stars: 4, icon: 'archive', threshold: 1, metadata: { issueRange: '51-100' } },
-  { id: 'se-16', key: 'legendary_run', name: 'Legendary Run', description: 'Complete a series with 100+ issues', category: 'series_completionist', type: 'series_completed', stars: 5, icon: 'crown', threshold: 1, metadata: { issueRange: '100+' } },
-  { id: 'se-17', key: 'speed_completion', name: 'Speed Completion', description: 'Complete a series in one day', category: 'series_completionist', type: 'series_completed', stars: 2, icon: 'zap', threshold: 1, metadata: { timeframe: 'day' } },
-  { id: 'se-18', key: 'week_completion', name: 'Week Completion', description: 'Complete a series in one week', category: 'series_completionist', type: 'series_completed', stars: 3, icon: 'calendar', threshold: 1, metadata: { timeframe: 'week' } },
-  { id: 'se-19', key: 'series_starter_10', name: 'Series Starter', description: 'Start 10 different series', category: 'series_completionist', type: 'series_started', stars: 2, icon: 'play', threshold: 10 },
-  { id: 'se-20', key: 'series_explorer_50', name: 'Series Explorer', description: 'Start 50 different series', category: 'series_completionist', type: 'series_started', stars: 3, icon: 'play', threshold: 50 },
-  { id: 'se-21', key: 'series_adventurer', name: 'Series Adventurer', description: 'Start 200 different series', category: 'series_completionist', type: 'series_started', stars: 4, icon: 'play', threshold: 200 },
-  { id: 'se-22', key: 'back_to_back', name: 'Back to Back', description: 'Complete 2 series in one day', category: 'series_completionist', type: 'series_completed', stars: 2, icon: 'zap', threshold: 2, metadata: { timeframe: 'day' } },
-  { id: 'se-23', key: 'triple_threat', name: 'Triple Threat', description: 'Complete 3 series in one day', category: 'series_completionist', type: 'series_completed', stars: 3, icon: 'zap', threshold: 3, metadata: { timeframe: 'day' } },
-  { id: 'se-24', key: 'series_binge', name: 'Series Binge', description: 'Complete 5 series in one week', category: 'series_completionist', type: 'series_completed', stars: 4, icon: 'fast-forward', threshold: 5, metadata: { timeframe: 'week' } },
-  { id: 'se-25', key: 'completion_machine', name: 'Completion Machine', description: 'Complete 10 series in one month', category: 'series_completionist', type: 'series_completed', stars: 5, icon: 'fast-forward', threshold: 10, metadata: { timeframe: 'month' } },
+  // Series started achievements (trackable)
+  { id: 'se-11', key: 'series_starter_10', name: 'Series Starter', description: 'Start 10 different series', category: 'series_completionist', type: 'series_started', stars: 2, icon: 'play', threshold: 10 },
+  { id: 'se-12', key: 'series_explorer_50', name: 'Series Explorer', description: 'Start 50 different series', category: 'series_completionist', type: 'series_started', stars: 3, icon: 'play', threshold: 50 },
+  { id: 'se-13', key: 'series_adventurer', name: 'Series Adventurer', description: 'Start 200 different series', category: 'series_completionist', type: 'series_started', stars: 4, icon: 'play', threshold: 200 },
+  // NOTE: series length and timeframe-based achievements removed - require complex tracking not currently implemented
 ];
 // =============================================================================
 // Category 11: COLLECTION SIZE (20 achievements)
@@ -547,19 +451,7 @@ export const TEAM_ACHIEVEMENTS: Achievement[] = [
   { id: 'tp-5', key: 'teams_25', name: 'Team Enthusiast', description: 'Read comics featuring 25 different teams', category: 'team_player', type: 'unique_teams', stars: 3, icon: 'users', threshold: 25 },
   { id: 'tp-6', key: 'teams_50', name: 'Team Expert', description: 'Read comics featuring 50 different teams', category: 'team_player', type: 'unique_teams', stars: 4, icon: 'trophy', threshold: 50 },
   { id: 'tp-7', key: 'teams_100', name: 'Team Master', description: 'Read comics featuring 100+ different teams', category: 'team_player', type: 'unique_teams', stars: 5, icon: 'crown', threshold: 100 },
-  { id: 'tp-8', key: 'same_team_10', name: 'Team Fan I', description: 'Read 10 comics featuring the same team', category: 'team_player', type: 'same_team', stars: 2, icon: 'heart', threshold: 10 },
-  { id: 'tp-9', key: 'same_team_25', name: 'Team Fan II', description: 'Read 25 comics featuring the same team', category: 'team_player', type: 'same_team', stars: 3, icon: 'heart', threshold: 25 },
-  { id: 'tp-10', key: 'same_team_50', name: 'Team Fan III', description: 'Read 50 comics featuring the same team', category: 'team_player', type: 'same_team', stars: 3, icon: 'heart', threshold: 50 },
-  { id: 'tp-11', key: 'same_team_100', name: 'Team Devotee', description: 'Read 100 comics featuring the same team', category: 'team_player', type: 'same_team', stars: 4, icon: 'trophy', threshold: 100 },
-  { id: 'tp-12', key: 'same_team_250', name: 'Team Superfan', description: 'Read 250 comics featuring the same team', category: 'team_player', type: 'same_team', stars: 5, icon: 'crown', threshold: 250 },
-  { id: 'tp-13', key: 'avengers_25', name: 'Avengers Fan', description: 'Read 25 Avengers comics', category: 'team_player', type: 'same_team', stars: 2, icon: 'shield', threshold: 25, metadata: { team: 'Avengers' } },
-  { id: 'tp-14', key: 'avengers_100', name: 'Avengers Expert', description: 'Read 100 Avengers comics', category: 'team_player', type: 'same_team', stars: 3, icon: 'shield', threshold: 100, metadata: { team: 'Avengers' } },
-  { id: 'tp-15', key: 'xmen_25', name: 'X-Men Fan', description: 'Read 25 X-Men comics', category: 'team_player', type: 'same_team', stars: 2, icon: 'x', threshold: 25, metadata: { team: 'X-Men' } },
-  { id: 'tp-16', key: 'xmen_100', name: 'X-Men Expert', description: 'Read 100 X-Men comics', category: 'team_player', type: 'same_team', stars: 3, icon: 'x', threshold: 100, metadata: { team: 'X-Men' } },
-  { id: 'tp-17', key: 'jl_25', name: 'Justice League Fan', description: 'Read 25 Justice League comics', category: 'team_player', type: 'same_team', stars: 2, icon: 'star', threshold: 25, metadata: { team: 'Justice League' } },
-  { id: 'tp-18', key: 'jl_100', name: 'Justice League Expert', description: 'Read 100 Justice League comics', category: 'team_player', type: 'same_team', stars: 3, icon: 'star', threshold: 100, metadata: { team: 'Justice League' } },
-  { id: 'tp-19', key: 'team_hopper', name: 'Team Hopper', description: 'Read 10 different teams in one month', category: 'team_player', type: 'unique_teams', stars: 3, icon: 'shuffle', threshold: 10, metadata: { timeframe: 'month' } },
-  { id: 'tp-20', key: 'team_sampler_q', name: 'Team Sampler Pro', description: 'Read 25 different teams in 3 months', category: 'team_player', type: 'unique_teams', stars: 4, icon: 'shuffle', threshold: 25, metadata: { timeframe: 'quarter' } },
+  // NOTE: same_team, team_specific, and timeframe-based team achievements removed - require per-team aggregation not currently tracked
 ];
 
 // =============================================================================
@@ -577,43 +469,14 @@ export const DECADE_ACHIEVEMENTS: Achievement[] = [
   { id: 'de-8', key: 'decades_5', name: 'Decade Collector', description: 'Read comics from 5 different decades', category: 'decade_explorer', type: 'unique_decades', stars: 3, icon: 'calendar', threshold: 5 },
   { id: 'de-9', key: 'decades_7', name: 'Decade Master', description: 'Read comics from 7 different decades', category: 'decade_explorer', type: 'unique_decades', stars: 4, icon: 'calendar', threshold: 7 },
   { id: 'de-10', key: 'decades_9', name: 'Time Traveler', description: 'Read comics from 9+ different decades', category: 'decade_explorer', type: 'unique_decades', stars: 5, icon: 'crown', threshold: 9 },
-  { id: 'de-11', key: '90s_25', name: '90s Kid', description: 'Read 25 comics from the 1990s', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'star', threshold: 25, metadata: { decade: '1990s' } },
-  { id: 'de-12', key: '90s_100', name: '90s Nostalgia', description: 'Read 100 comics from the 1990s', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'star', threshold: 100, metadata: { decade: '1990s' } },
-  { id: 'de-13', key: '80s_25', name: '80s Fan', description: 'Read 25 comics from the 1980s', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'star', threshold: 25, metadata: { decade: '1980s' } },
-  { id: 'de-14', key: '80s_100', name: '80s Enthusiast', description: 'Read 100 comics from the 1980s', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'star', threshold: 100, metadata: { decade: '1980s' } },
-  { id: 'de-15', key: '2000s_25', name: '2000s Reader', description: 'Read 25 comics from the 2000s', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'star', threshold: 25, metadata: { decade: '2000s' } },
-  { id: 'de-16', key: '2000s_100', name: 'Millennium Reader', description: 'Read 100 comics from the 2000s', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'star', threshold: 100, metadata: { decade: '2000s' } },
-  { id: 'de-17', key: '2010s_25', name: '2010s Reader', description: 'Read 25 comics from the 2010s', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'star', threshold: 25, metadata: { decade: '2010s' } },
-  { id: 'de-18', key: '2010s_100', name: 'New Age Reader', description: 'Read 100 comics from the 2010s', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'star', threshold: 100, metadata: { decade: '2010s' } },
-  { id: 'de-19', key: '2020s_25', name: '2020s Reader', description: 'Read 25 comics from the 2020s', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'star', threshold: 25, metadata: { decade: '2020s' } },
-  { id: 'de-20', key: '2020s_100', name: 'Current Era', description: 'Read 100 comics from the 2020s', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'star', threshold: 100, metadata: { decade: '2020s' } },
-  { id: 'de-21', key: 'vintage_100', name: 'Vintage Collector', description: 'Read 100 comics published before 1980', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'clock', threshold: 100, metadata: { before: 1980 } },
-  { id: 'de-22', key: 'vintage_500', name: 'Vintage Expert', description: 'Read 500 comics published before 1980', category: 'decade_explorer', type: 'decade_specific', stars: 4, icon: 'clock', threshold: 500, metadata: { before: 1980 } },
-  { id: 'de-23', key: 'new_releases_10', name: 'New Releases', description: 'Read 10 comics from current year', category: 'decade_explorer', type: 'decade_specific', stars: 2, icon: 'zap', threshold: 10, metadata: { year: 'current' } },
-  { id: 'de-24', key: 'up_to_date_50', name: 'Up to Date', description: 'Read 50 comics from current year', category: 'decade_explorer', type: 'decade_specific', stars: 3, icon: 'zap', threshold: 50, metadata: { year: 'current' } },
-  { id: 'de-25', key: 'release_day_100', name: 'Release Day Reader', description: 'Read 100 comics from current year', category: 'decade_explorer', type: 'decade_specific', stars: 4, icon: 'zap', threshold: 100, metadata: { year: 'current' } },
+  // NOTE: decade_specific count achievements removed - require per-decade aggregation not currently tracked
 ];
 // =============================================================================
 // Category 14: STORY ARC EXPLORER (15 achievements)
 // =============================================================================
 
-export const STORY_ARC_ACHIEVEMENTS: Achievement[] = [
-  { id: 'sa-1', key: 'first_arc', name: 'First Arc', description: 'Complete a story arc', category: 'story_arc_explorer', type: 'arcs_completed', stars: 1, icon: 'git-branch', threshold: 1 },
-  { id: 'sa-2', key: 'arcs_5', name: 'Arc Collector', description: 'Complete 5 story arcs', category: 'story_arc_explorer', type: 'arcs_completed', stars: 2, icon: 'git-branch', threshold: 5 },
-  { id: 'sa-3', key: 'arcs_10', name: 'Arc Enthusiast', description: 'Complete 10 story arcs', category: 'story_arc_explorer', type: 'arcs_completed', stars: 2, icon: 'git-branch', threshold: 10 },
-  { id: 'sa-4', key: 'arcs_25', name: 'Arc Expert', description: 'Complete 25 story arcs', category: 'story_arc_explorer', type: 'arcs_completed', stars: 3, icon: 'git-branch', threshold: 25 },
-  { id: 'sa-5', key: 'arcs_50', name: 'Arc Master', description: 'Complete 50 story arcs', category: 'story_arc_explorer', type: 'arcs_completed', stars: 4, icon: 'trophy', threshold: 50 },
-  { id: 'sa-6', key: 'arcs_100', name: 'Arc Legend', description: 'Complete 100 story arcs', category: 'story_arc_explorer', type: 'arcs_completed', stars: 5, icon: 'crown', threshold: 100 },
-  { id: 'sa-7', key: 'event_reader', name: 'Event Reader', description: 'Read a major crossover event', category: 'story_arc_explorer', type: 'events_completed', stars: 2, icon: 'git-merge', threshold: 1 },
-  { id: 'sa-8', key: 'events_5', name: 'Event Collector', description: 'Complete 5 crossover events', category: 'story_arc_explorer', type: 'events_completed', stars: 3, icon: 'git-merge', threshold: 5 },
-  { id: 'sa-9', key: 'events_15', name: 'Event Expert', description: 'Complete 15 crossover events', category: 'story_arc_explorer', type: 'events_completed', stars: 4, icon: 'git-merge', threshold: 15 },
-  { id: 'sa-10', key: 'events_30', name: 'Event Master', description: 'Complete 30 crossover events', category: 'story_arc_explorer', type: 'events_completed', stars: 5, icon: 'crown', threshold: 30 },
-  { id: 'sa-11', key: 'multiverse_3', name: 'Multiverse Explorer', description: 'Read comics from 3 different universes', category: 'story_arc_explorer', type: 'events_completed', stars: 3, icon: 'globe', threshold: 3 },
-  { id: 'sa-12', key: 'multiverse_10', name: 'Multiverse Traveler', description: 'Read comics from 10 different universes', category: 'story_arc_explorer', type: 'events_completed', stars: 4, icon: 'globe', threshold: 10 },
-  { id: 'sa-13', key: 'arc_binge', name: 'Arc Binge', description: 'Complete a story arc in one sitting', category: 'story_arc_explorer', type: 'arcs_completed', stars: 2, icon: 'zap', threshold: 1 },
-  { id: 'sa-14', key: 'event_binge', name: 'Event Binge', description: 'Complete a crossover event in one week', category: 'story_arc_explorer', type: 'events_completed', stars: 3, icon: 'zap', threshold: 1 },
-  { id: 'sa-15', key: 'saga_complete', name: 'Saga Complete', description: 'Complete a multi-arc saga', category: 'story_arc_explorer', type: 'arcs_completed', stars: 4, icon: 'award', threshold: 1 },
-];
+// NOTE: STORY_ARC_ACHIEVEMENTS entirely removed - story arc tracking system not implemented
+export const STORY_ARC_ACHIEVEMENTS: Achievement[] = [];
 
 // =============================================================================
 // Category 15: FORMAT VARIETY (15 achievements)
@@ -627,14 +490,7 @@ export const FORMAT_ACHIEVEMENTS: Achievement[] = [
   { id: 'fo-5', key: 'omnibus', name: 'Omnibus', description: 'Read an omnibus', category: 'format_variety', type: 'format_specific', stars: 3, icon: 'archive', threshold: 1, metadata: { format: 'Omnibus' } },
   { id: 'fo-6', key: 'format_explorer', name: 'Format Explorer', description: 'Read 3 different formats', category: 'format_variety', type: 'format_specific', stars: 2, icon: 'layers', threshold: 3 },
   { id: 'fo-7', key: 'format_collector', name: 'Format Collector', description: 'Read all format types', category: 'format_variety', type: 'format_specific', stars: 3, icon: 'layers', threshold: 5 },
-  { id: 'fo-8', key: 'issues_100', name: 'Issue Collector I', description: 'Read 100 single issues', category: 'format_variety', type: 'format_specific', stars: 2, icon: 'files', threshold: 100, metadata: { format: 'Issue' } },
-  { id: 'fo-9', key: 'issues_500', name: 'Issue Collector II', description: 'Read 500 single issues', category: 'format_variety', type: 'format_specific', stars: 3, icon: 'files', threshold: 500, metadata: { format: 'Issue' } },
-  { id: 'fo-10', key: 'issues_1000', name: 'Issue Master', description: 'Read 1,000 single issues', category: 'format_variety', type: 'format_specific', stars: 4, icon: 'files', threshold: 1000, metadata: { format: 'Issue' } },
-  { id: 'fo-11', key: 'trades_25', name: 'Trade Reader I', description: 'Read 25 trade paperbacks', category: 'format_variety', type: 'format_specific', stars: 2, icon: 'book', threshold: 25, metadata: { format: 'TPB' } },
-  { id: 'fo-12', key: 'trades_100', name: 'Trade Reader II', description: 'Read 100 trade paperbacks', category: 'format_variety', type: 'format_specific', stars: 3, icon: 'book', threshold: 100, metadata: { format: 'TPB' } },
-  { id: 'fo-13', key: 'omnibus_10', name: 'Omnibus Collector', description: 'Read 10 omnibuses', category: 'format_variety', type: 'format_specific', stars: 3, icon: 'archive', threshold: 10, metadata: { format: 'Omnibus' } },
-  { id: 'fo-14', key: 'omnibus_50', name: 'Omnibus Expert', description: 'Read 50 omnibuses', category: 'format_variety', type: 'format_specific', stars: 4, icon: 'archive', threshold: 50, metadata: { format: 'Omnibus' } },
-  { id: 'fo-15', key: 'omnibus_100', name: 'Omnibus Master', description: 'Read 100 omnibuses', category: 'format_variety', type: 'format_specific', stars: 5, icon: 'crown', threshold: 100, metadata: { format: 'Omnibus' } },
+  // NOTE: format_specific count achievements removed - require per-format aggregation not currently tracked
 ];
 
 // =============================================================================
@@ -648,20 +504,7 @@ export const MANGA_INTERNATIONAL_ACHIEVEMENTS: Achievement[] = [
   { id: 'mi-4', key: 'manga_100', name: 'Manga Enthusiast', description: 'Read 100 manga volumes', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'book', threshold: 100 },
   { id: 'mi-5', key: 'manga_500', name: 'Manga Expert', description: 'Read 500 manga volumes', category: 'manga_international', type: 'manga_total', stars: 4, icon: 'trophy', threshold: 500 },
   { id: 'mi-6', key: 'manga_1000', name: 'Manga Master', description: 'Read 1,000 manga volumes', category: 'manga_international', type: 'manga_total', stars: 5, icon: 'crown', threshold: 1000 },
-  { id: 'mi-7', key: 'shonen_25', name: 'Shonen Fan', description: 'Read 25 shonen manga', category: 'manga_international', type: 'manga_total', stars: 2, icon: 'zap', threshold: 25, metadata: { genre: 'shonen' } },
-  { id: 'mi-8', key: 'shonen_100', name: 'Shonen Expert', description: 'Read 100 shonen manga', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'zap', threshold: 100, metadata: { genre: 'shonen' } },
-  { id: 'mi-9', key: 'seinen_25', name: 'Seinen Fan', description: 'Read 25 seinen manga', category: 'manga_international', type: 'manga_total', stars: 2, icon: 'moon', threshold: 25, metadata: { genre: 'seinen' } },
-  { id: 'mi-10', key: 'seinen_100', name: 'Seinen Expert', description: 'Read 100 seinen manga', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'moon', threshold: 100, metadata: { genre: 'seinen' } },
-  { id: 'mi-11', key: 'shojo_25', name: 'Shojo Fan', description: 'Read 25 shojo manga', category: 'manga_international', type: 'manga_total', stars: 2, icon: 'heart', threshold: 25, metadata: { genre: 'shojo' } },
-  { id: 'mi-12', key: 'shojo_100', name: 'Shojo Expert', description: 'Read 100 shojo manga', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'heart', threshold: 100, metadata: { genre: 'shojo' } },
-  { id: 'mi-13', key: 'international', name: 'International', description: 'Read a non-English comic', category: 'manga_international', type: 'unique_languages', stars: 1, icon: 'globe', threshold: 1 },
-  { id: 'mi-14', key: 'languages_3', name: 'World Reader', description: 'Read comics in 3 different languages', category: 'manga_international', type: 'unique_languages', stars: 2, icon: 'globe', threshold: 3 },
-  { id: 'mi-15', key: 'languages_5', name: 'Polyglot Reader', description: 'Read comics in 5 different languages', category: 'manga_international', type: 'unique_languages', stars: 3, icon: 'globe', threshold: 5 },
-  { id: 'mi-16', key: 'languages_10', name: 'Global Reader', description: 'Read comics in 10 different languages', category: 'manga_international', type: 'unique_languages', stars: 4, icon: 'crown', threshold: 10 },
-  { id: 'mi-17', key: 'euro_10', name: 'Euro Comics', description: 'Read 10 European comics', category: 'manga_international', type: 'manga_total', stars: 2, icon: 'map', threshold: 10, metadata: { region: 'europe' } },
-  { id: 'mi-18', key: 'euro_50', name: 'Euro Expert', description: 'Read 50 European comics', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'map', threshold: 50, metadata: { region: 'europe' } },
-  { id: 'mi-19', key: 'manhwa_10', name: 'Manhwa Reader', description: 'Read 10 Korean manhwa', category: 'manga_international', type: 'manga_total', stars: 2, icon: 'flag', threshold: 10, metadata: { region: 'korea' } },
-  { id: 'mi-20', key: 'manhua_10', name: 'Manhua Reader', description: 'Read 10 Chinese manhua', category: 'manga_international', type: 'manga_total', stars: 3, icon: 'flag', threshold: 10, metadata: { region: 'china' } },
+  // NOTE: genre-specific and region-specific manga achievements removed - require per-genre/region aggregation not currently tracked
 ];
 
 // =============================================================================
@@ -694,23 +537,8 @@ export const BINGE_ACHIEVEMENTS: Achievement[] = [
 // Category 18: READING PACE (15 achievements)
 // =============================================================================
 
-export const PACE_ACHIEVEMENTS: Achievement[] = [
-  { id: 'pa-1', key: 'pace_1ppm', name: 'Measured Pace', description: 'Maintain 1 page/minute average', category: 'reading_pace', type: 'reading_pace', stars: 1, icon: 'activity', threshold: 1 },
-  { id: 'pa-2', key: 'pace_2ppm', name: 'Steady Reader', description: 'Maintain 2 pages/minute average', category: 'reading_pace', type: 'reading_pace', stars: 2, icon: 'activity', threshold: 2 },
-  { id: 'pa-3', key: 'pace_3ppm', name: 'Quick Reader', description: 'Maintain 3 pages/minute average', category: 'reading_pace', type: 'reading_pace', stars: 3, icon: 'zap', threshold: 3 },
-  { id: 'pa-4', key: 'pace_5ppm', name: 'Speed Reader', description: 'Maintain 5 pages/minute average', category: 'reading_pace', type: 'reading_pace', stars: 4, icon: 'zap', threshold: 5 },
-  { id: 'pa-5', key: 'weekly_1mo', name: 'Consistent Reader', description: 'Read every week for a month', category: 'reading_pace', type: 'weekly_consistency', stars: 1, icon: 'calendar', threshold: 4 },
-  { id: 'pa-6', key: 'weekly_3mo', name: 'Regular Reader', description: 'Read every week for 3 months', category: 'reading_pace', type: 'weekly_consistency', stars: 2, icon: 'calendar', threshold: 12 },
-  { id: 'pa-7', key: 'weekly_6mo', name: 'Devoted Reader', description: 'Read every week for 6 months', category: 'reading_pace', type: 'weekly_consistency', stars: 3, icon: 'calendar', threshold: 26 },
-  { id: 'pa-8', key: 'weekly_1yr', name: 'Year-Round Reader', description: 'Read every week for a year', category: 'reading_pace', type: 'weekly_consistency', stars: 4, icon: 'award', threshold: 52 },
-  { id: 'pa-9', key: 'daily_avg_10', name: 'Daily Average I', description: 'Average 10 pages/day over a month', category: 'reading_pace', type: 'daily_average', stars: 2, icon: 'trending-up', threshold: 10 },
-  { id: 'pa-10', key: 'daily_avg_25', name: 'Daily Average II', description: 'Average 25 pages/day over a month', category: 'reading_pace', type: 'daily_average', stars: 3, icon: 'trending-up', threshold: 25 },
-  { id: 'pa-11', key: 'daily_avg_50', name: 'Daily Average III', description: 'Average 50 pages/day over a month', category: 'reading_pace', type: 'daily_average', stars: 4, icon: 'trending-up', threshold: 50 },
-  { id: 'pa-12', key: 'daily_avg_100', name: 'Daily Average IV', description: 'Average 100 pages/day over a month', category: 'reading_pace', type: 'daily_average', stars: 5, icon: 'crown', threshold: 100 },
-  { id: 'pa-13', key: 'session_consistency', name: 'Session Consistency', description: 'Have 10 sessions of similar length', category: 'reading_pace', type: 'session_consistency', stars: 2, icon: 'repeat', threshold: 10 },
-  { id: 'pa-14', key: 'routine_7d', name: 'Routine Reader', description: 'Read at the same time for 7 days', category: 'reading_pace', type: 'routine_reading', stars: 3, icon: 'clock', threshold: 7 },
-  { id: 'pa-15', key: 'routine_30d', name: 'Scheduled Reader', description: 'Read at the same time for 30 days', category: 'reading_pace', type: 'routine_reading', stars: 4, icon: 'clock', threshold: 30 },
-];
+// NOTE: PACE_ACHIEVEMENTS entirely removed - reading pace tracking requires complex calculations not currently implemented
+export const PACE_ACHIEVEMENTS: Achievement[] = [];
 // =============================================================================
 // Category 19: DISCOVERY (20 achievements)
 // =============================================================================
@@ -731,59 +559,20 @@ export const DISCOVERY_ACHIEVEMENTS: Achievement[] = [
   { id: 'di-13', key: 'hidden_gem', name: 'Hidden Gem', description: 'Read a comic with fewer than 1000 CV votes', category: 'discovery', type: 'hidden_gem', stars: 2, icon: 'gem', threshold: 1 },
   { id: 'di-14', key: 'gem_hunter', name: 'Gem Hunter', description: 'Find 10 hidden gems', category: 'discovery', type: 'hidden_gem', stars: 3, icon: 'gem', threshold: 10 },
   { id: 'di-15', key: 'treasure_hunter', name: 'Treasure Hunter', description: 'Find 50 hidden gems', category: 'discovery', type: 'hidden_gem', stars: 4, icon: 'gem', threshold: 50 },
-  { id: 'di-16', key: 'indie_10', name: 'Independent Spirit', description: 'Read 10 indie comics', category: 'discovery', type: 'publisher_indie', stars: 2, icon: 'star', threshold: 10 },
-  { id: 'di-17', key: 'indie_50', name: 'Indie Supporter', description: 'Read 50 indie comics', category: 'discovery', type: 'publisher_indie', stars: 3, icon: 'star', threshold: 50 },
-  { id: 'di-18', key: 'indie_200', name: 'Indie Champion', description: 'Read 200 indie comics', category: 'discovery', type: 'publisher_indie', stars: 4, icon: 'award', threshold: 200 },
-  { id: 'di-19', key: 'small_pub_5', name: 'Off the Beaten Path', description: 'Read 5 publishers with < 100 total comics', category: 'discovery', type: 'small_publisher', stars: 3, icon: 'map-pin', threshold: 5 },
-  { id: 'di-20', key: 'small_pub_20', name: "Explorer's Spirit", description: 'Read 20 publishers with < 100 total comics', category: 'discovery', type: 'small_publisher', stars: 4, icon: 'map', threshold: 20 },
+  // NOTE: indie and small publisher achievements removed - require publisher classification not currently tracked
 ];
 // =============================================================================
 // Category 20: SPECIAL ACHIEVEMENTS (20 achievements)
 // =============================================================================
 
-export const SPECIAL_ACHIEVEMENTS: Achievement[] = [
-  { id: 'sp-1', key: 'new_years', name: "New Year's Reader", description: 'Read on January 1st', category: 'special_achievements', type: 'special_date', stars: 1, icon: 'gift', threshold: 1, metadata: { month: 1, day: 1 } },
-  { id: 'sp-2', key: 'halloween', name: 'Halloween Reader', description: 'Read on October 31st', category: 'special_achievements', type: 'special_date', stars: 1, icon: 'moon', threshold: 1, metadata: { month: 10, day: 31 } },
-  { id: 'sp-3', key: 'valentine', name: 'Valentine Reader', description: 'Read on February 14th', category: 'special_achievements', type: 'special_date', stars: 1, icon: 'heart', threshold: 1, metadata: { month: 2, day: 14 } },
-  { id: 'sp-4', key: 'independence', name: 'Independence Day', description: 'Read on July 4th', category: 'special_achievements', type: 'special_date', stars: 1, icon: 'flag', threshold: 1, metadata: { month: 7, day: 4 } },
-  { id: 'sp-5', key: 'friday_13', name: 'Friday the 13th', description: 'Read on a Friday the 13th', category: 'special_achievements', type: 'special_date', stars: 1, icon: 'alert-triangle', threshold: 1, metadata: { weekday: 'friday', day: 13 } },
-  { id: 'sp-6', key: 'holiday_5', name: 'Holiday Collector', description: 'Read on 5 different holidays', category: 'special_achievements', type: 'holiday_count', stars: 2, icon: 'calendar', threshold: 5 },
-  { id: 'sp-7', key: 'holiday_10', name: 'Holiday Master', description: 'Read on 10 different holidays', category: 'special_achievements', type: 'holiday_count', stars: 3, icon: 'calendar', threshold: 10 },
-  { id: 'sp-8', key: 'midnight', name: 'Midnight Reader', description: 'Read at exactly midnight', category: 'special_achievements', type: 'special_time', stars: 1, icon: 'moon', threshold: 1, metadata: { hour: 0 } },
-  { id: 'sp-9', key: 'witching_hour', name: 'Witching Hour', description: 'Read during 3-4 AM', category: 'special_achievements', type: 'special_time', stars: 2, icon: 'moon', threshold: 1, metadata: { hour: 3 } },
-  { id: 'sp-10', key: 'issue_1', name: 'Issue #1', description: 'Read an issue #1', category: 'special_achievements', type: 'issue_number', stars: 1, icon: 'hash', threshold: 1, metadata: { issueNumber: 1 } },
-  { id: 'sp-11', key: 'issue_1_25', name: 'Issue #1 Collector', description: 'Read 25 issue #1s', category: 'special_achievements', type: 'issue_number', stars: 2, icon: 'hash', threshold: 25, metadata: { issueNumber: 1 } },
-  { id: 'sp-12', key: 'issue_1_100', name: 'Issue #1 Hunter', description: 'Read 100 issue #1s', category: 'special_achievements', type: 'issue_number', stars: 3, icon: 'hash', threshold: 100, metadata: { issueNumber: 1 } },
-  { id: 'sp-13', key: 'issue_1_500', name: 'Issue #1 Master', description: 'Read 500 issue #1s', category: 'special_achievements', type: 'issue_number', stars: 4, icon: 'hash', threshold: 500, metadata: { issueNumber: 1 } },
-  { id: 'sp-14', key: 'finale', name: 'Final Issue', description: 'Read a series finale', category: 'special_achievements', type: 'series_finale', stars: 2, icon: 'flag', threshold: 1 },
-  { id: 'sp-15', key: 'finale_25', name: 'Finale Collector', description: 'Read 25 series finales', category: 'special_achievements', type: 'series_finale', stars: 3, icon: 'flag', threshold: 25 },
-  { id: 'sp-16', key: 'anniversary', name: 'Anniversary Issue', description: 'Read an anniversary issue (#100, #200, etc.)', category: 'special_achievements', type: 'anniversary_issue', stars: 2, icon: 'award', threshold: 1 },
-  { id: 'sp-17', key: 'anniversary_10', name: 'Anniversary Collector', description: 'Read 10 anniversary issues', category: 'special_achievements', type: 'anniversary_issue', stars: 3, icon: 'award', threshold: 10 },
-  { id: 'sp-18', key: 'variant', name: 'Variant Cover', description: 'Read a comic with multiple cover variants', category: 'special_achievements', type: 'variant_cover', stars: 2, icon: 'image', threshold: 1 },
-  { id: 'sp-19', key: 'oneshot_25', name: 'One-Shot Wonder', description: 'Read 25 one-shot comics', category: 'special_achievements', type: 'one_shot', stars: 3, icon: 'zap', threshold: 25 },
-  { id: 'sp-20', key: 'annual_25', name: 'Annual Reader', description: 'Read 25 annual issues', category: 'special_achievements', type: 'annual', stars: 4, icon: 'sun', threshold: 25 },
-];
+// NOTE: SPECIAL_ACHIEVEMENTS entirely removed - date/time/special issue tracking requires complex tracking not currently implemented
+export const SPECIAL_ACHIEVEMENTS: Achievement[] = [];
 // =============================================================================
 // Category 21: AGE RATING (15 achievements)
 // =============================================================================
 
-export const AGE_RATING_ACHIEVEMENTS: Achievement[] = [
-  { id: 'ar-1', key: 'all_ages', name: 'All Ages', description: 'Read an all-ages comic', category: 'age_rating', type: 'rating_specific', stars: 1, icon: 'smile', threshold: 1, metadata: { rating: 'Everyone' } },
-  { id: 'ar-2', key: 'teen', name: 'Teen Reading', description: 'Read a teen-rated comic', category: 'age_rating', type: 'rating_specific', stars: 1, icon: 'user', threshold: 1, metadata: { rating: 'Teen' } },
-  { id: 'ar-3', key: 'mature', name: 'Mature Reading', description: 'Read a mature-rated comic', category: 'age_rating', type: 'rating_specific', stars: 1, icon: 'alert-circle', threshold: 1, metadata: { rating: 'Mature' } },
-  { id: 'ar-4', key: 'rating_explorer', name: 'Rating Explorer', description: 'Read comics across all rating categories', category: 'age_rating', type: 'unique_ratings', stars: 2, icon: 'layers', threshold: 3 },
-  { id: 'ar-5', key: 'family_25', name: 'Family Friendly I', description: 'Read 25 all-ages comics', category: 'age_rating', type: 'rating_specific', stars: 2, icon: 'smile', threshold: 25, metadata: { rating: 'Everyone' } },
-  { id: 'ar-6', key: 'family_100', name: 'Family Friendly II', description: 'Read 100 all-ages comics', category: 'age_rating', type: 'rating_specific', stars: 3, icon: 'smile', threshold: 100, metadata: { rating: 'Everyone' } },
-  { id: 'ar-7', key: 'family_500', name: 'Family Friendly III', description: 'Read 500 all-ages comics', category: 'age_rating', type: 'rating_specific', stars: 4, icon: 'smile', threshold: 500, metadata: { rating: 'Everyone' } },
-  { id: 'ar-8', key: 'teen_25', name: 'Teen Reader I', description: 'Read 25 teen comics', category: 'age_rating', type: 'rating_specific', stars: 2, icon: 'user', threshold: 25, metadata: { rating: 'Teen' } },
-  { id: 'ar-9', key: 'teen_100', name: 'Teen Reader II', description: 'Read 100 teen comics', category: 'age_rating', type: 'rating_specific', stars: 3, icon: 'user', threshold: 100, metadata: { rating: 'Teen' } },
-  { id: 'ar-10', key: 'teen_500', name: 'Teen Reader III', description: 'Read 500 teen comics', category: 'age_rating', type: 'rating_specific', stars: 4, icon: 'user', threshold: 500, metadata: { rating: 'Teen' } },
-  { id: 'ar-11', key: 'mature_25', name: 'Mature Reader I', description: 'Read 25 mature comics', category: 'age_rating', type: 'rating_specific', stars: 2, icon: 'alert-circle', threshold: 25, metadata: { rating: 'Mature' } },
-  { id: 'ar-12', key: 'mature_100', name: 'Mature Reader II', description: 'Read 100 mature comics', category: 'age_rating', type: 'rating_specific', stars: 3, icon: 'alert-circle', threshold: 100, metadata: { rating: 'Mature' } },
-  { id: 'ar-13', key: 'mature_500', name: 'Mature Reader III', description: 'Read 500 mature comics', category: 'age_rating', type: 'rating_specific', stars: 4, icon: 'alert-circle', threshold: 500, metadata: { rating: 'Mature' } },
-  { id: 'ar-14', key: 'rating_balance', name: 'Rating Balance', description: 'Read equal numbers across all ratings', category: 'age_rating', type: 'rating_balance', stars: 3, icon: 'sliders', threshold: 1 },
-  { id: 'ar-15', key: 'curated', name: 'Curated Collection', description: 'Have 80%+ comics with proper age ratings', category: 'age_rating', type: 'metadata_quality', stars: 4, icon: 'check-circle', threshold: 80 },
-];
+// NOTE: AGE_RATING_ACHIEVEMENTS entirely removed - age rating tracking requires per-rating aggregation not currently implemented
+export const AGE_RATING_ACHIEVEMENTS: Achievement[] = [];
 // =============================================================================
 // Category 22: LOCATION EXPLORER (15 achievements)
 // =============================================================================
@@ -795,15 +584,7 @@ export const LOCATION_ACHIEVEMENTS: Achievement[] = [
   { id: 'lo-4', key: 'locations_25', name: 'Location Collector', description: 'Read 25 different locations', category: 'location_explorer', type: 'unique_locations', stars: 3, icon: 'map', threshold: 25 },
   { id: 'lo-5', key: 'locations_50', name: 'Location Expert', description: 'Read 50 different locations', category: 'location_explorer', type: 'unique_locations', stars: 4, icon: 'globe', threshold: 50 },
   { id: 'lo-6', key: 'locations_100', name: 'World Traveler', description: 'Read 100+ different locations', category: 'location_explorer', type: 'unique_locations', stars: 5, icon: 'globe', threshold: 100 },
-  { id: 'lo-7', key: 'gotham_10', name: 'Gotham Visitor', description: 'Read 10 comics set in Gotham', category: 'location_explorer', type: 'location_specific', stars: 2, icon: 'moon', threshold: 10, metadata: { location: 'Gotham' } },
-  { id: 'lo-8', key: 'gotham_50', name: 'Gotham Regular', description: 'Read 50 comics set in Gotham', category: 'location_explorer', type: 'location_specific', stars: 3, icon: 'moon', threshold: 50, metadata: { location: 'Gotham' } },
-  { id: 'lo-9', key: 'metropolis_10', name: 'Metropolis Visitor', description: 'Read 10 comics set in Metropolis', category: 'location_explorer', type: 'location_specific', stars: 2, icon: 'sun', threshold: 10, metadata: { location: 'Metropolis' } },
-  { id: 'lo-10', key: 'metropolis_50', name: 'Metropolis Regular', description: 'Read 50 comics set in Metropolis', category: 'location_explorer', type: 'location_specific', stars: 3, icon: 'sun', threshold: 50, metadata: { location: 'Metropolis' } },
-  { id: 'lo-11', key: 'nyc_10', name: 'NYC Reader', description: 'Read 10 comics set in New York', category: 'location_explorer', type: 'location_specific', stars: 2, icon: 'building', threshold: 10, metadata: { location: 'New York' } },
-  { id: 'lo-12', key: 'nyc_50', name: 'NYC Expert', description: 'Read 50 comics set in New York', category: 'location_explorer', type: 'location_specific', stars: 3, icon: 'building', threshold: 50, metadata: { location: 'New York' } },
-  { id: 'lo-13', key: 'space_10', name: 'Space Explorer', description: 'Read 10 comics set in space', category: 'location_explorer', type: 'location_specific', stars: 2, icon: 'star', threshold: 10, metadata: { location: 'Space' } },
-  { id: 'lo-14', key: 'space_50', name: 'Cosmic Traveler', description: 'Read 50 comics set in space', category: 'location_explorer', type: 'location_specific', stars: 3, icon: 'star', threshold: 50, metadata: { location: 'Space' } },
-  { id: 'lo-15', key: 'dimensions_10', name: 'Dimension Hopper', description: 'Read comics from 10 different dimensions', category: 'location_explorer', type: 'unique_dimensions', stars: 4, icon: 'layers', threshold: 10 },
+  // NOTE: location_specific achievements removed - require per-location aggregation not currently tracked
 ];
 // =============================================================================
 // Category 23: BOOKMARKS & NOTES (10 achievements)
@@ -826,21 +607,14 @@ export const BOOKMARK_ACHIEVEMENTS: Achievement[] = [
 // =============================================================================
 
 export const SESSION_ACHIEVEMENTS: Achievement[] = [
-  { id: 'se-1', key: 'first_session', name: 'First Session', description: 'Complete your first reading session', category: 'sessions', type: 'sessions_total', stars: 1, icon: 'play', threshold: 1 },
-  { id: 'se-2', key: 'sessions_10', name: 'Ten Sessions', description: 'Complete 10 reading sessions', category: 'sessions', type: 'sessions_total', stars: 1, icon: 'play', threshold: 10 },
-  { id: 'se-3', key: 'sessions_50', name: 'Fifty Sessions', description: 'Complete 50 reading sessions', category: 'sessions', type: 'sessions_total', stars: 2, icon: 'activity', threshold: 50 },
-  { id: 'se-4', key: 'sessions_100', name: 'Century Sessions', description: 'Complete 100 reading sessions', category: 'sessions', type: 'sessions_total', stars: 2, icon: 'activity', threshold: 100 },
-  { id: 'se-5', key: 'sessions_500', name: '500 Sessions', description: 'Complete 500 reading sessions', category: 'sessions', type: 'sessions_total', stars: 3, icon: 'activity', threshold: 500 },
-  { id: 'se-6', key: 'sessions_1000', name: '1000 Sessions', description: 'Complete 1,000 reading sessions', category: 'sessions', type: 'sessions_total', stars: 4, icon: 'zap', threshold: 1000 },
-  { id: 'se-7', key: 'sessions_5000', name: 'Session Master', description: 'Complete 5,000 reading sessions', category: 'sessions', type: 'sessions_total', stars: 5, icon: 'crown', threshold: 5000 },
-  { id: 'se-8', key: 'daily_sessions_3', name: 'Daily Sessions I', description: 'Have 3 sessions in one day', category: 'sessions', type: 'sessions_day', stars: 1, icon: 'calendar', threshold: 3 },
-  { id: 'se-9', key: 'daily_sessions_5', name: 'Daily Sessions II', description: 'Have 5 sessions in one day', category: 'sessions', type: 'sessions_day', stars: 2, icon: 'calendar', threshold: 5 },
-  { id: 'se-10', key: 'daily_sessions_10', name: 'Daily Sessions III', description: 'Have 10 sessions in one day', category: 'sessions', type: 'sessions_day', stars: 3, icon: 'calendar', threshold: 10 },
-  { id: 'se-11', key: 'focused_10', name: 'Focused Reader', description: 'Complete 10 sessions without interruption', category: 'sessions', type: 'focused_sessions', stars: 2, icon: 'target', threshold: 10 },
-  { id: 'se-12', key: 'focused_50', name: 'Ultra Focus', description: 'Complete 50 sessions without interruption', category: 'sessions', type: 'focused_sessions', stars: 3, icon: 'target', threshold: 50 },
-  { id: 'se-13', key: 'morning_10', name: 'Morning Reader', description: 'Have 10 sessions before noon', category: 'sessions', type: 'morning_sessions', stars: 2, icon: 'sunrise', threshold: 10 },
-  { id: 'se-14', key: 'evening_10', name: 'Evening Reader', description: 'Have 10 sessions after 6 PM', category: 'sessions', type: 'evening_sessions', stars: 2, icon: 'sunset', threshold: 10 },
-  { id: 'se-15', key: 'all_hours', name: 'All-Hours Reader', description: 'Have sessions in all 24 hours (over time)', category: 'sessions', type: 'unique_hours', stars: 3, icon: 'clock', threshold: 24 },
+  { id: 'ss-1', key: 'first_session', name: 'First Session', description: 'Complete your first reading session', category: 'sessions', type: 'sessions_total', stars: 1, icon: 'play', threshold: 1 },
+  { id: 'ss-2', key: 'sessions_10', name: 'Ten Sessions', description: 'Complete 10 reading sessions', category: 'sessions', type: 'sessions_total', stars: 1, icon: 'play', threshold: 10 },
+  { id: 'ss-3', key: 'sessions_50', name: 'Fifty Sessions', description: 'Complete 50 reading sessions', category: 'sessions', type: 'sessions_total', stars: 2, icon: 'activity', threshold: 50 },
+  { id: 'ss-4', key: 'sessions_100', name: 'Century Sessions', description: 'Complete 100 reading sessions', category: 'sessions', type: 'sessions_total', stars: 2, icon: 'activity', threshold: 100 },
+  { id: 'ss-5', key: 'sessions_500', name: '500 Sessions', description: 'Complete 500 reading sessions', category: 'sessions', type: 'sessions_total', stars: 3, icon: 'activity', threshold: 500 },
+  { id: 'ss-6', key: 'sessions_1000', name: '1000 Sessions', description: 'Complete 1,000 reading sessions', category: 'sessions', type: 'sessions_total', stars: 4, icon: 'zap', threshold: 1000 },
+  { id: 'ss-7', key: 'sessions_5000', name: 'Session Master', description: 'Complete 5,000 reading sessions', category: 'sessions', type: 'sessions_total', stars: 5, icon: 'crown', threshold: 5000 },
+  // NOTE: daily_sessions, focused_sessions, morning/evening sessions, and unique_hours achievements removed - require complex session time tracking not currently implemented
 ];
 // =============================================================================
 // Category 25: COLLECTION COMPLETION (25 achievements)
@@ -857,25 +631,7 @@ export const COMPLETION_ACHIEVEMENTS: Achievement[] = [
   { id: 'cp-7', key: 'coll_read_1000', name: 'Thousand Read', description: 'Read 1,000 comics from your collection', category: 'collection_completion', type: 'collection_read', stars: 3, icon: 'award', threshold: 1000 },
   { id: 'cp-8', key: 'coll_read_2000', name: 'Two Thousand', description: 'Read 2,000 comics from your collection', category: 'collection_completion', type: 'collection_read', stars: 4, icon: 'award', threshold: 2000 },
   { id: 'cp-9', key: 'coll_read_5000', name: 'Five Thousand', description: 'Read 5,000 comics from your collection', category: 'collection_completion', type: 'collection_read', stars: 5, icon: 'crown', threshold: 5000 },
-  // Percentage achievements (require 1,000+ comic library)
-  { id: 'cp-10', key: 'coll_pct_10', name: 'Ten Percent', description: 'Read 10% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 2, icon: 'percent', threshold: 10, minRequired: 1000 },
-  { id: 'cp-11', key: 'coll_pct_25', name: 'Quarter Done', description: 'Read 25% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 3, icon: 'percent', threshold: 25, minRequired: 1000 },
-  { id: 'cp-12', key: 'coll_pct_50', name: 'Halfway There', description: 'Read 50% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 3, icon: 'percent', threshold: 50, minRequired: 1000 },
-  { id: 'cp-13', key: 'coll_pct_75', name: 'Three Quarters', description: 'Read 75% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 4, icon: 'percent', threshold: 75, minRequired: 1000 },
-  { id: 'cp-14', key: 'coll_pct_90', name: 'Almost Complete', description: 'Read 90% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 4, icon: 'percent', threshold: 90, minRequired: 1000 },
-  { id: 'cp-15', key: 'coll_pct_100', name: 'Completionist', description: 'Read 100% of collection (min 1,000 comics)', category: 'collection_completion', type: 'collection_percentage', stars: 5, icon: 'check-circle', threshold: 100, minRequired: 1000 },
-  // Series completion (require 50+ series)
-  { id: 'cp-16', key: 'series_pct_25', name: 'Series Progress I', description: 'Complete 25% of all series (min 50 series)', category: 'collection_completion', type: 'series_percentage', stars: 2, icon: 'layers', threshold: 25, minRequired: 50 },
-  { id: 'cp-17', key: 'series_pct_50', name: 'Series Progress II', description: 'Complete 50% of all series (min 50 series)', category: 'collection_completion', type: 'series_percentage', stars: 3, icon: 'layers', threshold: 50, minRequired: 50 },
-  { id: 'cp-18', key: 'series_pct_75', name: 'Series Progress III', description: 'Complete 75% of all series (min 50 series)', category: 'collection_completion', type: 'series_percentage', stars: 4, icon: 'layers', threshold: 75, minRequired: 50 },
-  { id: 'cp-19', key: 'series_pct_100', name: 'Series Completionist', description: 'Complete 100% of all series (min 50 series)', category: 'collection_completion', type: 'series_percentage', stars: 5, icon: 'check-circle', threshold: 100, minRequired: 50 },
-  // Backlog management (require 500+ comic library)
-  { id: 'cp-20', key: 'backlog_50', name: 'Small Backlog', description: 'Have < 50 unread comics (min 500 library)', category: 'collection_completion', type: 'backlog_size', stars: 3, icon: 'inbox', threshold: 50, minRequired: 500 },
-  { id: 'cp-21', key: 'backlog_20', name: 'Minimal Backlog', description: 'Have < 20 unread comics (min 500 library)', category: 'collection_completion', type: 'backlog_size', stars: 4, icon: 'inbox', threshold: 20, minRequired: 500 },
-  { id: 'cp-22', key: 'backlog_10', name: 'Tiny Backlog', description: 'Have < 10 unread comics (min 500 library)', category: 'collection_completion', type: 'backlog_size', stars: 4, icon: 'inbox', threshold: 10, minRequired: 500 },
-  { id: 'cp-23', key: 'backlog_0', name: 'No Backlog', description: 'Have 0 unread comics (min 500 library)', category: 'collection_completion', type: 'backlog_size', stars: 5, icon: 'check-circle', threshold: 0, minRequired: 500 },
-  { id: 'cp-24', key: 'efficient_90', name: 'Efficient Reader', description: 'Maintain 90%+ read rate for 30 days (min 1,000 library)', category: 'collection_completion', type: 'read_rate', stars: 5, icon: 'trending-up', threshold: 90, minRequired: 1000 },
-  { id: 'cp-25', key: 'zero_waste', name: 'Zero Waste Reader', description: 'Read every comic added within 7 days for 30 days', category: 'collection_completion', type: 'read_rate', stars: 5, icon: 'zap', threshold: 30 },
+  // NOTE: percentage, series_percentage, backlog_size, and read_rate achievements removed - require complex percentage calculations not currently implemented
 ];
 
 // =============================================================================

@@ -1,16 +1,39 @@
 import { Router } from 'express';
 import * as achievementsService from '../services/achievements.service.js';
 import { logError } from '../services/logger.service.js';
+import { initializeUserSSE } from '../services/sse.service.js';
+import { optionalAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// Apply optional auth to all routes - this populates req.user if authenticated
+router.use(optionalAuth);
+
+/**
+ * GET /api/achievements/stream
+ * SSE endpoint for real-time achievement notifications
+ */
+router.get('/stream', (req, res) => {
+  // Require authentication for SSE stream
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  initializeUserSSE(res, req.user.id);
+});
 
 /**
  * GET /api/achievements
  * Get all achievements with user progress
  */
-router.get('/', async (_req, res) => {
+router.get('/', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
-    const achievements = await achievementsService.getAllAchievementsWithProgress();
+    const userId = req.user.id;
+    const achievements = await achievementsService.getAllAchievementsWithProgress(userId);
     res.json(achievements);
   } catch (error) {
     logError('achievements', error, { action: 'get-all-achievements' });
@@ -22,9 +45,14 @@ router.get('/', async (_req, res) => {
  * GET /api/achievements/summary
  * Get achievement summary statistics
  */
-router.get('/summary', async (_req, res) => {
+router.get('/summary', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
-    const summary = await achievementsService.getAchievementSummary();
+    const userId = req.user.id;
+    const summary = await achievementsService.getAchievementSummary(userId);
     res.json(summary);
   } catch (error) {
     logError('achievements', error, { action: 'get-summary' });
@@ -36,9 +64,14 @@ router.get('/summary', async (_req, res) => {
  * GET /api/achievements/categories
  * Get all categories with counts
  */
-router.get('/categories', async (_req, res) => {
+router.get('/categories', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
-    const categories = await achievementsService.getCategoriesWithCounts();
+    const userId = req.user.id;
+    const categories = await achievementsService.getCategoriesWithCounts(userId);
     res.json(categories);
   } catch (error) {
     logError('achievements', error, { action: 'get-categories' });
@@ -50,9 +83,14 @@ router.get('/categories', async (_req, res) => {
  * GET /api/achievements/unlocked
  * Get user's unlocked achievements
  */
-router.get('/unlocked', async (_req, res) => {
+router.get('/unlocked', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
-    const unlocked = await achievementsService.getUnlockedAchievements();
+    const userId = req.user.id;
+    const unlocked = await achievementsService.getUnlockedAchievements(userId);
     res.json(unlocked);
   } catch (error) {
     logError('achievements', error, { action: 'get-unlocked' });
@@ -65,9 +103,14 @@ router.get('/unlocked', async (_req, res) => {
  * Get recently unlocked achievements (for notifications)
  */
 router.get('/recent', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
+    const userId = req.user.id;
     const limit = parseInt(req.query.limit as string) || 5;
-    const recent = await achievementsService.getRecentUnlocks(limit);
+    const recent = await achievementsService.getRecentUnlocks(userId, limit);
     res.json(recent);
   } catch (error) {
     logError('achievements', error, { action: 'get-recent' });
@@ -80,9 +123,14 @@ router.get('/recent', async (req, res) => {
  * Get achievements by category
  */
 router.get('/category/:category', async (req, res) => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
+    const userId = req.user.id;
     const { category } = req.params;
-    const achievements = await achievementsService.getAchievementsByCategory(category);
+    const achievements = await achievementsService.getAchievementsByCategory(userId, category);
     res.json(achievements);
   } catch (error) {
     logError('achievements', error, { action: 'get-by-category' });
@@ -95,13 +143,18 @@ router.get('/category/:category', async (req, res) => {
  * Mark achievements as notified
  */
 router.post('/mark-notified', async (req, res): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
   try {
+    const userId = req.user.id;
     const { achievementIds } = req.body;
     if (!Array.isArray(achievementIds)) {
       res.status(400).json({ error: 'achievementIds must be an array' });
       return;
     }
-    await achievementsService.markAchievementsNotified(achievementIds);
+    await achievementsService.markAchievementsNotified(userId, achievementIds);
     res.json({ success: true });
   } catch (error) {
     logError('achievements', error, { action: 'mark-notified' });

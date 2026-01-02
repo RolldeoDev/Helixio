@@ -5,7 +5,8 @@
  * naming conventions, and cache configuration.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../../contexts/AppContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../themes/ThemeContext';
@@ -41,6 +42,12 @@ interface AppConfig {
 
 type SettingsTab = 'appearance' | 'general' | 'libraries' | 'file-naming' | 'reader' | 'system' | 'account' | 'admin';
 
+const VALID_TABS: SettingsTab[] = ['appearance', 'general', 'libraries', 'file-naming', 'reader', 'system', 'account', 'admin'];
+
+function isValidTab(tab: string | null): tab is SettingsTab {
+  return tab !== null && VALID_TABS.includes(tab as SettingsTab);
+}
+
 export function Settings() {
   const { preferFilenameOverMetadata, setPreferFilenameOverMetadata, relatedSeriesPosition, setRelatedSeriesPosition } = useApp();
   const { isAuthenticated, user } = useAuth();
@@ -48,8 +55,18 @@ export function Settings() {
   const { colorScheme } = useTheme();
   const isDark = colorScheme === 'dark';
   const { addToast } = useApiToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance');
+  // Get initial tab from URL or default to 'appearance'
+  const tabParam = searchParams.get('tab');
+  const initialTab = isValidTab(tabParam) ? tabParam : 'appearance';
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback((tab: SettingsTab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  }, [setSearchParams]);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -150,37 +167,37 @@ export function Settings() {
         <div className="settings-tabs">
           <button
             className={`tab ${activeTab === 'appearance' ? 'active' : ''}`}
-            onClick={() => setActiveTab('appearance')}
+            onClick={() => handleTabChange('appearance')}
           >
             Appearance
           </button>
           <button
             className={`tab ${activeTab === 'general' ? 'active' : ''}`}
-            onClick={() => setActiveTab('general')}
+            onClick={() => handleTabChange('general')}
           >
             General
           </button>
           <button
             className={`tab ${activeTab === 'libraries' ? 'active' : ''}`}
-            onClick={() => setActiveTab('libraries')}
+            onClick={() => handleTabChange('libraries')}
           >
             Libraries
           </button>
           <button
             className={`tab ${activeTab === 'file-naming' ? 'active' : ''}`}
-            onClick={() => setActiveTab('file-naming')}
+            onClick={() => handleTabChange('file-naming')}
           >
             File Naming
           </button>
           <button
             className={`tab ${activeTab === 'reader' ? 'active' : ''}`}
-            onClick={() => setActiveTab('reader')}
+            onClick={() => handleTabChange('reader')}
           >
             Reader
           </button>
           <button
             className={`tab ${activeTab === 'system' ? 'active' : ''}`}
-            onClick={() => setActiveTab('system')}
+            onClick={() => handleTabChange('system')}
           >
             System
           </button>
@@ -188,14 +205,14 @@ export function Settings() {
             <>
               <button
                 className={`tab ${activeTab === 'account' ? 'active' : ''}`}
-                onClick={() => setActiveTab('account')}
+                onClick={() => handleTabChange('account')}
               >
                 Account
               </button>
               {isAdmin && (
                 <button
                   className={`tab ${activeTab === 'admin' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('admin')}
+                  onClick={() => handleTabChange('admin')}
                 >
                   Admin
                 </button>

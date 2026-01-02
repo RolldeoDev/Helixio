@@ -2053,7 +2053,7 @@ export async function getStatsSummary(
 export async function getEntityStats(params: {
   entityType: EntityType;
   libraryId?: string;
-  sortBy?: 'owned' | 'read' | 'time';
+  sortBy?: 'owned' | 'read' | 'time' | 'ownedPages' | 'readPages';
   limit?: number;
   offset?: number;
 }): Promise<{ items: EntityStatResult[]; total: number }> {

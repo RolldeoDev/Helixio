@@ -65,7 +65,7 @@ export function StatusBar() {
             </span>
           </span>
         ) : activeBatch ? (
-          <Link to="/batches" className="batch-status-link">
+          <Link to="/jobs" className="batch-status-link">
             <span className="spinner" />
             <span>Batch operation in progress</span>
           </Link>
@@ -90,7 +90,7 @@ export function StatusBar() {
 
       <div className="status-right">
         <div className="status-links">
-          <Link to="/batches" className="status-link" title="Job History">
+          <Link to="/jobs" className="status-link" title="Job History">
             Job History
           </Link>
           <Link to="/history" className="status-link" title="Operation History">

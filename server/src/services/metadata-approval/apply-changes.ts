@@ -534,17 +534,19 @@ export async function applyChanges(
           forceRefresh: true,
         });
 
-        // Only fetch issue ratings from CBR (AniList doesn't have issue-level ratings)
-        await syncSeriesIssueRatings(seriesId, {
-          forceRefresh: true,
-          onProgress: (message, detail) => {
-            progress(`Fetching ratings: ${message}`, detail);
-          },
-        });
+        // Only fetch issue ratings if explicitly requested (slow due to CBR rate limiting)
+        if (session.options?.fetchIssueRatings) {
+          await syncSeriesIssueRatings(seriesId, {
+            forceRefresh: true,
+            onProgress: (message, detail) => {
+              progress(`Fetching issue ratings: ${message}`, detail);
+            },
+          });
 
-        // Fetch reviews alongside ratings
-        progress('Fetching reviews', `${i + 1} of ${seriesIds.length} series`);
-        await syncSeriesReviews(seriesId, { forceRefresh: true });
+          // Also fetch issue reviews if we're fetching issue ratings
+          progress('Fetching issue reviews', `${i + 1} of ${seriesIds.length} series`);
+          await syncSeriesReviews(seriesId, { forceRefresh: true });
+        }
       } catch (error) {
         // Silent skip - log but don't fail workflow
         logger.warn({ seriesId, error }, 'Failed to sync external ratings/reviews (continuing)');
@@ -897,8 +899,32 @@ async function updateSeriesFromApprovedMetadata(
         metadata.metronSeriesId = selectedSeries.sourceId;
       } else if (selectedSeries.source === 'anilist') {
         metadata.anilistId = selectedSeries.sourceId;
+        // Warn if assigning AniList ID to non-manga series
+        if (dbSeries.type !== 'manga') {
+          logger.warn(
+            {
+              seriesId: dbSeries.id,
+              seriesName: dbSeries.name,
+              seriesType: dbSeries.type,
+              anilistId: selectedSeries.sourceId,
+            },
+            'Assigning AniList ID to non-manga series. This ID will not be used for ratings/reviews sync.'
+          );
+        }
       } else if (selectedSeries.source === 'mal') {
         metadata.malId = selectedSeries.sourceId;
+        // Warn if assigning MAL ID to non-manga series
+        if (dbSeries.type !== 'manga') {
+          logger.warn(
+            {
+              seriesId: dbSeries.id,
+              seriesName: dbSeries.name,
+              seriesType: dbSeries.type,
+              malId: selectedSeries.sourceId,
+            },
+            'Assigning MyAnimeList ID to non-manga series. This ID will not be used for ratings/reviews sync.'
+          );
+        }
       }
 
       // Extract array fields if present

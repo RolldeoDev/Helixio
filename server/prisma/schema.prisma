@@ -966,6 +966,7 @@ model User {
   readerPresets   ReaderPreset[]
   filterPresets   FilterPreset[]
   apiKeys         ApiKey[]
+  userAchievements UserAchievement[]
 
   @@index([username])
   @@index([email])
@@ -1310,6 +1311,8 @@ model UserAchievement {
   id            String    @id @default(cuid())
   achievementId String
   achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Progress tracking
   progress      Int       @default(0)  // Current progress toward threshold
@@ -1320,7 +1323,8 @@ model UserAchievement {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  @@unique([achievementId]) // One record per achievement per user
+  @@unique([userId, achievementId]) // One record per achievement per user
+  @@index([userId])
   @@index([unlockedAt])
 }
 
@@ -1882,6 +1886,7 @@ model ExternalReview {
   // Review content
   reviewText      String   // Full review text
   summary         String?  // First ~200 chars for preview
+  reviewUrl       String?  // Link to full review on external site (for CBR)
 
   // Scoring (reviewer's personal rating, normalized to 0-10)
   rating          Float?   // Normalized to 0-10 scale

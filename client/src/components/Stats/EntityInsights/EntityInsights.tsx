@@ -9,6 +9,9 @@ interface EntityInsightsProps {
   isLoading: boolean;
 }
 
+export type ViewMode = 'comics' | 'pages';
+export type PagesSubMode = 'owned' | 'read';
+
 const ENTITY_CONFIG: {
   type: EntityType;
   title: string;
@@ -60,6 +63,8 @@ const ENTITY_CONFIG: {
 
 export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
   const [drawerType, setDrawerType] = useState<EntityType | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('comics');
+  const [pagesSubMode, setPagesSubMode] = useState<PagesSubMode>('owned');
 
   const handleOpenDrawer = (type: EntityType) => {
     setDrawerType(type);
@@ -90,10 +95,50 @@ export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
   return (
     <section className="entity-insights">
       <div className="entity-insights__header">
-        <h3 className="entity-insights__title">Insights by Category</h3>
-        <span className="entity-insights__subtitle">
-          Your most read creators, genres, characters, and publishers
-        </span>
+        <div className="entity-insights__header-row">
+          <div className="entity-insights__title-group">
+            <h3 className="entity-insights__title">Insights by Category</h3>
+            <span className="entity-insights__subtitle">
+              Your most read creators, genres, characters, and publishers
+            </span>
+          </div>
+
+          <div className="entity-insights__controls">
+            {/* Main toggle: Comics vs Pages */}
+            <div className="entity-insights__view-toggle">
+              <button
+                className={viewMode === 'comics' ? 'active' : ''}
+                onClick={() => setViewMode('comics')}
+              >
+                Comics
+              </button>
+              <button
+                className={viewMode === 'pages' ? 'active' : ''}
+                onClick={() => setViewMode('pages')}
+              >
+                Pages
+              </button>
+            </div>
+
+            {/* Sub-toggle: Owned vs Read (only shown when pages mode active) */}
+            {viewMode === 'pages' && (
+              <div className="entity-insights__sub-toggle">
+                <button
+                  className={pagesSubMode === 'owned' ? 'active' : ''}
+                  onClick={() => setPagesSubMode('owned')}
+                >
+                  Owned
+                </button>
+                <button
+                  className={pagesSubMode === 'read' ? 'active' : ''}
+                  onClick={() => setPagesSubMode('read')}
+                >
+                  Read
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="entity-insights__grid">
@@ -106,6 +151,8 @@ export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
             entities={summary?.[config.key] ?? []}
             onViewAll={() => handleOpenDrawer(config.type)}
             animationDelay={200 + index * 50}
+            viewMode={viewMode}
+            pagesSubMode={pagesSubMode}
           />
         ))}
       </div>
