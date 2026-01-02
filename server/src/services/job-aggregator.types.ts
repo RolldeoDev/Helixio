@@ -67,3 +67,22 @@ export interface AggregatedJobsResponse {
     running: number;
   };
 }
+
+// =============================================================================
+// Job Details Types
+// =============================================================================
+
+export type UnifiedLogType = 'info' | 'success' | 'warning' | 'error';
+
+export interface UnifiedJobLog {
+  id: string;
+  stage: string;
+  message: string;
+  detail?: string;
+  type: UnifiedLogType;
+  timestamp: Date;
+}
+
+export interface UnifiedJobDetails extends UnifiedJob {
+  logs: UnifiedJobLog[];
+}
