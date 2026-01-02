@@ -179,7 +179,7 @@ export async function getAggregatedStats(libraryId?: string): Promise<Aggregated
 export async function getEntityStats(params: {
   entityType: EntityType;
   libraryId?: string;
-  sortBy?: 'owned' | 'read' | 'time';
+  sortBy?: 'owned' | 'read' | 'time' | 'ownedPages' | 'readPages';
   limit?: number;
   offset?: number;
 }): Promise<{ items: EntityStatResult[]; total: number }> {
@@ -195,6 +195,12 @@ export async function getEntityStats(params: {
       break;
     case 'time':
       orderBy = { readTime: 'desc' };
+      break;
+    case 'ownedPages':
+      orderBy = { ownedPages: 'desc' };
+      break;
+    case 'readPages':
+      orderBy = { readPages: 'desc' };
       break;
     case 'owned':
     default:

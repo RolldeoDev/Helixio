@@ -43,6 +43,7 @@ function transformReview(
     reviewType: review.type,
     likes: review.likes,
     createdOnSource: review.date,
+    reviewUrl: review.reviewUrl,
   };
 }
 

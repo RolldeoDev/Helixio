@@ -39,10 +39,9 @@ import { PageEditor } from './components/PageEditor';
 import { Search } from './components/Search';
 import { Settings } from './components/Settings';
 import { DuplicateManager } from './components/DuplicateManager';
-import { BatchPanel } from './components/BatchPanel';
 import { RollbackPanel } from './components/RollbackPanel';
 import { JobBanner } from './components/JobBanner';
-import { JobsPanel } from './components/JobsPanel';
+import { UnifiedJobsPanel } from './components/UnifiedJobsPanel';
 import { AdvancedFilterPanel } from './components/AdvancedFilter/AdvancedFilterPanel';
 import { ReaderPage } from './pages/ReaderPage';
 import type { GroupField } from './components/SortGroup/SortGroupPanel';
@@ -409,8 +408,7 @@ function AppContent() {
           <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/duplicates" element={<DuplicateManager />} />
-          <Route path="/jobs" element={<JobsPanel />} />
-          <Route path="/batches" element={<BatchPanel />} />
+          <Route path="/jobs" element={<UnifiedJobsPanel />} />
           <Route path="/history" element={<RollbackPanel />} />
           <Route path="/lists/*" element={<SharedLists />} />
           <Route path="/admin/users" element={<UserManagement />} />

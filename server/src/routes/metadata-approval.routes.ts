@@ -570,6 +570,49 @@ router.patch('/sessions/:id/files/:fileId/fields', async (req: Request, res: Res
 });
 
 /**
+ * POST /api/metadata-approval/sessions/:id/files/:fileId/regenerate-rename
+ * Regenerate the rename preview based on current field values.
+ * Used when fields that affect the rename template are edited.
+ * Body: { fields: Record<string, string | number | null> }
+ */
+router.post('/sessions/:id/files/:fileId/regenerate-rename', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id!;
+    const fileId = req.params.fileId!;
+    const { fields } = req.body as { fields: Record<string, string | number | null> };
+
+    if (!fields || typeof fields !== 'object') {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'fields must be an object of field values',
+      });
+      return;
+    }
+
+    const renameField = await MetadataApproval.regenerateRenamePreview(id, fileId, fields);
+
+    res.json({
+      success: true,
+      renameField,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message === 'Session not found') {
+      res.status(404).json({ error: 'Session not found or expired' });
+      return;
+    }
+    if (err instanceof Error && err.message === 'File not found in session') {
+      res.status(404).json({ error: 'File not found in session' });
+      return;
+    }
+    logError('metadata-approval', err, { action: 'regenerate-rename' });
+    res.status(500).json({
+      error: 'Failed to regenerate rename preview',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
  * POST /api/metadata-approval/sessions/:id/files/:fileId/reject
  * Reject an entire file (no changes will be applied).
  */

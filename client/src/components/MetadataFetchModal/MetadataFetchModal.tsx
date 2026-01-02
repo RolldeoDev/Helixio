@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchMetadataForFiles,
   applyMetadataBatch,
@@ -18,6 +19,7 @@ import {
   MetadataFetchAPICall,
   MetadataFetchStep,
 } from '../../services/api.service';
+import { useToast } from '../../contexts/ToastContext';
 
 interface MetadataFetchModalProps {
   fileIds: string[];
@@ -47,6 +49,8 @@ export function MetadataFetchModal({
   onClose,
   onComplete,
 }: MetadataFetchModalProps) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +132,23 @@ export function MetadataFetchModal({
         }
         setSelections(initialSelections);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch metadata');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch metadata';
+        setError(errorMessage);
+
+        // Show toast with "Configure" action if this is an API key error
+        if (
+          errorMessage.toLowerCase().includes('api key') ||
+          errorMessage.toLowerCase().includes('not configured') ||
+          errorMessage.toLowerCase().includes('authentication')
+        ) {
+          addToast('error', 'API key required for metadata search', {
+            label: 'Configure',
+            onClick: () => {
+              onClose();
+              navigate('/settings?tab=system');
+            },
+          });
+        }
       } finally {
         setLoading(false);
         // Clean up polling
@@ -235,7 +255,23 @@ export function MetadataFetchModal({
       onComplete();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply metadata');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to apply metadata';
+      setError(errorMessage);
+
+      // Show toast with "Configure" action if this is an API key error
+      if (
+        errorMessage.toLowerCase().includes('api key') ||
+        errorMessage.toLowerCase().includes('not configured') ||
+        errorMessage.toLowerCase().includes('authentication')
+      ) {
+        addToast('error', 'API key required for metadata operations', {
+          label: 'Configure',
+          onClick: () => {
+            onClose();
+            navigate('/settings?tab=system');
+          },
+        });
+      }
     } finally {
       setApplying(false);
     }

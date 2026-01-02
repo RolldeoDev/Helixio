@@ -469,19 +469,6 @@
   letter-spacing: -0.02em;
 }
 
-:root[data-theme="default-dark"] h1 {
-  background: linear-gradient(135deg, var(--color-text) 0%, var(--helix-yellow-light) 40%, var(--helix-cyan-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-:root[data-theme="default-light"] h1 {
-  background: linear-gradient(135deg, var(--color-text) 0%, var(--helix-cyan-dark) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
 
 /* Divider with brand gradient */
 :root[data-theme^="default"] .divider,
@@ -615,10 +602,7 @@
 /* Stat card number highlight */
 :root[data-theme^="default"] .stat-value,
 :root[data-theme^="default"] .stat-number {
-  background: linear-gradient(135deg, var(--helix-cyan) 0%, var(--helix-yellow) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary);
 }
 
 /* =============================================================================

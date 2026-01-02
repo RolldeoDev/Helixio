@@ -16,7 +16,7 @@ import type {
 } from './job-aggregator.types.js';
 
 // Import job services
-import { listJobs as listMetadataJobs, getJob as getMetadataJob } from './metadata-job.service.js';
+import { listAllJobs as listMetadataJobs, getJob as getMetadataJob } from './metadata-job.service.js';
 import {
   listActiveScanJobs,
   getScanJob,

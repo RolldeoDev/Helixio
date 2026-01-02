@@ -80,6 +80,7 @@ const ICON_PATHS: Record<string, React.ReactNode> = {
 
 interface AchievementCardProps {
   achievement: AchievementWithProgress;
+  highlighted?: boolean;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -91,7 +92,7 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-export function AchievementCard({ achievement }: AchievementCardProps) {
+export function AchievementCard({ achievement, highlighted = false }: AchievementCardProps) {
   const {
     name,
     description,
@@ -108,8 +109,9 @@ export function AchievementCard({ achievement }: AchievementCardProps) {
     <div
       className={`achievement-card ${
         isUnlocked ? 'achievement-card--unlocked' : 'achievement-card--locked'
-      } achievement-card--stars-${stars}`}
+      } achievement-card--stars-${stars}${highlighted ? ' achievement-card--highlighted' : ''}`}
       title={`${name}: ${description}`}
+      data-achievement-id={achievement.id}
     >
       {/* Header with Icon and Status */}
       <div className="achievement-card__header">

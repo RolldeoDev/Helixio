@@ -10,7 +10,7 @@ interface EntityDrawerProps {
   onClose: () => void;
 }
 
-type SortBy = 'owned' | 'read' | 'time';
+type SortBy = 'owned' | 'read' | 'time' | 'ownedPages' | 'readPages';
 
 const ENTITY_TITLES: Record<EntityType, string> = {
   creator: 'All Creators',
@@ -187,25 +187,54 @@ export function EntityDrawer({ entityType, onClose }: EntityDrawerProps) {
 
         <div className="entity-drawer__sort">
           <span className="entity-drawer__sort-label">Sort by</span>
-          <div className="entity-drawer__sort-buttons">
-            <button
-              className={sortBy === 'owned' ? 'active' : ''}
-              onClick={() => handleSortChange('owned')}
-            >
-              Owned
-            </button>
-            <button
-              className={sortBy === 'read' ? 'active' : ''}
-              onClick={() => handleSortChange('read')}
-            >
-              Read
-            </button>
-            <button
-              className={sortBy === 'time' ? 'active' : ''}
-              onClick={() => handleSortChange('time')}
-            >
-              Time
-            </button>
+
+          <div className="entity-drawer__sort-group">
+            <div className="entity-drawer__sort-section">
+              <span className="entity-drawer__sort-section-label">Comics</span>
+              <div className="entity-drawer__sort-buttons">
+                <button
+                  className={sortBy === 'owned' ? 'active' : ''}
+                  onClick={() => handleSortChange('owned')}
+                >
+                  Owned
+                </button>
+                <button
+                  className={sortBy === 'read' ? 'active' : ''}
+                  onClick={() => handleSortChange('read')}
+                >
+                  Read
+                </button>
+              </div>
+            </div>
+
+            <div className="entity-drawer__sort-section">
+              <span className="entity-drawer__sort-section-label">Pages</span>
+              <div className="entity-drawer__sort-buttons">
+                <button
+                  className={sortBy === 'ownedPages' ? 'active' : ''}
+                  onClick={() => handleSortChange('ownedPages')}
+                >
+                  Owned
+                </button>
+                <button
+                  className={sortBy === 'readPages' ? 'active' : ''}
+                  onClick={() => handleSortChange('readPages')}
+                >
+                  Read
+                </button>
+              </div>
+            </div>
+
+            <div className="entity-drawer__sort-section">
+              <div className="entity-drawer__sort-buttons">
+                <button
+                  className={sortBy === 'time' ? 'active' : ''}
+                  onClick={() => handleSortChange('time')}
+                >
+                  Time
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -217,6 +246,7 @@ export function EntityDrawer({ entityType, onClose }: EntityDrawerProps) {
               isLoading={isLoading}
               hasMore={hasMore}
               onLoadMore={handleLoadMore}
+              sortBy={sortBy}
             />
           )}
         </div>

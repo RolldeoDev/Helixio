@@ -68,6 +68,9 @@ export interface ReviewData {
 
   /** When the review was posted on the source */
   createdOnSource?: Date;
+
+  /** URL to full review on external site (for CBR critic reviews with "Read Full Review" link) */
+  reviewUrl?: string;
 }
 
 /**
@@ -320,6 +323,9 @@ export interface ExternalReviewDisplay {
 
   /** Match confidence (for transparency) */
   confidence: number;
+
+  /** URL to full review on external site (for CBR critic reviews) */
+  reviewUrl?: string;
 }
 
 // =============================================================================

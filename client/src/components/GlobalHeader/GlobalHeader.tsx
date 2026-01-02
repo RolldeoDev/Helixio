@@ -41,7 +41,6 @@ const ROUTE_LABELS: Record<string, string> = {
   '/search': 'Search',
   '/duplicates': 'Duplicates',
   '/jobs': 'Jobs',
-  '/batches': 'Batches',
   '/history': 'History',
   '/lists': 'Shared Lists',
   '/admin/users': 'User Management',

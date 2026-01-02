@@ -1,0 +1,227 @@
+/* UnifiedJobsPanel.css - Premium Jobs Dashboard */
+
+.unified-jobs-panel {
+  padding: var(--spacing-lg) var(--spacing-xl);
+  max-width: 900px;
+  margin: 0 auto;
+  min-height: calc(100vh - var(--statusbar-height));
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.jobs-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xl);
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jobs-panel-header h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.jobs-panel-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.jobs-panel-refresh::before {
+  content: '↻';
+  font-size: 14px;
+  transition: transform 0.4s ease;
+}
+
+.jobs-panel-refresh:hover {
+  background: var(--color-hover);
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.jobs-panel-refresh:hover::before {
+  transform: rotate(180deg);
+}
+
+.jobs-panel-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jobs-panel-refresh:disabled::before {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   Sections
+   ============================================================================= */
+
+.jobs-section {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.jobs-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--spacing-md);
+}
+
+.jobs-section-title {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-text-subtle);
+  margin: 0;
+}
+
+.jobs-section-count {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: var(--color-primary-muted);
+  color: var(--color-primary);
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* =============================================================================
+   Empty States
+   ============================================================================= */
+
+.jobs-empty {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-xl);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle background pattern */
+.jobs-empty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, var(--color-primary-muted) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, var(--color-primary-muted) 0%, transparent 50%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.jobs-empty-icon {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--color-success);
+  background: rgba(125, 206, 160, 0.1);
+  border: 2px solid rgba(125, 206, 160, 0.2);
+  border-radius: 50%;
+}
+
+.jobs-empty h3 {
+  position: relative;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-text);
+  margin: 0 0 var(--spacing-sm);
+}
+
+.jobs-empty p {
+  position: relative;
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin: 0;
+  max-width: 280px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   Loading & Error States
+   ============================================================================= */
+
+.jobs-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  color: var(--color-text-muted);
+  gap: var(--spacing-md);
+}
+
+.jobs-loading::before {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.jobs-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl);
+  color: var(--color-error);
+  background: rgba(224, 122, 122, 0.08);
+  border: 1px solid rgba(224, 122, 122, 0.2);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.jobs-error::before {
+  content: '!';
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  background: rgba(224, 122, 122, 0.15);
+  border-radius: 50%;
+}

@@ -8,10 +8,19 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { FileChange, FieldChange, MetadataSource } from '../../services/api.service';
+import { regenerateRenamePreview } from '../../services/api/metadata';
 import { FieldSection } from './FieldSection';
 import { EditableField } from './EditableField';
 import { TagChipsInput } from './TagChipsInput';
 import './IssueEditDrawer.css';
+
+// Fields that affect the rename template
+const RENAME_AFFECTING_FIELDS = new Set([
+  'title', 'series', 'number', 'volume', 'year', 'month', 'day',
+  'publisher', 'imprint', 'writer', 'penciller', 'inker', 'colorist',
+  'letterer', 'coverArtist', 'editor', 'storyArc', 'storyArcNumber',
+  'genre', 'format', 'ageRating', 'pageCount', 'languageISO', 'count',
+]);
 
 const SOURCE_LABELS: Record<MetadataSource, string> = {
   comicvine: 'ComicVine',
@@ -205,6 +214,10 @@ interface IssueEditDrawerProps {
   fieldSources?: Record<string, MetadataSource>;
   /** Whether to show source badges next to field values */
   showFieldSources?: boolean;
+  /** Session ID for API calls like rename regeneration */
+  sessionId?: string;
+  /** Callback when rename field is regenerated */
+  onRenameRegenerated?: (fileId: string, renameField: FieldChange | null) => void;
 }
 
 export function IssueEditDrawer({
@@ -219,12 +232,15 @@ export function IssueEditDrawer({
   disabled = false,
   fieldSources,
   showFieldSources = false,
+  sessionId,
+  onRenameRegenerated,
 }: IssueEditDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
   const [pendingUpdates, setPendingUpdates] = useState<
     Record<string, { editedValue?: string | number | null }>
   >({});
   const [isSaving, setIsSaving] = useState(false);
+  const renameRegenerationTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Handle escape key to close
   useEffect(() => {
@@ -294,6 +310,70 @@ export function IssueEditDrawer({
       [fieldKey]: { editedValue: value },
     }));
   }, []);
+
+  // Build current field values for rename regeneration
+  const getCurrentFieldValues = useCallback((): Record<string, string | number | null> => {
+    if (!fileChange) return {};
+
+    const values: Record<string, string | number | null> = {};
+
+    // Start with existing field data
+    for (const [key, fieldData] of Object.entries(fileChange.fields)) {
+      if (key === 'rename') continue;
+
+      if (fieldData.edited && fieldData.editedValue !== undefined) {
+        values[key] = fieldData.editedValue;
+      } else if (fieldData.proposed !== null && fieldData.proposed !== undefined) {
+        values[key] = fieldData.proposed;
+      } else {
+        values[key] = fieldData.current;
+      }
+    }
+
+    // Apply pending updates
+    for (const [key, update] of Object.entries(pendingUpdates)) {
+      if (update.editedValue !== undefined) {
+        values[key] = update.editedValue;
+      }
+    }
+
+    return values;
+  }, [fileChange, pendingUpdates]);
+
+  // Debounced rename regeneration when rename-affecting fields change
+  useEffect(() => {
+    // Only run if we have the necessary context
+    if (!sessionId || !fileChange || !onRenameRegenerated || !isOpen) return;
+
+    // Check if any pending update affects rename
+    const hasRenameAffectingChange = Object.keys(pendingUpdates).some(
+      (key) => RENAME_AFFECTING_FIELDS.has(key)
+    );
+
+    if (!hasRenameAffectingChange) return;
+
+    // Clear existing timer
+    if (renameRegenerationTimer.current) {
+      clearTimeout(renameRegenerationTimer.current);
+    }
+
+    // Set debounced timer
+    renameRegenerationTimer.current = setTimeout(async () => {
+      try {
+        const fieldValues = getCurrentFieldValues();
+        const result = await regenerateRenamePreview(sessionId, fileChange.fileId, fieldValues);
+        onRenameRegenerated(fileChange.fileId, result.renameField);
+      } catch (error) {
+        console.error('Failed to regenerate rename preview:', error);
+      }
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (renameRegenerationTimer.current) {
+        clearTimeout(renameRegenerationTimer.current);
+      }
+    };
+  }, [sessionId, fileChange?.fileId, pendingUpdates, isOpen, onRenameRegenerated, getCurrentFieldValues]);
 
   // Get field change with pending updates applied
   const getFieldChange = (fieldKey: string): FieldChange | undefined => {

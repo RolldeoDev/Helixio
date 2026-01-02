@@ -31,6 +31,16 @@ export interface SSEEvent {
 
 const clients: Map<string, SSEClient> = new Map();
 
+// User-specific clients for achievement notifications
+export interface UserSSEClient {
+  id: string;
+  userId: string;
+  res: Response;
+  connectedAt: Date;
+}
+
+const userClients: Map<string, UserSSEClient> = new Map();
+
 // =============================================================================
 // SSE Setup
 // =============================================================================
@@ -368,8 +378,141 @@ export function sendFileRefresh(fileIds: string[]): number {
   });
 }
 
+// =============================================================================
+// User-Specific SSE (for achievements, notifications)
+// =============================================================================
+
+/**
+ * Initialize an SSE connection for user-specific events (achievements, etc.)
+ */
+export function initializeUserSSE(res: Response, userId: string): string {
+  // Generate unique client ID
+  const clientId = `user_${userId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Create client record
+  const client: UserSSEClient = {
+    id: clientId,
+    userId,
+    res,
+    connectedAt: new Date(),
+  };
+
+  userClients.set(clientId, client);
+
+  jobQueueLogger.debug({
+    clientId,
+    userId,
+    totalUserClients: userClients.size,
+  }, `User SSE client connected for ${userId}`);
+
+  // Send initial connection event
+  sendUserEvent(client, {
+    type: 'connected',
+    data: { clientId, userId },
+  });
+
+  // Set up ping interval to keep connection alive
+  const pingInterval = setInterval(() => {
+    if (userClients.has(clientId)) {
+      sendUserEvent(client, { type: 'ping', data: { timestamp: Date.now() } });
+    } else {
+      clearInterval(pingInterval);
+    }
+  }, 30000);
+
+  // Handle client disconnect
+  res.on('close', () => {
+    clearInterval(pingInterval);
+    userClients.delete(clientId);
+    jobQueueLogger.debug({
+      clientId,
+      userId,
+      totalUserClients: userClients.size,
+    }, `User SSE client disconnected: ${userId}`);
+  });
+
+  return clientId;
+}
+
+/**
+ * Send an event to a specific user client
+ */
+function sendUserEvent(client: UserSSEClient, event: SSEEvent): boolean {
+  try {
+    const data = JSON.stringify(event.data);
+    client.res.write(`event: ${event.type}\n`);
+    client.res.write(`data: ${data}\n\n`);
+    return true;
+  } catch {
+    // Remove failed client
+    userClients.delete(client.id);
+    return false;
+  }
+}
+
+/**
+ * Send achievement unlock event to a specific user
+ */
+export function sendAchievementUnlock(
+  userId: string,
+  achievement: {
+    id: string;
+    key: string;
+    name: string;
+    description: string;
+    category: string;
+    stars: number;
+    iconName: string;
+    threshold: number | null;
+    minRequired: number | null;
+    progress: number;
+    isUnlocked: boolean;
+    unlockedAt: string;
+  }
+): number {
+  let sentCount = 0;
+
+  for (const client of userClients.values()) {
+    if (client.userId === userId) {
+      if (sendUserEvent(client, {
+        type: 'achievement-unlocked',
+        data: {
+          achievement,
+          timestamp: Date.now(),
+        },
+      })) {
+        sentCount++;
+      }
+    }
+  }
+
+  return sentCount;
+}
+
+/**
+ * Get count of SSE clients for a user
+ */
+export function getUserClientCount(userId: string): number {
+  let count = 0;
+  for (const client of userClients.values()) {
+    if (client.userId === userId) {
+      count++;
+    }
+  }
+  return count;
+}
+
 export const SSE = {
   initialize: initializeSSE,
+  initializeUser: initializeUserSSE,
   broadcastToJob,
   broadcastToChannel,
   broadcastToAll,
@@ -381,8 +524,10 @@ export const SSE = {
   sendMetadataChange,
   sendSeriesRefresh,
   sendFileRefresh,
+  sendAchievementUnlock,
   getClientCount: getClientCountForJob,
   getTotalClients: getTotalClientCount,
+  getUserClientCount,
   hasClients: hasClientsForJob,
   disconnectClients: disconnectJobClients,
 };

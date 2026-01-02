@@ -43,6 +43,8 @@ export interface CBRParsedReview {
   type: 'critic' | 'user';
   /** Publication name for critic reviews (e.g., "IGN", "CBR") */
   publication?: string;
+  /** URL to full review on external site (for critic reviews with "Read Full Review" link) */
+  reviewUrl?: string;
 }
 
 // =============================================================================

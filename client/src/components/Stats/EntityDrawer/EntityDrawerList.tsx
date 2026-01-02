@@ -1,6 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import type { EntityStatResult, EntityType } from '../../../services/api.service';
+import { formatPageCount } from '../../../utils/format';
 import './EntityDrawer.css';
+
+type SortBy = 'owned' | 'read' | 'time' | 'ownedPages' | 'readPages';
 
 interface EntityDrawerListProps {
   entities: EntityStatResult[];
@@ -8,6 +11,7 @@ interface EntityDrawerListProps {
   isLoading: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
+  sortBy: SortBy;
 }
 
 export function EntityDrawerList({
@@ -16,6 +20,7 @@ export function EntityDrawerList({
   isLoading,
   hasMore,
   onLoadMore,
+  sortBy,
 }: EntityDrawerListProps) {
   const navigate = useNavigate();
 
@@ -36,6 +41,8 @@ export function EntityDrawerList({
       </div>
     );
   }
+
+  const isPageSort = sortBy === 'ownedPages' || sortBy === 'readPages';
 
   return (
     <div className="entity-drawer-list">
@@ -58,9 +65,19 @@ export function EntityDrawerList({
                 )}
               </span>
               <div className="entity-drawer-item__stats">
-                <span>{entity.ownedComics} comics</span>
-                <span className="entity-drawer-item__divider">·</span>
-                <span>{entity.readComics} read</span>
+                {isPageSort ? (
+                  <>
+                    <span>{formatPageCount(entity.ownedPages)}</span>
+                    <span className="entity-drawer-item__divider">·</span>
+                    <span>{formatPageCount(entity.readPages)} read</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{entity.ownedComics} comics</span>
+                    <span className="entity-drawer-item__divider">·</span>
+                    <span>{entity.readComics} read</span>
+                  </>
+                )}
               </div>
             </div>
 

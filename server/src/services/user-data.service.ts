@@ -13,6 +13,7 @@
 import { getDatabase } from './database.service.js';
 import { markSmartCollectionsDirty } from './smart-collection-dirty.service.js';
 import { markDirtyForRatingChange } from './stats-dirty.service.js';
+import { triggerAchievementCheck } from './achievement-trigger.service.js';
 
 // =============================================================================
 // Types
@@ -195,6 +196,13 @@ export async function updateSeriesUserData(
     });
   }
 
+  // Trigger achievement check if rating or review was saved
+  if (input.rating !== undefined || input.publicReview !== undefined) {
+    triggerAchievementCheck(userId).catch(() => {
+      // Non-critical, errors logged inside the function
+    });
+  }
+
   return {
     ...data,
     reviewVisibility: data.reviewVisibility as 'private' | 'public',
@@ -351,6 +359,13 @@ export async function updateIssueUserData(
   if (input.publicReview !== undefined || input.privateNotes !== undefined) {
     markDirtyForRatingChange().catch(() => {
       // Non-critical
+    });
+  }
+
+  // Trigger achievement check if rating or review was saved
+  if (input.rating !== undefined || input.publicReview !== undefined) {
+    triggerAchievementCheck(userId).catch(() => {
+      // Non-critical, errors logged inside the function
     });
   }
 

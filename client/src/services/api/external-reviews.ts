@@ -34,6 +34,8 @@ export interface ExternalReview {
   lastSyncedAt: string;
   isStale: boolean;
   confidence: number;
+  /** URL to full review on external site (for CBR critic reviews) */
+  reviewUrl?: string;
 }
 
 export interface UserReview {

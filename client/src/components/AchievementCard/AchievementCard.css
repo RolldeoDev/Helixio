@@ -349,6 +349,30 @@
 }
 
 /* =============================================================================
+   Highlighted State - Navigation Target Indicator
+   ============================================================================= */
+
+.achievement-card--highlighted {
+  animation: highlight-pulse 1.5s ease-out;
+  border-color: var(--color-accent, #e5b567);
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(229, 181, 103, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px rgba(229, 181, 103, 0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .achievement-card--highlighted {
+    animation: none;
+  }
+}
+
+/* =============================================================================
    Responsive Adjustments
    ============================================================================= */
 

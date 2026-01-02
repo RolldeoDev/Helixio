@@ -2,6 +2,7 @@
  * JobDetailPanel Component
  *
  * Slide-out panel showing job details and logs.
+ * Uses virtualization for efficient rendering of large log lists.
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -19,6 +20,8 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { JobLogEntry } from './JobLogEntry';
 import { LogTypeFilter } from './LogTypeFilter';
+import { useVirtualList } from '../../../hooks/useVirtualGrid';
+import { useMetadataJob } from '../../../contexts/MetadataJobContext';
 import './JobDetailPanel.css';
 
 interface JobDetailPanelProps {
@@ -65,6 +68,26 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
     if (!job?.logs) return [];
     return job.logs.filter((log) => visibleTypes.has(log.type));
   }, [job?.logs, visibleTypes]);
+
+  // Virtual list for efficient rendering of large log lists
+  // Uses 24px row height for compact log entries
+  const { virtualItems, totalHeight, containerRef } = useVirtualList(filteredLogs, {
+    itemHeight: 24,
+    overscan: 10,
+  });
+
+  // Metadata job context for opening full results modal
+  const { resumeJob } = useMetadataJob();
+
+  // Show "View Full Results" button for completed metadata jobs
+  const showViewFullResults =
+    job?.type === 'metadata' &&
+    job.status === 'completed';
+
+  const handleViewFullResults = async () => {
+    await resumeJob(jobId);
+    onClose(); // Close the JobDetailPanel
+  };
 
   const handleToggleType = useCallback((type: UnifiedLogType) => {
     setVisibleTypes((prev) => {
@@ -167,8 +190,17 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
             <h2 className="panel-title">{job?.title || 'Loading...'}</h2>
             {job?.subtitle && <p className="panel-subtitle">{job.subtitle}</p>}
           </div>
-          {batchActions.length > 0 && (
+          {(showViewFullResults || batchActions.length > 0) && (
             <div className="panel-header-actions">
+              {showViewFullResults && (
+                <button
+                  className="panel-action-btn primary"
+                  onClick={handleViewFullResults}
+                  title="View complete workflow with all logs and results"
+                >
+                  View Full Results
+                </button>
+              )}
               {batchActions.map((action) => (
                 <button
                   key={action.label}
@@ -225,11 +257,15 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
                   visibleTypes={visibleTypes}
                   onToggle={handleToggleType}
                 />
-                <div className="panel-logs">
+                <div className="panel-logs" ref={containerRef}>
                   {filteredLogs.length > 0 ? (
-                    filteredLogs.map((log) => (
-                      <JobLogEntry key={log.id} log={log} />
-                    ))
+                    <div className="panel-logs-virtual" style={{ height: totalHeight, position: 'relative' }}>
+                      {virtualItems.map((virtualItem) => (
+                        <div key={virtualItem.index} style={virtualItem.style}>
+                          <JobLogEntry log={virtualItem.item} compact />
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div className="panel-empty">
                       {(job.logs?.length ?? 0) === 0

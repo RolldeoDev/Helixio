@@ -14,6 +14,7 @@ import { rm } from 'fs/promises';
 import { getDatabase } from './database.service.js';
 import { markDirtyForReadingProgress } from './stats-dirty.service.js';
 import { markSmartCollectionsDirty } from './smart-collection-dirty.service.js';
+import { triggerAchievementCheck } from './achievement-trigger.service.js';
 
 // =============================================================================
 // Types
@@ -113,6 +114,12 @@ export async function updateProgress(
     throw new Error(`File not found: ${fileId}`);
   }
 
+  // Check if this is a new progress record (first time opening this comic)
+  const existingProgress = await db.userReadingProgress.findUnique({
+    where: { userId_fileId: { userId, fileId } },
+  });
+  const isFirstOpen = !existingProgress;
+
   // Calculate completed status if not explicitly set
   const isCompleted =
     input.completed !== undefined
@@ -160,6 +167,14 @@ export async function updateProgress(
       reason: 'reading_progress',
     }).catch(() => {
       // Non-critical, errors logged inside
+    });
+  }
+
+  // Trigger achievement check when opening a comic for the first time
+  // This enables "First Discovery" type achievements
+  if (isFirstOpen) {
+    triggerAchievementCheck(userId).catch(() => {
+      // Non-critical, errors logged inside the function
     });
   }
 
@@ -224,6 +239,11 @@ export async function markCompleted(userId: string, fileId: string): Promise<Rea
       });
     }
 
+    // Trigger achievement check after comic completion
+    triggerAchievementCheck(userId).catch(() => {
+      // Non-critical, errors logged inside the function
+    });
+
     return {
       ...progress,
       bookmarks: [],
@@ -264,6 +284,11 @@ export async function markCompleted(userId: string, fileId: string): Promise<Rea
       // Non-critical, errors logged inside
     });
   }
+
+  // Trigger achievement check after comic completion
+  triggerAchievementCheck(userId).catch(() => {
+    // Non-critical, errors logged inside the function
+  });
 
   return {
     ...progress,

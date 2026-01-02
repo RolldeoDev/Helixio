@@ -78,6 +78,7 @@ import externalRatingsRoutes from './routes/external-ratings.routes.js';
 import externalReviewsRoutes from './routes/external-reviews.routes.js';
 import filterPresetsRoutes from './routes/filter-presets.routes.js';
 import apiKeysRoutes from './routes/api-keys.routes.js';
+import jobsRoutes from './routes/jobs.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -572,6 +573,7 @@ app.use('/api/external-ratings', externalRatingsRoutes);
 app.use('/api/external-reviews', externalReviewsRoutes);
 app.use('/api/filter-presets', filterPresetsRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
+app.use('/api/jobs', jobsRoutes);
 
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);

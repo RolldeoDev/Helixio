@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMetadataJob, type JobStep, type StepLogEntry } from '../../contexts/MetadataJobContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useInvalidateExternalRatings } from '../../hooks/queries/useExternalRatings';
 import { SeriesApprovalStep } from './SeriesApprovalStep';
 import { FileReviewStep } from './FileReviewStep';
 import { StepSidebar, type StepId } from './StepSidebar';
@@ -49,6 +50,7 @@ export function MetadataApprovalModal() {
 
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const invalidateExternalRatings = useInvalidateExternalRatings();
 
   const [viewingStep, setViewingStep] = useState<StepId | null>(null);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
@@ -82,6 +84,27 @@ export function MetadataApprovalModal() {
       document.body.style.overflow = originalOverflow;
     };
   }, []);
+
+  // Show toast with "Configure" action when API key error occurs
+  useEffect(() => {
+    if (step === 'error' && error) {
+      const errorLower = error.toLowerCase();
+      if (
+        errorLower.includes('api key') ||
+        errorLower.includes('not configured') ||
+        errorLower.includes('authentication') ||
+        errorLower.includes('comicvine')
+      ) {
+        addToast('error', 'API key required for metadata operations', {
+          label: 'Configure',
+          onClick: () => {
+            closeModal();
+            navigate('/settings?tab=system');
+          },
+        });
+      }
+    }
+  }, [step, error, addToast, closeModal, navigate]);
 
   // Fetch indexed files info when entering options step
   useEffect(() => {
@@ -275,6 +298,11 @@ export function MetadataApprovalModal() {
           // If we can't get the file, just complete without navigating
         }
       }
+    }
+
+    // If external ratings were fetched, invalidate the cache so the series page shows fresh data
+    if (options?.fetchExternalRatings) {
+      invalidateExternalRatings();
     }
 
     completeJob();
@@ -520,16 +548,37 @@ export function MetadataApprovalModal() {
                 <input
                   type="checkbox"
                   checked={options.fetchExternalRatings ?? false}
-                  onChange={(e) => setOptions({ ...options, fetchExternalRatings: e.target.checked })}
+                  onChange={(e) => setOptions({
+                    ...options,
+                    fetchExternalRatings: e.target.checked,
+                    // Clear issue ratings if parent is unchecked
+                    fetchIssueRatings: e.target.checked ? options.fetchIssueRatings : false,
+                  })}
                 />
                 <span className="option-label">
                   <strong>Get External Ratings</strong>
                   <span className="option-description">
                     Fetch community and critic ratings from ComicBookRoundup after metadata is applied.
-                    This adds extra time due to rate limiting (~6 seconds per issue) but provides valuable rating data.
                   </span>
                 </span>
               </label>
+
+              {/* Nested checkbox for issue ratings */}
+              {options.fetchExternalRatings && (
+                <label className="option-checkbox nested">
+                  <input
+                    type="checkbox"
+                    checked={options.fetchIssueRatings ?? false}
+                    onChange={(e) => setOptions({ ...options, fetchIssueRatings: e.target.checked })}
+                  />
+                  <span className="option-label">
+                    <strong>Also Get Issue Ratings</strong>
+                    <span className="option-description option-warning">
+                      Fetch ratings for each individual issue. This is significantly slower due to CBR rate limiting (~6 seconds per issue).
+                    </span>
+                  </span>
+                </label>
+              )}
             </div>
 
             <div className="options-footer">

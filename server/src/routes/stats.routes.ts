@@ -120,7 +120,7 @@ router.get('/entities/:entityType', async (req, res) => {
     const result = await getEntityStats({
       entityType: entityType as EntityType,
       libraryId: libraryId as string | undefined,
-      sortBy: (sortBy as 'owned' | 'read' | 'time') || 'owned',
+      sortBy: (sortBy as 'owned' | 'read' | 'time' | 'ownedPages' | 'readPages') || 'owned',
       limit: limit ? parseInt(limit as string, 10) : 20,
       offset: offset ? parseInt(offset as string, 10) : 0,
     });

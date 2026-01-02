@@ -51,6 +51,18 @@ export function Toast() {
             )}
           </div>
           <span className="toast__message">{toast.message}</span>
+          {toast.action && (
+            <button
+              className="toast__action"
+              onClick={(e) => {
+                e.stopPropagation();
+                toast.action!.onClick();
+                dismissToast(toast.id);
+              }}
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button
             className="toast__close"
             onClick={(e) => {

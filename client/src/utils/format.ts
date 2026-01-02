@@ -22,3 +22,35 @@ export function formatFileSize(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
+
+/**
+ * Format a number with thousand separators.
+ *
+ * @param num - The number to format
+ * @returns Formatted string with locale-appropriate separators (e.g., "15,420")
+ *
+ * @example
+ * formatNumber(15420) // "15,420"
+ * formatNumber(1000000) // "1,000,000"
+ */
+export function formatNumber(num: number): string {
+  return num.toLocaleString();
+}
+
+/**
+ * Format a page count with optional label.
+ *
+ * @param pages - Number of pages
+ * @param label - Whether to include "pages" label (default: true)
+ * @returns Formatted string (e.g., "15,420 pages")
+ *
+ * @example
+ * formatPageCount(15420) // "15,420 pages"
+ * formatPageCount(1) // "1 page"
+ * formatPageCount(15420, false) // "15,420"
+ */
+export function formatPageCount(pages: number, label = true): string {
+  const formatted = formatNumber(pages);
+  if (!label) return formatted;
+  return `${formatted} ${pages === 1 ? 'page' : 'pages'}`;
+}

@@ -11,6 +11,11 @@
   --hero-color-g: 30;
   --hero-color-b: 40;
 
+  /* Default title tint (white fallback) */
+  --hero-title-r: 255;
+  --hero-title-g: 255;
+  --hero-title-b: 255;
+
   position: relative;
   z-index: 1; /* Ensure hero section and its dropdowns stack above content below */
   padding: var(--spacing-xl) var(--spacing-lg);

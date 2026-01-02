@@ -288,6 +288,8 @@ export interface CreateApprovalSessionOptions {
   searchMode?: SearchMode;
   /** Fetch external ratings from ComicBookRoundup after applying metadata */
   fetchExternalRatings?: boolean;
+  /** Also fetch issue-level ratings (slower due to CBR rate limiting). Requires fetchExternalRatings to be true. */
+  fetchIssueRatings?: boolean;
 }
 
 /**
@@ -804,6 +806,21 @@ export async function rejectFile(
   fileId: string
 ): Promise<{ success: boolean; fileChange: FileChange }> {
   return post(`/metadata-approval/sessions/${sessionId}/files/${fileId}/reject`);
+}
+
+/**
+ * Regenerate the rename preview for a file based on updated field values.
+ * Used when fields that affect the rename template are edited.
+ */
+export async function regenerateRenamePreview(
+  sessionId: string,
+  fileId: string,
+  fields: Record<string, string | number | null>
+): Promise<{ success: boolean; renameField: FieldChange | null }> {
+  return post(
+    `/metadata-approval/sessions/${sessionId}/files/${fileId}/regenerate-rename`,
+    { fields }
+  );
 }
 
 /**

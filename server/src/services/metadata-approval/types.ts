@@ -163,6 +163,8 @@ export interface CreateSessionOptions {
   mixedSeries?: boolean;
   /** Fetch external ratings from ComicBookRoundup after applying metadata */
   fetchExternalRatings?: boolean;
+  /** Also fetch issue-level ratings (slower due to CBR rate limiting). Requires fetchExternalRatings to be true. */
+  fetchIssueRatings?: boolean;
 }
 
 // =============================================================================

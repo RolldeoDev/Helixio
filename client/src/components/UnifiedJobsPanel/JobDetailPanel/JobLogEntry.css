@@ -1,46 +1,65 @@
-/* JobLogEntry.css */
+/* JobLogEntry.css - Premium Log Entry Component */
 
 .job-log-entry {
   display: flex;
-  gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border);
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background var(--transition-fast);
 }
 
 .job-log-entry:last-child {
   border-bottom: none;
 }
 
+.job-log-entry:hover {
+  background: var(--color-hover);
+  margin: 0 calc(-1 * var(--spacing-md));
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+  border-radius: var(--radius-md);
+}
+
+/* =============================================================================
+   Log Icon
+   ============================================================================= */
+
 .log-icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 .log-icon.info {
-  background: var(--color-primary-soft);
+  background: var(--color-primary-muted);
   color: var(--color-primary);
 }
 
 .log-icon.success {
-  background: var(--color-success-soft);
+  background: rgba(125, 206, 160, 0.15);
   color: var(--color-success);
 }
 
 .log-icon.warning {
-  background: var(--color-warning-soft);
+  background: rgba(229, 181, 103, 0.15);
   color: var(--color-warning);
 }
 
 .log-icon.error {
-  background: var(--color-error-soft);
+  background: rgba(224, 122, 122, 0.15);
   color: var(--color-error);
 }
+
+/* =============================================================================
+   Log Content
+   ============================================================================= */
 
 .log-content {
   flex: 1;
@@ -50,56 +69,144 @@
 .log-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
+  gap: var(--spacing-sm);
+  margin-bottom: 4px;
 }
 
 .log-stage {
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  padding: 2px 6px;
-  background: var(--color-surface-alt);
-  color: var(--color-text-secondary);
-  border-radius: 4px;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-subtle);
+  border-radius: var(--radius-sm);
 }
 
 .log-time {
+  font-family: var(--font-body);
   font-size: 11px;
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
 }
 
 .log-message {
+  font-family: var(--font-body);
   font-size: 13px;
   color: var(--color-text);
-  line-height: 1.4;
+  line-height: 1.5;
   word-break: break-word;
-}
-
-.log-detail {
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  margin-top: 4px;
-  line-height: 1.4;
 }
 
 .log-message-truncated {
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.log-show-more {
+.log-detail {
+  font-family: var(--font-body);
   font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-border);
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   Show More Button
+   ============================================================================= */
+
+.log-show-more {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
   color: var(--color-primary);
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  margin-top: 4px;
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color var(--transition-fast);
 }
 
 .log-show-more:hover {
-  text-decoration: underline;
+  color: var(--color-primary-hover);
+}
+
+.log-show-more::after {
+  content: '\2193';
+  font-size: 10px;
+  transition: transform var(--transition-fast);
+}
+
+.log-show-more:hover::after {
+  transform: translateY(2px);
+}
+
+/* =============================================================================
+   Compact Mode - Optimized for virtualized lists with many entries
+   ============================================================================= */
+
+.job-log-entry.compact {
+  padding: 3px 0;
+  gap: 8px;
+  border-bottom: none;
+}
+
+.job-log-entry.compact .log-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+  margin-top: 1px;
+}
+
+.job-log-entry.compact:hover {
+  margin: 0 calc(-1 * var(--spacing-sm));
+  padding-left: var(--spacing-sm);
+  padding-right: var(--spacing-sm);
+}
+
+.job-log-entry.compact .log-content {
+  overflow: hidden;
+}
+
+.log-message-compact {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-text);
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.log-message-compact .log-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.log-stage-inline {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-subtle);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }

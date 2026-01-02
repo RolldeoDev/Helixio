@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useBreadcrumbs } from '../contexts/BreadcrumbContext';
 import {
   getContinueReading,
@@ -53,6 +53,9 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // API key configuration banner state
+  const [showApiKeyBanner, setShowApiKeyBanner] = useState(false);
+
   // Get the effective library ID for API calls
   const effectiveLibraryId = libraryScope === 'all' ? undefined : libraryScope;
 
@@ -83,9 +86,32 @@ export function HomePage() {
     fetchData();
   }, [fetchData]);
 
+  // Check if ComicVine API key is configured
+  useEffect(() => {
+    const dismissed = sessionStorage.getItem('apiKeyBannerDismissed');
+    if (dismissed) return;
+
+    fetch('/api/config')
+      .then((r) => r.json())
+      .then((config) => {
+        // Show banner if ComicVine API key is not configured
+        const hasComicVineKey = config.apiKeys?.comicVine === '***configured***';
+        setShowApiKeyBanner(!hasComicVineKey);
+      })
+      .catch(() => {
+        // Fail silently - don't show banner on error
+      });
+  }, []);
+
   // Handle comic click
   const handleComicClick = (fileId: string) => {
     navigate(`/read/${fileId}`);
+  };
+
+  // Dismiss API key banner
+  const handleDismissApiKeyBanner = () => {
+    sessionStorage.setItem('apiKeyBannerDismissed', 'true');
+    setShowApiKeyBanner(false);
   };
 
   // Get featured item (first in continue reading)
@@ -118,6 +144,39 @@ export function HomePage() {
             }}
           >
             Try Again
+          </button>
+        </div>
+      )}
+
+      {/* API Key Configuration Banner */}
+      {showApiKeyBanner && !error && (
+        <div className="api-key-banner">
+          <div className="api-key-banner-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <div className="api-key-banner-content">
+            <strong>ComicVine API key not configured</strong>
+            <p>
+              Metadata search for western comics will be limited. Configure your API key to
+              enable automatic series matching, cover images, and rich metadata.
+            </p>
+          </div>
+          <Link to="/settings?tab=system" className="api-key-banner-action">
+            Configure Now
+          </Link>
+          <button
+            className="api-key-banner-dismiss"
+            onClick={handleDismissApiKeyBanner}
+            aria-label="Dismiss"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
           </button>
         </div>
       )}

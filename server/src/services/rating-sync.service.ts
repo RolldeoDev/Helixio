@@ -82,12 +82,17 @@ function getSourceUrl(source: string, sourceId: string | null): string | null {
 }
 
 /**
- * Get the existing external ID for a provider from series metadata
- * This allows providers to do direct lookups instead of searching
+ * Get the existing external ID for a provider from series metadata.
+ * Returns the ID if available - the presence of an external ID indicates compatibility.
  */
 function getExistingIdForProvider(
   providerName: RatingSource,
-  series: { comicVineId: string | null; metronId: string | null; anilistId: string | null; malId: string | null }
+  series: {
+    comicVineId: string | null;
+    metronId: string | null;
+    anilistId: string | null;
+    malId: string | null;
+  }
 ): string | undefined {
   switch (providerName) {
     case 'comicvine':
@@ -95,12 +100,64 @@ function getExistingIdForProvider(
     case 'metron':
       return series.metronId || undefined;
     case 'anilist':
+      // If series has an AniList ID, it's manga-compatible
       return series.anilistId || undefined;
-    // MAL uses the anilist idMal mapping if available
-    // case 'myanimelist':
-    //   return series.malId || undefined;
+    case 'myanimelist':
+      // If series has a MAL ID, it's manga-compatible
+      return series.malId || undefined;
     default:
       return undefined;
+  }
+}
+
+/**
+ * Check if a provider is compatible with the series and has required external ID.
+ * For AniList/MAL, the presence of an external ID indicates manga compatibility.
+ * Returns true if the provider should be used, false if it should be skipped.
+ */
+function isProviderCompatibleWithSeries(
+  providerName: RatingSource,
+  series: {
+    type: string;
+    comicVineId: string | null;
+    metronId: string | null;
+    anilistId: string | null;
+    malId: string | null;
+  }
+): { compatible: boolean; reason?: string } {
+  switch (providerName) {
+    case 'anilist':
+      // If series has an AniList ID, it's compatible (the ID proves it's manga)
+      if (!series.anilistId) {
+        return {
+          compatible: false,
+          reason: 'Series has no AniList ID',
+        };
+      }
+      return { compatible: true };
+
+    case 'myanimelist':
+      // If series has a MAL ID, it's compatible (the ID proves it's manga)
+      if (!series.malId) {
+        return {
+          compatible: false,
+          reason: 'Series has no MyAnimeList ID',
+        };
+      }
+      return { compatible: true };
+
+    case 'comicbookroundup':
+    case 'leagueofcomicgeeks':
+      // These support both western and manga, and use search (no ID required)
+      return { compatible: true };
+
+    case 'comicvine':
+    case 'metron':
+      // ComicVine and Metron work with any content type
+      return { compatible: true };
+
+    default:
+      return { compatible: true };
   }
 }
 
@@ -150,7 +207,10 @@ export async function syncSeriesRatings(
   };
 
   // Determine which sources to use (explicit sources > config > all registered)
-  const sourcesToUse = options.sources || (settings?.enabledSources as RatingSource[]) || RatingProviderRegistry.getAllSources();
+  const sourcesToUse =
+    options.sources ||
+    (settings?.enabledSources as RatingSource[]) ||
+    RatingProviderRegistry.getAllSources();
 
   // Get providers for the requested sources directly (not filtered by enabled list)
   // This ensures explicitly requested providers are always tried
@@ -158,12 +218,38 @@ export async function syncSeriesRatings(
     .map((source) => RatingProviderRegistry.get(source))
     .filter((p): p is typeof p & { name: RatingSource } => p !== undefined);
 
+  // Filter out providers that are incompatible with the series type or missing required IDs
+  const skippedProviders: Array<{ name: string; reason: string }> = [];
+  providers = providers.filter((provider) => {
+    const compatibility = isProviderCompatibleWithSeries(provider.name, series);
+    if (!compatibility.compatible) {
+      skippedProviders.push({
+        name: provider.name,
+        reason: compatibility.reason || 'Incompatible',
+      });
+      return false;
+    }
+    return true;
+  });
+
+  // Log skipped providers for debugging
+  if (skippedProviders.length > 0) {
+    logger.debug(
+      { seriesId, seriesType: series.type, skippedProviders },
+      'Skipped incompatible rating providers'
+    );
+  }
+
   // If sources weren't explicitly ordered by caller, apply type-based priority
-  if (!options.sources && series) {
-    const isManga = series.type === 'manga';
+  // Note: Incompatible providers are already filtered out above, so priority
+  // arrays only need to include providers that could actually be present
+  if (!options.sources && providers.length > 0) {
+    // Consider manga if type is 'manga' or if it has AniList/MAL IDs
+    const isManga =
+      series.type?.toLowerCase() === 'manga' || !!series.anilistId || !!series.malId;
     const priorityOrder = isManga
-      ? ['anilist', 'comicbookroundup', 'leagueofcomicgeeks', 'comicvine', 'metron']
-      : ['comicbookroundup', 'leagueofcomicgeeks', 'comicvine', 'metron', 'anilist'];
+      ? ['anilist', 'comicbookroundup', 'leagueofcomicgeeks', 'comicvine', 'metron'] // Manga: prefer AniList
+      : ['comicbookroundup', 'leagueofcomicgeeks', 'comicvine', 'metron']; // Western: no AniList
 
     providers.sort((a, b) => {
       const aIndex = priorityOrder.indexOf(a.name);
@@ -176,7 +262,13 @@ export async function syncSeriesRatings(
   }
 
   logger.debug(
-    { seriesId, sourcesToUse, providerCount: providers.length, providers: providers.map(p => p.name) },
+    {
+      seriesId,
+      seriesType: series.type,
+      sourcesToUse,
+      providerCount: providers.length,
+      providers: providers.map((p) => p.name),
+    },
     'Resolved rating providers for sync'
   );
 

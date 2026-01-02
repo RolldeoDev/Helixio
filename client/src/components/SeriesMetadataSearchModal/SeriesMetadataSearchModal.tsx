@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type {
   SeriesMatch,
   MetadataSource,
@@ -21,7 +22,17 @@ import {
 } from '../../services/api.service';
 import { MergedMetadataModal } from '../MetadataApproval/MergedMetadataModal';
 import { SeriesDetailDrawer } from '../MetadataApproval/SeriesDetailDrawer';
+import { useToast } from '../../contexts/ToastContext';
 import './SeriesMetadataSearchModal.css';
+
+// Source availability status
+interface SourceAvailability {
+  comicvine: boolean;
+  metron: boolean;
+  gcd: boolean;
+  anilist: boolean;
+  mal: boolean;
+}
 
 interface SeriesMetadataSearchModalProps {
   isOpen: boolean;
@@ -40,6 +51,9 @@ export function SeriesMetadataSearchModal({
   initialQuery,
   libraryType,
 }: SeriesMetadataSearchModalProps) {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SeriesMatch[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -48,6 +62,15 @@ export function SeriesMetadataSearchModal({
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Source availability state
+  const [sourceAvailability, setSourceAvailability] = useState<SourceAvailability>({
+    comicvine: true, // Assume available until we check
+    metron: true,
+    gcd: false, // GCD is not implemented
+    anilist: true, // Free API
+    mal: true, // Free API
+  });
 
   // Compute default source based on library type (manga → AniList, western → ComicVine)
   const defaultSource = useMemo((): MetadataSource => {
@@ -92,13 +115,29 @@ export function SeriesMetadataSearchModal({
       setPagination(response.pagination || null);
       setHasSearched(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
+      const errorMessage = err instanceof Error ? err.message : 'Search failed';
+      setError(errorMessage);
       setResults([]);
       setPagination(null);
+
+      // Check if it's an API key error and show toast with settings link
+      if (
+        errorMessage.toLowerCase().includes('api key') ||
+        errorMessage.toLowerCase().includes('not configured') ||
+        errorMessage.toLowerCase().includes('credentials')
+      ) {
+        addToast('error', 'API key required for metadata search', {
+          label: 'Configure',
+          onClick: () => {
+            onClose();
+            navigate('/settings?tab=system');
+          },
+        });
+      }
     } finally {
       setIsSearching(false);
     }
-  }, [selectedSource, libraryType]);
+  }, [selectedSource, libraryType, addToast, navigate, onClose]);
 
   // Load more results (pagination)
   const handleLoadMore = useCallback(async () => {
@@ -121,6 +160,26 @@ export function SeriesMetadataSearchModal({
       setIsLoadingMore(false);
     }
   }, [pagination, isLoadingMore, selectedSource, query, libraryType]);
+
+  // Check source availability when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/config')
+        .then((r) => r.json())
+        .then((config) => {
+          setSourceAvailability({
+            comicvine: config.apiKeys?.comicVine === '***configured***',
+            metron: config.apiKeys?.metronUsername === '***configured***' && config.apiKeys?.metronPassword === '***configured***',
+            gcd: false, // Not implemented
+            anilist: true, // Free API
+            mal: true, // Free API
+          });
+        })
+        .catch(() => {
+          // Fail silently, keep defaults
+        });
+    }
+  }, [isOpen]);
 
   // Focus input when modal opens and trigger search if we have an initial query
   useEffect(() => {
@@ -300,6 +359,25 @@ export function SeriesMetadataSearchModal({
     return labels[source] || source;
   };
 
+  // Check if source is available
+  const isSourceAvailable = (source: MetadataSource): boolean => {
+    return sourceAvailability[source] ?? false;
+  };
+
+  // Get unavailable reason for a source
+  const getSourceUnavailableReason = (source: MetadataSource): string => {
+    if (source === 'comicvine' && !sourceAvailability.comicvine) {
+      return 'ComicVine API key not configured';
+    }
+    if (source === 'metron' && !sourceAvailability.metron) {
+      return 'Metron credentials not configured';
+    }
+    if (source === 'gcd') {
+      return 'GCD is not yet implemented';
+    }
+    return '';
+  };
+
   // Get confidence badge class
   const getConfidenceBadgeClass = (confidence: number): string => {
     if (confidence >= 0.85) return 'confidence-high';
@@ -365,9 +443,27 @@ export function SeriesMetadataSearchModal({
               onChange={(e) => setSelectedSource(e.target.value as MetadataSource | 'all')}
             >
               <option value="all">All Sources</option>
-              <option value="comicvine">ComicVine</option>
-              <option value="metron">Metron</option>
-              <option value="gcd">GCD</option>
+              <option
+                value="comicvine"
+                disabled={!isSourceAvailable('comicvine')}
+                title={getSourceUnavailableReason('comicvine')}
+              >
+                ComicVine{!isSourceAvailable('comicvine') ? ' (not configured)' : ''}
+              </option>
+              <option
+                value="metron"
+                disabled={!isSourceAvailable('metron')}
+                title={getSourceUnavailableReason('metron')}
+              >
+                Metron{!isSourceAvailable('metron') ? ' (not configured)' : ''}
+              </option>
+              <option
+                value="gcd"
+                disabled={!isSourceAvailable('gcd')}
+                title={getSourceUnavailableReason('gcd')}
+              >
+                GCD (not available)
+              </option>
               <option value="anilist">AniList</option>
               <option value="mal">MAL</option>
             </select>

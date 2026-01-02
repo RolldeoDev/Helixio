@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getAchievements,
   getAchievementSummary,
@@ -19,6 +19,8 @@ type StatusFilter = 'all' | 'unlocked' | 'locked';
 
 export function AchievementsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const achievementsContentRef = useRef<HTMLDivElement>(null);
   const [achievements, setAchievements] = useState<AchievementWithProgress[]>([]);
   const [summary, setSummary] = useState<AchievementSummary | null>(null);
   const [categories, setCategories] = useState<AchievementCategory[]>([]);
@@ -27,10 +29,48 @@ export function AchievementsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Detect highlight query param and clear filters
+  useEffect(() => {
+    const highlight = searchParams.get('highlight');
+    if (highlight && highlight !== highlightId) {
+      setHighlightId(highlight);
+      // Clear all filters to ensure highlighted achievement is visible
+      setSelectedCategory('all');
+      setStarFilter('all');
+      setStatusFilter('all');
+    } else if (!highlight && highlightId) {
+      setHighlightId(null);
+    }
+  }, [searchParams, highlightId]);
+
+  // Scroll to highlighted achievement after data loads
+  useEffect(() => {
+    if (!isLoading && highlightId && achievements.length > 0) {
+      // Use requestAnimationFrame to ensure DOM is fully rendered
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const targetElement = achievementsContentRef.current?.querySelector(
+            `[data-achievement-id="${highlightId}"]`
+          );
+
+          if (targetElement) {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+
+          // Clear highlight after animation completes (1.5s animation duration)
+          setTimeout(() => {
+            setHighlightId(null);
+          }, 1500);
+        });
+      });
+    }
+  }, [isLoading, highlightId, achievements]);
 
   async function loadData() {
     setIsLoading(true);
@@ -254,7 +294,7 @@ export function AchievementsPage() {
       </div>
 
       {/* Achievements Grid */}
-      <div className="achievements-content">
+      <div className="achievements-content" ref={achievementsContentRef}>
         {Object.entries(groupedAchievements).map(([category, categoryAchievements]) => (
           <div key={category} className="achievement-category">
             {selectedCategory === 'all' && (
@@ -270,7 +310,11 @@ export function AchievementsPage() {
 
             <div className="achievements-grid">
               {categoryAchievements.map((achievement) => (
-                <AchievementCard key={achievement.id} achievement={achievement} />
+                <AchievementCard
+                  key={achievement.id}
+                  achievement={achievement}
+                  highlighted={highlightId === achievement.id}
+                />
               ))}
             </div>
           </div>

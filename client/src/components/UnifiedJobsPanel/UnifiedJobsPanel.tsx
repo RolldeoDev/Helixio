@@ -4,12 +4,13 @@
  * Main panel showing all jobs from all sources.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useUnifiedJobs, useInvalidateUnifiedJobs } from '../../hooks/queries/useUnifiedJobs';
-import type { UnifiedJobType } from '../../services/api/jobs';
+import type { UnifiedJobType, UnifiedJob } from '../../services/api/jobs';
 import { UnifiedJobCard } from './UnifiedJobCard';
 import { SchedulerCard } from './SchedulerCard';
 import { JobDetailPanel } from './JobDetailPanel';
+import { JobTypeFilter, type FilterCategory } from './JobTypeFilter';
 import './UnifiedJobsPanel.css';
 
 export function UnifiedJobsPanel() {
@@ -21,13 +22,91 @@ export function UnifiedJobsPanel() {
     id: string;
   } | null>(null);
 
-  const handleJobClick = (type: UnifiedJobType, id: string) => {
-    setSelectedJob({ type, id });
-  };
+  const [visibleCategories, setVisibleCategories] = useState<Set<FilterCategory>>(() => {
+    const saved = localStorage.getItem('helixio:jobFilters');
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved) as FilterCategory[]);
+      } catch {
+        return new Set(['scans', 'metadata', 'ratings', 'reviews', 'batches']);
+      }
+    }
+    return new Set(['scans', 'metadata', 'ratings', 'reviews', 'batches']);
+  });
 
-  const handleClosePanel = () => {
+  // Persist filter state
+  useEffect(() => {
+    localStorage.setItem('helixio:jobFilters', JSON.stringify([...visibleCategories]));
+  }, [visibleCategories]);
+
+  // Map job types to filter categories
+  const getJobCategory = useCallback((type: string): FilterCategory | null => {
+    switch (type) {
+      case 'library-scan': return 'scans';
+      case 'metadata': return 'metadata';
+      case 'rating-sync': return 'ratings';
+      case 'review-sync': return 'reviews';
+      case 'batch': return 'batches';
+      default: return null;
+    }
+  }, []);
+
+  // Filter jobs by visible categories
+  const filterJobs = useCallback((jobs: UnifiedJob[]) => {
+    return jobs.filter((job) => {
+      const category = getJobCategory(job.type);
+      return category === null || visibleCategories.has(category);
+    });
+  }, [getJobCategory, visibleCategories]);
+
+  // Calculate counts per category
+  const getCategoryCounts = useCallback((allJobs: UnifiedJob[]): Record<FilterCategory, number> => {
+    const counts: Record<FilterCategory, number> = {
+      scans: 0,
+      metadata: 0,
+      ratings: 0,
+      reviews: 0,
+      batches: 0,
+    };
+
+    for (const job of allJobs) {
+      const category = getJobCategory(job.type);
+      if (category) {
+        counts[category]++;
+      }
+    }
+
+    return counts;
+  }, [getJobCategory]);
+
+  const handleToggleCategory = useCallback((category: FilterCategory) => {
+    setVisibleCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleJobClick = useCallback((type: UnifiedJobType, id: string) => {
+    setSelectedJob({ type, id });
+  }, []);
+
+  const handleClosePanel = useCallback(() => {
     setSelectedJob(null);
-  };
+  }, []);
+
+  // Extract data with defaults - must be before useMemo hooks
+  const { active = [], history = [], schedulers = [] } = data || {};
+
+  // Compute filtered jobs and counts - all hooks must be before any early returns
+  const allJobs = useMemo(() => [...active, ...history], [active, history]);
+  const categoryCounts = useMemo(() => getCategoryCounts(allJobs), [getCategoryCounts, allJobs]);
+  const filteredActive = useMemo(() => filterJobs(active), [filterJobs, active]);
+  const filteredHistory = useMemo(() => filterJobs(history), [filterJobs, history]);
 
   if (isLoading) {
     return (
@@ -47,8 +126,6 @@ export function UnifiedJobsPanel() {
     );
   }
 
-  const { active, history, schedulers } = data || { active: [], history: [], schedulers: [] };
-
   return (
     <div className="unified-jobs-panel">
       <div className="jobs-panel-header">
@@ -62,17 +139,23 @@ export function UnifiedJobsPanel() {
         </button>
       </div>
 
+      <JobTypeFilter
+        visibleCategories={visibleCategories}
+        counts={categoryCounts}
+        onToggle={handleToggleCategory}
+      />
+
       {/* Active Jobs */}
       <section className="jobs-section">
         <div className="jobs-section-header">
           <h2 className="jobs-section-title">Active</h2>
-          {active.length > 0 && (
-            <span className="jobs-section-count">{active.length}</span>
+          {filteredActive.length > 0 && (
+            <span className="jobs-section-count">{filteredActive.length}</span>
           )}
         </div>
-        {active.length > 0 ? (
+        {filteredActive.length > 0 ? (
           <div className="jobs-list">
-            {active.map((job) => (
+            {filteredActive.map((job) => (
               <UnifiedJobCard
                 key={`${job.type}-${job.id}`}
                 job={job}
@@ -107,10 +190,13 @@ export function UnifiedJobsPanel() {
       <section className="jobs-section">
         <div className="jobs-section-header">
           <h2 className="jobs-section-title">History</h2>
+          {filteredHistory.length > 0 && (
+            <span className="jobs-section-count">{filteredHistory.length}</span>
+          )}
         </div>
-        {history.length > 0 ? (
+        {filteredHistory.length > 0 ? (
           <div className="jobs-list">
-            {history.map((job) => (
+            {filteredHistory.map((job) => (
               <UnifiedJobCard
                 key={`${job.type}-${job.id}`}
                 job={job}

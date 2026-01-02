@@ -36,6 +36,9 @@ const mockService = achievementsService as unknown as {
   seedAchievements: ReturnType<typeof vi.fn>;
 };
 
+// Mock user ID for tests
+const MOCK_USER_ID = 'user-test-123';
+
 // =============================================================================
 // Test Setup
 // =============================================================================
@@ -47,6 +50,26 @@ describe('Achievements Routes', () => {
     vi.clearAllMocks();
     app = express();
     app.use(express.json());
+    // Add mock user middleware (simulates authenticated user)
+    app.use((req, _res, next) => {
+      req.user = {
+        id: MOCK_USER_ID,
+        username: 'testuser',
+        email: null,
+        displayName: null,
+        avatarUrl: null,
+        role: 'user',
+        isActive: true,
+        profilePrivate: false,
+        hideReadingStats: false,
+        setupComplete: true,
+        permissions: '{}',
+        createdAt: new Date(),
+        lastLoginAt: null,
+        lastActiveAt: null,
+      };
+      next();
+    });
     app.use('/api/achievements', achievementsRoutes);
   });
 
@@ -82,7 +105,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockAchievements);
-      expect(mockService.getAllAchievementsWithProgress).toHaveBeenCalled();
+      expect(mockService.getAllAchievementsWithProgress).toHaveBeenCalledWith(MOCK_USER_ID);
     });
 
     it('should handle errors gracefully', async () => {
@@ -119,7 +142,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockSummary);
-      expect(mockService.getAchievementSummary).toHaveBeenCalled();
+      expect(mockService.getAchievementSummary).toHaveBeenCalledWith(MOCK_USER_ID);
     });
 
     it('should handle errors gracefully', async () => {
@@ -156,7 +179,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockCategories);
-      expect(mockService.getCategoriesWithCounts).toHaveBeenCalled();
+      expect(mockService.getCategoriesWithCounts).toHaveBeenCalledWith(MOCK_USER_ID);
     });
 
     it('should handle errors gracefully', async () => {
@@ -192,7 +215,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockUnlocked);
-      expect(mockService.getUnlockedAchievements).toHaveBeenCalled();
+      expect(mockService.getUnlockedAchievements).toHaveBeenCalledWith(MOCK_USER_ID);
     });
 
     it('should handle errors gracefully', async () => {
@@ -222,7 +245,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockRecent);
-      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(5);
+      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(MOCK_USER_ID, 5);
     });
 
     it('should respect limit query parameter', async () => {
@@ -231,7 +254,7 @@ describe('Achievements Routes', () => {
       const response = await request(app).get('/api/achievements/recent?limit=10');
 
       expect(response.status).toBe(200);
-      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(10);
+      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(MOCK_USER_ID, 10);
     });
 
     it('should handle invalid limit gracefully', async () => {
@@ -240,7 +263,7 @@ describe('Achievements Routes', () => {
       const response = await request(app).get('/api/achievements/recent?limit=invalid');
 
       expect(response.status).toBe(200);
-      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(5); // Falls back to default
+      expect(mockService.getRecentUnlocks).toHaveBeenCalledWith(MOCK_USER_ID, 5); // Falls back to default
     });
 
     it('should handle errors gracefully', async () => {
@@ -269,7 +292,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(mockCategoryAchievements);
-      expect(mockService.getAchievementsByCategory).toHaveBeenCalledWith('page_milestones');
+      expect(mockService.getAchievementsByCategory).toHaveBeenCalledWith(MOCK_USER_ID, 'page_milestones');
     });
 
     it('should handle errors gracefully', async () => {
@@ -298,7 +321,7 @@ describe('Achievements Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ success: true });
-      expect(mockService.markAchievementsNotified).toHaveBeenCalledWith(['ach-1', 'ach-2']);
+      expect(mockService.markAchievementsNotified).toHaveBeenCalledWith(MOCK_USER_ID, ['ach-1', 'ach-2']);
     });
 
     it('should return 400 if achievementIds is not an array', async () => {

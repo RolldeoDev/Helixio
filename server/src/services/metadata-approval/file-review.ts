@@ -1032,3 +1032,84 @@ export async function moveFileToSeriesGroup(
   setSession(session);
   return pendingFileChange;
 }
+
+/**
+ * Regenerate the rename preview for a file based on updated field values.
+ *
+ * This is used when the user edits fields that affect the rename template (like title, number, etc.)
+ * and we need to re-calculate what the new filename would be.
+ */
+export async function regenerateRenamePreview(
+  sessionId: string,
+  fileId: string,
+  fieldValues: Record<string, string | number | null>
+): Promise<import('./types.js').FieldChange | null> {
+  const session = getSession(sessionId);
+  if (!session) throw new Error('Session not found');
+
+  const fileChange = session.fileChanges.find((fc) => fc.fileId === fileId);
+  if (!fileChange) throw new Error('File not found in session');
+
+  const seriesGroup = session.seriesGroups.find((g) => g.fileIds.includes(fileId));
+  if (!seriesGroup?.selectedSeries) {
+    return null; // No series context for rename
+  }
+
+  const prisma = getDatabase();
+  const file = await prisma.comicFile.findUnique({
+    where: { id: fileId },
+    select: { path: true, libraryId: true },
+  });
+
+  if (!file || !session.libraryId) {
+    return null;
+  }
+
+  // Build proposed metadata by merging current field values with the new edits
+  // Start with existing fields from the fileChange
+  const proposedMetadata: Record<string, string | number | null> = {};
+
+  for (const [key, fieldData] of Object.entries(fileChange.fields)) {
+    if (key === 'rename') continue; // Skip rename field itself
+
+    // Use editedValue if edited, otherwise proposed, otherwise current
+    if (fieldData.edited && fieldData.editedValue !== undefined) {
+      proposedMetadata[key] = fieldData.editedValue;
+    } else if (fieldData.proposed !== null && fieldData.proposed !== undefined) {
+      proposedMetadata[key] = fieldData.proposed;
+    } else {
+      proposedMetadata[key] = fieldData.current;
+    }
+  }
+
+  // Apply the new field values on top
+  for (const [key, value] of Object.entries(fieldValues)) {
+    proposedMetadata[key] = value;
+  }
+
+  // Generate rename preview using the updated metadata
+  const renameField = await generateRenameField(proposedMetadata, {
+    libraryId: session.libraryId,
+    filePath: file.path,
+    series: {
+      name: seriesGroup.selectedSeries.name,
+      publisher: seriesGroup.selectedSeries.publisher ?? undefined,
+      startYear: seriesGroup.selectedSeries.startYear,
+      issueCount: seriesGroup.selectedSeries.issueCount,
+    },
+  });
+
+  // Update the session with the new rename field if it changed
+  if (renameField) {
+    fileChange.fields.rename = renameField;
+    session.updatedAt = new Date();
+    setSession(session);
+  } else if (fileChange.fields.rename) {
+    // No rename needed anymore - remove the field
+    delete fileChange.fields.rename;
+    session.updatedAt = new Date();
+    setSession(session);
+  }
+
+  return renameField;
+}

@@ -3,27 +3,50 @@
  *
  * Extracts the dominant color from an image URL using canvas sampling.
  * Optimized for comic book covers with center-weighted sampling.
+ * Also extracts a secondary accent color for title tinting.
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { rgbToHsl, lightenColor, getHueDistance, type RGB } from '../utils/color';
 
 interface UseDominantColorResult {
+  /** Darkened background color CSS string */
   color: string | null;
-  rgb: { r: number; g: number; b: number } | null;
+  /** Darkened background color RGB values */
+  rgb: RGB | null;
+  /** Accent color RGB (for title tinting) - vibrant color from cover or lightened background */
+  accentRgb: RGB | null;
   loading: boolean;
   error: Error | null;
 }
 
+interface CachedColors {
+  color: string;
+  rgb: RGB;
+  accentRgb: RGB;
+}
+
 // Simple in-memory cache for extracted colors
-const colorCache = new Map<string, { color: string; rgb: { r: number; g: number; b: number } }>();
+const colorCache = new Map<string, CachedColors>();
+
+/**
+ * Color bucket for tracking dominant colors during extraction
+ */
+interface ColorBucket {
+  r: number;
+  g: number;
+  b: number;
+  weight: number;
+}
 
 /**
  * Extracts dominant color from an image, weighted toward the center
  * (where comic cover focal points typically are)
+ * Also extracts a secondary accent color for title tinting.
  */
 async function extractDominantColor(
   imageUrl: string
-): Promise<{ color: string; rgb: { r: number; g: number; b: number } }> {
+): Promise<CachedColors> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
@@ -57,7 +80,7 @@ async function extractDominantColor(
         let totalWeight = 0;
 
         // Color buckets for finding dominant hue
-        const colorBuckets: Map<string, { r: number; g: number; b: number; weight: number }> = new Map();
+        const colorBuckets: Map<string, ColorBucket> = new Map();
 
         for (let y = 0; y < sampleSize; y++) {
           for (let x = 0; x < sampleSize; x++) {
@@ -116,7 +139,7 @@ async function extractDominantColor(
         }
 
         // Find the dominant color bucket
-        let dominantBucket: { r: number; g: number; b: number; weight: number } | null = null;
+        let dominantBucket: ColorBucket | null = null;
         for (const bucket of colorBuckets.values()) {
           if (!dominantBucket || bucket.weight > dominantBucket.weight) {
             dominantBucket = bucket;
@@ -140,6 +163,66 @@ async function extractDominantColor(
           finalR = 30;
           finalG = 30;
           finalB = 40;
+        }
+
+        // Find a secondary accent color (different hue, high saturation)
+        // This will be used for title tinting
+        let accentBucket: ColorBucket | null = null;
+        const dominantHsl = dominantBucket
+          ? rgbToHsl({
+              r: Math.round(dominantBucket.r / dominantBucket.weight),
+              g: Math.round(dominantBucket.g / dominantBucket.weight),
+              b: Math.round(dominantBucket.b / dominantBucket.weight),
+            })
+          : null;
+
+        for (const bucket of colorBuckets.values()) {
+          if (bucket === dominantBucket) continue;
+          if (bucket.weight < totalWeight * 0.02) continue; // Must be at least 2% of image
+
+          const bucketRgb = {
+            r: Math.round(bucket.r / bucket.weight),
+            g: Math.round(bucket.g / bucket.weight),
+            b: Math.round(bucket.b / bucket.weight),
+          };
+          const bucketHsl = rgbToHsl(bucketRgb);
+
+          // Skip desaturated colors
+          if (bucketHsl.s < 0.2) continue;
+
+          // Check if hue is sufficiently different from dominant (at least 30°)
+          if (dominantHsl && getHueDistance(dominantHsl.h, bucketHsl.h) < 30) continue;
+
+          // Prefer more saturated buckets
+          if (!accentBucket) {
+            accentBucket = bucket;
+          } else {
+            const existingHsl = rgbToHsl({
+              r: Math.round(accentBucket.r / accentBucket.weight),
+              g: Math.round(accentBucket.g / accentBucket.weight),
+              b: Math.round(accentBucket.b / accentBucket.weight),
+            });
+            // Prefer higher saturation, with some weight for bucket size
+            if (bucketHsl.s * bucket.weight > existingHsl.s * accentBucket.weight) {
+              accentBucket = bucket;
+            }
+          }
+        }
+
+        // Calculate accent RGB
+        let accentR: number, accentG: number, accentB: number;
+        if (accentBucket) {
+          // Use the distinct accent color
+          accentR = Math.round(accentBucket.r / accentBucket.weight);
+          accentG = Math.round(accentBucket.g / accentBucket.weight);
+          accentB = Math.round(accentBucket.b / accentBucket.weight);
+        } else {
+          // Fallback: Lighten the dominant color for accent
+          // Note: At this point finalR/G/B are the original weighted colors (not yet darkened)
+          const lightened = lightenColor({ r: finalR, g: finalG, b: finalB }, 0.6);
+          accentR = lightened.r;
+          accentG = lightened.g;
+          accentB = lightened.b;
         }
 
         // Ensure minimum saturation for visual interest
@@ -166,9 +249,10 @@ async function extractDominantColor(
         finalG = Math.round(finalG * darkenFactor);
         finalB = Math.round(finalB * darkenFactor);
 
-        const result = {
+        const result: CachedColors = {
           color: `rgb(${finalR}, ${finalG}, ${finalB})`,
           rgb: { r: finalR, g: finalG, b: finalB },
+          accentRgb: { r: accentR, g: accentG, b: accentB },
         };
 
         resolve(result);
@@ -194,6 +278,7 @@ export function useDominantColor(imageUrl: string | null): UseDominantColorResul
   const [result, setResult] = useState<UseDominantColorResult>({
     color: null,
     rgb: null,
+    accentRgb: null,
     loading: false,
     error: null,
   });
@@ -202,14 +287,20 @@ export function useDominantColor(imageUrl: string | null): UseDominantColorResul
 
   useEffect(() => {
     if (!imageUrl) {
-      setResult({ color: null, rgb: null, loading: false, error: null });
+      setResult({ color: null, rgb: null, accentRgb: null, loading: false, error: null });
       return;
     }
 
     // Check cache first
     const cached = colorCache.get(imageUrl);
     if (cached) {
-      setResult({ color: cached.color, rgb: cached.rgb, loading: false, error: null });
+      setResult({
+        color: cached.color,
+        rgb: cached.rgb,
+        accentRgb: cached.accentRgb,
+        loading: false,
+        error: null,
+      });
       return;
     }
 
@@ -226,6 +317,7 @@ export function useDominantColor(imageUrl: string | null): UseDominantColorResul
         setResult({
           color: extracted.color,
           rgb: extracted.rgb,
+          accentRgb: extracted.accentRgb,
           loading: false,
           error: null,
         });
@@ -235,6 +327,7 @@ export function useDominantColor(imageUrl: string | null): UseDominantColorResul
         setResult({
           color: null,
           rgb: null,
+          accentRgb: null,
           loading: false,
           error: err instanceof Error ? err : new Error(String(err)),
         });
