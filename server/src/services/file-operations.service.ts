@@ -12,6 +12,7 @@ import { generatePartialHash } from './hash.service.js';
 import { checkAndSoftDeleteEmptySeries } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo } from './logger.service.js';
+import { isFileRenamingEnabled } from './config.service.js';
 
 // =============================================================================
 // Types
@@ -108,6 +109,16 @@ export async function moveFile(
   destinationPath: string,
   options: MoveOptions = {}
 ): Promise<FileOperationResult> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    return {
+      success: false,
+      operation: 'move',
+      source: '',
+      error: 'File renaming is disabled. Enable it in Settings to use this feature.',
+    };
+  }
+
   const db = getDatabase();
 
   // Get the file record
@@ -223,6 +234,16 @@ export async function renameFile(
   newFilename: string,
   options: { batchId?: string } = {}
 ): Promise<FileOperationResult> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    return {
+      success: false,
+      operation: 'rename',
+      source: '',
+      error: 'File renaming is disabled. Enable it in Settings to use this feature.',
+    };
+  }
+
   const db = getDatabase();
 
   const file = await db.comicFile.findUnique({
@@ -643,6 +664,18 @@ export async function renameFolder(
   folderPath: string,
   newFolderName: string
 ): Promise<FolderRenameResult> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    return {
+      success: false,
+      operation: 'folder_rename',
+      oldPath: folderPath,
+      newPath: '',
+      filesUpdated: 0,
+      error: 'File renaming is disabled. Enable it in Settings to use this feature.',
+    };
+  }
+
   const db = getDatabase();
 
   // Get the library
@@ -1005,6 +1038,16 @@ export async function restoreOriginalFilename(
   fileId: string,
   options: { batchId?: string } = {}
 ): Promise<FileOperationResult> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    return {
+      success: false,
+      operation: 'restore',
+      source: '',
+      error: 'File renaming is disabled. Enable it in Settings to use this feature.',
+    };
+  }
+
   const db = getDatabase();
 
   // Get original filename tracking
@@ -1154,6 +1197,16 @@ export async function moveFileWithTracking(
   }
 
   const newFilename = basename(destinationPath);
+
+  // Check if file renaming is enabled (for any file move/rename operation)
+  if (!isFileRenamingEnabled()) {
+    return {
+      success: false,
+      operation: 'move',
+      source: file.path,
+      error: 'File renaming is disabled. Enable it in Settings to use this feature.',
+    };
+  }
 
   // Track original if requested and file is actually changing
   if (options.trackOriginal !== false && (file.filename !== newFilename || file.path !== destinationPath)) {

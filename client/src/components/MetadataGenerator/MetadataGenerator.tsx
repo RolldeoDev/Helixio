@@ -22,6 +22,10 @@ export interface MetadataGeneratorCurrentValues {
   tags: string | null;
   startYear: number | null;
   endYear: number | null;
+  // Entity fields
+  characters: string | null;
+  teams: string | null;
+  locations: string | null;
 }
 
 interface MetadataGeneratorProps {
@@ -53,6 +57,7 @@ export function MetadataGenerator({
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [useWebSearch, setUseWebSearch] = useState(false);
+  const [generateEntities, setGenerateEntities] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showOptions, setShowOptions] = useState(false);
 
@@ -90,7 +95,7 @@ export function MetadataGenerator({
     setError(null);
 
     try {
-      const result = await generateSeriesMetadata(seriesId, { useWebSearch });
+      const result = await generateSeriesMetadata(seriesId, { useWebSearch, generateEntities });
       setGeneratedMetadata(result.metadata);
       setWebSearchUsed(result.webSearchUsed);
       setShowPreviewModal(true);
@@ -101,7 +106,7 @@ export function MetadataGenerator({
     } finally {
       setIsGenerating(false);
     }
-  }, [seriesId, useWebSearch, onError]);
+  }, [seriesId, useWebSearch, generateEntities, onError]);
 
   const handlePreviewClose = useCallback(() => {
     setShowPreviewModal(false);
@@ -197,6 +202,24 @@ export function MetadataGenerator({
                 />
                 <span className="toggle-label">Use Web Search</span>
               </label>
+              <label className="web-search-toggle">
+                <input
+                  type="checkbox"
+                  checked={generateEntities}
+                  onChange={(e) => setGenerateEntities(e.target.checked)}
+                  disabled={disabled || isGenerating}
+                />
+                <span className="toggle-label">Generate Entities</span>
+              </label>
+              {generateEntities && !useWebSearch && (
+                <div className="generate-disclaimer entity-warning">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M8 1L15 14H1L8 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+                    <path d="M8 6V9M8 11V12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                  <span>Teams are most accurate with Web Search enabled</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -251,7 +274,27 @@ export function MetadataGenerator({
           />
           <span className="toggle-label">Use Web Search</span>
         </label>
+
+        <label className="web-search-toggle">
+          <input
+            type="checkbox"
+            checked={generateEntities}
+            onChange={(e) => setGenerateEntities(e.target.checked)}
+            disabled={disabled || isGenerating}
+          />
+          <span className="toggle-label">Generate Entities</span>
+        </label>
       </div>
+
+      {generateEntities && !useWebSearch && (
+        <div className="generate-disclaimer entity-warning">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1L15 14H1L8 1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            <path d="M8 6V9M8 11V12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          <span>Teams are most accurate with Web Search enabled</span>
+        </div>
+      )}
 
       {error && (
         <div className="generation-error">

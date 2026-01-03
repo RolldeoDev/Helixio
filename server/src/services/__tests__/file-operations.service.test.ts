@@ -10,7 +10,7 @@
  * - Operation logging for rollback support
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockPrismaClient,
   createMockComicFile,
@@ -78,6 +78,12 @@ const mockOnCoverSourceChanged = vi.fn().mockResolvedValue(undefined);
 vi.mock('../cover.service.js', () => ({
   recalculateSeriesCover: mockRecalculateSeriesCover,
   onCoverSourceChanged: mockOnCoverSourceChanged,
+}));
+
+// Mock config service - file renaming enabled by default for most tests
+const mockIsFileRenamingEnabled = vi.fn().mockReturnValue(true);
+vi.mock('../config.service.js', () => ({
+  isFileRenamingEnabled: mockIsFileRenamingEnabled,
 }));
 
 // Import service after mocking
@@ -977,6 +983,52 @@ describe('File Operations Service', () => {
 
       expect(result.hashMatch).toBeNull();
       expect(mockGeneratePartialHash).not.toHaveBeenCalled();
+    });
+  });
+
+  // =============================================================================
+  // File Renaming Disabled
+  // =============================================================================
+
+  describe('when file renaming is disabled', () => {
+    beforeEach(() => {
+      mockIsFileRenamingEnabled.mockReturnValue(false);
+    });
+
+    afterEach(() => {
+      mockIsFileRenamingEnabled.mockReturnValue(true);
+    });
+
+    describe('moveFile', () => {
+      it('should return error when renaming is disabled', async () => {
+        const result = await moveFile('file-1', '/comics/dest.cbz');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('File renaming is disabled. Enable it in Settings to use this feature.');
+        expect(mockPrisma.comicFile.findUnique).not.toHaveBeenCalled();
+        expect(mockRename).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('renameFile', () => {
+      it('should return error when renaming is disabled', async () => {
+        const result = await renameFile('file-1', 'new.cbz');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('File renaming is disabled. Enable it in Settings to use this feature.');
+        expect(mockRename).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('renameFolder', () => {
+      it('should return error when renaming is disabled', async () => {
+        const result = await renameFolder('lib-1', 'Marvel', 'Marvel Comics');
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('File renaming is disabled. Enable it in Settings to use this feature.');
+        expect(mockPrisma.library.findUnique).not.toHaveBeenCalled();
+        expect(mockRename).not.toHaveBeenCalled();
+      });
     });
   });
 });

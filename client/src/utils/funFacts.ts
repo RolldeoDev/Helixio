@@ -40,7 +40,8 @@ export interface FunFact {
     | 'dayOfWeek'
     | 'fileFormat'
     | 'publicationStatus'
-    | 'librarySize';
+    | 'librarySize'
+    | 'ownedVsRead';
 }
 
 // =============================================================================
@@ -107,6 +108,40 @@ function formatDistance(meters: number): string {
   const miles = meters / 1609.34;
   if (miles < 100) return `${miles.toFixed(1)} miles`;
   return `${formatNumber(Math.round(miles))} miles`;
+}
+
+/**
+ * Metrics for comparing owned vs read counts for an entity
+ */
+interface OwnedVsReadMetrics {
+  unreadComics: number;
+  unreadPages: number;
+  readPercentage: number;
+  isCaughtUp: boolean;
+  isLargeBacklog: boolean;
+  isModerateBacklog: boolean;
+}
+
+/**
+ * Calculate owned vs read metrics for an entity.
+ * Handles edge cases where readComics > ownedComics (data inconsistency)
+ * and ensures readPercentage is a valid number.
+ */
+function calculateOwnedVsReadMetrics(entity: EntityStatResult): OwnedVsReadMetrics {
+  // Ensure unread counts are never negative (handles data inconsistencies)
+  const unreadComics = Math.max(0, entity.ownedComics - entity.readComics);
+  const unreadPages = Math.max(0, entity.ownedPages - entity.readPages);
+  // Ensure readPercentage is a valid number
+  const readPercentage = isNaN(entity.readPercentage) ? 0 : entity.readPercentage;
+
+  return {
+    unreadComics,
+    unreadPages,
+    readPercentage,
+    isCaughtUp: readPercentage >= 95,
+    isLargeBacklog: unreadComics >= 20,
+    isModerateBacklog: unreadComics >= 10 && unreadComics < 20,
+  };
 }
 
 // =============================================================================
@@ -1743,6 +1778,380 @@ function generateVolumeTagFacts(overview: EnhancedLibraryOverview | undefined): 
 }
 
 // =============================================================================
+// Owned vs Read Fact Generators
+// =============================================================================
+
+/**
+ * Generate facts comparing owned vs read counts across entity types.
+ * Highlights backlogs, completion milestones, and discovery opportunities.
+ */
+function generateOwnedVsReadFacts(stats: StatsSummary): FunFact[] {
+  const facts: FunFact[] = [];
+
+  // =============================================================================
+  // 1. CREATOR OWNED VS READ
+  // =============================================================================
+
+  const creators = stats.topCreators || [];
+
+  // Large creator backlog - find creator with most unread comics
+  const creatorsWithBacklog = creators
+    .map((c) => ({ ...c, metrics: calculateOwnedVsReadMetrics(c) }))
+    .filter((c) => c.metrics.isLargeBacklog)
+    .sort((a, b) => b.metrics.unreadComics - a.metrics.unreadComics);
+
+  const topCreatorBacklog = creatorsWithBacklog[0];
+  if (topCreatorBacklog) {
+    const role = topCreatorBacklog.entityRole ? ` (${topCreatorBacklog.entityRole})` : '';
+    facts.push({
+      icon: '📚',
+      text: `You own ${formatNumber(topCreatorBacklog.metrics.unreadComics)} unread comics by`,
+      emphasis: `${topCreatorBacklog.entityName}${role}`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Completed creator collection - find a creator where user has read everything
+  const completedCreators = creators.filter((c) => c.ownedComics >= 5 && c.readPercentage === 100);
+  const randomCompleted = getRandomItem(completedCreators);
+  if (randomCompleted) {
+    const role = randomCompleted.entityRole ? ` (${randomCompleted.entityRole})` : '';
+    facts.push({
+      icon: '✅',
+      text: `You've read every comic you own by`,
+      emphasis: `${randomCompleted.entityName}${role}!`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Nearly complete creator - close to finishing a creator's catalog
+  const nearlyComplete = creators
+    .filter((c) => c.ownedComics >= 5 && c.readPercentage >= 80 && c.readPercentage < 100)
+    .map((c) => ({ ...c, remaining: Math.max(0, c.ownedComics - c.readComics) }))
+    .sort((a, b) => a.remaining - b.remaining)[0];
+
+  if (nearlyComplete && nearlyComplete.remaining <= 5) {
+    const role = nearlyComplete.entityRole ? ` (${nearlyComplete.entityRole})` : '';
+    facts.push({
+      icon: '🎯',
+      text: `Only ${nearlyComplete.remaining} more ${nearlyComplete.entityName}${role} comic${nearlyComplete.remaining !== 1 ? 's' : ''}`,
+      emphasis: 'to complete your collection!',
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Creator with high read percentage (but not 100%)
+  const highlyRead = creators
+    .filter((c) => c.ownedComics >= 10 && c.readPercentage >= 70 && c.readPercentage < 100)
+    .sort((a, b) => b.readPercentage - a.readPercentage)[0];
+
+  if (highlyRead) {
+    const role = highlyRead.entityRole ? ` (${highlyRead.entityRole})` : '';
+    facts.push({
+      icon: '📊',
+      text: `${highlyRead.readPercentage}% complete on`,
+      emphasis: `${highlyRead.entityName}${role}'s works`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // =============================================================================
+  // 2. GENRE OWNED VS READ
+  // =============================================================================
+
+  const genres = stats.topGenres || [];
+
+  // Unexplored genre - genres with low read percentage
+  const unexploredGenres = genres
+    .filter((g) => g.ownedComics >= 10 && g.readPercentage < 25)
+    .sort((a, b) => a.readPercentage - b.readPercentage);
+
+  const leastExploredGenre = unexploredGenres[0];
+  if (leastExploredGenre) {
+    const unread = Math.max(0, leastExploredGenre.ownedComics - leastExploredGenre.readComics);
+    facts.push({
+      icon: '🔍',
+      text: `Only ${leastExploredGenre.readPercentage}% of your ${leastExploredGenre.entityName} comics`,
+      emphasis: `have been read (${formatNumber(unread)} waiting)`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Genre mastery (100% read)
+  const masteredGenres = genres.filter((g) => g.ownedComics >= 5 && g.readPercentage === 100);
+  const randomMastered = getRandomItem(masteredGenres);
+  if (randomMastered) {
+    facts.push({
+      icon: '🏆',
+      text: `Genre mastery:`,
+      emphasis: `All ${formatNumber(randomMastered.ownedComics)} ${randomMastered.entityName} comics read!`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Genre backlog comparison - which genre has the most unread
+  if (genres.length >= 2) {
+    const genresWithBacklog = genres
+      .map((g) => ({ ...g, unread: Math.max(0, g.ownedComics - g.readComics) }))
+      .filter((g) => g.unread > 0)
+      .sort((a, b) => b.unread - a.unread);
+
+    const topGenreBacklog = genresWithBacklog[0];
+    if (topGenreBacklog && topGenreBacklog.unread >= 20) {
+      facts.push({
+        icon: '📦',
+        text: `${topGenreBacklog.entityName} leads your backlog with`,
+        emphasis: `${formatNumber(topGenreBacklog.unread)} unread comics`,
+        category: 'ownedVsRead',
+      });
+    }
+  }
+
+  // Genre close to completion
+  const genreNearComplete = genres
+    .filter((g) => g.ownedComics >= 5 && g.readPercentage >= 75 && g.readPercentage < 100)
+    .map((g) => ({ ...g, remaining: Math.max(0, g.ownedComics - g.readComics) }))
+    .sort((a, b) => a.remaining - b.remaining)[0];
+
+  if (genreNearComplete && genreNearComplete.remaining <= 10) {
+    facts.push({
+      icon: '🎯',
+      text: `Just ${genreNearComplete.remaining} more ${genreNearComplete.entityName} comic${genreNearComplete.remaining !== 1 ? 's' : ''}`,
+      emphasis: 'to complete the genre!',
+      category: 'ownedVsRead',
+    });
+  }
+
+  // =============================================================================
+  // 3. PUBLISHER OWNED VS READ
+  // =============================================================================
+
+  const publishers = stats.topPublishers || [];
+
+  // Publisher backlog - show owned vs read breakdown
+  const publishersWithGap = publishers
+    .map((p) => ({ ...p, unread: Math.max(0, p.ownedComics - p.readComics) }))
+    .filter((p) => p.unread >= 15)
+    .sort((a, b) => b.unread - a.unread);
+
+  const topPublisherBacklog = publishersWithGap[0];
+  if (topPublisherBacklog) {
+    facts.push({
+      icon: '🏢',
+      text: `${topPublisherBacklog.entityName}: ${formatNumber(topPublisherBacklog.ownedComics)} owned,`,
+      emphasis: `${formatNumber(topPublisherBacklog.readComics)} read`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Publisher caught up - high read percentage
+  const caughtUpPublishers = publishers.filter((p) => p.ownedComics >= 10 && p.readPercentage >= 95);
+  const randomCaughtUp = getRandomItem(caughtUpPublishers);
+  if (randomCaughtUp) {
+    facts.push({
+      icon: '🎊',
+      text: `You're caught up on`,
+      emphasis: `${randomCaughtUp.entityName} (${randomCaughtUp.readPercentage}% read)`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Publisher completion rate
+  const pubWithProgress = publishers.filter((p) => p.ownedComics >= 20 && p.readPercentage > 0 && p.readPercentage < 100);
+  const randomPubProgress = getRandomItem(pubWithProgress);
+  if (randomPubProgress) {
+    facts.push({
+      icon: '📈',
+      text: `${randomPubProgress.entityName} progress:`,
+      emphasis: `${randomPubProgress.readPercentage}% complete`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // =============================================================================
+  // 4. CHARACTER OWNED VS READ
+  // =============================================================================
+
+  const characters = stats.topCharacters || [];
+
+  // Character backlog - unread appearances
+  const charactersWithBacklog = characters
+    .map((c) => ({ ...c, unread: Math.max(0, c.ownedComics - c.readComics) }))
+    .filter((c) => c.unread >= 10)
+    .sort((a, b) => b.unread - a.unread);
+
+  const topCharBacklog = charactersWithBacklog[0];
+  if (topCharBacklog) {
+    facts.push({
+      icon: '🦸',
+      text: `${formatNumber(topCharBacklog.unread)} unread ${topCharBacklog.entityName} appearances`,
+      emphasis: 'waiting to be discovered',
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Character completion goal - close to finishing
+  const nearCompleteChars = characters
+    .filter((c) => c.ownedComics >= 5 && c.readPercentage >= 70 && c.readPercentage < 100)
+    .map((c) => ({ ...c, remaining: Math.max(0, c.ownedComics - c.readComics) }))
+    .sort((a, b) => a.remaining - b.remaining);
+
+  const nextCharGoal = nearCompleteChars[0];
+  if (nextCharGoal && nextCharGoal.remaining <= 8) {
+    facts.push({
+      icon: '🎯',
+      text: `Just ${nextCharGoal.remaining} more comic${nextCharGoal.remaining !== 1 ? 's' : ''} to complete`,
+      emphasis: `${nextCharGoal.entityName}'s story`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Character mastery - 100% complete
+  const masteredChars = characters.filter((c) => c.ownedComics >= 5 && c.readPercentage === 100);
+  const randomMasteredChar = getRandomItem(masteredChars);
+  if (randomMasteredChar) {
+    facts.push({
+      icon: '⭐',
+      text: `You've read every`,
+      emphasis: `${randomMasteredChar.entityName} comic you own!`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // =============================================================================
+  // 5. TEAM OWNED VS READ
+  // =============================================================================
+
+  const teams = stats.topTeams || [];
+
+  // Team backlog
+  const teamsWithBacklog = teams
+    .map((t) => ({ ...t, unread: Math.max(0, t.ownedComics - t.readComics) }))
+    .filter((t) => t.unread >= 5)
+    .sort((a, b) => b.unread - a.unread);
+
+  const topTeamBacklog = teamsWithBacklog[0];
+  if (topTeamBacklog) {
+    facts.push({
+      icon: '👥',
+      text: `${formatNumber(topTeamBacklog.unread)} ${topTeamBacklog.entityName} adventures`,
+      emphasis: 'still unread',
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Team completion
+  const completedTeams = teams.filter((t) => t.ownedComics >= 3 && t.readPercentage === 100);
+  const randomCompletedTeam = getRandomItem(completedTeams);
+  if (randomCompletedTeam) {
+    facts.push({
+      icon: '🏅',
+      text: `Complete ${randomCompletedTeam.entityName} collection:`,
+      emphasis: `all ${formatNumber(randomCompletedTeam.ownedComics)} comics read!`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // =============================================================================
+  // 6. OVERALL PROGRESS MILESTONES
+  // =============================================================================
+
+  // Total unread milestone
+  if (stats.filesUnread >= 100) {
+    const milestone = Math.floor(stats.filesUnread / 100) * 100;
+    facts.push({
+      icon: '📚',
+      text: `Your backlog has passed`,
+      emphasis: `${formatNumber(milestone)} unread comics!`,
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Small unread count - almost done!
+  if (stats.filesUnread > 0 && stats.filesUnread <= 10 && stats.totalFiles >= 50) {
+    facts.push({
+      icon: '🏁',
+      text: `So close! Just ${stats.filesUnread} comic${stats.filesUnread !== 1 ? 's' : ''}`,
+      emphasis: 'left to read your entire collection',
+      category: 'ownedVsRead',
+    });
+  }
+
+  // Collection completion percentage - high
+  if (stats.totalFiles > 0 && stats.filesRead > 0) {
+    const completionPercent = Math.round((stats.filesRead / stats.totalFiles) * 100);
+
+    if (completionPercent >= 75) {
+      facts.push({
+        icon: '⭐',
+        text: `Impressive!`,
+        emphasis: `${completionPercent}% of your collection is read`,
+        category: 'ownedVsRead',
+      });
+    }
+
+    // Low completion rate - big backlog
+    if (completionPercent <= 25 && stats.totalFiles >= 50) {
+      facts.push({
+        icon: '📦',
+        text: `Your backlog is mighty:`,
+        emphasis: `${100 - completionPercent}% of comics still unread`,
+        category: 'ownedVsRead',
+      });
+    }
+
+    // Half-way milestone
+    if (completionPercent >= 45 && completionPercent <= 55 && stats.totalFiles >= 20) {
+      facts.push({
+        icon: '⚖️',
+        text: `You're at the halfway point:`,
+        emphasis: `${completionPercent}% of your collection complete`,
+        category: 'ownedVsRead',
+      });
+    }
+  }
+
+  // Reading velocity vs backlog
+  if (stats.filesUnread > 0 && stats.filesRead >= 10) {
+    const ratio = Math.round((stats.filesRead / (stats.filesRead + stats.filesUnread)) * 100);
+    if (ratio >= 60) {
+      facts.push({
+        icon: '🚀',
+        text: `You're winning against your backlog:`,
+        emphasis: `${ratio}% read vs ${100 - ratio}% unread`,
+        category: 'ownedVsRead',
+      });
+    }
+  }
+
+  // Pages owned vs read comparison
+  if (stats.totalPages > 0 && stats.pagesRead > 0) {
+    const unreadPages = Math.max(0, stats.totalPages - stats.pagesRead);
+    const pagesPercent = Math.round((stats.pagesRead / stats.totalPages) * 100);
+
+    if (unreadPages >= 1000) {
+      facts.push({
+        icon: '📄',
+        text: `${formatNumber(unreadPages)} unread pages`,
+        emphasis: 'of stories await',
+        category: 'ownedVsRead',
+      });
+    }
+
+    if (pagesPercent >= 80) {
+      facts.push({
+        icon: '📖',
+        text: `Page progress:`,
+        emphasis: `${pagesPercent}% of all pages read`,
+        category: 'ownedVsRead',
+      });
+    }
+  }
+
+  return facts;
+}
+
+// =============================================================================
 // Main Export
 // =============================================================================
 
@@ -1777,6 +2186,8 @@ export function generateFunFact(
     ...generatePublicationStatusFacts(summary.publicationStatus),
     ...generateLibrarySizeFacts(summary.libraryOverview),
     ...generateVolumeTagFacts(summary.libraryOverview),
+    // Owned vs Read facts
+    ...generateOwnedVsReadFacts(summary),
   ];
 
   if (allFacts.length === 0) {
@@ -1823,6 +2234,8 @@ export function generateMultipleFacts(
     ...generatePublicationStatusFacts(summary.publicationStatus),
     ...generateLibrarySizeFacts(summary.libraryOverview),
     ...generateVolumeTagFacts(summary.libraryOverview),
+    // Owned vs Read facts
+    ...generateOwnedVsReadFacts(summary),
   ];
 
   // Shuffle and take unique facts

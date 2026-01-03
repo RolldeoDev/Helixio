@@ -17,8 +17,10 @@ import type { Series, SeriesProgress, Prisma } from '@prisma/client';
 import { refreshTagsFromSeries } from '../tag-autocomplete.service.js';
 import {
   SeriesMetadata,
+  SeriesDefinition,
   readSeriesJson,
   writeSeriesJson,
+  getSeriesDefinitions,
 } from '../series-metadata.service.js';
 import type {
   SeriesWithCounts,
@@ -1113,6 +1115,86 @@ export async function checkAndSoftDeleteEmptySeries(
   return false;
 }
 
+/**
+ * Find all series with no issues (empty series).
+ * These are series that exist in the database but have no ComicFiles linked to them.
+ * Only returns active (non-deleted) series.
+ */
+export async function findEmptySeries(): Promise<
+  Array<{
+    id: string;
+    name: string;
+    publisher: string | null;
+    startYear: number | null;
+    createdAt: Date;
+  }>
+> {
+  const db = getDatabase();
+
+  return db.series.findMany({
+    where: {
+      deletedAt: null,
+      issues: {
+        none: {},
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      publisher: true,
+      startYear: true,
+      createdAt: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+}
+
+/**
+ * Clean up (soft-delete) all series that have no issues.
+ * Returns the count of series that were soft-deleted.
+ */
+export async function cleanupEmptySeries(): Promise<{
+  deletedCount: number;
+  seriesNames: string[];
+}> {
+  const db = getDatabase();
+
+  // Find all empty series
+  const emptySeries = await findEmptySeries();
+
+  if (emptySeries.length === 0) {
+    return { deletedCount: 0, seriesNames: [] };
+  }
+
+  const seriesIds = emptySeries.map((s) => s.id);
+  const seriesNames = emptySeries.map((s) => s.name);
+
+  // Soft-delete all empty series
+  await db.series.updateMany({
+    where: { id: { in: seriesIds } },
+    data: { deletedAt: new Date() },
+  });
+
+  // Mark collection items referencing these series as unavailable
+  await db.collectionItem.updateMany({
+    where: { seriesId: { in: seriesIds } },
+    data: { isAvailable: false },
+  });
+
+  // Mark smart collections dirty
+  markSmartCollectionsDirty({
+    seriesIds,
+    reason: 'item_deleted',
+  }).catch(() => {
+    // Errors are logged inside markSmartCollectionsDirty
+  });
+
+  return {
+    deletedCount: emptySeries.length,
+    seriesNames,
+  };
+}
+
 // =============================================================================
 // Series Visibility (Hidden Flag)
 // =============================================================================
@@ -1338,8 +1420,11 @@ export async function syncSeriesToSeriesJson(seriesId: string): Promise<void> {
 }
 
 /**
- * Sync series.json to a Series record.
+ * Sync series.json to Series record(s).
+ * Handles both v1 (single-series) and v2 (multi-series) formats.
  * Uses the correct identity lookup (name + publisher only, not startYear).
+ *
+ * For multi-series format, creates/updates all series and returns the first one.
  */
 export async function syncSeriesFromSeriesJson(
   folderPath: string
@@ -1352,38 +1437,68 @@ export async function syncSeriesFromSeriesJson(
   }
 
   const metadata = result.metadata;
+  const definitions = getSeriesDefinitions(metadata);
 
-  // Find existing series by identity (name + publisher only - year is NOT part of identity)
-  // Use the correct identity lookup function that handles case-insensitivity
+  if (definitions.length === 0) {
+    return null;
+  }
+
+  const createdSeries: Series[] = [];
+
+  // Process each series definition
+  for (const definition of definitions) {
+    const series = await syncSeriesDefinitionToDb(definition, folderPath, db);
+    if (series) {
+      createdSeries.push(series);
+    }
+  }
+
+  // Return first series (backward compatibility for single-series callers)
+  return createdSeries[0] ?? null;
+}
+
+/**
+ * Sync a single SeriesDefinition to the database.
+ * Internal helper for syncSeriesFromSeriesJson.
+ */
+async function syncSeriesDefinitionToDb(
+  definition: SeriesDefinition,
+  folderPath: string,
+  db: ReturnType<typeof getDatabase>
+): Promise<Series | null> {
+  // Find existing series by identity (name + publisher only)
   let series = await getSeriesByIdentity(
-    metadata.seriesName,
+    definition.name,
     null, // startYear is not part of identity
-    metadata.publisher ?? null,
+    definition.publisher ?? null,
     true // Include deleted series so we can restore them
   );
 
   const seriesData = {
-    name: metadata.seriesName,
-    startYear: metadata.startYear ?? null,
-    publisher: metadata.publisher ?? null,
-    endYear: metadata.endYear ?? null,
-    deck: metadata.deck ?? null,
-    summary: metadata.summary ?? null,
-    coverUrl: metadata.coverUrl ?? null,
-    issueCount: metadata.issueCount ?? null,
-    genres: metadata.genres?.join(',') ?? null,
-    tags: metadata.tags?.join(',') ?? null,
-    characters: metadata.characters?.join(',') ?? null,
-    teams: metadata.teams?.join(',') ?? null,
-    storyArcs: metadata.storyArcs?.join(',') ?? null,
-    locations: metadata.locations?.join(',') ?? null,
-    volume: metadata.volume ?? null,
-    type: metadata.type ?? 'western',
-    ageRating: metadata.ageRating ?? null,
-    languageISO: metadata.languageISO ?? null,
-    comicVineId: metadata.comicVineSeriesId ?? null,
-    metronId: metadata.metronSeriesId ?? null,
-    userNotes: metadata.userNotes ?? null,
+    name: definition.name,
+    startYear: definition.startYear ?? null,
+    publisher: definition.publisher ?? null,
+    endYear: definition.endYear ?? null,
+    deck: definition.deck ?? null,
+    summary: definition.summary ?? null,
+    coverUrl: definition.coverUrl ?? null,
+    issueCount: definition.issueCount ?? null,
+    genres: definition.genres?.join(',') ?? null,
+    tags: definition.tags?.join(',') ?? null,
+    characters: definition.characters?.join(',') ?? null,
+    teams: definition.teams?.join(',') ?? null,
+    storyArcs: definition.storyArcs?.join(',') ?? null,
+    locations: definition.locations?.join(',') ?? null,
+    volume: definition.volume ?? null,
+    type: definition.type ?? 'western',
+    ageRating: definition.ageRating ?? null,
+    languageISO: definition.languageISO ?? null,
+    comicVineId: definition.comicVineSeriesId ?? null,
+    metronId: definition.metronSeriesId ?? null,
+    anilistId: definition.anilistId ?? null,
+    malId: definition.malId ?? null,
+    userNotes: definition.userNotes ?? null,
+    aliases: definition.aliases?.join(',') ?? null,
     primaryFolder: folderPath,
   };
 

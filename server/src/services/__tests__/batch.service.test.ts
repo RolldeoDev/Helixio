@@ -52,6 +52,22 @@ vi.mock('../comicinfo.service.js', () => ({
   readComicInfo: mockReadComicInfo,
 }));
 
+// Mock config service - file renaming enabled by default for most tests
+const mockIsFileRenamingEnabled = vi.fn().mockReturnValue(true);
+vi.mock('../config.service.js', () => ({
+  isFileRenamingEnabled: mockIsFileRenamingEnabled,
+}));
+
+// Mock filename generator service
+const mockGenerateUniqueFilenameFromTemplate = vi.fn().mockResolvedValue({
+  finalPath: '/comics/renamed.cbz',
+  finalFilename: 'renamed.cbz',
+  hadCollision: false,
+});
+vi.mock('../filename-generator.service.js', () => ({
+  generateUniqueFilenameFromTemplate: mockGenerateUniqueFilenameFromTemplate,
+}));
+
 // Import service after mocking
 const {
   createBatch,
@@ -62,6 +78,8 @@ const {
   getBatch,
   hasActiveBatch,
   getActiveBatchId,
+  createTemplateRenameBatch,
+  createRestoreOriginalBatch,
 } = await import('../batch.service.js');
 
 describe('Batch Service', () => {
@@ -692,6 +710,38 @@ describe('Batch Service', () => {
         data: expect.objectContaining({
           errorSummary: expect.any(String),
         }),
+      });
+    });
+  });
+
+  // =============================================================================
+  // File Renaming Disabled
+  // =============================================================================
+
+  describe('when file renaming is disabled', () => {
+    beforeEach(() => {
+      mockIsFileRenamingEnabled.mockReturnValue(false);
+    });
+
+    afterEach(() => {
+      mockIsFileRenamingEnabled.mockReturnValue(true);
+    });
+
+    describe('createTemplateRenameBatch', () => {
+      it('should throw error when renaming is disabled', async () => {
+        await expect(createTemplateRenameBatch(['file-1', 'file-2'])).rejects.toThrow(
+          'File renaming is disabled. Enable it in Settings to use this feature.'
+        );
+        expect(mockPrisma.batchOperation.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('createRestoreOriginalBatch', () => {
+      it('should throw error when renaming is disabled', async () => {
+        await expect(createRestoreOriginalBatch(['file-1', 'file-2'])).rejects.toThrow(
+          'File renaming is disabled. Enable it in Settings to use this feature.'
+        );
+        expect(mockPrisma.batchOperation.create).not.toHaveBeenCalled();
       });
     });
   });

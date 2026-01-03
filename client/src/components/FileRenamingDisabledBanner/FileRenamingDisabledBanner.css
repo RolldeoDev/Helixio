@@ -1,0 +1,91 @@
+/**
+ * FileRenamingDisabledBanner Styles
+ */
+
+.file-renaming-banner {
+  background: var(--color-info-bg, rgba(59, 130, 246, 0.1));
+  border: 1px solid var(--color-info, #3b82f6);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+}
+
+/* Top position - spans full width with margin */
+.file-renaming-banner--top {
+  margin-bottom: var(--spacing-md, 16px);
+}
+
+/* Inline position - fits within content flow */
+.file-renaming-banner--inline {
+  margin: var(--spacing-sm, 8px) 0;
+}
+
+.file-renaming-banner__content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 12px);
+  padding: var(--spacing-sm, 10px) var(--spacing-md, 16px);
+}
+
+.file-renaming-banner__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-info, #3b82f6);
+  flex-shrink: 0;
+}
+
+.file-renaming-banner__text {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--color-text, #e8e4df);
+}
+
+.file-renaming-banner__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-info, #3b82f6);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast, 0.15s) ease;
+}
+
+.file-renaming-banner__link:hover {
+  color: var(--color-info-hover, #60a5fa);
+}
+
+.file-renaming-banner__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.5));
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.15s) ease;
+  flex-shrink: 0;
+}
+
+.file-renaming-banner__dismiss:hover {
+  background: var(--color-hover, rgba(255, 255, 255, 0.1));
+  color: var(--color-text, #e8e4df);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .file-renaming-banner__text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs, 4px);
+  }
+}

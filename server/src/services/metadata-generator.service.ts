@@ -57,6 +57,10 @@ export interface GeneratedMetadata {
   tags: GeneratedField<string>; // comma-separated
   startYear: GeneratedField<number | null>;
   endYear: GeneratedField<number | null>;
+  // Entity fields (generated when generateEntities option is enabled)
+  characters: GeneratedField<string>; // comma-separated, max 15
+  teams: GeneratedField<string>; // comma-separated, known teams only
+  locations: GeneratedField<string>; // comma-separated, max 7
 }
 
 /**
@@ -74,6 +78,9 @@ export interface MetadataGenerationContext {
   existingSummary?: string | null;
   existingDeck?: string | null;
   existingAgeRating?: string | null;
+  existingCharacters?: string | null;
+  existingTeams?: string | null;
+  existingLocations?: string | null;
 }
 
 /**
@@ -383,14 +390,14 @@ FIELD GUIDELINES:
 IMPORTANT RULES:
 - Be accurate and informative without spoilers
 - Use an engaging tone, suitable for a library catalog
-- Use natrual word choices and natural language flow to make the summary interesting and descriptive
+- Use natural word choices and natural language flow to make the summary interesting and descriptive
 - Avoid generic phrases like "This exciting series..." or "In this thrilling comic..."
 - Avoid overly flowery prose, opting to inform and entice rather than overwhelm the reader
 - Focus on what makes this series notable or interesting
 - Base answers on the series context provided
 - If web search data is provided, use it for accuracy but write original content
 - For manga, use appropriate genre terms (Shonen, Seinen, Isekai, etc.)
-- Generate ~10 tags that are distinct from either other (Avoid )
+- Generate ~10 tags that are distinct from each other
 
 RATING GUIDELINES:
 E- EVERYONE – Appropriate for readers of all ages. May contain cartoon violence and/or some comic mischief. Equivalent to TV-G.
@@ -410,11 +417,67 @@ Return ONLY valid JSON in this exact format:
 }`;
 
 /**
+ * Entity generation prompt extension - appended when generateEntities is enabled.
+ * This section defines Characters, Teams, and Locations fields with strict accuracy requirements.
+ */
+const ENTITY_GENERATION_PROMPT = `
+
+ENTITY FIELDS (additional fields requested):
+
+8. characters: Comma-separated list of major and minor named characters that appear in this series.
+   - Include protagonists, antagonists, and significant supporting characters
+   - Characters should appear for a good portion of the story OR be significant to the plot
+   - Use the character's most commonly known name (e.g., "Peter Parker" or "Spider-Man")
+   - For well-known characters, include their real identity (e.g., "Bruce Wayne (Batman)")
+   - Maximum of 15 characters - prioritize by importance to the story
+   - Order by prominence (main characters first)
+   - Confidence 0.8+ means you have definitive knowledge of this character appearing
+   - If uncertain, use lower confidence or omit the character entirely
+
+9. teams: Comma-separated list of named groups, teams, or organizations featured in this series.
+   - CRITICAL: ONLY include known, established team names that exist in official media
+   - Examples: "Avengers", "X-Men", "Justice League", "Bat Family", "Teen Titans", "S.H.I.E.L.D."
+   - Can include both official names ("Justice League") and commonly used nicknames ("The Big Three")
+   - DO NOT EVER fabricate or invent team names - accuracy is paramount
+   - DO NOT include generic descriptors like "the heroes" or "the villains"
+   - If you are not certain a team name is real and used, DO NOT include it
+   - Return empty string if no known teams are featured
+   - Maximum of 5 teams that play significant roles
+   - Confidence MUST be 0.8+ to be included - if below 0.8, return empty string
+   - When in doubt, leave it empty - false positives pollute the data
+
+10. locations: Comma-separated list of named locations where the story takes place.
+    - Include fictional places (e.g., "Gotham City", "Metropolis", "Wakanda", "Garden of Eden")
+    - Include real locations if prominent (e.g., "New York City", "Tokyo", "London")
+    - Must be named locations that feature prominently in the narrative
+    - Avoid generic locations unless they are specifically named settings
+    - Maximum of 7 locations - prioritize by prominence in the story
+    - Order by importance to the narrative
+    - Confidence 0.8+ for locations you are certain about
+
+ENTITY ACCURACY RULES:
+- Only return entities you are confident about (0.8+ confidence threshold)
+- For teams especially: If you would guess or infer a team name, DO NOT include it
+- It is better to return empty strings than to return inaccurate data
+- False positives are worse than missing data - be conservative
+- Use canonical names from official sources when possible
+- If web search data is provided, cross-reference your entities against it
+
+When entity fields are requested, your JSON response MUST include:
+{
+  ...existing fields...,
+  "characters": { "value": "Peter Parker (Spider-Man), Mary Jane Watson, Norman Osborn (Green Goblin)", "confidence": 0.95 },
+  "teams": { "value": "Avengers, Daily Bugle Staff", "confidence": 0.9 },
+  "locations": { "value": "New York City, Queens, Daily Bugle Building", "confidence": 0.9 }
+}`;
+
+/**
  * Build user prompt for metadata generation
  */
 function buildMetadataUserPrompt(
   context: MetadataGenerationContext,
-  webData?: WebEnrichmentResult
+  webData?: WebEnrichmentResult,
+  generateEntities?: boolean
 ): string {
   const parts: string[] = [];
 
@@ -456,6 +519,19 @@ function buildMetadataUserPrompt(
     existingData.push(`Current deck: ${context.existingDeck}`);
   }
 
+  // Add entity context if generating entities
+  if (generateEntities) {
+    if (context.existingCharacters) {
+      existingData.push(`Current characters: ${context.existingCharacters}`);
+    }
+    if (context.existingTeams) {
+      existingData.push(`Current teams: ${context.existingTeams}`);
+    }
+    if (context.existingLocations) {
+      existingData.push(`Current locations: ${context.existingLocations}`);
+    }
+  }
+
   if (existingData.length > 0) {
     parts.push('\nExisting metadata (for reference, you may improve upon it):');
     parts.push(existingData.join('\n'));
@@ -472,6 +548,11 @@ function buildMetadataUserPrompt(
     }
   }
 
+  // Add entity generation instruction if requested
+  if (generateEntities) {
+    parts.push('\nPLEASE ALSO GENERATE: characters, teams, and locations fields as specified in the entity guidelines above.');
+  }
+
   return parts.join('\n');
 }
 
@@ -479,14 +560,17 @@ function buildMetadataUserPrompt(
 // Main Generation Function
 // =============================================================================
 
+/** Confidence threshold for teams - prevents low-confidence fabrications */
+const TEAMS_CONFIDENCE_THRESHOLD = 0.8;
+
 /**
  * Generate comprehensive metadata for a series
  */
 export async function generateSeriesMetadata(
   context: MetadataGenerationContext,
-  options: { useWebSearch?: boolean } = {}
+  options: { useWebSearch?: boolean; generateEntities?: boolean } = {}
 ): Promise<MetadataGenerationResult> {
-  const { useWebSearch = false } = options;
+  const { useWebSearch = false, generateEntities = false } = options;
 
   if (!isMetadataGeneratorAvailable()) {
     return {
@@ -497,7 +581,7 @@ export async function generateSeriesMetadata(
   }
 
   const startTime = Date.now();
-  logger.info(`Generating metadata for series: ${context.name} (webSearch: ${useWebSearch})`);
+  logger.info(`Generating metadata for series: ${context.name} (webSearch: ${useWebSearch}, entities: ${generateEntities})`);
 
   // Enrich with web search if enabled
   let webData: WebEnrichmentResult | undefined;
@@ -509,14 +593,19 @@ export async function generateSeriesMetadata(
     const client = getClient();
     const model = getLLMModel();
 
+    // Build system prompt - append entity section if entities are requested
+    const systemPrompt = generateEntities
+      ? METADATA_SYSTEM_PROMPT + ENTITY_GENERATION_PROMPT
+      : METADATA_SYSTEM_PROMPT;
+
     const response = await client.messages.create({
       model,
-      max_tokens: 2048,
-      system: METADATA_SYSTEM_PROMPT,
+      max_tokens: generateEntities ? 3000 : 2048, // More tokens needed for character/team/location lists
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
-          content: buildMetadataUserPrompt(context, webData),
+          content: buildMetadataUserPrompt(context, webData, generateEntities),
         },
       ],
     });
@@ -541,6 +630,10 @@ export async function generateSeriesMetadata(
       tags?: { value: string; confidence: number };
       startYear?: { value: number | null; confidence: number };
       endYear?: { value: number | null; confidence: number };
+      // Entity fields (may be present if generateEntities was enabled)
+      characters?: { value: string; confidence: number };
+      teams?: { value: string; confidence: number };
+      locations?: { value: string; confidence: number };
     };
 
     try {
@@ -635,7 +728,35 @@ export async function generateSeriesMetadata(
         value: parsed.endYear?.value ?? null,
         confidence: parsed.endYear?.confidence || 0,
       },
+      // Entity fields - always included, may be empty if not generated or filtered
+      characters: {
+        value: parsed.characters?.value || '',
+        confidence: parsed.characters?.confidence || 0,
+      },
+      // Teams: Apply 0.8+ confidence threshold to prevent fabricated team names
+      // When filtered, also set confidence to 0 to indicate no valid teams
+      teams: {
+        value:
+          parsed.teams?.confidence && parsed.teams.confidence >= TEAMS_CONFIDENCE_THRESHOLD
+            ? parsed.teams.value || ''
+            : '',
+        confidence:
+          parsed.teams?.confidence && parsed.teams.confidence >= TEAMS_CONFIDENCE_THRESHOLD
+            ? parsed.teams.confidence
+            : 0,
+      },
+      locations: {
+        value: parsed.locations?.value || '',
+        confidence: parsed.locations?.confidence || 0,
+      },
     };
+
+    // Log if teams were filtered due to low confidence
+    if (parsed.teams?.value && parsed.teams?.confidence && parsed.teams.confidence < TEAMS_CONFIDENCE_THRESHOLD) {
+      logger.debug(
+        `Teams filtered for "${context.name}": confidence ${parsed.teams.confidence} below ${TEAMS_CONFIDENCE_THRESHOLD} threshold`
+      );
+    }
 
     const tokensUsed = (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
     const duration = Date.now() - startTime;

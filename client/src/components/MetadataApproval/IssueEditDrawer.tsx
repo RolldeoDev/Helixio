@@ -315,9 +315,12 @@ export function IssueEditDrawer({
   const getCurrentFieldValues = useCallback((): Record<string, string | number | null> => {
     if (!fileChange) return {};
 
-    const values: Record<string, string | number | null> = {};
+    // Start with complete proposed metadata (includes fields that haven't changed)
+    const values: Record<string, string | number | null> = {
+      ...fileChange.proposedMetadata,
+    };
 
-    // Start with existing field data
+    // Apply field edits from fields object
     for (const [key, fieldData] of Object.entries(fileChange.fields)) {
       if (key === 'rename') continue;
 
@@ -325,8 +328,6 @@ export function IssueEditDrawer({
         values[key] = fieldData.editedValue;
       } else if (fieldData.proposed !== null && fieldData.proposed !== undefined) {
         values[key] = fieldData.proposed;
-      } else {
-        values[key] = fieldData.current;
       }
     }
 
@@ -376,24 +377,39 @@ export function IssueEditDrawer({
   }, [sessionId, fileChange?.fileId, pendingUpdates, isOpen, onRenameRegenerated, getCurrentFieldValues]);
 
   // Get field change with pending updates applied
+  // Falls back to proposedMetadata for fields that haven't changed (proposed === current)
   const getFieldChange = (fieldKey: string): FieldChange | undefined => {
     const original = fileChange?.fields[fieldKey];
     const pending = pendingUpdates[fieldKey];
 
-    if (!original && !pending) return undefined;
+    // If field exists in fields, use it (changed field)
+    if (original || pending) {
+      if (pending) {
+        return {
+          current: original?.current ?? null,
+          proposed: original?.proposed ?? null,
+          approved: original?.approved ?? false,
+          edited: true,
+          // Preserve null values (user cleared field) - convert null to undefined for type safety
+          editedValue: pending.editedValue ?? undefined,
+        };
+      }
+      return original;
+    }
 
-    if (pending) {
+    // Fallback to proposedMetadata for unchanged fields
+    // This ensures we show all fields even when proposed === current
+    const proposedValue = fileChange?.proposedMetadata?.[fieldKey];
+    if (proposedValue !== undefined && proposedValue !== null) {
       return {
-        current: original?.current ?? null,
-        proposed: original?.proposed ?? null,
-        approved: original?.approved ?? false,
-        edited: true,
-        // Preserve null values (user cleared field) - convert null to undefined for type safety
-        editedValue: pending.editedValue ?? undefined,
+        current: proposedValue, // Same as proposed (unchanged)
+        proposed: proposedValue,
+        approved: true, // Unchanged fields are auto-approved
+        edited: false,
       };
     }
 
-    return original;
+    return undefined;
   };
 
   // Count changes in a section (excluding empty-to-empty)

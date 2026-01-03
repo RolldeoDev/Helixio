@@ -1,5 +1,5 @@
 import type { EntityStatResult } from '../../../services/api.service';
-import type { ViewMode, PagesSubMode } from './EntityInsights';
+import type { ViewMode, SubMode } from './EntityInsights';
 import { formatNumber } from '../../../utils/format';
 import './EntityInsights.css';
 
@@ -7,14 +7,14 @@ interface EntityMiniListProps {
   entities: EntityStatResult[];
   maxItems?: number;
   viewMode: ViewMode;
-  pagesSubMode: PagesSubMode;
+  subMode: SubMode;
 }
 
 export function EntityMiniList({
   entities,
   maxItems = 3,
   viewMode,
-  pagesSubMode,
+  subMode,
 }: EntityMiniListProps) {
   const displayEntities = entities.slice(0, maxItems);
 
@@ -27,10 +27,10 @@ export function EntityMiniList({
       {displayEntities.map((entity, index) => {
         const readPercent = Math.round(entity.readPercentage);
 
-        // Determine what to display based on view mode
+        // Determine what to display based on view mode and sub mode
         const count = viewMode === 'pages'
-          ? (pagesSubMode === 'owned' ? entity.ownedPages : entity.readPages)
-          : entity.ownedComics;
+          ? (subMode === 'owned' ? entity.ownedPages : entity.readPages)
+          : (subMode === 'owned' ? entity.ownedComics : entity.readComics);
 
         return (
           <li key={`${entity.entityName}-${entity.entityRole ?? ''}`} className="entity-mini-item">

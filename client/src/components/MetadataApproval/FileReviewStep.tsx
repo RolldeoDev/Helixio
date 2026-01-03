@@ -27,6 +27,7 @@ import {
 import IssueBrowserModal from './IssueBrowserModal';
 import HoverPreviewCard from './HoverPreviewCard';
 import IssueEditDrawer from './IssueEditDrawer';
+import { FileRenamingDisabledBanner } from '../FileRenamingDisabledBanner';
 
 interface FileReviewStepProps {
   session: ApprovalSession;
@@ -603,6 +604,9 @@ export function FileReviewStep({
 
   return (
     <div className="file-review-step-compact">
+      {/* File Renaming Disabled Banner */}
+      <FileRenamingDisabledBanner position="inline" />
+
       {/* Top Stats Bar */}
       <div className="review-stats-bar">
         <div className="stat-group">

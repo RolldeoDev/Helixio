@@ -13,6 +13,7 @@ import { isLLMAvailable, parseFilenamesBatch, type ParsedFileMetadata } from '..
 import {
   readSeriesJson,
   readMixedSeriesCache,
+  isMultiSeriesFormat,
   type SeriesMetadata,
   type MixedSeriesCache,
   type CachedSeriesMatch,
@@ -342,7 +343,13 @@ export async function createSessionWithProgress(
     let seriesJsonSourceId: string | null = null;
 
     if (existingSeriesJson) {
-      if (existingSeriesJson.comicVineSeriesId) {
+      // Skip pre-approval for v2 multi-series format - each file should be matched individually
+      if (isMultiSeriesFormat(existingSeriesJson)) {
+        logger.debug(
+          { folderPath },
+          'series.json is v2 multi-series format, skipping pre-approval (files match individually)'
+        );
+      } else if (existingSeriesJson.comicVineSeriesId) {
         seriesJsonSource = 'comicvine';
         seriesJsonSourceId = existingSeriesJson.comicVineSeriesId;
       } else if (existingSeriesJson.metronSeriesId) {
@@ -354,9 +361,7 @@ export async function createSessionWithProgress(
       } else if (existingSeriesJson.malId) {
         seriesJsonSource = 'mal';
         seriesJsonSourceId = existingSeriesJson.malId;
-      }
-
-      if (!seriesJsonSource || !seriesJsonSourceId) {
+      } else {
         logger.debug(
           { folderPath, seriesName: existingSeriesJson.seriesName },
           'series.json has no external ID, skipping pre-approval'
@@ -373,11 +378,14 @@ export async function createSessionWithProgress(
           })
         );
 
+        // At this point, we know it's v1 format so seriesName exists
+        const seriesName = existingSeriesJson.seriesName!;
+
         if (!folderGroup) {
           const seriesMatch: SeriesMatch = {
             source: seriesJsonSource,
             sourceId: seriesJsonSourceId,
-            name: existingSeriesJson.seriesName,
+            name: seriesName,
             startYear: existingSeriesJson.startYear,
             endYear: existingSeriesJson.endYear,
             publisher: existingSeriesJson.publisher,
@@ -419,8 +427,8 @@ export async function createSessionWithProgress(
           }
 
           folderGroup = {
-            query: { series: existingSeriesJson.seriesName, year: existingSeriesJson.startYear },
-            displayName: existingSeriesJson.seriesName,
+            query: { series: seriesName, year: existingSeriesJson.startYear },
+            displayName: seriesName,
             fileIds: [],
             filenames: [],
             parsedFiles: {},
@@ -436,7 +444,7 @@ export async function createSessionWithProgress(
             ? ` (issues: "${issueMatchingSeriesMatch.name}")`
             : '';
           progress(
-            `Using series.json: "${existingSeriesJson.seriesName}"${issueMatchNote}`,
+            `Using series.json: "${seriesName}"${issueMatchNote}`,
             `Folder: ${folderPath.split('/').pop()}`
           );
         }

@@ -56,6 +56,8 @@ import {
   bulkUpdateSeries,
   bulkMarkSeriesRead,
   bulkMarkSeriesUnread,
+  findEmptySeries,
+  cleanupEmptySeries,
   SeriesListOptions,
   type UnifiedGridOptions,
   type DuplicateConfidence,
@@ -527,18 +529,26 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
   try {
     const changedFields = Object.keys(req.body);
     const series = await updateSeries(req.params.id!, req.body);
-    logger.info({ seriesId: series.id }, 'Updated series');
+    logger.info({ seriesId: series.id, changedFields, primaryFolder: series.primaryFolder }, 'Updated series');
 
     // Invalidate related data (sync to series.json, etc.)
     // Determine if we should sync to files based on what fields changed
     const inheritableFields = ['publisher', 'genres', 'ageRating', 'languageISO'];
     const shouldSyncToFiles = changedFields.some((f) => inheritableFields.includes(f));
 
-    await invalidateSeriesData(series.id, {
+    const invalidationResult = await invalidateSeriesData(series.id, {
       syncToSeriesJson: true,
       syncToIssueFiles: shouldSyncToFiles,
       inheritableFields: changedFields.filter((f) => inheritableFields.includes(f)),
     });
+
+    if (invalidationResult.seriesJsonSynced) {
+      logger.info({ seriesId: series.id }, 'Successfully synced series.json after edit');
+    } else if (invalidationResult.errors && invalidationResult.errors.length > 0) {
+      logger.warn({ seriesId: series.id, errors: invalidationResult.errors }, 'Errors during series.json sync');
+    } else if (!series.primaryFolder) {
+      logger.debug({ seriesId: series.id }, 'Skipped series.json sync - no primaryFolder');
+    }
 
     sendSuccess(res, { series });
   } catch (error) {
@@ -1814,6 +1824,36 @@ router.post('/admin/sync-metadata-batch', asyncHandler(async (req: Request, res:
   logger.info(
     { total: result.total, synced: result.synced, errors: result.errors.length },
     'Batch metadata sync complete'
+  );
+  sendSuccess(res, result);
+}));
+
+// =============================================================================
+// Empty Series Cleanup
+// =============================================================================
+
+/**
+ * GET /api/series/admin/empty
+ * Get all series with no issues (empty series).
+ */
+router.get('/admin/empty', asyncHandler(async (_req: Request, res: Response) => {
+  const emptySeries = await findEmptySeries();
+  sendSuccess(res, {
+    count: emptySeries.length,
+    series: emptySeries,
+  });
+}));
+
+/**
+ * POST /api/series/admin/cleanup-empty
+ * Soft-delete all empty series (series with no issues).
+ */
+router.post('/admin/cleanup-empty', asyncHandler(async (_req: Request, res: Response) => {
+  logger.info('Starting empty series cleanup');
+  const result = await cleanupEmptySeries();
+  logger.info(
+    { deletedCount: result.deletedCount },
+    'Empty series cleanup complete'
   );
   sendSuccess(res, result);
 }));

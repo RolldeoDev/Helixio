@@ -609,6 +609,27 @@ export async function invalidateAfterApplyChanges(
     }
   }
 
+  // Step 2.5: Sync series.json for affected series
+  // This ensures series.json files are updated after all database changes
+  // (including external ratings and creator aggregation from the approval workflow)
+  for (const seriesId of affectedSeriesIds) {
+    try {
+      const series = await prisma.series.findUnique({
+        where: { id: seriesId },
+        select: { primaryFolder: true },
+      });
+
+      if (series?.primaryFolder) {
+        await syncSeriesToSeriesJson(seriesId);
+        logger.debug({ seriesId, folder: series.primaryFolder }, 'Synced series.json after apply changes');
+      }
+    } catch (error) {
+      result.errors.push(
+        `Error syncing series.json for ${seriesId}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
   // Step 3: Mark stats as dirty and trigger recalculation
   if (successfulFileIds.length > 0) {
     for (const fileId of successfulFileIds) {

@@ -47,6 +47,7 @@ export interface SeriesMetadataPayload {
   aliases?: string[];
   genres?: string[];
   tags?: string[];
+  teams?: string[];
 }
 
 export interface FetchMetadataResult {
@@ -481,7 +482,10 @@ export async function applyMetadataToSeries(
 
     // Sync to series.json if primary folder exists
     if (series.primaryFolder) {
+      logger.info({ seriesId, primaryFolder: series.primaryFolder }, 'Syncing to series.json after metadata apply');
       await syncToSeriesJson(seriesId);
+    } else {
+      logger.warn({ seriesId, seriesName: series.name }, 'Cannot sync to series.json - no primaryFolder set');
     }
 
     // Trigger cascade refresh for collection mosaics if cover was updated

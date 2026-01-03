@@ -11,6 +11,9 @@
 
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { utimes } from 'fs/promises';
 import { FactoryResetService, ResetLevel } from '../services/factory-reset.service.js';
 import { createServiceLogger } from '../services/logger.service.js';
 import { validateBody } from '../middleware/validation.middleware.js';
@@ -21,6 +24,9 @@ import {
   asyncHandler,
 } from '../middleware/response.middleware.js';
 import { requireAdmin } from '../middleware/auth.middleware.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const router = Router();
 
@@ -140,17 +146,24 @@ router.post(
         // Trigger server restart for Level 3 reset
         // Wait for response to be fully sent before exit
         // Docker's restart policy (or process manager) will restart the server
-        // NOTE: In development mode (npm run dev), the server won't auto-restart
+        // In development mode, we touch index.ts to trigger tsx watch restart
         if (result.requiresRestart) {
           res.on('finish', () => {
             logger.warn('Response sent, scheduling restart...');
-            if (process.env.NODE_ENV === 'development') {
-              logger.warn(
-                'Running in development mode - server will exit but NOT auto-restart. ' +
-                'Please run "npm run dev" again to restart.'
-              );
-            }
-            setTimeout(() => {
+
+            setTimeout(async () => {
+              // In development mode, touch index.ts to trigger tsx watch restart
+              if (process.env.NODE_ENV === 'development') {
+                try {
+                  const indexPath = join(__dirname, '../index.ts');
+                  const now = new Date();
+                  await utimes(indexPath, now, now);
+                  logger.info('Touched index.ts to trigger tsx watch restart');
+                } catch (err) {
+                  logger.warn({ err }, 'Failed to touch index.ts for tsx watch restart');
+                }
+              }
+
               logger.info('Exiting process for restart after factory reset');
               process.exit(0);
             }, 1000);

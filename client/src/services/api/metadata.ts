@@ -225,7 +225,10 @@ export interface FileChange {
     coverDate?: string;
   } | null;
   matchConfidence: number;
+  /** Field-by-field changes (only fields that differ from current values) */
   fields: Record<string, FieldChange>;
+  /** Complete proposed metadata (all fields, including unchanged ones) - used for rename preview and UI display */
+  proposedMetadata: Record<string, string | number | null>;
   status: 'matched' | 'unmatched' | 'manual' | 'rejected';
 }
 
@@ -934,6 +937,34 @@ export async function getMismatchedSeriesFiles(): Promise<{
  */
 export async function repairSeriesLinkages(fileIds?: string[]): Promise<RepairResult> {
   return post('/series/admin/repair', fileIds ? { fileIds } : undefined);
+}
+
+export interface EmptySeries {
+  id: string;
+  name: string;
+  publisher: string | null;
+  startYear: number | null;
+  createdAt: string;
+}
+
+/**
+ * Get all series with no issues (empty series).
+ */
+export async function getEmptySeries(): Promise<{
+  count: number;
+  series: EmptySeries[];
+}> {
+  return get('/series/admin/empty');
+}
+
+/**
+ * Clean up (soft-delete) all empty series.
+ */
+export async function cleanupEmptySeries(): Promise<{
+  deletedCount: number;
+  seriesNames: string[];
+}> {
+  return post('/series/admin/cleanup-empty');
 }
 
 /**

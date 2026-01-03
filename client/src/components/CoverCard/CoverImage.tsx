@@ -39,8 +39,9 @@ export function CoverImage({ fileId, filename, progress, eager, coverVersion }: 
     progress && progress.totalPages > 0
       ? Math.round((progress.currentPage / progress.totalPages) * 100)
       : 0;
-  // Show progress ring when: in progress (started but not completed) OR completed
-  const showProgressRing = progress && (progress.currentPage > 0 || progress.completed);
+  // Show progress ring only when in progress (started but not completed)
+  // Completed issues are indicated by the issue number badge color change instead
+  const showProgressRing = progress && progress.currentPage > 0 && !progress.completed;
   // Use 100% for completed, otherwise use calculated progress
   const displayProgress = progress?.completed ? 100 : progressPercent;
 

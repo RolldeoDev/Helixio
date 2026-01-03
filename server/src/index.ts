@@ -24,6 +24,8 @@ import {
   updateMangaClassificationSettings,
   getComicClassificationSettings,
   updateComicClassificationSettings,
+  isFileRenamingEnabled,
+  setFileRenamingEnabled,
   type ApiKeys,
 } from './services/config.service.js';
 import { checkApiAvailability as checkMetronAvailability } from './services/metron.service.js';
@@ -503,6 +505,34 @@ app.put('/api/config/comic-classification', (req, res) => {
     });
 
     res.json({ success: true, message: 'Comic classification settings updated' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
+// Get file renaming enabled setting
+app.get('/api/config/file-renaming', (_req, res) => {
+  res.json({ enabled: isFileRenamingEnabled() });
+});
+
+// Update file renaming enabled setting
+app.put('/api/config/file-renaming', requireAdmin, (req, res) => {
+  try {
+    const { enabled } = req.body as { enabled?: boolean };
+
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
+
+    setFileRenamingEnabled(enabled);
+
+    res.json({
+      success: true,
+      message: `File renaming ${enabled ? 'enabled' : 'disabled'}`,
+      enabled,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     res.status(500).json({ error: message });

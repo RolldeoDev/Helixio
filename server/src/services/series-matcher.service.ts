@@ -23,7 +23,10 @@ import {
   restoreSeries,
 } from './series/index.js';
 import { restoreSeriesItems } from './collection/index.js';
-import { logInfo, logError } from './logger.service.js';
+import { logInfo, logError, logDebug } from './logger.service.js';
+import type { FolderSeriesRegistry, FolderSeriesEntry } from './folder-series-registry.service.js';
+import type { SeriesDefinition } from './series-metadata.service.js';
+import { dirname } from 'path';
 
 // =============================================================================
 // Types
@@ -63,6 +66,13 @@ export interface AutoLinkOptions {
    * Used for user-initiated metadata edits where we trust the metadata source.
    */
   trustMetadata?: boolean;
+
+  /**
+   * Folder series registry for folder-scoped matching.
+   * When provided, checks folder's series.json definitions first before
+   * falling back to database-wide matching.
+   */
+  folderRegistry?: FolderSeriesRegistry;
 }
 
 // =============================================================================
@@ -249,6 +259,169 @@ export async function findMatchingSeries(
   };
 }
 
+// =============================================================================
+// Folder-Scoped Series Creation
+// =============================================================================
+
+/**
+ * Find or create a series from a SeriesDefinition (from series.json).
+ * Used for folder-scoped matching where we have pre-defined series metadata.
+ */
+async function findOrCreateSeriesFromDefinition(
+  definition: SeriesDefinition,
+  folderPath: string
+): Promise<Series> {
+  // Check if series already exists by identity (name + publisher)
+  const existing = await getSeriesByIdentity(
+    definition.name,
+    null, // Year is not part of identity
+    definition.publisher ?? null,
+    true // Include deleted series to restore
+  );
+
+  if (existing) {
+    // Restore if soft-deleted
+    if (existing.deletedAt) {
+      await restoreSeries(existing.id);
+      await restoreSeriesItems(existing.id);
+    }
+
+    // Merge metadata from definition into existing series (respecting locks)
+    await mergeDefinitionIntoSeries(existing.id, definition);
+
+    return existing;
+  }
+
+  // Create new series with all metadata from definition
+  const newSeries = await createSeries({
+    name: definition.name,
+    startYear: definition.startYear ?? null,
+    publisher: definition.publisher ?? null,
+    endYear: definition.endYear ?? null,
+    deck: definition.deck ?? null,
+    summary: definition.summary ?? null,
+    coverUrl: definition.coverUrl ?? null,
+    issueCount: definition.issueCount ?? null,
+    genres: definition.genres?.join(',') ?? null,
+    tags: definition.tags?.join(',') ?? null,
+    volume: definition.volume ?? null,
+    type: definition.type ?? 'western',
+    ageRating: definition.ageRating ?? null,
+    languageISO: definition.languageISO ?? null,
+    comicVineId: definition.comicVineSeriesId ?? null,
+    metronId: definition.metronSeriesId ?? null,
+    anilistId: definition.anilistId ?? null,
+    malId: definition.malId ?? null,
+    characters: definition.characters?.join(',') ?? null,
+    teams: definition.teams?.join(',') ?? null,
+    storyArcs: definition.storyArcs?.join(',') ?? null,
+    locations: definition.locations?.join(',') ?? null,
+    aliases: definition.aliases?.join(',') ?? null,
+    primaryFolder: folderPath,
+  });
+
+  logInfo('series-matcher', `Created series from folder definition`, {
+    seriesId: newSeries.id,
+    seriesName: newSeries.name,
+    folder: folderPath,
+  });
+
+  return newSeries;
+}
+
+/**
+ * Merge a SeriesDefinition into an existing series, respecting locked fields.
+ * Only updates fields that are currently empty in the database.
+ */
+async function mergeDefinitionIntoSeries(
+  seriesId: string,
+  definition: SeriesDefinition
+): Promise<void> {
+  const db = getDatabase();
+
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+  });
+
+  if (!series) return;
+
+  // Parse locked fields
+  const lockedFields = new Set(
+    series.lockedFields?.split(',').map((f) => f.trim()).filter(Boolean) ?? []
+  );
+
+  // Build update data for empty fields only
+  const updateData: Record<string, unknown> = {};
+
+  // Helper to check if a field should be updated
+  const shouldUpdate = (dbField: string, dbValue: unknown): boolean => {
+    if (lockedFields.has(dbField)) return false;
+    if (dbValue !== null && dbValue !== undefined && dbValue !== '') return false;
+    return true;
+  };
+
+  // Map definition fields to database fields
+  if (definition.startYear && shouldUpdate('startYear', series.startYear)) {
+    updateData.startYear = definition.startYear;
+  }
+  if (definition.endYear && shouldUpdate('endYear', series.endYear)) {
+    updateData.endYear = definition.endYear;
+  }
+  if (definition.publisher && shouldUpdate('publisher', series.publisher)) {
+    updateData.publisher = definition.publisher;
+  }
+  if (definition.deck && shouldUpdate('deck', series.deck)) {
+    updateData.deck = definition.deck;
+  }
+  if (definition.summary && shouldUpdate('summary', series.summary)) {
+    updateData.summary = definition.summary;
+  }
+  if (definition.coverUrl && shouldUpdate('coverUrl', series.coverUrl)) {
+    updateData.coverUrl = definition.coverUrl;
+  }
+  if (definition.issueCount && shouldUpdate('issueCount', series.issueCount)) {
+    updateData.issueCount = definition.issueCount;
+  }
+  if (definition.genres?.length && shouldUpdate('genres', series.genres)) {
+    updateData.genres = definition.genres.join(',');
+  }
+  if (definition.tags?.length && shouldUpdate('tags', series.tags)) {
+    updateData.tags = definition.tags.join(',');
+  }
+  if (definition.aliases?.length && shouldUpdate('aliases', series.aliases)) {
+    updateData.aliases = definition.aliases.join(',');
+  }
+  if (definition.characters?.length && shouldUpdate('characters', series.characters)) {
+    updateData.characters = definition.characters.join(',');
+  }
+  if (definition.teams?.length && shouldUpdate('teams', series.teams)) {
+    updateData.teams = definition.teams.join(',');
+  }
+  if (definition.comicVineSeriesId && shouldUpdate('comicVineId', series.comicVineId)) {
+    updateData.comicVineId = definition.comicVineSeriesId;
+  }
+  if (definition.metronSeriesId && shouldUpdate('metronId', series.metronId)) {
+    updateData.metronId = definition.metronSeriesId;
+  }
+
+  // Only update if we have changes
+  if (Object.keys(updateData).length > 0) {
+    await db.series.update({
+      where: { id: seriesId },
+      data: updateData,
+    });
+
+    logDebug('series-matcher', `Merged definition into series`, {
+      seriesId,
+      fieldsUpdated: Object.keys(updateData),
+    });
+  }
+}
+
+// =============================================================================
+// Series Suggestions
+// =============================================================================
+
 /**
  * Get series suggestions for a file.
  */
@@ -419,7 +592,7 @@ export async function autoLinkFileToSeries(
   fileId: string,
   options: AutoLinkOptions = {}
 ): Promise<LinkResult> {
-  const { trustMetadata = false } = options;
+  const { trustMetadata = false, folderRegistry } = options;
   const db = getDatabase();
 
   const file = await db.comicFile.findUnique({
@@ -436,6 +609,35 @@ export async function autoLinkFileToSeries(
     file.metadata?.series ?? getFolderNameFromPath(file.relativePath);
   if (!seriesName) {
     return { success: false, error: 'No series name found' };
+  }
+
+  // NEW: Try folder-scoped matching first if registry is provided
+  if (folderRegistry) {
+    const folderPath = dirname(file.path);
+    const folderMatch = folderRegistry.findInFolder(folderPath, seriesName);
+
+    if (folderMatch.entry && folderMatch.confidence >= 0.8) {
+      // Found a match in the folder's series.json - use it
+      const series = await findOrCreateSeriesFromDefinition(
+        folderMatch.entry.definition,
+        folderPath
+      );
+
+      await linkFileToSeries(fileId, series.id);
+
+      logDebug('series-matcher', `Folder-scoped match`, {
+        file: file.filename,
+        series: series.name,
+        matchType: folderMatch.matchType,
+        confidence: folderMatch.confidence,
+      });
+
+      return {
+        success: true,
+        seriesId: series.id,
+        matchType: `folder-${folderMatch.matchType}`,
+      };
+    }
   }
 
   // When trustMetadata is true, skip fuzzy matching entirely.

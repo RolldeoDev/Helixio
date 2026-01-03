@@ -17,8 +17,9 @@ import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 import { checkAndSoftDeleteEmptySeries, restoreSeries, syncSeriesFromSeriesJson } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
-import { readSeriesJson, type SeriesMetadata } from './series-metadata.service.js';
+import { readSeriesJson, getSeriesDefinitions, type SeriesMetadata } from './series-metadata.service.js';
 import { mergeSeriesJsonToDb } from './series-json-sync.service.js';
+import { FolderSeriesRegistry } from './folder-series-registry.service.js';
 
 const logger = createServiceLogger('scanner');
 
@@ -462,10 +463,10 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
  * Called after scan results are applied.
  *
  * This function:
- * 1. Checks for series.json in file's folder and uses it to create/link series
- * 2. Extracts ComicInfo.xml metadata from each file and caches it
- * 3. Uses the extracted metadata to create/link to series (if no series.json)
- * 4. Merges series.json metadata into existing series (if any)
+ * 1. Builds a folder series registry from series.json files (supports multi-series)
+ * 2. Scaffolds all series definitions from series.json files
+ * 3. Extracts ComicInfo.xml metadata from each file and caches it
+ * 4. Uses folder-scoped matching first, then falls back to database-wide matching
  */
 async function autoLinkNewFilesToSeries(
   fileIds: string[],
@@ -476,10 +477,27 @@ async function autoLinkNewFilesToSeries(
   let linked = 0;
   let created = 0;
   let failed = 0;
-  let seriesJsonLinked = 0;
+  let seriesScaffolded = 0;
+  let folderScopedMatches = 0;
   const db = getDatabase();
 
-  // Track processed folders to avoid duplicate series.json processing
+  // Build folder series registry from seriesJsonMap (handles multi-series)
+  const folderRegistry = seriesJsonMap
+    ? FolderSeriesRegistry.buildFromMap(seriesJsonMap)
+    : undefined;
+
+  if (folderRegistry) {
+    const stats = folderRegistry.getStats();
+    if (stats.series > 0) {
+      logDebug('scanner', `Built folder series registry`, {
+        folders: stats.folders,
+        series: stats.series,
+        multiSeriesFolders: stats.multiSeriesFolders,
+      });
+    }
+  }
+
+  // Track processed folders to avoid duplicate scaffolding
   const processedFolders = new Set<string>();
 
   for (const fileId of fileIds) {
@@ -494,24 +512,42 @@ async function autoLinkNewFilesToSeries(
 
       const folderPath = dirname(file.path);
 
-      // Check for series.json in this folder (if not already processed)
+      // Scaffold all series from folder's series.json (if not already processed)
       if (seriesJsonMap && !processedFolders.has(folderPath)) {
         processedFolders.add(folderPath);
 
         const metadata = seriesJsonMap.get(folderPath);
         if (metadata) {
-          // Create or find series from series.json
-          const series = await syncSeriesFromSeriesJson(folderPath);
+          // Get all series definitions (handles both v1 and v2 formats)
+          const definitions = getSeriesDefinitions(metadata);
 
-          if (series) {
-            // Merge series.json data into the series (fill empty fields)
-            await mergeSeriesJsonToDb(series.id, folderPath);
-            seriesJsonLinked++;
-            logDebug('scanner', `Linked series from series.json`, {
-              seriesId: series.id,
-              seriesName: series.name,
-              folder: folderPath,
-            });
+          if (definitions.length > 0) {
+            try {
+              // syncSeriesFromSeriesJson processes ALL definitions in one call
+              // and returns the first series for backward compatibility
+              const series = await syncSeriesFromSeriesJson(folderPath);
+              if (series) {
+                await mergeSeriesJsonToDb(series.id, folderPath);
+                seriesScaffolded += definitions.length;
+                logDebug('scanner', `Scaffolded ${definitions.length} series from series.json`, {
+                  seriesId: series.id,
+                  seriesNames: definitions.map((d) => d.name),
+                  folder: folderPath,
+                });
+              } else {
+                logError('scanner', new Error('syncSeriesFromSeriesJson returned null'), {
+                  action: 'scaffold-series',
+                  folder: folderPath,
+                  definitionCount: definitions.length,
+                });
+              }
+            } catch (err) {
+              logError('scanner', err, {
+                action: 'scaffold-series',
+                folder: folderPath,
+                definitionCount: definitions.length,
+              });
+            }
           }
         }
       }
@@ -524,11 +560,14 @@ async function autoLinkNewFilesToSeries(
         await refreshTagsFromFile(fileId);
       }
 
-      // Step 2: Try to link to series using the extracted metadata
-      const result = await autoLinkFileToSeries(fileId);
+      // Step 2: Try to link to series using folder registry first, then database-wide
+      const result = await autoLinkFileToSeries(fileId, { folderRegistry });
       if (result.success) {
         if (result.matchType === 'created') {
           created++;
+        }
+        if (result.matchType?.startsWith('folder-')) {
+          folderScopedMatches++;
         }
         linked++;
 
@@ -543,13 +582,14 @@ async function autoLinkNewFilesToSeries(
     }
   }
 
-  if (metadataCached > 0 || linked > 0 || created > 0 || seriesJsonLinked > 0) {
+  if (metadataCached > 0 || linked > 0 || created > 0 || seriesScaffolded > 0) {
     logInfo('scanner', `Processed ${fileIds.length} files`, {
       totalFiles: fileIds.length,
       metadataCached,
       linked,
       newSeries: created,
-      seriesJsonLinked,
+      seriesScaffolded,
+      folderScopedMatches,
       failed,
     });
   }

@@ -76,6 +76,7 @@ export interface CreateSeriesInput {
   malId?: string | null;
   gcdId?: string | null;
   primaryFolder?: string | null;
+  aliases?: string | null;
 }
 
 export interface UpdateSeriesInput extends Partial<CreateSeriesInput> {

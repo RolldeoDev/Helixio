@@ -35,9 +35,11 @@ import {
 } from '../creator-aggregation.service.js';
 import { getSession, setSession, deleteSessionFromStore } from './session-store.js';
 import { invalidateAfterApplyChanges } from '../metadata-invalidation.service.js';
+import { syncSeriesToSeriesJson } from '../series-json-sync.service.js';
 import { markDirtyForMetadataChange } from '../stats-dirty.service.js';
 import { syncSeriesRatings, syncSeriesIssueRatings } from '../rating-sync.service.js';
 import { syncSeriesReviews } from '../review-sync.service.js';
+import { isFileRenamingEnabled } from '../config.service.js';
 import {
   NON_COMICINFO_FIELDS,
   type ApprovalSession,
@@ -331,84 +333,87 @@ export async function applyChanges(
       let wasRenamed = false;
       let hadCollision = false;
 
-      // Check if user provided a custom rename value
-      const renameField = fileChange.fields.rename;
-      const userEditedFilename = renameField?.edited && renameField.editedValue !== undefined
-        ? String(renameField.editedValue)
-        : null;
+      // Only evaluate and perform renames if file renaming is enabled
+      if (isFileRenamingEnabled()) {
+        // Check if user provided a custom rename value
+        const renameField = fileChange.fields.rename;
+        const userEditedFilename = renameField?.edited && renameField.editedValue !== undefined
+          ? String(renameField.editedValue)
+          : null;
 
-      const completeMetadataResult = await readComicInfo(file.path);
-      if (completeMetadataResult.success && completeMetadataResult.comicInfo) {
-        // Use template-based filename generation (or user's custom name)
-        const {
-          result: generatedResult,
-          finalFilename,
-          finalPath,
-          hadCollision: collision,
-          needsFolderCreation,
-        } = await generateUniqueFilenameFromTemplate(
-          completeMetadataResult.comicInfo,
-          file.path,
-          file.library.rootPath,
-          {
-            libraryId: file.libraryId,
-            series: file.series ? {
-              name: file.series.name,
-              publisher: file.series.publisher || undefined,
-              startYear: file.series.startYear || undefined,
-              volume: file.series.volume || undefined,
-              issueCount: file.series.issueCount || undefined,
-            } : undefined,
-          }
-        );
+        const completeMetadataResult = await readComicInfo(file.path);
+        if (completeMetadataResult.success && completeMetadataResult.comicInfo) {
+          // Use template-based filename generation (or user's custom name)
+          const {
+            result: generatedResult,
+            finalFilename,
+            finalPath,
+            hadCollision: collision,
+            needsFolderCreation,
+          } = await generateUniqueFilenameFromTemplate(
+            completeMetadataResult.comicInfo,
+            file.path,
+            file.library.rootPath,
+            {
+              libraryId: file.libraryId,
+              series: file.series ? {
+                name: file.series.name,
+                publisher: file.series.publisher || undefined,
+                startYear: file.series.startYear || undefined,
+                volume: file.series.volume || undefined,
+                issueCount: file.series.issueCount || undefined,
+              } : undefined,
+            }
+          );
 
-        hadCollision = collision;
+          hadCollision = collision;
 
-        // If user edited the filename, use that instead of the generated one
-        // (but only for simple renames, not folder moves)
-        const effectiveFilename = userEditedFilename || finalFilename;
-        const effectivePath = userEditedFilename
-          ? file.path.replace(/[^/\\]+$/, userEditedFilename)
-          : finalPath;
+          // If user edited the filename, use that instead of the generated one
+          // (but only for simple renames, not folder moves)
+          const effectiveFilename = userEditedFilename || finalFilename;
+          const effectivePath = userEditedFilename
+            ? file.path.replace(/[^/\\]+$/, userEditedFilename)
+            : finalPath;
 
-        // Check if rename/move is needed
-        const needsMove = file.path !== effectivePath && effectivePath !== file.path.replace(/[^/\\]+$/, effectiveFilename);
-        const needsRenameOnly = !needsMove && needsRename(filename, effectiveFilename);
+          // Check if rename/move is needed
+          const needsMove = file.path !== effectivePath && effectivePath !== file.path.replace(/[^/\\]+$/, effectiveFilename);
+          const needsRenameOnly = !needsMove && needsRename(filename, effectiveFilename);
 
-        if (needsMove || needsRenameOnly) {
-          if (hadCollision && !userEditedFilename) {
-            progress(
-              `Collision detected: ${generatedResult.filename}`,
-              `Using: ${effectiveFilename} - you may want to review for duplicates`
-            );
-          }
+          if (needsMove || needsRenameOnly) {
+            if (hadCollision && !userEditedFilename) {
+              progress(
+                `Collision detected: ${generatedResult.filename}`,
+                `Using: ${effectiveFilename} - you may want to review for duplicates`
+              );
+            }
 
-          if (userEditedFilename) {
-            progress(`Renaming: ${filename}`, `to ${effectiveFilename} (user specified)`);
-          } else if (needsMove) {
-            progress(`Moving: ${filename}`, `to ${generatedResult.fullRelativePath}`);
-          } else {
-            progress(`Renaming: ${filename}`, `to ${effectiveFilename}`);
-          }
+            if (userEditedFilename) {
+              progress(`Renaming: ${filename}`, `to ${effectiveFilename} (user specified)`);
+            } else if (needsMove) {
+              progress(`Moving: ${filename}`, `to ${generatedResult.fullRelativePath}`);
+            } else {
+              progress(`Renaming: ${filename}`, `to ${effectiveFilename}`);
+            }
 
-          // Use move with tracking if folder changes, otherwise just rename
-          const operationResult = needsMove
-            ? await moveFileWithTracking(fileChange.fileId, effectivePath, {
-                createDirs: needsFolderCreation,
-                templateId: generatedResult.templateId || undefined,
-              })
-            : await renameFileWithTracking(fileChange.fileId, effectiveFilename, {
-                templateId: generatedResult.templateId || undefined,
-              });
+            // Use move with tracking if folder changes, otherwise just rename
+            const operationResult = needsMove
+              ? await moveFileWithTracking(fileChange.fileId, effectivePath, {
+                  createDirs: needsFolderCreation,
+                  templateId: generatedResult.templateId || undefined,
+                })
+              : await renameFileWithTracking(fileChange.fileId, effectiveFilename, {
+                  templateId: generatedResult.templateId || undefined,
+                });
 
-          if (operationResult.success) {
-            newFilename = effectiveFilename;
-            wasRenamed = true;
-          } else {
-            logger.warn(
-              { fileId: fileChange.fileId, filename, error: operationResult.error },
-              'Failed to rename/move file'
-            );
+            if (operationResult.success) {
+              newFilename = effectiveFilename;
+              wasRenamed = true;
+            } else {
+              logger.warn(
+                { fileId: fileChange.fileId, filename, error: operationResult.error },
+                'Failed to rename/move file'
+              );
+            }
           }
         }
       }
@@ -554,6 +559,17 @@ export async function applyChanges(
     }
 
     progress('External ratings sync complete', `${seriesIds.length} series processed`);
+
+    // Final sync to series.json after external ratings are stored
+    // This ensures ratings/reviews are written to the series.json file
+    progress('Syncing series.json with external ratings', `${seriesIds.length} series`);
+    for (const seriesId of seriesIds) {
+      try {
+        await syncSeriesToSeriesJson(seriesId);
+      } catch (error) {
+        logger.warn({ seriesId, error }, 'Failed to sync series.json after ratings (continuing)');
+      }
+    }
   }
 
   session.status = 'complete';
@@ -857,6 +873,17 @@ async function updateSeriesFromApprovedMetadata(
         continue;
       }
 
+      // Log whether series has primaryFolder for debugging series.json sync issues
+      logger.info(
+        {
+          seriesId: dbSeries.id,
+          seriesName: dbSeries.name,
+          primaryFolder: dbSeries.primaryFolder,
+          hasPrimaryFolder: !!dbSeries.primaryFolder,
+        },
+        'Found database series for metadata update'
+      );
+
       // Check if series already has an external ID that differs
       const existingExternalId = selectedSeries.source === 'comicvine'
         ? dbSeries.comicVineId
@@ -946,6 +973,30 @@ async function updateSeriesFromApprovedMetadata(
       if (Array.isArray(rawMetadata.aliases)) {
         metadata.aliases = (rawMetadata.aliases as string[]).map((a) => String(a));
       }
+      // Extract genres (may come as strings or objects with name property)
+      if (Array.isArray(rawMetadata.genres)) {
+        metadata.genres = (rawMetadata.genres as Array<{name: string} | string>).map((g) =>
+          typeof g === 'object' && g !== null && 'name' in g ? g.name : String(g)
+        );
+      }
+      // Extract tags (may come as strings or objects with name property)
+      if (Array.isArray(rawMetadata.tags)) {
+        metadata.tags = (rawMetadata.tags as Array<{name: string} | string>).map((t) =>
+          typeof t === 'object' && t !== null && 'name' in t ? t.name : String(t)
+        );
+      }
+      // Extract storyArcs (may come as strings or objects with name property)
+      if (Array.isArray(rawMetadata.storyArcs)) {
+        metadata.storyArcs = (rawMetadata.storyArcs as Array<{name: string} | string>).map((a) =>
+          typeof a === 'object' && a !== null && 'name' in a ? a.name : String(a)
+        );
+      }
+      // Extract teams (may come as strings or objects with name property)
+      if (Array.isArray(rawMetadata.teams)) {
+        metadata.teams = (rawMetadata.teams as Array<{name: string} | string>).map((t) =>
+          typeof t === 'object' && t !== null && 'name' in t ? t.name : String(t)
+        );
+      }
 
       // Get all unlocked fields to apply
       const lockedFields = dbSeries.lockedFields
@@ -980,6 +1031,26 @@ async function updateSeriesFromApprovedMetadata(
           { seriesId: dbSeries.id, fieldsUpdated: result.fieldsUpdated },
           'Updated series with API metadata'
         );
+
+        // =======================================================================
+        // Ensure series.json is synced after applyMetadataToSeries
+        // This is a fallback in case the sync in applyMetadataToSeries didn't run
+        // (e.g., if series.primaryFolder wasn't available at that point)
+        // =======================================================================
+        if (dbSeries.primaryFolder) {
+          try {
+            await syncSeriesToSeriesJson(dbSeries.id);
+            logger.info(
+              { seriesId: dbSeries.id, primaryFolder: dbSeries.primaryFolder },
+              'Synced series.json after metadata apply (from updateSeriesFromApprovedMetadata)'
+            );
+          } catch (syncError) {
+            logger.warn(
+              { seriesId: dbSeries.id, error: syncError },
+              'Failed to sync series.json after metadata apply'
+            );
+          }
+        }
 
         // =======================================================================
         // Aggregate creator roles from issues (ComicVine only)
@@ -1019,6 +1090,16 @@ async function updateSeriesFromApprovedMetadata(
                 },
                 'Aggregated creator roles from issues'
               );
+
+              // Re-sync to series.json after creator aggregation updates DB
+              if (dbSeries.primaryFolder) {
+                try {
+                  await syncSeriesToSeriesJson(dbSeries.id);
+                  logger.debug({ seriesId: dbSeries.id }, 'Synced series.json after creator aggregation');
+                } catch (syncError) {
+                  logger.warn({ seriesId: dbSeries.id, error: syncError }, 'Failed to sync series.json after creator aggregation');
+                }
+              }
             }
           } catch (aggregateError) {
             // Don't fail the whole operation if aggregation fails

@@ -413,9 +413,20 @@
 
 .cover-card__progress-ring {
   position: absolute;
-  top: 8px;
+  top: 36px;
   right: 8px;
   z-index: 5;
+}
+
+/* Adjust progress ring position for small cards (smaller issue badge) */
+.cover-card--small .cover-card__progress-ring {
+  top: 24px;
+  right: 4px;
+}
+
+/* Adjust progress ring position for large cards (larger issue badge) */
+.cover-card--large .cover-card__progress-ring {
+  top: 42px;
 }
 
 /* =============================================================================

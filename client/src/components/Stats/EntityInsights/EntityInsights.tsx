@@ -10,7 +10,9 @@ interface EntityInsightsProps {
 }
 
 export type ViewMode = 'comics' | 'pages';
-export type PagesSubMode = 'owned' | 'read';
+export type SubMode = 'owned' | 'read';
+/** @deprecated Use SubMode instead */
+export type PagesSubMode = SubMode;
 
 const ENTITY_CONFIG: {
   type: EntityType;
@@ -64,7 +66,7 @@ const ENTITY_CONFIG: {
 export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
   const [drawerType, setDrawerType] = useState<EntityType | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('comics');
-  const [pagesSubMode, setPagesSubMode] = useState<PagesSubMode>('owned');
+  const [subMode, setSubMode] = useState<SubMode>('owned');
 
   const handleOpenDrawer = (type: EntityType) => {
     setDrawerType(type);
@@ -120,23 +122,21 @@ export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
               </button>
             </div>
 
-            {/* Sub-toggle: Owned vs Read (only shown when pages mode active) */}
-            {viewMode === 'pages' && (
-              <div className="entity-insights__sub-toggle">
-                <button
-                  className={pagesSubMode === 'owned' ? 'active' : ''}
-                  onClick={() => setPagesSubMode('owned')}
-                >
-                  Owned
-                </button>
-                <button
-                  className={pagesSubMode === 'read' ? 'active' : ''}
-                  onClick={() => setPagesSubMode('read')}
-                >
-                  Read
-                </button>
-              </div>
-            )}
+            {/* Sub-toggle: Owned vs Read */}
+            <div className="entity-insights__sub-toggle">
+              <button
+                className={subMode === 'owned' ? 'active' : ''}
+                onClick={() => setSubMode('owned')}
+              >
+                Owned
+              </button>
+              <button
+                className={subMode === 'read' ? 'active' : ''}
+                onClick={() => setSubMode('read')}
+              >
+                Read
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -152,7 +152,7 @@ export function EntityInsights({ summary, isLoading }: EntityInsightsProps) {
             onViewAll={() => handleOpenDrawer(config.type)}
             animationDelay={200 + index * 50}
             viewMode={viewMode}
-            pagesSubMode={pagesSubMode}
+            subMode={subMode}
           />
         ))}
       </div>

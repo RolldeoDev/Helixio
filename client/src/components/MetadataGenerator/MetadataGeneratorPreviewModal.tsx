@@ -56,6 +56,22 @@ const FIELD_CONFIGS: FieldConfig[] = [
     label: 'End Year',
     formatValue: (v) => (v != null ? String(v) : ''),
   },
+  // Entity fields (generated when generateEntities option is enabled)
+  {
+    key: 'characters',
+    label: 'Characters',
+    formatValue: (v) => String(v || ''),
+  },
+  {
+    key: 'teams',
+    label: 'Teams',
+    formatValue: (v) => String(v || ''),
+  },
+  {
+    key: 'locations',
+    label: 'Locations',
+    formatValue: (v) => String(v || ''),
+  },
 ];
 
 interface MetadataGeneratorPreviewModalProps {

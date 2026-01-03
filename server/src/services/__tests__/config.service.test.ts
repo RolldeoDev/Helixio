@@ -14,6 +14,8 @@ import {
   clearConfigCache,
   loadConfig,
   ENV_VAR_MAP,
+  isFileRenamingEnabled,
+  setFileRenamingEnabled,
 } from '../config.service.js';
 
 // Mock the file system operations
@@ -209,6 +211,40 @@ describe('Config Service - API Key Management', () => {
       // Note: Full file write verification requires complex fs mocking
       // This just verifies the function doesn't throw
       expect(() => setApiKey('comicVine', 'new-key')).not.toThrow();
+    });
+  });
+});
+
+describe('Config Service - File Renaming Settings', () => {
+  beforeEach(() => {
+    clearConfigCache();
+  });
+
+  describe('isFileRenamingEnabled', () => {
+    it('should return the fileRenamingEnabled value from config', () => {
+      // Default config has fileRenamingEnabled: false
+      // But our mock doesn't have this field, so it will use the default
+      const result = isFileRenamingEnabled();
+      // The result should be a boolean
+      expect(typeof result).toBe('boolean');
+    });
+  });
+
+  describe('setFileRenamingEnabled', () => {
+    it('should be callable without error', () => {
+      // Note: Full file write verification requires complex fs mocking
+      // This just verifies the function doesn't throw
+      expect(() => setFileRenamingEnabled(true)).not.toThrow();
+    });
+
+    it('should update the config value', () => {
+      // Enable file renaming
+      setFileRenamingEnabled(true);
+      expect(isFileRenamingEnabled()).toBe(true);
+
+      // Disable file renaming
+      setFileRenamingEnabled(false);
+      expect(isFileRenamingEnabled()).toBe(false);
     });
   });
 });

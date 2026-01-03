@@ -31,6 +31,7 @@ import {
   generateUniqueFilenameFromTemplate,
   type TemplateGeneratedPath,
 } from './filename-generator.service.js';
+import { isFileRenamingEnabled } from './config.service.js';
 
 // =============================================================================
 // Types
@@ -919,6 +920,11 @@ export async function createTemplateRenameBatch(
   itemCount: number;
   preview: Awaited<ReturnType<typeof previewTemplateRename>>;
 }> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    throw new Error('File renaming is disabled. Enable it in Settings to use this feature.');
+  }
+
   const db = getDatabase();
 
   // Get preview of changes
@@ -1181,6 +1187,11 @@ export async function createRestoreOriginalBatch(
   itemCount: number;
   preview: Awaited<ReturnType<typeof previewRestoreOriginal>>;
 }> {
+  // Check if file renaming is enabled
+  if (!isFileRenamingEnabled()) {
+    throw new Error('File renaming is disabled. Enable it in Settings to use this feature.');
+  }
+
   const db = getDatabase();
 
   // Get preview of restorations

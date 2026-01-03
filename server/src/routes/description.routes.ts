@@ -137,12 +137,12 @@ router.post('/series/:id/generate-description', requireAuth, asyncHandler(async 
  * POST /api/series/:id/generate-metadata
  * Generate comprehensive metadata for a series using LLM with optional web search
  *
- * Body: { useWebSearch?: boolean }
+ * Body: { useWebSearch?: boolean, generateEntities?: boolean }
  * Returns: { metadata: GeneratedMetadata, webSearchUsed: boolean, tokensUsed?: number }
  */
 router.post('/series/:id/generate-metadata', requireAuth, asyncHandler(async (req: Request, res: Response) => {
   const seriesId = req.params.id!;
-  const { useWebSearch } = req.body as { useWebSearch?: boolean };
+  const { useWebSearch, generateEntities } = req.body as { useWebSearch?: boolean; generateEntities?: boolean };
 
   // Check if LLM is available
   if (!isMetadataGeneratorAvailable()) {
@@ -174,12 +174,16 @@ router.post('/series/:id/generate-metadata', requireAuth, asyncHandler(async (re
     existingSummary: series.summary,
     existingDeck: series.deck,
     existingAgeRating: series.ageRating,
+    // Include existing entity data for context when generating entities
+    existingCharacters: series.characters,
+    existingTeams: series.teams,
+    existingLocations: series.locations,
   };
 
-  logger.info({ seriesId, useWebSearch }, `Generating metadata for series: ${series.name}`);
+  logger.info({ seriesId, useWebSearch, generateEntities }, `Generating metadata for series: ${series.name}`);
 
   // Generate metadata
-  const result = await generateSeriesMetadata(context, { useWebSearch });
+  const result = await generateSeriesMetadata(context, { useWebSearch, generateEntities });
 
   if (!result.success) {
     logger.error({ seriesId, error: result.error }, `Failed to generate metadata for series: ${series.name}`);
@@ -188,7 +192,7 @@ router.post('/series/:id/generate-metadata', requireAuth, asyncHandler(async (re
   }
 
   logger.info(
-    { seriesId, tokensUsed: result.tokensUsed, webSearchUsed: result.webSearchUsed },
+    { seriesId, tokensUsed: result.tokensUsed, webSearchUsed: result.webSearchUsed, generateEntities },
     `Generated metadata for series: ${series.name}`
   );
 

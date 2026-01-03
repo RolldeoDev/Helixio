@@ -12,13 +12,17 @@ import {
   getMismatchedSeriesFiles,
   repairSeriesLinkages,
   batchSyncFileMetadataToSeries,
+  getEmptySeries,
+  cleanupEmptySeries,
   type SeriesCacheStats,
   type MismatchedFile,
   type RepairResult,
+  type EmptySeries,
 } from '../../services/api.service';
 import { SectionCard } from '../SectionCard';
 import { FactoryResetModal, FactoryResetSection } from '../FactoryReset';
 import { ApiKeySettings } from './ApiKeySettings';
+import { ToggleSwitch } from '../ToggleSwitch';
 import { useApiToast } from '../../hooks';
 import { useConfirmModal } from '../ConfirmModal';
 import './SystemSettings.css';
@@ -90,11 +94,21 @@ export function SystemSettings() {
   const [processingManual, setProcessingManual] = useState(false);
   const [showAllMismatched, setShowAllMismatched] = useState(false);
 
+  // Empty series cleanup state
+  const [emptySeries, setEmptySeries] = useState<EmptySeries[] | null>(null);
+  const [loadingEmptySeries, setLoadingEmptySeries] = useState(false);
+  const [cleaningEmptySeries, setCleaningEmptySeries] = useState(false);
+  const [showAllEmptySeries, setShowAllEmptySeries] = useState(false);
+
   // Factory reset modal state
   const [showFactoryResetModal, setShowFactoryResetModal] = useState(false);
 
   // API key help modal state
   const [helpModal, setHelpModal] = useState<'comicVine' | 'anthropic' | null>(null);
+
+  // File renaming state
+  const [fileRenamingEnabled, setFileRenamingEnabled] = useState(false);
+  const [savingFileRenaming, setSavingFileRenaming] = useState(false);
 
   // Similarity/Recommendations state
   const [similarityStats, setSimilarityStats] = useState<{
@@ -141,6 +155,13 @@ export function SystemSettings() {
       // Load cache stats
       loadSeriesCacheStats();
       loadDownloadCacheStats();
+
+      // Load file renaming setting
+      const renamingRes = await fetch(`${API_BASE}/config/file-renaming`);
+      if (renamingRes.ok) {
+        const renamingData = await renamingRes.json();
+        setFileRenamingEnabled(renamingData.enabled ?? false);
+      }
     } catch (err) {
       console.error('Failed to load system settings:', err);
     }
@@ -579,6 +600,77 @@ export function SystemSettings() {
     }
   };
 
+  // Empty series cleanup handlers
+  const handleCheckEmptySeries = async () => {
+    setLoadingEmptySeries(true);
+    setShowAllEmptySeries(false);
+    try {
+      const result = await getEmptySeries();
+      setEmptySeries(result.series);
+      if (result.count === 0) {
+        addToast('success', 'No empty series found');
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to check for empty series');
+    } finally {
+      setLoadingEmptySeries(false);
+    }
+  };
+
+  const handleCleanupEmptySeries = async () => {
+    const confirmed = await confirm({
+      title: 'Clean Up Empty Series',
+      message: `This will remove ${emptySeries?.length || 0} empty series from the database. They can be restored from the deleted series list. Continue?`,
+      confirmText: 'Clean Up',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    setCleaningEmptySeries(true);
+    try {
+      const result = await cleanupEmptySeries();
+      setEmptySeries(null);
+      if (result.deletedCount > 0) {
+        addToast('success', `Removed ${result.deletedCount} empty series`);
+      } else {
+        addToast('success', 'No empty series found to clean up');
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to clean up empty series');
+    } finally {
+      setCleaningEmptySeries(false);
+    }
+  };
+
+  // File renaming toggle handler
+  const handleFileRenamingToggle = async (enabled: boolean) => {
+    setSavingFileRenaming(true);
+    try {
+      const response = await fetch(`${API_BASE}/config/file-renaming`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ enabled }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update file renaming setting');
+      }
+
+      setFileRenamingEnabled(enabled);
+      addToast('success', `File renaming ${enabled ? 'enabled' : 'disabled'}`);
+
+      // Inform user they may need to refresh the page to see the File Naming tab
+      if (enabled) {
+        addToast('info', 'Refresh the page to see the File Naming tab in Settings');
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to update setting');
+    } finally {
+      setSavingFileRenaming(false);
+    }
+  };
+
   return (
     <div className="system-settings">
       <h2>System Settings</h2>
@@ -619,6 +711,20 @@ export function SystemSettings() {
             <span>PayPal</span>
           </a>
         </div>
+      </SectionCard>
+
+      {/* File Operations Section */}
+      <SectionCard
+        title="File Operations"
+        description="Control how Helixio interacts with your comic files on disk."
+      >
+        <ToggleSwitch
+          checked={fileRenamingEnabled}
+          onChange={handleFileRenamingToggle}
+          disabled={savingFileRenaming}
+          label="Enable file renaming"
+          description="When enabled, Helixio can rename comic files based on metadata and templates during the metadata approval workflow and batch operations. When disabled, all renaming features are hidden and no files will be renamed. This setting is disabled by default."
+        />
       </SectionCard>
 
       {/* API Keys Section */}
@@ -1166,6 +1272,68 @@ export function SystemSettings() {
                 {repairResult.errors.length > 0 && (
                   <div className="error-count">Errors: {repairResult.errors.length}</div>
                 )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="setting-group">
+          <label>Empty Series Cleanup</label>
+          <p className="setting-description">
+            Find and remove series that have no issues. These are typically left over
+            when files are moved or deleted outside of Helixio.
+          </p>
+
+          <div className="button-group">
+            <button
+              className="btn-secondary"
+              onClick={handleCheckEmptySeries}
+              disabled={loadingEmptySeries || cleaningEmptySeries}
+            >
+              {loadingEmptySeries ? 'Checking...' : 'Check for Empty Series'}
+            </button>
+
+            {emptySeries !== null && emptySeries.length > 0 && (
+              <button
+                className="btn-primary"
+                onClick={handleCleanupEmptySeries}
+                disabled={cleaningEmptySeries}
+              >
+                {cleaningEmptySeries ? 'Cleaning...' : `Clean Up ${emptySeries.length} Series`}
+              </button>
+            )}
+          </div>
+
+          {/* Empty series list */}
+          {emptySeries !== null && emptySeries.length > 0 && (
+            <div className="mismatched-files-list">
+              <h5>Empty Series ({emptySeries.length})</h5>
+              <div className="files-scroll-container">
+                {(showAllEmptySeries ? emptySeries : emptySeries.slice(0, 10)).map((series) => (
+                  <div key={series.id} className="mismatched-file-item">
+                    <span className="file-name">{series.name}</span>
+                    <span className="file-meta">
+                      {series.publisher || 'Unknown Publisher'}
+                      {series.startYear ? ` (${series.startYear})` : ''}
+                    </span>
+                  </div>
+                ))}
+                {!showAllEmptySeries && emptySeries.length > 10 && (
+                  <button
+                    className="show-more-btn"
+                    onClick={() => setShowAllEmptySeries(true)}
+                  >
+                    ... and {emptySeries.length - 10} more
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {emptySeries !== null && emptySeries.length === 0 && (
+            <div className="repair-result">
+              <div className="result-details">
+                <div>No empty series found</div>
               </div>
             </div>
           )}

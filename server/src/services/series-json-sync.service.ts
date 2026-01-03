@@ -10,6 +10,7 @@
  * - syncToSeriesJson() from series-metadata-fetch.service.ts
  */
 
+import { dirname } from 'path';
 import { getDatabase } from './database.service.js';
 import {
   SeriesMetadata,
@@ -108,6 +109,21 @@ export async function syncSeriesToSeriesJson(
     logger.debug({ seriesId }, 'Cannot sync to series.json - no primary folder');
     return;
   }
+
+  // Get the full folder path by looking up one of the series' files
+  // primaryFolder is a relative path; we need the absolute path for writing
+  const sampleFile = await db.comicFile.findFirst({
+    where: { seriesId },
+    select: { path: true },
+  });
+
+  if (!sampleFile) {
+    logger.debug({ seriesId }, 'Cannot sync to series.json - no files found for series');
+    return;
+  }
+
+  // Get the directory containing the file (full absolute path)
+  const fullFolderPath = dirname(sampleFile.path);
 
   // Fetch external ratings if enabled
   let externalRatings: SeriesMetadata['externalRatings'] | undefined;
@@ -238,10 +254,29 @@ export async function syncSeriesToSeriesJson(
   };
 
   try {
-    await writeSeriesJson(series.primaryFolder, metadata);
-    logger.debug({ seriesId, folder: series.primaryFolder }, 'Synced to series.json');
+    // Log key fields being synced for debugging
+    logger.info(
+      {
+        seriesId,
+        folder: fullFolderPath,
+        hasGenres: !!metadata.genres?.length,
+        hasCharacters: !!metadata.characters?.length,
+        hasCreators: !!metadata.creators?.length,
+        hasCreatorRoles: !!metadata.creatorRoles,
+        hasExternalRatings: !!externalRatings?.length,
+        hasExternalReviews: !!externalReviews?.length,
+      },
+      'Writing series.json with metadata'
+    );
+
+    const writeResult = await writeSeriesJson(fullFolderPath, metadata);
+    if (writeResult.success) {
+      logger.debug({ seriesId, folder: fullFolderPath }, 'Successfully synced to series.json');
+    } else {
+      logger.error({ seriesId, folder: fullFolderPath, error: writeResult.error }, 'Failed to write series.json');
+    }
   } catch (err) {
-    logger.error({ err, seriesId }, 'Failed to sync to series.json');
+    logger.error({ err, seriesId }, 'Exception while syncing to series.json');
   }
 }
 

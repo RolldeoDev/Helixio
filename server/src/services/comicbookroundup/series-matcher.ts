@@ -34,19 +34,12 @@ async function searchForSeriesViaGoogle(
 ): Promise<Array<{ url: string; title: string }>> {
   await waitForRateLimit();
 
-  // Build search query with available metadata
+  // Build search query with series name and writer only
+  // Publisher and year can be incorrect, so we focus on name + writer for better matches
   const queryParts = [
     'site:comicbookroundup.com/comic-books/reviews',
     `"${query.seriesName}"`,
   ];
-
-  if (query.publisher) {
-    queryParts.push(`"${query.publisher}"`);
-  }
-
-  if (query.year) {
-    queryParts.push(`${query.year}`);
-  }
 
   if (query.writer) {
     queryParts.push(`"${query.writer}"`);

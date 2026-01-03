@@ -22,8 +22,8 @@ import {
 // Constants
 // =============================================================================
 
-/** Current schema version for series.json files */
-export const SERIES_JSON_SCHEMA_VERSION = 1;
+/** Current schema version for series.json files (v2 adds multi-series support) */
+export const SERIES_JSON_SCHEMA_VERSION = 2;
 
 /** Maximum number of reviews to persist in series.json */
 export const MAX_REVIEWS_IN_SERIES_JSON = 10;
@@ -33,13 +33,125 @@ export const MAX_REVIEWS_IN_SERIES_JSON = 10;
 // =============================================================================
 
 /**
+ * A single series definition within a multi-series series.json file.
+ * Contains all metadata fields that can be defined per-series.
+ */
+export interface SeriesDefinition {
+  /** Series name (required) */
+  name: string;
+  /** Alternative series names for matching (e.g., ["The Batman", "Dark Knight"]) */
+  aliases?: string[];
+  /** Publisher name */
+  publisher?: string;
+  /** Publisher ID (for API matching) */
+  publisherId?: number;
+  /** First year of the series/run */
+  startYear?: number;
+  /** Last year of the series/run */
+  endYear?: number;
+  /** Total issue count in the series */
+  issueCount?: number;
+  /** Short description/deck */
+  deck?: string;
+  /** Full description/summary of the series */
+  summary?: string;
+  /** Cover image URL */
+  coverUrl?: string;
+  /** ComicVine site URL */
+  siteUrl?: string;
+  /** Genre tags */
+  genres?: string[];
+  /** Custom tags */
+  tags?: string[];
+  /** Main characters appearing in the series */
+  characters?: string[];
+  /** Teams appearing in the series */
+  teams?: string[];
+  /** Story arcs in this series */
+  storyArcs?: string[];
+  /** Locations featured in the series */
+  locations?: string[];
+  /** Creators associated with the series */
+  creators?: string[];
+  /** User notes about the series */
+  userNotes?: string;
+  /** Volume number for multi-volume series */
+  volume?: number;
+  /** Type: "western" or "manga" */
+  type?: 'western' | 'manga';
+  /** Age rating */
+  ageRating?: string;
+  /** Language ISO code */
+  languageISO?: string;
+  /** ComicVine series/volume ID for API matching */
+  comicVineSeriesId?: string;
+  /** Metron series ID for API matching */
+  metronSeriesId?: string;
+  /** AniList series ID for API matching */
+  anilistId?: string;
+  /** MyAnimeList ID for API matching */
+  malId?: string;
+  /** Grand Comics Database ID for API matching */
+  gcdId?: string;
+  /** Creator roles with structured format */
+  creatorRoles?: {
+    writers?: string[];
+    pencillers?: string[];
+    inkers?: string[];
+    colorists?: string[];
+    letterers?: string[];
+    coverArtists?: string[];
+    editors?: string[];
+  };
+  /** External community/critic ratings */
+  externalRatings?: Array<{
+    source: string;
+    ratingType: 'community' | 'critic';
+    value: number;
+    scale: number;
+    voteCount?: number;
+    fetchedAt?: string;
+  }>;
+  /** Top external reviews (limited to prevent file bloat) */
+  externalReviews?: Array<{
+    source: string;
+    authorName: string;
+    reviewText: string;
+    summary?: string;
+    rating?: number;
+    originalRating?: number;
+    ratingScale?: number;
+    reviewType: 'user' | 'critic';
+    hasSpoilers?: boolean;
+    likes?: number;
+    reviewDate?: string;
+    fetchedAt?: string;
+  }>;
+}
+
+/**
  * Series.json schema for series-level metadata.
+ *
+ * V2 FORMAT (multi-series): Use the `series` array to define multiple series.
+ * V1 FORMAT (legacy): Use `seriesName` and top-level fields for single series.
+ *
  * This is the SOURCE OF TRUTH for series-level data - once populated,
  * we should not need to make additional series API calls.
  */
 export interface SeriesMetadata {
-  /** Series name */
-  seriesName: string;
+  // ==========================================================================
+  // V2: Multi-Series Support
+  // ==========================================================================
+
+  /** Array of series definitions (v2 format for multi-series folders) */
+  series?: SeriesDefinition[];
+
+  // ==========================================================================
+  // V1: Single Series Fields (legacy, still supported)
+  // ==========================================================================
+
+  /** Series name (v1 format - use series[] array for v2) */
+  seriesName?: string;
   /** Author/creator run identifier (e.g., "Grant Morrison") */
   authorRun?: string;
   /** First year of the series/run */
@@ -245,11 +357,75 @@ export interface MixedSeriesCacheResult {
 }
 
 // =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Check if metadata is in v2 (multi-series) format.
+ */
+export function isMultiSeriesFormat(metadata: SeriesMetadata): boolean {
+  return Array.isArray(metadata.series) && metadata.series.length > 0;
+}
+
+/**
+ * Get all series definitions from metadata (handles both v1 and v2 formats).
+ * For v1 format, converts the single series to a SeriesDefinition.
+ */
+export function getSeriesDefinitions(metadata: SeriesMetadata): SeriesDefinition[] {
+  // V2 format: return series array directly
+  if (isMultiSeriesFormat(metadata)) {
+    return metadata.series!;
+  }
+
+  // V1 format: convert to single SeriesDefinition
+  if (metadata.seriesName) {
+    return [
+      {
+        name: metadata.seriesName,
+        aliases: metadata.aliases,
+        publisher: metadata.publisher,
+        publisherId: metadata.publisherId,
+        startYear: metadata.startYear,
+        endYear: metadata.endYear,
+        issueCount: metadata.issueCount,
+        deck: metadata.deck,
+        summary: metadata.summary,
+        coverUrl: metadata.coverUrl,
+        siteUrl: metadata.siteUrl,
+        genres: metadata.genres,
+        tags: metadata.tags,
+        characters: metadata.characters,
+        teams: metadata.teams,
+        storyArcs: metadata.storyArcs,
+        locations: metadata.locations,
+        creators: metadata.creators,
+        userNotes: metadata.userNotes,
+        volume: metadata.volume,
+        type: metadata.type,
+        ageRating: metadata.ageRating,
+        languageISO: metadata.languageISO,
+        comicVineSeriesId: metadata.comicVineSeriesId,
+        metronSeriesId: metadata.metronSeriesId,
+        anilistId: metadata.anilistId,
+        malId: metadata.malId,
+        gcdId: metadata.gcdId,
+        creatorRoles: metadata.creatorRoles,
+        externalRatings: metadata.externalRatings,
+        externalReviews: metadata.externalReviews,
+      },
+    ];
+  }
+
+  return [];
+}
+
+// =============================================================================
 // Series.json Operations
 // =============================================================================
 
 /**
  * Read series.json from a folder.
+ * Supports both v2 (multi-series) and v1 (single-series) formats.
  */
 export async function readSeriesJson(folderPath: string): Promise<SeriesMetadataResult> {
   const seriesJsonPath = join(folderPath, 'series.json');
@@ -265,11 +441,52 @@ export async function readSeriesJson(folderPath: string): Promise<SeriesMetadata
     const content = await readFile(seriesJsonPath, 'utf-8');
     const metadata = JSON.parse(content) as SeriesMetadata;
 
-    // Validate required fields
+    // V2 format: multi-series array
+    if (metadata.series !== undefined) {
+      if (!Array.isArray(metadata.series)) {
+        return {
+          success: false,
+          error: 'series.json: "series" field must be an array',
+        };
+      }
+
+      // Validate each series definition
+      for (let i = 0; i < metadata.series.length; i++) {
+        const seriesDef = metadata.series[i]!;
+        if (!seriesDef.name || typeof seriesDef.name !== 'string') {
+          return {
+            success: false,
+            error: `series.json: series[${i}] missing required field: name`,
+          };
+        }
+        // Validate aliases if present
+        if (seriesDef.aliases !== undefined && !Array.isArray(seriesDef.aliases)) {
+          return {
+            success: false,
+            error: `series.json: series[${i}].aliases must be an array`,
+          };
+        }
+      }
+
+      // Empty array is technically valid but useless
+      if (metadata.series.length === 0) {
+        return {
+          success: false,
+          error: 'series.json: series array is empty',
+        };
+      }
+
+      return {
+        success: true,
+        metadata,
+      };
+    }
+
+    // V1 format: single series with seriesName
     if (!metadata.seriesName) {
       return {
         success: false,
-        error: 'series.json missing required field: seriesName',
+        error: 'series.json missing required field: seriesName or series array',
       };
     }
 
@@ -287,7 +504,8 @@ export async function readSeriesJson(folderPath: string): Promise<SeriesMetadata
 
 /**
  * Write series.json to a folder.
- * Auto-regenerates the folder-level ComicInfo.xml.
+ * Supports both v2 (multi-series) and v1 (single-series) formats.
+ * For v2 format, ComicInfo.xml sync is skipped (multi-series folders don't have a single series).
  */
 export async function writeSeriesJson(
   folderPath: string,
@@ -297,20 +515,46 @@ export async function writeSeriesJson(
   const seriesJsonPath = join(folderPath, 'series.json');
 
   try {
-    // Validate required fields
-    if (!metadata.seriesName) {
-      return {
-        success: false,
-        error: 'seriesName is required',
-      };
+    // V2 format validation
+    if (metadata.series !== undefined) {
+      if (!Array.isArray(metadata.series)) {
+        return {
+          success: false,
+          error: 'series field must be an array',
+        };
+      }
+      for (let i = 0; i < metadata.series.length; i++) {
+        if (!metadata.series[i]!.name) {
+          return {
+            success: false,
+            error: `series[${i}].name is required`,
+          };
+        }
+      }
+      if (metadata.series.length === 0) {
+        return {
+          success: false,
+          error: 'series array cannot be empty',
+        };
+      }
+    } else {
+      // V1 format validation
+      if (!metadata.seriesName) {
+        return {
+          success: false,
+          error: 'seriesName is required (or use series[] array for v2 format)',
+        };
+      }
     }
 
     // Write series.json
     const content = JSON.stringify(metadata, null, 2);
     await writeFile(seriesJsonPath, content, 'utf-8');
 
-    // Auto-regenerate ComicInfo.xml unless skipped
-    if (!skipComicInfoSync) {
+    // Auto-regenerate ComicInfo.xml for v1 single-series format only
+    // V2 multi-series folders don't have a single authoritative series for ComicInfo.xml
+    const isV2 = metadata.series !== undefined && metadata.series.length > 0;
+    if (!skipComicInfoSync && !isV2) {
       await syncComicInfoFromSeriesJson(folderPath, metadata);
     }
 

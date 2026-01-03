@@ -25,6 +25,7 @@ import { scanLibrary, applyScan, rebuildCache, renameFolder, createLibrary, Comi
 import { groupFiles } from '../utils/file-grouping';
 import type { GroupField } from '../components/SortGroup/SortGroupPanel';
 import { useConfirmModal } from '../components/ConfirmModal';
+import { FileRenamingDisabledBanner } from '../components/FileRenamingDisabledBanner';
 import './FoldersPage.css';
 
 const FOLDER_PANEL_WIDTH_KEY = 'helixio-folders-panel-width';
@@ -828,6 +829,7 @@ export function FoldersPage() {
 
       {/* Right Panel - Cover Gallery */}
       <main className="folders-content" ref={contentRef}>
+        <FileRenamingDisabledBanner position="top" />
         <LibraryToolbar
           viewMode={viewMode}
           onViewModeChange={setViewMode}

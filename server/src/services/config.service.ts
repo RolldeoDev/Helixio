@@ -140,6 +140,12 @@ export interface AppConfig {
   externalRatings: ExternalRatingsSettings;
   /** Operation log retention in days */
   logRetentionDays: number;
+  /**
+   * Whether file renaming is enabled globally.
+   * When disabled, no files will be renamed by any operation.
+   * Default: false (disabled for safety)
+   */
+  fileRenamingEnabled: boolean;
 }
 
 // =============================================================================
@@ -198,6 +204,7 @@ const DEFAULT_CONFIG: AppConfig = {
     minMatchConfidence: 0.7,
   },
   logRetentionDays: 10,
+  fileRenamingEnabled: false, // Disabled by default for safety
 };
 
 // =============================================================================
@@ -272,6 +279,7 @@ export function updateConfig(updates: Partial<AppConfig>): AppConfig {
     naming: { ...current.naming, ...updates.naming },
     externalRatings: { ...current.externalRatings, ...updates.externalRatings },
     logRetentionDays: updates.logRetentionDays ?? current.logRetentionDays,
+    fileRenamingEnabled: updates.fileRenamingEnabled ?? current.fileRenamingEnabled,
   };
   saveConfig(updated);
   return updated;
@@ -508,6 +516,27 @@ export function updateComicClassificationSettings(settings: Partial<ComicClassif
 }
 
 // =============================================================================
+// File Renaming Settings
+// =============================================================================
+
+/**
+ * Check if file renaming operations are enabled.
+ * When disabled, no files will be renamed by any operation.
+ */
+export function isFileRenamingEnabled(): boolean {
+  return loadConfig().fileRenamingEnabled;
+}
+
+/**
+ * Set whether file renaming is enabled.
+ */
+export function setFileRenamingEnabled(enabled: boolean): void {
+  const config = loadConfig();
+  config.fileRenamingEnabled = enabled;
+  saveConfig(config);
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 
@@ -562,6 +591,7 @@ function mergeWithDefaults(partial: Partial<AppConfig>): AppConfig {
     naming: { ...DEFAULT_CONFIG.naming, ...partial.naming },
     externalRatings: mergedExternalRatings,
     logRetentionDays: partial.logRetentionDays ?? DEFAULT_CONFIG.logRetentionDays,
+    fileRenamingEnabled: partial.fileRenamingEnabled ?? DEFAULT_CONFIG.fileRenamingEnabled,
   };
 }
 

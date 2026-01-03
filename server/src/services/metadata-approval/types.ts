@@ -117,8 +117,10 @@ export interface FileChange {
   } | null;
   /** Confidence of the match (0-1) */
   matchConfidence: number;
-  /** Field-by-field changes */
+  /** Field-by-field changes (only fields that differ from current values) */
   fields: Record<string, FieldChange>;
+  /** Complete proposed metadata (all fields, including unchanged ones) - used for rename preview and UI display */
+  proposedMetadata: Record<string, string | number | null>;
   /** Status of this file */
   status: 'matched' | 'unmatched' | 'manual' | 'rejected';
 }

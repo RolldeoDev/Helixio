@@ -79,6 +79,9 @@ export function Settings() {
   const [autoMatchThreshold, setAutoMatchThreshold] = useState(0.95);
   const [autoApplyHighConfidence, setAutoApplyHighConfidence] = useState(true);
 
+  // File renaming enabled state
+  const [fileRenamingEnabled, setFileRenamingEnabled] = useState(false);
+
   // Load configuration
   useEffect(() => {
     const loadConfiguration = async () => {
@@ -101,6 +104,13 @@ export function Settings() {
           if (data.settings.autoApplyHighConfidence !== undefined) {
             setAutoApplyHighConfidence(data.settings.autoApplyHighConfidence);
           }
+        }
+
+        // Load file renaming setting
+        const renamingRes = await fetch(`${API_BASE}/config/file-renaming`);
+        if (renamingRes.ok) {
+          const renamingData = await renamingRes.json();
+          setFileRenamingEnabled(renamingData.enabled ?? false);
         }
 
       } catch (err) {
@@ -183,12 +193,14 @@ export function Settings() {
           >
             Libraries
           </button>
-          <button
-            className={`tab ${activeTab === 'file-naming' ? 'active' : ''}`}
-            onClick={() => handleTabChange('file-naming')}
-          >
-            File Naming
-          </button>
+          {fileRenamingEnabled && (
+            <button
+              className={`tab ${activeTab === 'file-naming' ? 'active' : ''}`}
+              onClick={() => handleTabChange('file-naming')}
+            >
+              File Naming
+            </button>
+          )}
           <button
             className={`tab ${activeTab === 'reader' ? 'active' : ''}`}
             onClick={() => handleTabChange('reader')}
@@ -357,8 +369,8 @@ export function Settings() {
             <LibrarySettingsTab />
           )}
 
-          {/* File Naming Settings */}
-          {activeTab === 'file-naming' && (
+          {/* File Naming Settings (only shown when file renaming is enabled) */}
+          {activeTab === 'file-naming' && fileRenamingEnabled && (
             <FileNamingSettings />
           )}
 

@@ -939,6 +939,9 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
                 tags: series.tags ?? null,
                 startYear: series.startYear ?? null,
                 endYear: series.endYear ?? null,
+                characters: series.characters ?? null,
+                teams: series.teams ?? null,
+                locations: series.locations ?? null,
               }}
               onApply={(updates) => {
                 Object.entries(updates).forEach(([field, value]) => {

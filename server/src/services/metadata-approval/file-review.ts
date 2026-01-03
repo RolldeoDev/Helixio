@@ -172,6 +172,7 @@ async function prepareMangaFileChanges(
         },
         matchConfidence: classification?.confidence || 0.9,
         fields,
+        proposedMetadata,
         status: 'matched',
       });
     } else {
@@ -186,6 +187,7 @@ async function prepareMangaFileChanges(
         matchedIssue: null,
         matchConfidence: 0,
         fields: {},
+        proposedMetadata: {},
         status: 'unmatched',
       });
     }
@@ -351,6 +353,7 @@ export async function prepareFileChanges(
             matchedIssue: null,
             matchConfidence: 0,
             fields: {},
+            proposedMetadata: {},
             status: 'rejected',
           });
         }
@@ -415,6 +418,7 @@ export async function prepareFileChanges(
             matchedIssue: null,
             matchConfidence: 0,
             fields: {},
+            proposedMetadata: {},
             status: 'unmatched',
           });
         }
@@ -532,6 +536,7 @@ export async function prepareFileChanges(
           matchedIssue: bestGuess,
           matchConfidence: 0,
           fields: {},
+          proposedMetadata: {},
           status: 'unmatched',
         });
       }
@@ -591,6 +596,7 @@ export async function prepareFileChanges(
           },
           matchConfidence: match.confidence,
           fields,
+          proposedMetadata,
           status: 'matched',
         });
       }
@@ -641,6 +647,7 @@ export async function prepareFileChanges(
           },
           matchConfidence: match.confidence,
           fields,
+          proposedMetadata,
           status: 'matched',
         });
       }
@@ -751,8 +758,9 @@ export async function manualSelectIssue(
     coverDate: issue.cover_date,
   };
   fileChange.matchConfidence = 1.0;
-  const { fields } = await issueToFieldChanges(fileId, issue, seriesGroup.selectedSeries);
+  const { fields, proposedMetadata } = await issueToFieldChanges(fileId, issue, seriesGroup.selectedSeries);
   fileChange.fields = fields;
+  fileChange.proposedMetadata = proposedMetadata;
   fileChange.status = 'manual';
 
   session.updatedAt = new Date();
@@ -906,7 +914,7 @@ export async function moveFileToSeriesGroup(
       const chapterNumber = parsedData?.number || parseFilenameToQuery(filename).issueNumber;
 
       if (chapterNumber) {
-        const { fields } = await mangaChapterToFieldChanges(fileId, chapterNumber, metadataSource, {
+        const { fields, proposedMetadata } = await mangaChapterToFieldChanges(fileId, chapterNumber, metadataSource, {
           filename,
           pageCount: 0,
         });
@@ -923,6 +931,7 @@ export async function moveFileToSeriesGroup(
           },
           matchConfidence: 0.9,
           fields,
+          proposedMetadata,
           status: 'matched',
         };
 
@@ -975,6 +984,7 @@ export async function moveFileToSeriesGroup(
             },
             matchConfidence: confidence,
             fields: result.fields,
+            proposedMetadata: result.proposedMetadata,
             status: 'matched',
           };
 
@@ -998,6 +1008,7 @@ export async function moveFileToSeriesGroup(
       matchedIssue: null,
       matchConfidence: 0,
       fields: {},
+      proposedMetadata: {},
       status: 'unmatched',
     };
 
@@ -1019,6 +1030,7 @@ export async function moveFileToSeriesGroup(
     matchedIssue: null,
     matchConfidence: 0,
     fields: {},
+    proposedMetadata: {},
     status: 'unmatched',
   };
 
@@ -1065,24 +1077,23 @@ export async function regenerateRenamePreview(
     return null;
   }
 
-  // Build proposed metadata by merging current field values with the new edits
-  // Start with existing fields from the fileChange
-  const proposedMetadata: Record<string, string | number | null> = {};
+  // Build proposed metadata starting with complete original metadata
+  // This ensures we have ALL fields, not just changed ones (fixes missing number/title in rename)
+  const proposedMetadata: Record<string, string | number | null> = {
+    ...fileChange.proposedMetadata, // Start with complete proposed metadata
+  };
 
+  // Apply any edits from fileChange.fields
   for (const [key, fieldData] of Object.entries(fileChange.fields)) {
     if (key === 'rename') continue; // Skip rename field itself
 
-    // Use editedValue if edited, otherwise proposed, otherwise current
+    // Use editedValue if edited, otherwise keep the original proposed value
     if (fieldData.edited && fieldData.editedValue !== undefined) {
       proposedMetadata[key] = fieldData.editedValue;
-    } else if (fieldData.proposed !== null && fieldData.proposed !== undefined) {
-      proposedMetadata[key] = fieldData.proposed;
-    } else {
-      proposedMetadata[key] = fieldData.current;
     }
   }
 
-  // Apply the new field values on top
+  // Apply the new field values on top (from current edit)
   for (const [key, value] of Object.entries(fieldValues)) {
     proposedMetadata[key] = value;
   }

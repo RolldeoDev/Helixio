@@ -962,6 +962,10 @@ export interface GeneratedSeriesMetadata {
   tags: GeneratedMetadataField;
   startYear: GeneratedMetadataField;
   endYear: GeneratedMetadataField;
+  // Entity fields (generated when generateEntities option is enabled)
+  characters: GeneratedMetadataField;
+  teams: GeneratedMetadataField;
+  locations: GeneratedMetadataField;
 }
 
 /**
@@ -2407,7 +2411,7 @@ export async function generateCollectionDescription(
  */
 export async function generateSeriesMetadata(
   seriesId: string,
-  options?: { useWebSearch?: boolean }
+  options?: { useWebSearch?: boolean; generateEntities?: boolean }
 ): Promise<GenerateMetadataResult> {
   return post<GenerateMetadataResult>(
     `/description/series/${seriesId}/generate-metadata`,
