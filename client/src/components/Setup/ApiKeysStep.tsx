@@ -5,7 +5,7 @@
  * for external metadata services (ComicVine, Anthropic).
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './SetupWizard.css';
 
 interface ApiKeysStepProps {
@@ -14,6 +14,10 @@ interface ApiKeysStepProps {
 }
 
 const API_BASE = '/api';
+
+// API key metadata type
+type ApiKeySource = 'environment' | 'config' | 'none';
+interface ApiKeyMeta { source: ApiKeySource; readOnly: boolean }
 
 export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
   const [comicVineKey, setComicVineKey] = useState('');
@@ -24,6 +28,59 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
   const [anthropicResult, setAnthropicResult] = useState<'success' | 'error' | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // API key metadata (source and readOnly status)
+  const [apiKeyMeta, setApiKeyMeta] = useState<{
+    comicVine: ApiKeyMeta;
+    anthropic: ApiKeyMeta;
+  }>({
+    comicVine: { source: 'none', readOnly: false },
+    anthropic: { source: 'none', readOnly: false },
+  });
+
+  // Load existing API key metadata on mount
+  useEffect(() => {
+    const loadApiKeyMeta = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/config/api-keys`);
+        if (!response.ok) {
+          console.error('Failed to fetch API key metadata:', response.status);
+          return;
+        }
+        const keys = await response.json();
+
+        // Store values and metadata
+        setComicVineKey(keys.comicVine?.value || '');
+        setAnthropicKey(keys.anthropic?.value || '');
+
+        const cvMeta = {
+          source: (keys.comicVine?.source || 'none') as ApiKeySource,
+          readOnly: keys.comicVine?.readOnly || false,
+        };
+        const anthMeta = {
+          source: (keys.anthropic?.source || 'none') as ApiKeySource,
+          readOnly: keys.anthropic?.readOnly || false,
+        };
+
+        setApiKeyMeta({ comicVine: cvMeta, anthropic: anthMeta });
+
+        // Auto-skip if ComicVine is already configured via environment
+        // (ComicVine is the required key)
+        // Use setTimeout to defer the skip call, preventing React state updates during render
+        if (cvMeta.source === 'environment' && cvMeta.readOnly) {
+          setTimeout(() => onSkip(), 0);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to load API key metadata:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadApiKeyMeta();
+  }, [onSkip]);
 
   const handleTestComicVine = async () => {
     if (!comicVineKey.trim()) return;
@@ -69,7 +126,8 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
 
   const handleSaveAndContinue = async () => {
     // At least ComicVine should be configured to use Save & Continue
-    if (!comicVineKey.trim()) {
+    // (unless it's already configured via environment)
+    if (!comicVineKey.trim() && !apiKeyMeta.comicVine.readOnly) {
       setError('Please enter a ComicVine API key, or use "Skip for now" below');
       return;
     }
@@ -78,13 +136,25 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
     setError(null);
 
     try {
+      // Only send keys that aren't read-only
+      const keysToSave: Record<string, string | undefined> = {};
+      if (!apiKeyMeta.comicVine.readOnly && comicVineKey) {
+        keysToSave.comicVine = comicVineKey;
+      }
+      if (!apiKeyMeta.anthropic.readOnly && anthropicKey) {
+        keysToSave.anthropic = anthropicKey;
+      }
+
+      // If all keys are read-only, just continue
+      if (Object.keys(keysToSave).length === 0) {
+        onNext();
+        return;
+      }
+
       const response = await fetch(`${API_BASE}/config/api-keys`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          comicVine: comicVineKey || undefined,
-          anthropic: anthropicKey || undefined,
-        }),
+        body: JSON.stringify(keysToSave),
       });
 
       if (!response.ok) throw new Error('Failed to save API keys');
@@ -95,6 +165,18 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
       setSaving(false);
     }
   };
+
+  // Show loading state while fetching metadata
+  if (loading) {
+    return (
+      <div className="setup-step apikeys-step">
+        <div className="step-header">
+          <h2>Configure API Keys</h2>
+          <p className="step-subtitle">Loading configuration...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="setup-step apikeys-step">
@@ -113,7 +195,11 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
         <div className="form-group">
           <label htmlFor="comicvine-key">
             ComicVine API Key
-            <span className="label-required">Required</span>
+            {apiKeyMeta.comicVine.source === 'environment' ? (
+              <span className="env-source-badge">Environment</span>
+            ) : (
+              <span className="label-required">Required</span>
+            )}
           </label>
           <p className="form-hint">
             Free to obtain from{' '}
@@ -126,33 +212,45 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
             </a>
           </p>
           <div className="api-key-input-row">
-            <input
-              id="comicvine-key"
-              type="password"
-              value={comicVineKey}
-              onChange={(e) => {
-                setComicVineKey(e.target.value);
-                setComicVineResult(null);
-              }}
-              placeholder="Enter your ComicVine API key"
-              disabled={saving}
-            />
-            <button
-              type="button"
-              className="btn-secondary test-btn"
-              onClick={handleTestComicVine}
-              disabled={!comicVineKey.trim() || testingComicVine || saving}
-            >
-              {testingComicVine ? (
-                <span className="spinner-tiny" />
-              ) : comicVineResult === 'success' ? (
-                <span className="test-result success">✓</span>
-              ) : comicVineResult === 'error' ? (
-                <span className="test-result error">✕</span>
-              ) : (
-                'Test'
+            <div className="api-key-input-wrapper">
+              <input
+                id="comicvine-key"
+                type="password"
+                value={comicVineKey}
+                onChange={(e) => {
+                  setComicVineKey(e.target.value);
+                  setComicVineResult(null);
+                }}
+                placeholder={apiKeyMeta.comicVine.readOnly ? 'Set via environment variable' : 'Enter your ComicVine API key'}
+                disabled={saving || apiKeyMeta.comicVine.readOnly}
+                title={apiKeyMeta.comicVine.readOnly ? 'This key is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.comicVine.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
               )}
-            </button>
+            </div>
+            {(comicVineKey || apiKeyMeta.comicVine.readOnly) && (
+              <button
+                type="button"
+                className="btn-secondary test-btn"
+                onClick={handleTestComicVine}
+                disabled={testingComicVine || saving}
+              >
+                {testingComicVine ? (
+                  <span className="spinner-tiny" />
+                ) : comicVineResult === 'success' ? (
+                  <span className="test-result success">✓</span>
+                ) : comicVineResult === 'error' ? (
+                  <span className="test-result error">✕</span>
+                ) : (
+                  'Test'
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -160,7 +258,11 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
         <div className="form-group">
           <label htmlFor="anthropic-key">
             Anthropic API Key
-            <span className="label-optional">Optional</span>
+            {apiKeyMeta.anthropic.source === 'environment' ? (
+              <span className="env-source-badge">Environment</span>
+            ) : (
+              <span className="label-optional">Optional</span>
+            )}
           </label>
           <p className="form-hint">
             Enables AI-powered filename parsing for better metadata matching.
@@ -174,33 +276,45 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
             </a>
           </p>
           <div className="api-key-input-row">
-            <input
-              id="anthropic-key"
-              type="password"
-              value={anthropicKey}
-              onChange={(e) => {
-                setAnthropicKey(e.target.value);
-                setAnthropicResult(null);
-              }}
-              placeholder="Enter your Anthropic API key (optional)"
-              disabled={saving}
-            />
-            <button
-              type="button"
-              className="btn-secondary test-btn"
-              onClick={handleTestAnthropic}
-              disabled={!anthropicKey.trim() || testingAnthropic || saving}
-            >
-              {testingAnthropic ? (
-                <span className="spinner-tiny" />
-              ) : anthropicResult === 'success' ? (
-                <span className="test-result success">✓</span>
-              ) : anthropicResult === 'error' ? (
-                <span className="test-result error">✕</span>
-              ) : (
-                'Test'
+            <div className="api-key-input-wrapper">
+              <input
+                id="anthropic-key"
+                type="password"
+                value={anthropicKey}
+                onChange={(e) => {
+                  setAnthropicKey(e.target.value);
+                  setAnthropicResult(null);
+                }}
+                placeholder={apiKeyMeta.anthropic.readOnly ? 'Set via environment variable' : 'Enter your Anthropic API key (optional)'}
+                disabled={saving || apiKeyMeta.anthropic.readOnly}
+                title={apiKeyMeta.anthropic.readOnly ? 'This key is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.anthropic.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
               )}
-            </button>
+            </div>
+            {(anthropicKey || apiKeyMeta.anthropic.readOnly) && (
+              <button
+                type="button"
+                className="btn-secondary test-btn"
+                onClick={handleTestAnthropic}
+                disabled={testingAnthropic || saving}
+              >
+                {testingAnthropic ? (
+                  <span className="spinner-tiny" />
+                ) : anthropicResult === 'success' ? (
+                  <span className="test-result success">✓</span>
+                ) : anthropicResult === 'error' ? (
+                  <span className="test-result error">✕</span>
+                ) : (
+                  'Test'
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -229,16 +343,20 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
         <button
           className="btn-primary btn-lg"
           onClick={handleSaveAndContinue}
-          disabled={saving || !comicVineKey.trim()}
+          disabled={saving || (!comicVineKey.trim() && !apiKeyMeta.comicVine.readOnly)}
         >
-          {saving ? 'Saving...' : 'Save & Continue'}
+          {saving ? 'Saving...' : apiKeyMeta.comicVine.readOnly ? 'Continue' : 'Save & Continue'}
         </button>
-        <button className="btn-text" onClick={onSkip} disabled={saving}>
-          Skip for now
-        </button>
-        <p className="skip-warning">
-          Skipping will limit metadata search to free sources only.
-        </p>
+        {!apiKeyMeta.comicVine.readOnly && (
+          <>
+            <button className="btn-text" onClick={onSkip} disabled={saving}>
+              Skip for now
+            </button>
+            <p className="skip-warning">
+              Skipping will limit metadata search to free sources only.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

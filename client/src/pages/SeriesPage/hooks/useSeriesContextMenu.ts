@@ -38,12 +38,15 @@ export interface UseSeriesContextMenuOptions {
   onSuccess?: () => void;
   /** Callback to clear selection after operation */
   onClearSelection?: () => void;
+  /** Callback when merge action is triggered with selected series IDs */
+  onMerge?: (seriesIds: string[]) => void;
 }
 
 export function useSeriesContextMenu({
   items,
   onSuccess,
   onClearSelection,
+  onMerge,
 }: UseSeriesContextMenuOptions): UseSeriesContextMenuReturn {
   const navigate = useNavigate();
 
@@ -126,11 +129,11 @@ export function useSeriesContextMenu({
           break;
 
         case 'mergeWith':
-          // Navigate to merge page with selected series
-          if (selectedIds.length >= 2) {
-            navigate(`/series/merge?ids=${selectedIds.join(',')}`);
-          } else {
-            navigate(`/series/${entityId}/merge`);
+          // Trigger merge modal with selected series
+          if (onMerge) {
+            // Use selected IDs if multiple selected, otherwise just the clicked entity
+            const idsToMerge = selectedIds.length >= 2 ? selectedIds : [entityId];
+            onMerge(idsToMerge);
           }
           break;
 
@@ -143,7 +146,7 @@ export function useSeriesContextMenu({
           console.warn('Unknown series menu action:', actionId);
       }
     },
-    [menuState.context, closeMenu, navigate, bulkActions]
+    [menuState.context, closeMenu, navigate, bulkActions, onMerge]
   );
 
   // Get menu items for rendering

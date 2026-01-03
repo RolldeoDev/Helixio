@@ -12,6 +12,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GridItem, getNextSeriesIssue } from '../../../services/api/series';
+import { getCoverUrl, getApiCoverUrl, getCollectionCoverUrl } from '../../../services/api.service';
 import { useCardCoverImage } from './useCardCoverImage';
 import './SeriesCard.css';
 
@@ -50,17 +51,58 @@ function getItemCoverData(item: GridItem) {
       coverFileId: series.resolvedCoverFileId ?? series.coverFileId,
       firstIssueId: series.issues?.[0]?.id ?? null,
       firstIssueCoverHash: series.issues?.[0]?.coverHash ?? null,
+      precomputedCoverUrl: null,
     };
   } else {
-    // Collection - use derived cover from collection data
+    // Collection - compute cover URL based on coverType
     const collection = item.collection;
+    let precomputedCoverUrl: string | null = null;
+
+    if (collection.coverType === 'custom' && collection.coverHash) {
+      // Custom uploaded cover - stored in API covers (series path)
+      precomputedCoverUrl = getApiCoverUrl(collection.coverHash);
+    } else if (collection.coverType === 'auto' && collection.coverHash) {
+      // Auto-generated mosaic cover - stored in collection covers path
+      precomputedCoverUrl = getCollectionCoverUrl(collection.coverHash);
+    } else if (collection.coverType === 'issue' && collection.coverFileId) {
+      // Issue cover
+      precomputedCoverUrl = getCoverUrl(collection.coverFileId);
+    } else if (collection.coverType === 'series' && collection.coverSeriesId) {
+      // Series cover - find the series in seriesCovers
+      const series = collection.seriesCovers?.find(s => s.id === collection.coverSeriesId);
+      if (series) {
+        if (series.coverHash) {
+          precomputedCoverUrl = getApiCoverUrl(series.coverHash);
+        } else if (series.coverFileId) {
+          precomputedCoverUrl = getCoverUrl(series.coverFileId);
+        } else if (series.firstIssueId) {
+          precomputedCoverUrl = getCoverUrl(series.firstIssueId, series.firstIssueCoverHash);
+        }
+      }
+    }
+
+    // Fallback: try seriesCovers if no cover URL was determined
+    if (!precomputedCoverUrl && collection.seriesCovers && collection.seriesCovers.length > 0) {
+      const firstSeries = collection.seriesCovers[0];
+      if (firstSeries) {
+        if (firstSeries.coverHash) {
+          precomputedCoverUrl = getApiCoverUrl(firstSeries.coverHash);
+        } else if (firstSeries.coverFileId) {
+          precomputedCoverUrl = getCoverUrl(firstSeries.coverFileId);
+        } else if (firstSeries.firstIssueId) {
+          precomputedCoverUrl = getCoverUrl(firstSeries.firstIssueId, firstSeries.firstIssueCoverHash);
+        }
+      }
+    }
+
     return {
       coverSource: 'auto' as const,
       resolvedCoverSource: null,
       coverHash: null,
-      coverFileId: collection.coverFileId || null,
+      coverFileId: null,
       firstIssueId: null,
       firstIssueCoverHash: null,
+      precomputedCoverUrl,
     };
   }
 }
@@ -117,7 +159,7 @@ function SeriesCardInner({
       if (item.itemType === 'series') {
         navigate(`/series/${id}`);
       } else {
-        navigate(`/collections/${id}`);
+        navigate(`/collection/${id}`);
       }
     },
     [id, item.itemType, navigate, onSelect]
@@ -140,7 +182,7 @@ function SeriesCardInner({
         if (item.itemType === 'series') {
           navigate(`/series/${id}`);
         } else {
-          navigate(`/collections/${id}`);
+          navigate(`/collection/${id}`);
         }
       }
     },
@@ -305,9 +347,7 @@ function SeriesCardInner({
         {/* Collection indicator */}
         {item.itemType === 'collection' && (
           <div className="series-card__collection-badge">
-            <svg viewBox="0 0 16 16" fill="currentColor">
-              <path d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4z" />
-            </svg>
+            Collection
           </div>
         )}
       </div>

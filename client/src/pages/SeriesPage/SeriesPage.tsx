@@ -10,13 +10,16 @@
  * - Cleaner separation of concerns via custom hooks
  */
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import { useBreadcrumbs } from '../../contexts/BreadcrumbContext';
 import { AdvancedSeriesFilterProvider, useAdvancedSeriesFilter } from '../../contexts/AdvancedSeriesFilterContext';
 import { UnifiedMenu } from '../../components/UnifiedMenu';
 import { AdvancedSeriesFilterModal } from '../../components/AdvancedSeriesFilter';
 import { CollectionPickerModal } from '../../components/CollectionPickerModal/CollectionPickerModal';
 import { BatchSeriesMetadataModal } from '../../components/BatchSeriesMetadataModal/BatchSeriesMetadataModal';
+import { BulkLinkSeriesModal } from '../../components/BulkLinkSeriesModal';
+import { MergeSeriesModal } from '../../components/MergeSeriesModal';
+import type { SeriesForMerge, Series } from '../../services/api.service';
 import { NavigationSidebar } from '../../components/NavigationSidebar';
 import { useToast } from '../../contexts/ToastContext';
 import { GridItem } from '../../services/api/series';
@@ -38,6 +41,35 @@ import { BulkActionsBar } from './components/BulkActionsBar';
 import { useBulkActions } from './hooks/useBulkActions';
 
 import './SeriesPage.css';
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Convert Series to SeriesForMerge format for the merge modal.
+ */
+function seriesToMergeFormat(s: Series): SeriesForMerge {
+  return {
+    id: s.id,
+    name: s.name,
+    publisher: s.publisher,
+    startYear: s.startYear,
+    endYear: s.endYear,
+    issueCount: s.issueCount,
+    ownedIssueCount: s._count?.issues ?? 0,
+    comicVineId: s.comicVineId,
+    metronId: s.metronId,
+    coverUrl: s.coverUrl,
+    coverHash: s.coverHash,
+    coverFileId: s.coverFileId,
+    aliases: s.aliases,
+    summary: s.summary,
+    type: s.type,
+    createdAt: String(s.createdAt ?? new Date().toISOString()),
+    updatedAt: String(s.updatedAt ?? new Date().toISOString()),
+  };
+}
 
 // =============================================================================
 // Inner Component (needs AdvancedSeriesFilterProvider context)
@@ -90,6 +122,41 @@ function SeriesPageContent() {
     clearSelection,
   } = useSeriesSelection({ items });
 
+  // Toast notifications
+  const { addToast } = useToast();
+
+  // Merge modal state
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSeriesData, setMergeSeriesData] = useState<SeriesForMerge[]>([]);
+
+  // Handler for merge action from context menu
+  const handleMerge = useCallback((seriesIds: string[]) => {
+    // Find the series data for the given IDs from grid items
+    const seriesToMerge: SeriesForMerge[] = [];
+    for (const id of seriesIds) {
+      const item = items.find((i) => i.id === id && i.itemType === 'series');
+      if (item && item.itemType === 'series') {
+        seriesToMerge.push(seriesToMergeFormat(item.series));
+      }
+    }
+
+    if (seriesToMerge.length >= 2) {
+      setMergeSeriesData(seriesToMerge);
+      setShowMergeModal(true);
+    } else {
+      addToast('warning', 'Select at least 2 series to merge');
+    }
+  }, [items, addToast]);
+
+  // Handler for merge completion
+  const handleMergeComplete = useCallback(() => {
+    setShowMergeModal(false);
+    setMergeSeriesData([]);
+    clearSelection();
+    refetch();
+    addToast('success', 'Series merged successfully');
+  }, [clearSelection, refetch, addToast]);
+
   // Context menu
   const {
     menuState,
@@ -101,18 +168,21 @@ function SeriesPageContent() {
     items,
     onSuccess: refetch,
     onClearSelection: clearSelection,
+    onMerge: handleMerge,
   });
 
   // Bulk actions
   const bulkActions = useBulkActions({ onSuccess: refetch });
-  const { addToast } = useToast();
 
-  // Get selected series IDs as array for bulk actions
-  const selectedSeriesIds = Array.from(selectedIds);
+  // Get selected series IDs as array for bulk actions (memoized for stable reference)
+  const selectedSeriesIds = useMemo(() => Array.from(selectedIds), [selectedIds]);
 
   // Navigation sidebar state
   const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [scrollToIndex, setScrollToIndex] = useState<((index: number) => void) | null>(null);
+
+  // Bulk link modal state
+  const [showBulkLinkModal, setShowBulkLinkModal] = useState(false);
 
   // Handler for scrollToIndex ready callback
   const handleScrollToIndexReady = useCallback((fn: (index: number) => void) => {
@@ -237,6 +307,7 @@ function SeriesPageContent() {
         onHideSeries={() => bulkActions.hideSeries(selectedSeriesIds)}
         onUnhideSeries={() => bulkActions.unhideSeries(selectedSeriesIds)}
         onBatchEdit={bulkActions.openBatchEdit}
+        onLinkSeries={() => setShowBulkLinkModal(true)}
       />
 
       {/* Collection Picker Modal */}
@@ -252,6 +323,35 @@ function SeriesPageContent() {
         onClose={bulkActions.closeBatchEdit}
         seriesIds={selectedSeriesIds}
         onComplete={handleBatchEditComplete}
+      />
+
+      {/* Bulk Link Series Modal */}
+      <BulkLinkSeriesModal
+        isOpen={showBulkLinkModal}
+        onClose={() => setShowBulkLinkModal(false)}
+        sourceSeriesIds={selectedSeriesIds}
+        onLinked={(result) => {
+          if (result.successful > 0) {
+            addToast('success', `Successfully linked ${result.successful} series`);
+            clearSelection();
+            refetch();
+          }
+          if (result.failed > 0) {
+            addToast('error', `Failed to link ${result.failed} series`);
+          }
+          setShowBulkLinkModal(false);
+        }}
+      />
+
+      {/* Merge Series Modal */}
+      <MergeSeriesModal
+        isOpen={showMergeModal}
+        onClose={() => {
+          setShowMergeModal(false);
+          setMergeSeriesData([]);
+        }}
+        onMergeComplete={handleMergeComplete}
+        initialSeries={mergeSeriesData}
       />
     </div>
   );

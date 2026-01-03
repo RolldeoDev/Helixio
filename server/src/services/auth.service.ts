@@ -187,7 +187,12 @@ export async function updateUser(
   return mapUserToInfo(user);
 }
 
-export async function updatePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+export async function updatePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+  currentToken?: string
+): Promise<void> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -210,6 +215,22 @@ export async function updatePassword(userId: string, currentPassword: string, ne
     where: { id: userId },
     data: { passwordHash },
   });
+
+  // SECURITY: Revoke all sessions except the current one after password change
+  // This forces re-authentication on all other devices
+  if (currentToken) {
+    await prisma.userSession.deleteMany({
+      where: {
+        userId,
+        token: { not: currentToken },
+      },
+    });
+  } else {
+    // If no current token provided, revoke all sessions
+    await prisma.userSession.deleteMany({
+      where: { userId },
+    });
+  }
 }
 
 /**

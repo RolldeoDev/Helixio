@@ -6,7 +6,7 @@
  */
 
 import { rename, unlink, copyFile, mkdir, access, stat } from 'fs/promises';
-import { dirname, join, basename, relative } from 'path';
+import { dirname, join, basename, relative, resolve, sep } from 'path';
 import { getDatabase } from './database.service.js';
 import { generatePartialHash } from './hash.service.js';
 import { checkAndSoftDeleteEmptySeries } from './series/index.js';
@@ -39,6 +39,16 @@ export interface MoveOptions {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/**
+ * Validate that a target path stays within a base directory (prevents path traversal).
+ * SECURITY: This is critical for preventing path traversal attacks.
+ */
+function isPathWithinBase(basePath: string, targetPath: string): boolean {
+  const resolvedBase = resolve(basePath);
+  const resolvedTarget = resolve(targetPath);
+  return resolvedTarget.startsWith(resolvedBase + sep) || resolvedTarget === resolvedBase;
+}
 
 /**
  * Check if a file exists.
@@ -246,8 +256,10 @@ export async function renameFile(
 
   const db = getDatabase();
 
+  // Include library to validate path stays within library root
   const file = await db.comicFile.findUnique({
     where: { id: fileId },
+    include: { library: true },
   });
 
   if (!file) {
@@ -260,6 +272,17 @@ export async function renameFile(
   }
 
   const destinationPath = join(dirname(file.path), newFilename);
+
+  // SECURITY: Validate that the destination path stays within the library root
+  // This prevents path traversal attacks via filenames like "../../../etc/passwd"
+  if (!isPathWithinBase(file.library.rootPath, destinationPath)) {
+    return {
+      success: false,
+      operation: 'rename',
+      source: file.path,
+      error: 'Invalid filename: destination must stay within library root',
+    };
+  }
 
   return moveFile(fileId, destinationPath, { batchId: options.batchId });
 }
@@ -703,6 +726,18 @@ export async function renameFolder(
       newPath: '',
       filesUpdated: 0,
       error: 'New folder name cannot contain path separators',
+    };
+  }
+
+  // SECURITY: Block directory traversal attempts
+  if (newFolderName === '..' || newFolderName === '.') {
+    return {
+      success: false,
+      operation: 'folder_rename',
+      oldPath: folderPath,
+      newPath: '',
+      filesUpdated: 0,
+      error: 'Invalid folder name',
     };
   }
 
