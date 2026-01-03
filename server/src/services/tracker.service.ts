@@ -6,6 +6,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -634,12 +635,10 @@ function mapStatusToMAL(status: MediaStatus): string {
 }
 
 function generateCodeVerifier(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  let result = '';
-  for (let i = 0; i < 128; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  // SECURITY: Use cryptographically secure random bytes for PKCE code verifier
+  // RFC 7636 requires 43-128 characters from unreserved URI characters
+  // base64url encoding of 64 bytes gives us 86 characters, which is within spec
+  return crypto.randomBytes(64).toString('base64url');
 }
 
 // =============================================================================

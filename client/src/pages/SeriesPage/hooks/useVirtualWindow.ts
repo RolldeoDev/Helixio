@@ -5,7 +5,7 @@
  * Returns which items to render based on scroll position.
  */
 
-import { useState, useEffect, useCallback, RefObject } from 'react';
+import { useState, useEffect, useCallback, useMemo, RefObject } from 'react';
 import { calculateVisibleRange, GridLayout, VisibleRangeResult } from '../utils/gridCalculations';
 
 interface VirtualItem<T> {
@@ -104,11 +104,6 @@ export function useVirtualWindow<T extends { id: string }>(
     };
   }, [containerRef, handleScroll, scrollThrottle]);
 
-  // Recalculate when layout changes
-  useEffect(() => {
-    handleScroll();
-  }, [layout, handleScroll]);
-
   // Scroll to a specific item index
   const scrollToIndex = useCallback((index: number) => {
     const container = containerRef.current;
@@ -147,13 +142,24 @@ export function useVirtualWindow<T extends { id: string }>(
 
   const totalHeight = layout?.getTotalHeight(items.length) ?? 0;
 
+  // Memoize range objects to prevent unnecessary re-renders in consumers
+  const memoizedVisibleRange = useMemo(
+    () => ({ start: viewportRange.startIndex, end: viewportRange.endIndex }),
+    [viewportRange.startIndex, viewportRange.endIndex]
+  );
+
+  const memoizedRenderRange = useMemo(
+    () => ({ start: renderRange.startIndex, end: renderRange.endIndex }),
+    [renderRange.startIndex, renderRange.endIndex]
+  );
+
   return {
     visibleItems,
     totalHeight,
     // Return viewport range (not render range) for NavigationSidebar indicator
-    visibleRange: { start: viewportRange.startIndex, end: viewportRange.endIndex },
+    visibleRange: memoizedVisibleRange,
     // Return render range (with overscan) for skeleton generation
-    renderRange: { start: renderRange.startIndex, end: renderRange.endIndex },
+    renderRange: memoizedRenderRange,
     scrollToIndex,
   };
 }

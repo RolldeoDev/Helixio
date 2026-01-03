@@ -489,13 +489,13 @@ router.get('/:id', optionalAuth, asyncHandler(async (req: Request, res: Response
  *
  * Query params:
  * - limit (optional): Number of similar series (default: 10)
- * - userId (optional): User ID to exclude already-read series
  * - noCache (optional): Skip cache if 'true'
  */
 router.get('/:id/similar', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
   const seriesId = req.params.id!;
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
-  const userId = req.query.userId as string | undefined ?? req.user?.id;
+  // SECURITY: Always use authenticated user's ID, never allow query param override
+  const userId = req.user?.id;
   const noCache = req.query.noCache === 'true';
 
   // Check cache first

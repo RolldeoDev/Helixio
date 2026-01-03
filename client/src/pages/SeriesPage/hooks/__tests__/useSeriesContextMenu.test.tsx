@@ -56,6 +56,22 @@ vi.mock('../../../../contexts/MetadataJobContext', () => ({
   }),
 }));
 
+// Mock AuthContext
+vi.mock('../../../../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    user: { id: 'test-user', name: 'Test User' },
+  }),
+}));
+
+// Mock AchievementContext
+vi.mock('../../../../contexts/AchievementContext', () => ({
+  useAchievement: () => ({
+    achievements: [],
+    checkAchievements: vi.fn(),
+  }),
+}));
+
 // Helper to create mock grid items
 function createMockItems(count: number): GridItem[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -331,9 +347,10 @@ describe('useSeriesContextMenu', () => {
     ]);
   });
 
-  it('should navigate to merge page on mergeWith action', async () => {
+  it('should call onMerge callback on mergeWith action with multiple selected', async () => {
+    const mockOnMerge = vi.fn();
     const { result } = renderHook(
-      () => useSeriesContextMenu({ items: createMockItems(5) }),
+      () => useSeriesContextMenu({ items: createMockItems(5), onMerge: mockOnMerge }),
       { wrapper }
     );
 
@@ -358,12 +375,13 @@ describe('useSeriesContextMenu', () => {
       result.current.handleAction('mergeWith');
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/series/merge?ids=series-0,series-1');
+    expect(mockOnMerge).toHaveBeenCalledWith(['series-0', 'series-1']);
   });
 
-  it('should navigate to single merge page when only one selected', async () => {
+  it('should call onMerge callback with single entity when only one selected', async () => {
+    const mockOnMerge = vi.fn();
     const { result } = renderHook(
-      () => useSeriesContextMenu({ items: createMockItems(5) }),
+      () => useSeriesContextMenu({ items: createMockItems(5), onMerge: mockOnMerge }),
       { wrapper }
     );
 
@@ -387,7 +405,38 @@ describe('useSeriesContextMenu', () => {
       result.current.handleAction('mergeWith');
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/series/series-0/merge');
+    expect(mockOnMerge).toHaveBeenCalledWith(['series-0']);
+  });
+
+  it('should not throw when onMerge is not provided', async () => {
+    const { result } = renderHook(
+      () => useSeriesContextMenu({ items: createMockItems(5) }),
+      { wrapper }
+    );
+
+    const mockEvent = {
+      clientX: 100,
+      clientY: 200,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as React.MouseEvent;
+
+    act(() => {
+      result.current.handleContextMenu(
+        mockEvent,
+        'series-0',
+        new Set(['series-0', 'series-1']),
+        undefined
+      );
+    });
+
+    // Should not throw when onMerge is not provided
+    await act(async () => {
+      result.current.handleAction('mergeWith');
+    });
+
+    // Verify no navigation happened since we're not using navigate anymore for merge
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should return menu items via getMenuItems', () => {

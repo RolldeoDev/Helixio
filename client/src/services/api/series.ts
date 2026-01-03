@@ -158,11 +158,13 @@ export interface PromotedCollectionGridItem {
   seriesCount: number;
   // For mosaic cover
   seriesCovers: Array<{
-    seriesId: string;
+    id: string;
     coverHash: string | null;
     coverUrl: string | null;
     coverFileId: string | null;
     name: string;
+    firstIssueId?: string | null;
+    firstIssueCoverHash?: string | null;
   }>;
   // For library filtering
   libraryIds: string[];

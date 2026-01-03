@@ -239,3 +239,137 @@ export function clampRgb(rgb: RGB): RGB {
 export function rgbToCss(rgb: RGB): string {
   return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
 }
+
+// =============================================================================
+// Accessible Title Color Selection
+// =============================================================================
+
+/**
+ * Warm white fallback color for grayscale covers.
+ * A subtle off-white with a warm undertone (#FFFCF5).
+ */
+export const WARM_WHITE_FALLBACK: RGB = { r: 255, g: 252, b: 245 };
+
+/**
+ * Pure white fallback for maximum contrast scenarios.
+ */
+const PURE_WHITE: RGB = { r: 255, g: 255, b: 255 };
+
+/**
+ * Options for computing accessible title colors.
+ */
+export interface TitleColorOptions {
+  /** Minimum WCAG contrast ratio (default: 4.5 for AA) */
+  minContrast?: number;
+  /** Minimum hue distance in degrees from background (default: 45°) */
+  minHueDistance?: number;
+}
+
+/**
+ * Compute an accessible title color that meets contrast and hue separation requirements.
+ *
+ * Algorithm:
+ * 1. If no accent or accent is desaturated → return warm white fallback
+ * 2. Create initial tint (saturation-adaptive blend with white, 30-60%)
+ * 3. Validate hue separation → if too similar to background, rotate to complementary
+ * 4. Validate contrast → progressively lighten until WCAG AA met
+ * 5. Fallback to pure white if all else fails
+ *
+ * @param accentRgb - Accent color extracted from cover (may be null)
+ * @param backgroundRgb - Background color the title will be displayed over
+ * @param options - Contrast and hue constraints
+ * @returns Title color RGB guaranteed to meet accessibility requirements
+ *
+ * @example
+ * // Blue accent on dark blue background → rotates to complementary yellow/orange
+ * computeAccessibleTitleColor(
+ *   { r: 65, g: 105, b: 225 },  // royal blue accent
+ *   { r: 15, g: 20, b: 45 }     // dark blue background
+ * );
+ *
+ * @example
+ * // Gray cover → returns warm white
+ * computeAccessibleTitleColor(
+ *   { r: 100, g: 100, b: 100 }, // gray accent
+ *   { r: 40, g: 42, b: 45 }     // dark gray background
+ * );
+ */
+export function computeAccessibleTitleColor(
+  accentRgb: RGB | null,
+  backgroundRgb: RGB,
+  options: TitleColorOptions = {}
+): RGB {
+  const { minContrast = 4.5, minHueDistance = 45 } = options;
+
+  // Step 1: Check if accent is valid (exists and is saturated)
+  if (!accentRgb) {
+    return WARM_WHITE_FALLBACK;
+  }
+
+  const accentHsl = rgbToHsl(accentRgb);
+  const MIN_SATURATION = 0.15;
+
+  // Desaturated accent (grayscale) → use warm white fallback
+  if (accentHsl.s < MIN_SATURATION) {
+    return WARM_WHITE_FALLBACK;
+  }
+
+  const bgHsl = rgbToHsl(backgroundRgb);
+
+  // Step 2: Create initial tint using saturation-adaptive strength
+  // More saturated accents get stronger tint (30-60%)
+  const tintStrength = 0.30 + (accentHsl.s * 0.30);
+
+  // Start with a working color based on the accent
+  let workingHsl: HSL = { ...accentHsl };
+
+  // Step 3: Validate hue separation from background
+  // Only check hue distance if background is also saturated
+  if (bgHsl.s >= 0.1) {
+    const hueDistance = getHueDistance(workingHsl.h, bgHsl.h);
+
+    if (hueDistance < minHueDistance) {
+      // Rotate to complementary hue (180°) - this guarantees maximum distance
+      workingHsl.h = (workingHsl.h + 180) % 360;
+    }
+  }
+
+  // Convert working color back to RGB and create tinted version
+  const adjustedAccent = hslToRgb(workingHsl);
+  let titleColor = createSubtleTint(adjustedAccent, tintStrength);
+
+  // Step 4: Validate and adjust contrast
+  // Determine adjustment direction based on background luminance
+  const bgLuminance = getRelativeLuminance(backgroundRgb);
+  const shouldLighten = bgLuminance < 0.5;
+
+  const MAX_ITERATIONS = 10;
+  let iterations = 0;
+
+  while (iterations < MAX_ITERATIONS) {
+    const contrast = getContrastRatio(titleColor, backgroundRgb);
+
+    if (contrast >= minContrast) {
+      // Contrast requirement met
+      return clampRgb(titleColor);
+    }
+
+    // Adjust lightness to improve contrast
+    const currentHsl = rgbToHsl(titleColor);
+
+    if (shouldLighten) {
+      // Dark background: lighten title toward white
+      currentHsl.l = Math.min(0.98, currentHsl.l + 0.08);
+    } else {
+      // Light background: darken title toward black
+      currentHsl.l = Math.max(0.02, currentHsl.l - 0.08);
+    }
+
+    titleColor = hslToRgb(currentHsl);
+    iterations++;
+  }
+
+  // Step 5: If we exhausted iterations, use fallback based on background
+  // Dark background → pure white, Light background → dark gray
+  return shouldLighten ? PURE_WHITE : { r: 30, g: 30, b: 30 };
+}

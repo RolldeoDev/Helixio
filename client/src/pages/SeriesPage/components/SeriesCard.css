@@ -358,22 +358,18 @@
 .series-card__collection-badge {
   position: absolute;
   top: 8px;
-  left: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: rgba(0, 0, 0, 0.7);
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-}
-
-.series-card__collection-badge svg {
-  width: 14px;
-  height: 14px;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* =============================================================================

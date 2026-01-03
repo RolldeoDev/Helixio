@@ -35,6 +35,7 @@ import { NavigationSidebar } from '../components/NavigationSidebar';
 import { BulkSeriesActionBar } from '../components/BulkSeriesActionBar';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
 import { BatchSeriesMetadataModal } from '../components/BatchSeriesMetadataModal';
+import { BulkLinkSeriesModal } from '../components/BulkLinkSeriesModal';
 import { useToast } from '../contexts/ToastContext';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
 import {
@@ -217,6 +218,10 @@ function SeriesBrowserPageContent() {
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [showCollectionPicker, setShowCollectionPicker] = useState(false);
   const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [showBulkLinkModal, setShowBulkLinkModal] = useState(false);
+
+  // Memoize the selectedSeries array to prevent infinite re-renders in child components
+  const selectedSeriesIds = useMemo(() => Array.from(selectedSeries), [selectedSeries]);
 
   // Get series entity data for conditional menu items (hide/unhide visibility)
   const getSeriesEntityData = useCallback((seriesId: string): MenuEntityData | undefined => {
@@ -490,11 +495,12 @@ function SeriesBrowserPageContent() {
     readIssues: item.readIssues,
     seriesCount: item.seriesCount,
     seriesCovers: item.seriesCovers.map((sc) => ({
-      id: sc.seriesId,
+      id: sc.id,
       name: sc.name,
       coverHash: sc.coverHash,
       coverFileId: sc.coverFileId,
-      firstIssueId: null,
+      firstIssueId: sc.firstIssueId ?? null,
+      firstIssueCoverHash: sc.firstIssueCoverHash ?? null,
     })),
   }), []);
 
@@ -735,7 +741,7 @@ function SeriesBrowserPageContent() {
 
     switch (action) {
       case 'viewCollection':
-        navigate(`/collections/${collectionId}`);
+        navigate(`/collection/${collectionId}`);
         break;
 
       case 'editCollection':
@@ -1097,7 +1103,7 @@ function SeriesBrowserPageContent() {
       {selectedSeries.size > 0 && (
         <BulkSeriesActionBar
           selectedCount={selectedSeries.size}
-          selectedSeriesIds={Array.from(selectedSeries)}
+          selectedSeriesIds={selectedSeriesIds}
           onClearSelection={clearSeriesSelection}
           onAddToCollection={() => setShowCollectionPicker(true)}
           onToggleFavorite={handleToggleFavorite}
@@ -1106,6 +1112,7 @@ function SeriesBrowserPageContent() {
           onMarkUnread={handleMarkUnread}
           onFetchMetadata={handleFetchMetadata}
           onBatchEdit={() => setShowBatchEditModal(true)}
+          onLinkSeries={() => setShowBulkLinkModal(true)}
           onSetHidden={handleSetHidden}
           isLoading={isBulkLoading}
         />
@@ -1115,17 +1122,35 @@ function SeriesBrowserPageContent() {
       <CollectionPickerModal
         isOpen={showCollectionPicker}
         onClose={() => setShowCollectionPicker(false)}
-        seriesIds={Array.from(selectedSeries)}
+        seriesIds={selectedSeriesIds}
       />
 
       {/* Batch Edit Modal */}
       <BatchSeriesMetadataModal
         isOpen={showBatchEditModal}
         onClose={() => setShowBatchEditModal(false)}
-        seriesIds={Array.from(selectedSeries)}
+        seriesIds={selectedSeriesIds}
         onComplete={() => {
           clearSeriesSelection();
           fetchSeries();
+        }}
+      />
+
+      {/* Bulk Link Series Modal */}
+      <BulkLinkSeriesModal
+        isOpen={showBulkLinkModal}
+        onClose={() => setShowBulkLinkModal(false)}
+        sourceSeriesIds={selectedSeriesIds}
+        onLinked={(result) => {
+          if (result.successful > 0) {
+            addToast('success', `Successfully linked ${result.successful} series`);
+            clearSeriesSelection();
+            fetchSeries();
+          }
+          if (result.failed > 0) {
+            addToast('error', `Failed to link ${result.failed} series`);
+          }
+          setShowBulkLinkModal(false);
         }}
       />
 

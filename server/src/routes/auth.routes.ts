@@ -245,7 +245,8 @@ router.post('/change-password', requireAuth, requirePermission('changePassword')
       return;
     }
 
-    await authService.updatePassword(req.user!.id, currentPassword, newPassword);
+    // Pass current token to preserve this session while revoking others
+    await authService.updatePassword(req.user!.id, currentPassword, newPassword, req.token);
     res.json({ success: true });
   } catch (error) {
     logError('auth', error, { action: 'change-password' });

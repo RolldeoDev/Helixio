@@ -81,6 +81,13 @@ export function BulkLinkSeriesModal({
     return targetSeries.find((s) => s.id === selectedTargetId) || null;
   }, [targetSeries, selectedTargetId]);
 
+  // Create a stable key from source IDs to prevent infinite re-renders
+  // (parent may recreate the array on each render with Array.from())
+  const sourceSeriesKey = useMemo(
+    () => sourceSeriesIds.join(','),
+    [sourceSeriesIds]
+  );
+
   // Reset state when modal opens/closes
   useEffect(() => {
     if (isOpen) {
@@ -94,34 +101,65 @@ export function BulkLinkSeriesModal({
   }, [isOpen]);
 
   // Load source series info when modal opens
+  // Uses batched API calls to prevent ERR_INSUFFICIENT_RESOURCES
   useEffect(() => {
     if (!isOpen || sourceSeriesIds.length === 0) return;
+
+    const BATCH_SIZE = 5; // Concurrency limit
+    let cancelled = false;
 
     const loadSourceSeries = async () => {
       setLoadingSource(true);
       try {
-        const seriesData: SourceSeriesState[] = [];
-        for (const id of sourceSeriesIds) {
-          try {
-            const { series } = await getSeries(id);
-            seriesData.push({
-              id: series.id,
-              name: series.name,
-              coverUrl: resolveSeriesCoverUrl(series),
-              relationshipType: 'related',
-            });
-          } catch {
-            // Skip series that fail to load
-          }
+        const results: SourceSeriesState[] = [];
+
+        // Process in batches to limit concurrent requests
+        for (let i = 0; i < sourceSeriesIds.length; i += BATCH_SIZE) {
+          if (cancelled) return;
+
+          const batch = sourceSeriesIds.slice(i, i + BATCH_SIZE);
+          const batchResults = await Promise.all(
+            batch.map(async (id) => {
+              try {
+                const { series } = await getSeries(id);
+                return {
+                  id: series.id,
+                  name: series.name,
+                  coverUrl: resolveSeriesCoverUrl(series),
+                  relationshipType: 'related' as RelationshipType,
+                };
+              } catch {
+                return null; // Skip series that fail to load
+              }
+            })
+          );
+
+          // Filter out nulls and add to results
+          results.push(...batchResults.filter((r): r is SourceSeriesState => r !== null));
         }
-        setSourceSeries(seriesData);
+
+        if (!cancelled) {
+          setSourceSeries(results);
+        }
       } finally {
-        setLoadingSource(false);
+        if (!cancelled) {
+          setLoadingSource(false);
+        }
       }
     };
 
     loadSourceSeries();
-  }, [isOpen, sourceSeriesIds]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, sourceSeriesKey]); // Use stable key instead of array
+
+  // Create a stable Set for efficient lookup (memoized based on stable key)
+  const sourceSeriesIdSet = useMemo(
+    () => new Set(sourceSeriesIds),
+    [sourceSeriesKey] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // Load target series
   const loadTargetSeries = useCallback(
@@ -136,9 +174,9 @@ export function BulkLinkSeriesModal({
           sortOrder: 'asc',
         });
 
-        // Filter out source series IDs
+        // Filter out source series IDs using stable Set
         const filtered = response.series.filter(
-          (s: Series) => !sourceSeriesIds.includes(s.id)
+          (s: Series) => !sourceSeriesIdSet.has(s.id)
         );
 
         if (append) {
@@ -153,7 +191,7 @@ export function BulkLinkSeriesModal({
         setLoadingTarget(false);
       }
     },
-    [sourceSeriesIds]
+    [sourceSeriesIdSet]
   );
 
   // Initial load and search

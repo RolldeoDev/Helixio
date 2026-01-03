@@ -12,7 +12,7 @@
 
 import { useMemo, CSSProperties, ReactNode } from 'react';
 import { useDominantColor } from '../../hooks/useDominantColor';
-import { createSubtleTint, rgbToHsl } from '../../utils/color';
+import { computeAccessibleTitleColor } from '../../utils/color';
 import './DetailHeroSection.css';
 
 // =============================================================================
@@ -46,22 +46,21 @@ export function DetailHeroSection({
       return {};
     }
 
-    // Calculate adaptive tint strength based on accent saturation
-    // More saturated colors get stronger tint (up to 60%), less saturated get weaker (30%)
-    let titleTint = { r: 255, g: 255, b: 255 };
-    if (accentRgb) {
-      const accentHsl = rgbToHsl(accentRgb);
-      // Map saturation 0-1 to tint strength 0.30-0.60
-      const tintStrength = 0.30 + (accentHsl.s * 0.30);
-      titleTint = createSubtleTint(accentRgb, tintStrength);
-    }
+    // Compute accessible title color with:
+    // - WCAG AA contrast (4.5:1 minimum)
+    // - Hue separation from background (45° minimum)
+    // - Warm white fallback for grayscale covers
+    const titleTint = computeAccessibleTitleColor(accentRgb, rgb, {
+      minContrast: 4.5,
+      minHueDistance: 45,
+    });
 
     return {
       // Background gradient colors
       '--hero-color-r': rgb.r,
       '--hero-color-g': rgb.g,
       '--hero-color-b': rgb.b,
-      // Title tint colors
+      // Title tint colors (accessible)
       '--hero-title-r': titleTint.r,
       '--hero-title-g': titleTint.g,
       '--hero-title-b': titleTint.b,

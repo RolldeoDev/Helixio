@@ -57,6 +57,21 @@ export function SystemSettings() {
   const [metronTestResult, setMetronTestResult] = useState<'success' | 'error' | null>(null);
   const [savingKeys, setSavingKeys] = useState(false);
 
+  // API key metadata (source and readOnly status)
+  type ApiKeySource = 'environment' | 'config' | 'none';
+  interface ApiKeyMeta { source: ApiKeySource; readOnly: boolean }
+  const [apiKeyMeta, setApiKeyMeta] = useState<{
+    comicVine: ApiKeyMeta;
+    anthropic: ApiKeyMeta;
+    metronUsername: ApiKeyMeta;
+    metronPassword: ApiKeyMeta;
+  }>({
+    comicVine: { source: 'none', readOnly: false },
+    anthropic: { source: 'none', readOnly: false },
+    metronUsername: { source: 'none', readOnly: false },
+    metronPassword: { source: 'none', readOnly: false },
+  });
+
   // Rate limiting state
   const [rateLimitAggressiveness, setRateLimitAggressiveness] = useState(5);
   const [savingRateLimit, setSavingRateLimit] = useState(false);
@@ -148,12 +163,36 @@ export function SystemSettings() {
     try {
       // Load API keys
       const keysRes = await fetch(`${API_BASE}/config/api-keys`);
-      const keys = await keysRes.json();
+      if (!keysRes.ok) {
+        console.error('Failed to fetch API key configuration:', keysRes.status);
+        // Continue loading other settings even if API keys fail
+      }
+      const keys = keysRes.ok ? await keysRes.json() : {};
       // API returns objects with { value, source, readOnly } - extract the values
       setComicVineKey(keys.comicVine?.value || '');
       setAnthropicKey(keys.anthropic?.value || '');
       setMetronUsername(keys.metronUsername?.value || '');
       setMetronPassword(keys.metronPassword?.value || '');
+
+      // Store metadata for each key (source and readOnly status)
+      setApiKeyMeta({
+        comicVine: {
+          source: keys.comicVine?.source || 'none',
+          readOnly: keys.comicVine?.readOnly || false,
+        },
+        anthropic: {
+          source: keys.anthropic?.source || 'none',
+          readOnly: keys.anthropic?.readOnly || false,
+        },
+        metronUsername: {
+          source: keys.metronUsername?.source || 'none',
+          readOnly: keys.metronUsername?.readOnly || false,
+        },
+        metronPassword: {
+          source: keys.metronPassword?.source || 'none',
+          readOnly: keys.metronPassword?.readOnly || false,
+        },
+      });
 
       // Load general settings and config
       const configRes = await fetch(`${API_BASE}/config`);
@@ -796,25 +835,40 @@ export function SystemSettings() {
           </div>
           <p className="setting-description">
             Required for fetching metadata from ComicVine.
-            {config?.apiKeys.comicVine === '***configured***' && (
+            {apiKeyMeta.comicVine.source === 'environment' ? (
+              <span className="env-source-badge">Environment</span>
+            ) : config?.apiKeys.comicVine === '***configured***' && (
               <span className="configured-badge">Configured</span>
             )}
           </p>
           <div className="api-key-input-row">
-            <input
-              id="comicVineKey"
-              type="password"
-              placeholder={
-                config?.apiKeys.comicVine === '***configured***'
-                  ? 'Enter new key to replace'
-                  : 'Enter your ComicVine API key'
-              }
-              value={comicVineKey}
-              onChange={(e) => {
-                setComicVineKey(e.target.value);
-                setComicVineTestResult(null);
-              }}
-            />
+            <div className="api-key-input-wrapper">
+              <input
+                id="comicVineKey"
+                type="password"
+                placeholder={
+                  apiKeyMeta.comicVine.readOnly
+                    ? 'Set via environment variable'
+                    : config?.apiKeys.comicVine === '***configured***'
+                      ? 'Enter new key to replace'
+                      : 'Enter your ComicVine API key'
+                }
+                value={comicVineKey}
+                onChange={(e) => {
+                  setComicVineKey(e.target.value);
+                  setComicVineTestResult(null);
+                }}
+                disabled={apiKeyMeta.comicVine.readOnly}
+                title={apiKeyMeta.comicVine.readOnly ? 'This key is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.comicVine.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
+              )}
+            </div>
             {(comicVineKey || config?.apiKeys.comicVine === '***configured***') && (
               <button
                 type="button"
@@ -851,25 +905,40 @@ export function SystemSettings() {
           </div>
           <p className="setting-description">
             Required for LLM-powered filename parsing.
-            {config?.apiKeys.anthropic === '***configured***' && (
+            {apiKeyMeta.anthropic.source === 'environment' ? (
+              <span className="env-source-badge">Environment</span>
+            ) : config?.apiKeys.anthropic === '***configured***' && (
               <span className="configured-badge">Configured</span>
             )}
           </p>
           <div className="api-key-input-row">
-            <input
-              id="anthropicKey"
-              type="password"
-              placeholder={
-                config?.apiKeys.anthropic === '***configured***'
-                  ? 'Enter new key to replace'
-                  : 'Enter your Anthropic API key'
-              }
-              value={anthropicKey}
-              onChange={(e) => {
-                setAnthropicKey(e.target.value);
-                setAnthropicTestResult(null);
-              }}
-            />
+            <div className="api-key-input-wrapper">
+              <input
+                id="anthropicKey"
+                type="password"
+                placeholder={
+                  apiKeyMeta.anthropic.readOnly
+                    ? 'Set via environment variable'
+                    : config?.apiKeys.anthropic === '***configured***'
+                      ? 'Enter new key to replace'
+                      : 'Enter your Anthropic API key'
+                }
+                value={anthropicKey}
+                onChange={(e) => {
+                  setAnthropicKey(e.target.value);
+                  setAnthropicTestResult(null);
+                }}
+                disabled={apiKeyMeta.anthropic.readOnly}
+                title={apiKeyMeta.anthropic.readOnly ? 'This key is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.anthropic.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
+              )}
+            </div>
             {(anthropicKey || config?.apiKeys.anthropic === '***configured***') && (
               <button
                 type="button"
@@ -893,31 +962,67 @@ export function SystemSettings() {
         </div>
 
         <div className="setting-group">
-          <label htmlFor="metronUsername">Metron Username</label>
+          <label htmlFor="metronUsername">
+            Metron Username
+            {apiKeyMeta.metronUsername.source === 'environment' && (
+              <span className="env-source-badge">Environment</span>
+            )}
+          </label>
           <p className="setting-description">
             Create a free account at{' '}
             <a href="https://metron.cloud" target="_blank" rel="noopener noreferrer">
               metron.cloud
             </a>
           </p>
-          <input
-            id="metronUsername"
-            type="text"
-            placeholder="Enter your Metron username"
-            value={metronUsername}
-            onChange={(e) => setMetronUsername(e.target.value)}
-          />
+          <div className="api-key-input-row">
+            <div className="api-key-input-wrapper">
+              <input
+                id="metronUsername"
+                type="text"
+                placeholder={apiKeyMeta.metronUsername.readOnly ? 'Set via environment variable' : 'Enter your Metron username'}
+                value={metronUsername}
+                onChange={(e) => setMetronUsername(e.target.value)}
+                disabled={apiKeyMeta.metronUsername.readOnly}
+                title={apiKeyMeta.metronUsername.readOnly ? 'This value is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.metronUsername.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="setting-group">
-          <label htmlFor="metronPassword">Metron Password</label>
-          <input
-            id="metronPassword"
-            type="password"
-            placeholder="Enter your Metron password"
-            value={metronPassword}
-            onChange={(e) => setMetronPassword(e.target.value)}
-          />
+          <label htmlFor="metronPassword">
+            Metron Password
+            {apiKeyMeta.metronPassword.source === 'environment' && (
+              <span className="env-source-badge">Environment</span>
+            )}
+          </label>
+          <div className="api-key-input-row">
+            <div className="api-key-input-wrapper">
+              <input
+                id="metronPassword"
+                type="password"
+                placeholder={apiKeyMeta.metronPassword.readOnly ? 'Set via environment variable' : 'Enter your Metron password'}
+                value={metronPassword}
+                onChange={(e) => setMetronPassword(e.target.value)}
+                disabled={apiKeyMeta.metronPassword.readOnly}
+                title={apiKeyMeta.metronPassword.readOnly ? 'This value is set via environment variable and cannot be changed here' : undefined}
+              />
+              {apiKeyMeta.metronPassword.readOnly && (
+                <span className="api-key-lock-icon" title="Configured via environment variable">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+                  </svg>
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="button-group">

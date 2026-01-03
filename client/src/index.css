@@ -72,6 +72,7 @@
 
   /* Layout */
   --sidebar-width: 280px;
+  --sidebar-rail-width: 48px;
   --statusbar-height: 36px;
 
   /* Transitions */
@@ -387,11 +388,10 @@ body {
   min-width: 0; /* Allow shrinking in flex/grid context */
 }
 
-/* Ensure all main content elements appear above fixed background effects (z-index: 0-1) */
-/* Also ensure pages can shrink properly with min-width: 0 */
+/* Ensure pages can shrink properly with min-width: 0 */
+/* Note: z-index removed to allow fixed elements inside (like BulkSeriesActionBar) to stack above status bar */
 .main-content > * {
   position: relative;
-  z-index: 2;
   min-width: 0;
 }
 

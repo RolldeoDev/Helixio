@@ -1,3 +1,6 @@
+// Load environment variables FIRST, before any other imports
+import './env.js';
+
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';

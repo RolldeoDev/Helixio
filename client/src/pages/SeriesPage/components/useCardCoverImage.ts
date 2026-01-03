@@ -20,6 +20,8 @@ export interface CardCoverData {
   coverFileId?: string | null;
   firstIssueId?: string | null;
   firstIssueCoverHash?: string | null;
+  /** Pre-computed cover URL (used for collections with special cover types) */
+  precomputedCoverUrl?: string | null;
 }
 
 interface UseCardCoverImageReturn {
@@ -42,7 +44,13 @@ function computeCoverUrl(data: CardCoverData): string | null {
     coverFileId,
     firstIssueId,
     firstIssueCoverHash,
+    precomputedCoverUrl,
   } = data;
+
+  // If a pre-computed URL is provided (e.g., for collection covers), use it directly
+  if (precomputedCoverUrl) {
+    return precomputedCoverUrl;
+  }
 
   // If server provided resolvedCoverSource, use it
   if (resolvedCoverSource) {
@@ -89,6 +97,7 @@ export function useCardCoverImage(coverData: CardCoverData): UseCardCoverImageRe
     coverData.coverFileId,
     coverData.firstIssueId,
     coverData.firstIssueCoverHash,
+    coverData.precomputedCoverUrl,
   ]);
 
   const [status, setStatus] = useState<CoverImageStatus>(computedUrl ? 'loading' : 'error');

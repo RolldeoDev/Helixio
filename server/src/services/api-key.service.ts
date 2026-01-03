@@ -17,10 +17,48 @@ import { UserInfo } from './auth.service.js';
 
 const prisma = new PrismaClient();
 
-// HMAC secret for key hashing (should be in env, fallback to random for dev)
-const HMAC_SECRET =
-  process.env.API_KEY_SECRET ||
-  crypto.randomBytes(32).toString('hex');
+// HMAC secret for key hashing - MUST be set via environment variable
+// SECURITY: This secret is critical - without it, API keys cannot be validated
+// across server restarts and become completely insecure.
+//
+// Uses lazy initialization to allow the env loader to run before this is needed.
+let _hmacSecret: string | null = null;
+
+/**
+ * Get the HMAC secret for API key hashing.
+ * Throws an error if API_KEY_SECRET is not configured.
+ */
+function getHmacSecret(): string {
+  if (_hmacSecret !== null) {
+    return _hmacSecret;
+  }
+
+  const secret = process.env.API_KEY_SECRET;
+  if (!secret) {
+    console.error('');
+    console.error('╔══════════════════════════════════════════════════════════════════╗');
+    console.error('║  CRITICAL SECURITY ERROR: API_KEY_SECRET not configured         ║');
+    console.error('╠══════════════════════════════════════════════════════════════════╣');
+    console.error('║  The API_KEY_SECRET environment variable is required for        ║');
+    console.error('║  secure API key authentication. Without it, API keys cannot     ║');
+    console.error('║  be validated across server restarts.                           ║');
+    console.error('║                                                                  ║');
+    console.error('║  Generate a secret with:                                         ║');
+    console.error("║    node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"");
+    console.error('║                                                                  ║');
+    console.error('║  Add it to your .env file:                                       ║');
+    console.error('║    API_KEY_SECRET="your-generated-secret"                        ║');
+    console.error('║                                                                  ║');
+    console.error('║  Or set it in your environment:                                  ║');
+    console.error('║    export API_KEY_SECRET="your-generated-secret"                 ║');
+    console.error('╚══════════════════════════════════════════════════════════════════╝');
+    console.error('');
+    throw new Error('API_KEY_SECRET environment variable is not configured');
+  }
+
+  _hmacSecret = secret;
+  return secret;
+}
 
 // =============================================================================
 // Types
@@ -119,7 +157,7 @@ function generateApiKey(): string {
  * Hash an API key using HMAC-SHA256
  */
 function hashApiKey(rawKey: string): string {
-  return crypto.createHmac('sha256', HMAC_SECRET).update(rawKey).digest('hex');
+  return crypto.createHmac('sha256', getHmacSecret()).update(rawKey).digest('hex');
 }
 
 /**
