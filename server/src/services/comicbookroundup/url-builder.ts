@@ -78,14 +78,34 @@ export function buildUrlFromSourceId(sourceId: string): string {
 
 /**
  * Extract sourceId from a full CBR URL.
+ * Handles both 2-segment (publisher/series) and 3-segment (publisher/series/variant) URLs.
  * @example "https://comicbookroundup.com/comic-books/reviews/dc-comics/batman" -> "dc-comics/batman"
  * @example "https://comicbookroundup.com/comic-books/reviews/dc-comics/batman/1" -> "dc-comics/batman"
+ * @example "https://comicbookroundup.com/comic-books/reviews/image-comics/reckless/the-ghost-in-you-OGN" -> "image-comics/reckless/the-ghost-in-you-OGN"
  */
 export function parseSourceIdFromUrl(url: string): string | null {
-  const match = url.match(
+  // First, try to match 3-segment URLs (publisher/series/variant like OGNs)
+  // These end with a non-numeric slug (not an issue number)
+  const threeSegmentMatch = url.match(
+    /comicbookroundup\.com\/comic-books\/reviews\/([^/]+\/[^/]+\/[^/]+?)(?:[?#]|$)/
+  );
+  if (threeSegmentMatch && threeSegmentMatch[1]) {
+    const path = threeSegmentMatch[1];
+    // If the last segment is purely numeric, it's an issue page - extract series only
+    const lastSegment = path.split('/').pop() || '';
+    if (/^\d+$/.test(lastSegment)) {
+      // It's an issue URL like publisher/series/123 -> return publisher/series
+      return path.replace(/\/\d+$/, '');
+    }
+    // It's a variant/OGN like publisher/series/variant-name -> return full path
+    return path;
+  }
+
+  // Fall back to 2-segment URLs (publisher/series)
+  const twoSegmentMatch = url.match(
     /comicbookroundup\.com\/comic-books\/reviews\/([^/]+\/[^/]+?)(?:\/\d+)?(?:[?#]|$)/
   );
-  return match?.[1] ?? null;
+  return twoSegmentMatch?.[1] ?? null;
 }
 
 /**

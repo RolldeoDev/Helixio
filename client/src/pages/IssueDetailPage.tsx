@@ -26,7 +26,6 @@ import {
   ReadingSession,
   FileCoverInfo,
 } from '../services/api.service';
-import { useMetadataJob } from '../contexts/MetadataJobContext';
 import { useDownloads } from '../contexts/DownloadContext';
 import { useApiToast } from '../hooks';
 import { useBreadcrumbs, NavigationOrigin, BreadcrumbSegment } from '../contexts/BreadcrumbContext';
@@ -39,6 +38,7 @@ import { ExpandablePillSection } from '../components/ExpandablePillSection';
 import { CreatorCredits, type CreatorsByRole } from '../components/CreatorCredits';
 import { type ActionMenuItem } from '../components/ActionMenu';
 import { LocalSeriesSearchModal } from '../components/LocalSeriesSearchModal';
+import { PageEditorModal } from '../components/PageEditor';
 import { formatFileSize } from '../utils/format';
 import { RatingStars } from '../components/RatingStars';
 import { IssueUserDataPanel } from '../components/UserDataPanel';
@@ -55,7 +55,7 @@ import './IssueDetailPage.css';
 const ISSUE_ACTION_ITEMS: ActionMenuItem[] = [
   { id: 'editMetadata', label: 'Edit Metadata' },
   { id: 'grabMetadata', label: 'Grab Metadata', dividerBefore: true },
-  { id: 'batchFetch', label: 'Batch Fetch Metadata' },
+  { id: 'editPages', label: 'Edit Pages' },
   { id: 'changeSeries', label: 'Change Series', dividerBefore: true },
   { id: 'markRead', label: 'Mark as Read', dividerBefore: true },
   { id: 'markUnread', label: 'Mark as Unread' },
@@ -117,7 +117,6 @@ export function IssueDetailPage() {
   const { fileId } = useParams<{ fileId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { startJob } = useMetadataJob();
   const { downloadSingleFile } = useDownloads();
   const { setBreadcrumbs } = useBreadcrumbs();
 
@@ -138,6 +137,7 @@ export function IssueDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [isGrabbingMetadata, setIsGrabbingMetadata] = useState(false);
+  const [isEditingPages, setIsEditingPages] = useState(false);
   const [isChangeSeriesModalOpen, setIsChangeSeriesModalOpen] = useState(false);
   const [showRatingsModal, setShowRatingsModal] = useState(false);
   const { addToast } = useApiToast();
@@ -157,7 +157,7 @@ export function IssueDetailPage() {
 
   // Issue reviews (for tab badge)
   const { data: reviewsData } = useIssueReviews(fileId, { limit: 1 });
-  const hasReviews = (reviewsData?.counts?.external ?? 0) + (reviewsData?.counts?.user ?? 0) > 0;
+  const reviewCount = (reviewsData?.counts?.external ?? 0) + (reviewsData?.counts?.user ?? 0);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -310,26 +310,31 @@ export function IssueDetailPage() {
     }
   }, [fileId, addToast]);
 
-  const handleFetchMetadata = useCallback(() => {
-    if (!fileId) return;
-    startJob([fileId]);
-  }, [fileId, startJob]);
-
   const handleDownload = useCallback(() => {
     if (!file) return;
     downloadSingleFile(file.id, file.filename);
   }, [file, downloadSingleFile]);
 
-  const handleCoverChange = useCallback((result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
+  const handleCoverChange = useCallback((result: {
+    source: 'auto' | 'page' | 'custom';
+    pageIndex?: number;
+    pagePath?: string;
+    url?: string;
+    coverHash?: string;
+  }) => {
     setCoverInfo((prev) => ({
       id: prev?.id || '',
       coverSource: result.source,
       coverPageIndex: result.pageIndex ?? null,
       coverHash: result.coverHash ?? null,
-      coverUrl: null,
+      coverUrl: result.url ?? null,
     }));
     setCoverKey((k) => k + 1);
-    addToast('success', 'Cover updated');
+    // Only show "Cover updated" toast if it was an upload (already saved)
+    // Otherwise it's just selected, pending save in the metadata editor
+    if (result.coverHash) {
+      addToast('success', 'Cover updated');
+    }
   }, [addToast]);
 
   // Issue action handler for ActionMenu
@@ -341,8 +346,8 @@ export function IssueDetailPage() {
       case 'grabMetadata':
         setIsGrabbingMetadata(true);
         break;
-      case 'batchFetch':
-        handleFetchMetadata();
+      case 'editPages':
+        setIsEditingPages(true);
         break;
       case 'changeSeries':
         setIsChangeSeriesModalOpen(true);
@@ -357,9 +362,14 @@ export function IssueDetailPage() {
         handleDownload();
         break;
     }
-  }, [handleFetchMetadata, handleMarkRead, handleMarkUnread, handleDownload]);
+  }, [handleMarkRead, handleMarkUnread, handleDownload]);
 
   const handleGrabMetadataSuccess = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handle pages edited - refresh data since cover might have changed
+  const handlePagesEdited = useCallback(() => {
     fetchData();
   }, [fetchData]);
 
@@ -451,7 +461,7 @@ export function IssueDetailPage() {
   const hasCreators = Object.values(creatorsWithRoles).some((arr) => arr && arr.length > 0);
 
   // Progress calculations
-  const totalPages = progress?.totalPages ?? pageCount ?? 0;
+  const totalPages = progress?.totalPages || pageCount || 0;
 
   // Cover URL - handle page and custom sources with coverHash
   const coverUrl = (coverInfo?.coverSource === 'page' || coverInfo?.coverSource === 'custom') && coverInfo?.coverHash
@@ -676,7 +686,7 @@ export function IssueDetailPage() {
             onClick={() => setActiveTab('reviews')}
           >
             Reviews
-            {hasReviews && <span className="tab-count-dot" />}
+            {reviewCount > 0 && <span className="tab-count">{reviewCount}</span>}
           </button>
         </div>
 
@@ -781,6 +791,17 @@ export function IssueDetailPage() {
           fileId={fileId}
           onClose={() => setIsGrabbingMetadata(false)}
           onSuccess={handleGrabMetadataSuccess}
+        />
+      )}
+
+      {/* Page Editor Modal */}
+      {file && (
+        <PageEditorModal
+          fileId={file.id}
+          filename={file.filename}
+          isOpen={isEditingPages}
+          onClose={() => setIsEditingPages(false)}
+          onSave={handlePagesEdited}
         />
       )}
 

@@ -75,6 +75,20 @@ vi.mock('../rating-providers/index.js', () => ({
   RATING_TTL_MS: 604800000,
 }));
 
+// Use vi.hoisted to create mock CBR extended functions
+const { mockGetSeriesRatingsWithReviews, mockGetIssueRatingsWithReviews } = vi.hoisted(() => ({
+  mockGetSeriesRatingsWithReviews: vi.fn(),
+  mockGetIssueRatingsWithReviews: vi.fn(),
+}));
+
+// Mock the CBR provider module to intercept the extended functions
+vi.mock('../rating-providers/comicbookroundup.provider.js', () => ({
+  ComicBookRoundupProvider: mockProvider,
+  getSeriesRatingsWithReviews: mockGetSeriesRatingsWithReviews,
+  getIssueRatingsWithReviews: mockGetIssueRatingsWithReviews,
+  resetRateLimiter: vi.fn(),
+}));
+
 // Import service after mocking
 const {
   syncSeriesRatings,
@@ -92,12 +106,27 @@ const {
 // =============================================================================
 
 describe('Rating Sync Service', () => {
+  // Helper to set up CBR mock with ratings and empty reviews
+  const setupCbrMock = (ratings: Parameters<typeof mockProvider.getSeriesRatings.mockResolvedValue>[0]) => {
+    mockGetSeriesRatingsWithReviews.mockResolvedValue({
+      ratings,
+      criticReviews: [],
+      userReviews: [],
+      sourceUrl: 'https://comicbookroundup.com/test',
+      pageName: 'Test Series',
+    });
+    // Also set up the provider mock for backwards compatibility in tests
+    mockProvider.getSeriesRatings.mockResolvedValue(ratings);
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Reset all mock functions to clear queued return values
     mockProvider.searchSeries.mockReset();
     mockProvider.getSeriesRatings.mockReset();
+    mockGetSeriesRatingsWithReviews.mockReset();
+    mockGetIssueRatingsWithReviews.mockReset();
     mockPrisma.series.findUnique.mockReset();
     mockPrisma.externalRating.findMany.mockReset();
     mockPrisma.externalRating.findFirst.mockReset();
@@ -183,7 +212,7 @@ describe('Rating Sync Service', () => {
         confidence: 0.9,
         matchMethod: 'name_year',
       });
-      mockProvider.getSeriesRatings.mockResolvedValue([
+      setupCbrMock([
         {
           source: 'comicbookroundup',
           sourceId: 'dc-comics/batman',
@@ -213,7 +242,7 @@ describe('Rating Sync Service', () => {
         matchMethod: 'name_year',
       });
 
-      mockProvider.getSeriesRatings.mockResolvedValue([
+      setupCbrMock([
         {
           source: 'comicbookroundup',
           sourceId: 'dc-comics/batman',
@@ -267,7 +296,7 @@ describe('Rating Sync Service', () => {
         confidence: 0.9,
         matchMethod: 'name_year',
       });
-      mockProvider.getSeriesRatings.mockResolvedValue([]);
+      setupCbrMock([]);
 
       const result = await syncSeriesRatings('series-1');
 
@@ -298,7 +327,8 @@ describe('Rating Sync Service', () => {
         sourceId: 'dc-comics/batman',
       });
 
-      mockProvider.getSeriesRatings.mockResolvedValue([
+      // Use setupCbrMock for CBR provider (which now uses getSeriesRatingsWithReviews)
+      setupCbrMock([
         {
           source: 'comicbookroundup',
           sourceId: 'dc-comics/batman',
@@ -313,7 +343,8 @@ describe('Rating Sync Service', () => {
 
       // Should NOT have called searchSeries since we have sourceId
       expect(mockProvider.searchSeries).not.toHaveBeenCalled();
-      expect(mockProvider.getSeriesRatings).toHaveBeenCalledWith('dc-comics/batman');
+      // CBR now uses the extended function that returns ratings + reviews
+      expect(mockGetSeriesRatingsWithReviews).toHaveBeenCalledWith('dc-comics/batman');
     });
 
     // =========================================================================
@@ -377,13 +408,13 @@ describe('Rating Sync Service', () => {
         },
       ]);
 
-      // Mock CBR provider
+      // Mock CBR provider - use setupCbrMock for the extended function
       mockProvider.searchSeries.mockResolvedValue({
         sourceId: 'dark-horse/mob-psycho-100',
         confidence: 0.9,
         matchMethod: 'search',
       });
-      mockProvider.getSeriesRatings.mockResolvedValue([
+      setupCbrMock([
         {
           source: 'comicbookroundup',
           sourceId: 'dark-horse/mob-psycho-100',
@@ -403,8 +434,9 @@ describe('Rating Sync Service', () => {
       // AniList SHOULD be called because series has anilistId (ID proves compatibility)
       expect(mockAnilistProvider.getSeriesRatings).toHaveBeenCalledWith('85189');
 
-      // CBR should also be called
+      // CBR should also be called (uses extended function)
       expect(mockProvider.searchSeries).toHaveBeenCalled();
+      expect(mockGetSeriesRatingsWithReviews).toHaveBeenCalled();
       expect(result.matchedSources).toContain('anilist');
       expect(result.matchedSources).toContain('comicbookroundup');
     });
@@ -481,7 +513,7 @@ describe('Rating Sync Service', () => {
         confidence: 0.85,
         matchMethod: 'search',
       });
-      mockProvider.getSeriesRatings.mockResolvedValue([]);
+      setupCbrMock([]);
 
       const result = await syncSeriesRatings('series-1', { forceRefresh: true });
 
@@ -536,7 +568,7 @@ describe('Rating Sync Service', () => {
         confidence: 0.8,
         matchMethod: 'search',
       });
-      mockProvider.getSeriesRatings.mockResolvedValue([
+      setupCbrMock([
         {
           source: 'comicbookroundup',
           sourceId: 'some-manga',

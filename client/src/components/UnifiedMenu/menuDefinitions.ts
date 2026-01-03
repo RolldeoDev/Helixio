@@ -46,6 +46,10 @@ export const MENU_ITEM_DEFINITIONS: Record<MenuActionId, MenuItemDefinition> = {
   editMetadata: {
     label: 'Edit Metadata',
   },
+  editPages: {
+    label: 'Edit Pages',
+    singleOnly: true,
+  },
   rename: {
     label: 'Rename',
     singleOnly: true,
@@ -171,6 +175,7 @@ export const MENU_PRESETS = {
     'addToCollection',
     'fetchMetadata',
     'editMetadata',
+    'editPages',
     'rename',
     'rebuildCache',
   ] as MenuActionId[],
@@ -185,6 +190,7 @@ export const MENU_PRESETS = {
     'addToCollection',
     'fetchMetadata',
     'editMetadata',
+    'editPages',
     'rename',
     'restore',
     'quarantine',
@@ -202,6 +208,7 @@ export const MENU_PRESETS = {
     'addToCollection',
     'fetchMetadata',
     'editMetadata',
+    'editPages',
     'rebuildCache',
   ] as MenuActionId[],
 

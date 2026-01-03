@@ -305,6 +305,35 @@
   color: var(--text-secondary);
 }
 
+.sitemap-urls {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.sitemap-urls .stat-label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.sitemap-urls ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sitemap-urls li {
+  margin-bottom: 0.25rem;
+}
+
+.sitemap-urls code {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
 .similarity-running-badge {
   display: flex;
   align-items: center;

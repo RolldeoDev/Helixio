@@ -21,6 +21,7 @@ import {
   setSeriesCover,
   uploadSeriesCover,
   getApiCoverUrl,
+  getCoverUrl,
   aggregateSeriesCreators,
   getSeriesCreatorsFromIssues,
   // Metadata fetch imports
@@ -872,14 +873,32 @@ export function EditSeriesModal({ seriesId, isOpen, onClose, onSave }: EditSerie
     if (uploadedCoverHash) {
       return getApiCoverUrl(uploadedCoverHash);
     }
-    // If user set a custom URL (not yet saved), show that preview
-    if (series.coverUrl && state.modifiedFields.has('coverUrl')) {
-      return series.coverUrl;
+
+    // Handle pending cover changes based on source
+    const hasPendingCoverChange =
+      state.modifiedFields.has('coverSource') ||
+      state.modifiedFields.has('coverFileId') ||
+      state.modifiedFields.has('coverUrl');
+
+    if (hasPendingCoverChange) {
+      // Issue cover selected
+      if (series.coverSource === 'user' && series.coverFileId) {
+        return getCoverUrl(series.coverFileId);
+      }
+      // API cover
+      if (series.coverSource === 'api' && series.coverHash) {
+        return getApiCoverUrl(series.coverHash);
+      }
+      // Custom URL
+      if (series.coverSource === 'user' && series.coverUrl && !series.coverFileId) {
+        return series.coverUrl;
+      }
     }
+
     // Use server endpoint which handles all fallbacks:
     // resolvedCoverHash → coverHash → coverFileId → firstIssue → 404
     return getSeriesCoverUrl(seriesId);
-  }, [uploadedCoverHash, series.coverUrl, state.modifiedFields, seriesId]);
+  }, [uploadedCoverHash, series.coverSource, series.coverFileId, series.coverUrl, series.coverHash, state.modifiedFields, seriesId]);
 
   const handleEditCoverClick = useCallback(() => {
     setShowCoverModal(true);

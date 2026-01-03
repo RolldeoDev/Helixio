@@ -977,6 +977,29 @@ export interface GenerateMetadataResult {
   tokensUsed?: number;
 }
 
+/**
+ * Full generated metadata for an issue (8 fields)
+ */
+export interface GeneratedIssueMetadata {
+  summary: GeneratedMetadataField;
+  deck: GeneratedMetadataField;
+  ageRating: GeneratedMetadataField;
+  genres: GeneratedMetadataField;
+  tags: GeneratedMetadataField;
+  characters: GeneratedMetadataField;
+  teams: GeneratedMetadataField;
+  locations: GeneratedMetadataField;
+}
+
+/**
+ * Result from issue metadata generation
+ */
+export interface GenerateIssueMetadataResult {
+  metadata: GeneratedIssueMetadata;
+  webSearchUsed: boolean;
+  tokensUsed?: number;
+}
+
 // =============================================================================
 // Tag Autocomplete Types
 // =============================================================================
@@ -2415,6 +2438,19 @@ export async function generateSeriesMetadata(
 ): Promise<GenerateMetadataResult> {
   return post<GenerateMetadataResult>(
     `/description/series/${seriesId}/generate-metadata`,
+    options || {}
+  );
+}
+
+/**
+ * Generate comprehensive metadata for an issue using LLM
+ */
+export async function generateIssueMetadata(
+  fileId: string,
+  options?: { useWebSearch?: boolean }
+): Promise<GenerateIssueMetadataResult> {
+  return post<GenerateIssueMetadataResult>(
+    `/description/files/${fileId}/generate-metadata`,
     options || {}
   );
 }

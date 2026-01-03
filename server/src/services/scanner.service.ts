@@ -16,7 +16,7 @@ import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 import { checkAndSoftDeleteEmptySeries, restoreSeries, syncSeriesFromSeriesJson } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
-import { logError, logInfo, logDebug, createServiceLogger } from './logger.service.js';
+import { logError, logInfo, logDebug, logWarn, createServiceLogger } from './logger.service.js';
 import { readSeriesJson, getSeriesDefinitions, type SeriesMetadata } from './series-metadata.service.js';
 import { mergeSeriesJsonToDb } from './series-json-sync.service.js';
 import { FolderSeriesRegistry } from './folder-series-registry.service.js';
@@ -373,8 +373,13 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
         try {
           const { recalculateSeriesCover } = await import('./cover.service.js');
           await recalculateSeriesCover(seriesId);
-        } catch {
-          // Non-critical
+        } catch (err) {
+          // Non-critical - series cover recalculation can fail without affecting scan
+          logWarn('scanner', 'Failed to recalculate series cover (non-critical)', {
+            seriesId,
+            action: 'recalculate-cover',
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
     } catch (err) {

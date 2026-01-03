@@ -14,7 +14,6 @@ import {
   getApiCoverUrl,
   getFilePages,
   getPageThumbnailUrl,
-  setFileCover,
   uploadFileCover,
 } from '../../services/api.service';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
@@ -30,7 +29,9 @@ interface IssueCoverPickerProps {
   onCoverChange: (result: {
     source: 'auto' | 'page' | 'custom';
     pageIndex?: number;
-    coverHash?: string;
+    pagePath?: string;    // For page preview URL
+    url?: string;         // For URL mode preview
+    coverHash?: string;   // For upload mode (already saved)
   }) => void;
   disabled?: boolean;
 }
@@ -63,7 +64,6 @@ export function IssueCoverPicker({
   const [selectedPageIndex, setSelectedPageIndex] = useState<number | null>(currentCoverPageIndex);
   const [customUrl, setCustomUrl] = useState<string>('');
   const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
   // Track uploaded cover hash, initialized from prop if already custom
   const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(currentCoverHash);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -195,39 +195,28 @@ export function IssueCoverPicker({
     [fileId, onCoverChange]
   );
 
-  // Apply changes
-  const handleApply = useCallback(async () => {
-    setSaving(true);
-    try {
-      if (mode === 'auto') {
-        await setFileCover(fileId, { source: 'auto' });
-        onCoverChange({ source: 'auto' });
-      } else if (mode === 'page' && selectedPageIndex !== null) {
-        const result = await setFileCover(fileId, { source: 'page', pageIndex: selectedPageIndex });
-        onCoverChange({
-          source: 'page',
-          pageIndex: selectedPageIndex,
-          coverHash: result.coverHash,
-        });
-      } else if (mode === 'url' && customUrl.trim()) {
-        const result = await setFileCover(fileId, { source: 'custom', url: customUrl.trim() });
-        onCoverChange({
-          source: 'custom',
-          coverHash: result.coverHash,
-        });
-      }
-      // Upload mode is handled immediately in handleFileSelect
-    } catch (err) {
-      console.error('Failed to set cover:', err);
-      alert(err instanceof Error ? err.message : 'Failed to set cover');
-    } finally {
-      setSaving(false);
+  // Select cover without saving - parent will save on their Save button
+  const handleSelect = useCallback(() => {
+    if (mode === 'auto') {
+      onCoverChange({ source: 'auto' });
+    } else if (mode === 'page' && selectedPageIndex !== null) {
+      onCoverChange({
+        source: 'page',
+        pageIndex: selectedPageIndex,
+        pagePath: pages[selectedPageIndex],  // Pass page path for preview
+      });
+    } else if (mode === 'url' && customUrl.trim()) {
+      onCoverChange({
+        source: 'custom',
+        url: customUrl.trim(),
+      });
     }
-  }, [mode, fileId, selectedPageIndex, customUrl, onCoverChange]);
+    // Upload mode is handled immediately in handleFileSelect (already saved)
+  }, [mode, selectedPageIndex, pages, customUrl, onCoverChange]);
 
-  // Check if we can apply
-  const canApply = () => {
-    if (saving || disabled) return false;
+  // Check if we can select
+  const canSelect = () => {
+    if (disabled) return false;
     if (mode === 'auto') return true;
     if (mode === 'page') return selectedPageIndex !== null;
     if (mode === 'url') return customUrl.trim().length > 0;
@@ -420,15 +409,15 @@ export function IssueCoverPicker({
         </div>
       </div>
 
-      {/* Apply button (not needed for upload mode) */}
+      {/* Select button (not needed for upload mode since it saves immediately) */}
       {mode !== 'upload' && (
         <div className="cover-picker-actions">
           <button
             className="btn btn-primary"
-            onClick={handleApply}
-            disabled={!canApply()}
+            onClick={handleSelect}
+            disabled={!canSelect()}
           >
-            {saving ? 'Applying...' : 'Apply Cover'}
+            Select
           </button>
         </div>
       )}

@@ -14,14 +14,26 @@ import {
   getCoverUrl,
   getFileCoverInfo,
   getApiCoverUrl,
+  getPageThumbnailUrl,
+  setFileCover,
   FileCoverInfo,
   REMOVE_FIELD,
   type TagFieldType,
   convertFile,
 } from '../../services/api.service';
+
+// Pending cover state for deferred save
+interface PendingCover {
+  source: 'auto' | 'page' | 'custom';
+  pageIndex?: number;
+  pagePath?: string;   // For preview URL
+  url?: string;        // For URL mode preview
+  coverHash?: string;  // For upload mode (already saved)
+}
 import { DescriptionGenerator } from '../DescriptionGenerator';
 import { IssueMetadataGrabber } from '../IssueMetadataGrabber';
 import { LocalSeriesSearchModal } from '../LocalSeriesSearchModal';
+import { IssueMetadataGenerator, type IssueMetadataGeneratorCurrentValues } from '../IssueMetadataGenerator';
 import { SimpleTagInput } from './SimpleTagInput';
 import { BatchMetadataEditor } from './BatchMetadataEditor';
 import { CoverEditorModal } from './CoverEditorModal';
@@ -143,6 +155,9 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   // Cover modal state
   const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
 
+  // Pending cover state for deferred save
+  const [pendingCover, setPendingCover] = useState<PendingCover | null>(null);
+
   // Internal state for metadata grabbing (when onGrabMetadata is not provided)
   const [isInternalGrabbing, setIsInternalGrabbing] = useState(false);
 
@@ -204,7 +219,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
   };
 
   const hasChanges = () => {
-    return JSON.stringify(metadata) !== JSON.stringify(originalMetadata);
+    return JSON.stringify(metadata) !== JSON.stringify(originalMetadata) || pendingCover !== null;
   };
 
   const handleSave = async () => {
@@ -216,6 +231,24 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
     setError(null);
 
     try {
+      // Save pending cover if any (unless it was an upload which is already saved)
+      if (pendingCover && !pendingCover.coverHash) {
+        if (pendingCover.source === 'auto') {
+          await setFileCover(fileId!, { source: 'auto' });
+        } else if (pendingCover.source === 'page' && pendingCover.pageIndex !== undefined) {
+          await setFileCover(fileId!, { source: 'page', pageIndex: pendingCover.pageIndex });
+        } else if (pendingCover.source === 'custom' && pendingCover.url) {
+          await setFileCover(fileId!, { source: 'custom', url: pendingCover.url });
+        }
+
+        // Refresh cover info after saving
+        const newCoverInfo = await getFileCoverInfo(fileId!);
+        setCoverInfo(newCoverInfo);
+        setCoverKey((k) => k + 1);
+        setPendingCover(null);
+      }
+
+      // Save metadata changes
       const changes: Partial<ComicInfo> = {};
       const allKeys = new Set([...Object.keys(metadata), ...Object.keys(originalMetadata)]) as Set<EditableField>;
 
@@ -228,11 +261,14 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
         }
       }
 
-      await updateComicInfo(fileId!, changes);
+      if (Object.keys(changes).length > 0) {
+        await updateComicInfo(fileId!, changes);
+      }
+
       onSave?.();
       onClose?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save metadata');
+      setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -240,6 +276,7 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
 
   const handleReset = () => {
     setMetadata(originalMetadata);
+    setPendingCover(null);
   };
 
   // Reload metadata from server
@@ -270,32 +307,65 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
     }
   }, [onGrabMetadata]);
 
-  // Handle cover change from the picker
+  // Handle cover change from the picker - store as pending
   const handleCoverUpdate = useCallback(
-    (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; coverHash?: string }) => {
-      setCoverInfo((prev) => ({
-        id: prev?.id || '',
-        coverSource: result.source,
-        coverPageIndex: result.pageIndex ?? null,
-        coverHash: result.coverHash ?? null,
-        coverUrl: null,
-      }));
-      setCoverKey((k) => k + 1);
+    (result: { source: 'auto' | 'page' | 'custom'; pageIndex?: number; pagePath?: string; url?: string; coverHash?: string }) => {
+      // Store as pending change (will be saved on main Save button click)
+      setPendingCover(result);
+
+      // For upload mode, the cover is already saved, so update coverInfo
+      if (result.coverHash) {
+        setCoverInfo((prev) => ({
+          id: prev?.id || '',
+          coverSource: result.source,
+          coverPageIndex: result.pageIndex ?? null,
+          coverHash: result.coverHash ?? null,
+          coverUrl: null,
+        }));
+        setCoverKey((k) => k + 1);
+      }
+
+      // Close modal
+      setIsCoverModalOpen(false);
+
+      // Notify parent if needed (for IssueDetailPage preview)
       onCoverChange?.(result);
     },
     [onCoverChange]
   );
 
-  // Get cover URL based on cover info
+  // Get cover URL based on cover info or pending cover
   const getCoverDisplayUrl = useCallback(() => {
     if (!fileId) return '';
-    // For page or custom covers, use the coverHash from series covers cache
+
+    // If there's a pending cover change, preview it
+    if (pendingCover) {
+      switch (pendingCover.source) {
+        case 'auto':
+          return `${getCoverUrl(fileId)}?v=${coverKey}`;
+        case 'page':
+          if (pendingCover.pagePath) {
+            return getPageThumbnailUrl(fileId, pendingCover.pagePath);
+          }
+          break;
+        case 'custom':
+          if (pendingCover.coverHash) {
+            return `${getApiCoverUrl(pendingCover.coverHash)}?v=${coverKey}`;
+          }
+          if (pendingCover.url) {
+            return pendingCover.url;
+          }
+          break;
+      }
+    }
+
+    // Use current saved cover
     if ((coverInfo?.coverSource === 'page' || coverInfo?.coverSource === 'custom') && coverInfo?.coverHash) {
       return `${getApiCoverUrl(coverInfo.coverHash)}?v=${coverKey}`;
     }
     // For auto covers, use the file's default cover
     return `${getCoverUrl(fileId)}?v=${coverKey}`;
-  }, [fileId, coverInfo, coverKey]);
+  }, [fileId, pendingCover, coverInfo, coverKey]);
 
   // Toggle section expansion
   const toggleSection = useCallback((sectionId: string) => {
@@ -329,6 +399,49 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
       setConverting(false);
     }
   }, [fileId, reloadMetadata]);
+
+  // Handle generated metadata from IssueMetadataGenerator
+  const handleGeneratedMetadataApply = useCallback((updates: Partial<IssueMetadataGeneratorCurrentValues>) => {
+    // Map generated fields to ComicInfo fields
+    const fieldMapping: Record<keyof IssueMetadataGeneratorCurrentValues, EditableField> = {
+      summary: 'Summary',
+      deck: 'Notes', // Store deck in Notes field since ComicInfo doesn't have a dedicated deck field
+      ageRating: 'AgeRating',
+      genres: 'Genre',
+      tags: 'Tags',
+      characters: 'Characters',
+      teams: 'Teams',
+      locations: 'Locations',
+    };
+
+    // Apply each update to the metadata state
+    Object.entries(updates).forEach(([key, value]) => {
+      const comicInfoField = fieldMapping[key as keyof IssueMetadataGeneratorCurrentValues];
+      if (comicInfoField && value !== null && value !== undefined) {
+        handleFieldChange(comicInfoField, value as string);
+      }
+    });
+  }, []);
+
+  // Get current values for IssueMetadataGenerator
+  const getGeneratorCurrentValues = useCallback((): IssueMetadataGeneratorCurrentValues => {
+    const getValue = (field: EditableField): string | null => {
+      const value = metadata[field];
+      if (value === REMOVE_FIELD || value === undefined || value === '') return null;
+      return String(value);
+    };
+
+    return {
+      summary: getValue('Summary'),
+      deck: getValue('Notes'), // Map deck from Notes field
+      ageRating: getValue('AgeRating'),
+      genres: getValue('Genre'),
+      tags: getValue('Tags'),
+      characters: getValue('Characters'),
+      teams: getValue('Teams'),
+      locations: getValue('Locations'),
+    };
+  }, [metadata]);
 
   // Count filled fields in a section
   const getFilledFieldCount = (fields: string[]): number => {
@@ -448,6 +561,17 @@ export function MetadataEditor({ fileIds, onClose, onSave, onCoverChange, onGrab
           <button className="btn-ghost btn-sm" onClick={handleGrabClick} title="Fetch metadata from API">
             Grab from API
           </button>
+          {fileId && (
+            <IssueMetadataGenerator
+              fileId={fileId}
+              issueName={metadata.Title || metadata.Series || filename}
+              currentValues={getGeneratorCurrentValues()}
+              onApply={handleGeneratedMetadataApply}
+              disabled={saving || converting}
+              isCbrFile={isCbrFile}
+              onConvertToCbz={handleConvertToCbz}
+            />
+          )}
           {onClose && (
             <button className="btn-icon" onClick={onClose} title="Close">
               ✕

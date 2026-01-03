@@ -20,6 +20,10 @@ import {
   getRatingSources,
   getExternalRatingsSettings,
   updateExternalRatingsSettings,
+  validateCbrUrl,
+  saveManualCbrMatch,
+  getCbrMatchStatus,
+  resetCbrMatch,
   type RatingSource,
   type ExternalRatingsSettings,
 } from '../../services/api/external-ratings';
@@ -42,6 +46,7 @@ export function useSeriesExternalRatings(seriesId: string | undefined) {
 
 /**
  * Sync external ratings for a series
+ * Also invalidates reviews queries since CBR syncs reviews alongside ratings
  */
 export function useSyncSeriesRatings() {
   const queryClient = useQueryClient();
@@ -60,6 +65,10 @@ export function useSyncSeriesRatings() {
       // Update the cache with new ratings
       queryClient.invalidateQueries({
         queryKey: queryKeys.externalRatings.series(seriesId),
+      });
+      // Also invalidate reviews since CBR syncs reviews alongside ratings
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalReviews.series(seriesId),
       });
     },
   });
@@ -99,6 +108,7 @@ export function useIssueExternalRatings(fileId: string | undefined) {
 
 /**
  * Sync external ratings for an issue
+ * Also invalidates reviews queries since CBR syncs reviews alongside ratings
  */
 export function useSyncIssueRatings() {
   const queryClient = useQueryClient();
@@ -115,6 +125,10 @@ export function useSyncIssueRatings() {
       // Update the cache with new ratings
       queryClient.invalidateQueries({
         queryKey: queryKeys.externalRatings.issue(fileId),
+      });
+      // Also invalidate reviews since CBR syncs reviews alongside ratings
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalReviews.issue(fileId),
       });
     },
   });
@@ -311,6 +325,80 @@ export function useInvalidateExternalRatings() {
   };
 }
 
+// =============================================================================
+// Manual CBR Match Hooks
+// =============================================================================
+
+/**
+ * Validate a CBR URL (preview only, does NOT save)
+ */
+export function useValidateCbrUrl() {
+  return useMutation({
+    mutationFn: ({ url }: { url: string }) => validateCbrUrl(url),
+  });
+}
+
+/**
+ * Apply a manual CBR match (validate + fetch + save)
+ * Also invalidates reviews queries since CBR syncs reviews alongside ratings
+ */
+export function useSaveManualCbrMatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ seriesId, url }: { seriesId: string; url: string }) =>
+      saveManualCbrMatch(seriesId, url),
+    onSuccess: (_data, { seriesId }) => {
+      // Invalidate all related queries
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalRatings.series(seriesId),
+      });
+      // Also invalidate reviews since CBR syncs reviews alongside ratings
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalReviews.series(seriesId),
+      });
+    },
+  });
+}
+
+/**
+ * Get CBR match status for a series
+ */
+export function useCbrMatchStatus(seriesId: string | undefined) {
+  return useQuery({
+    queryKey: ['cbrMatchStatus', seriesId],
+    queryFn: () => getCbrMatchStatus(seriesId!),
+    enabled: !!seriesId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Reset CBR match for a series
+ */
+export function useResetCbrMatch() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      seriesId,
+      reSearch,
+    }: {
+      seriesId: string;
+      reSearch: boolean;
+    }) => resetCbrMatch(seriesId, reSearch),
+    onSuccess: (_data, { seriesId }) => {
+      // Invalidate all related queries
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.externalRatings.series(seriesId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['cbrMatchStatus', seriesId],
+      });
+    },
+  });
+}
+
 // Re-export types
 export type {
   RatingSource,
@@ -320,4 +408,9 @@ export type {
   RatingSourceStatus,
   ExternalRatingsSettings,
   ExternalRatingDisplay,
+  CBRValidationResult,
+  CBRMatchResult,
+  CBRMatchStatus,
+  CBRMatchPreview,
+  CBRResetResult,
 } from '../../services/api/external-ratings';

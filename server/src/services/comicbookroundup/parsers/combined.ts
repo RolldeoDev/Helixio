@@ -30,7 +30,17 @@ export function parsePage(
   const reviews = parseReviews(html, reviewLimit);
 
   // Extract page name from h1
-  const pageName = $('h1').first().text().trim() || undefined;
+  // Clone h1, remove scripts/styles, then get text to avoid pollution from embedded widgets
+  const h1Element = $('h1').first().clone();
+  h1Element.find('script, style, noscript').remove();
+  let pageName = h1Element.text().trim() || undefined;
+  // Clean up any remaining JavaScript artifacts (e.g., "Tweet window.twttr = ...")
+  if (pageName) {
+    pageName = pageName
+      .replace(/\s*Tweet\b.*/s, '') // Remove "Tweet" and everything after it (Twitter widget)
+      .replace(/\s{2,}/g, ' ') // Collapse multiple whitespace
+      .trim() || undefined;
+  }
 
   // Try to extract issue number from URL or page content
   let issueNumber: string | undefined;

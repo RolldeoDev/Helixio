@@ -36,6 +36,7 @@ interface SimilarSeriesEntry {
   };
   similarityScore: number;
   matchReasons: Array<{ type: string; score: number }>;
+  matchType: 'similarity' | 'genre_fallback';
 }
 
 // =============================================================================

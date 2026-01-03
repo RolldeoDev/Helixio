@@ -66,6 +66,12 @@ export interface UseMenuActionsReturn {
   closeRenameDialog: () => void;
   /** File ID being renamed (null if dialog is closed) */
   renamingFileId: string | null;
+  /** Open page editor for a file */
+  openPageEditor: (fileId: string) => void;
+  /** Close page editor */
+  closePageEditor: () => void;
+  /** File ID being edited in page editor (null if editor is closed) */
+  editingPagesFileId: string | null;
 }
 
 // =============================================================================
@@ -95,6 +101,7 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
   const [editingMetadataFileIds, setEditingMetadataFileIds] = useState<string[] | null>(null);
   const [collectionPickerFileIds, setCollectionPickerFileIds] = useState<string[]>([]);
   const [renamingFileId, setRenamingFileId] = useState<string | null>(null);
+  const [editingPagesFileId, setEditingPagesFileId] = useState<string | null>(null);
 
   // Modal openers/closers
   const openMetadataEditor = useCallback((fileIds: string[]) => {
@@ -119,6 +126,14 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
 
   const closeRenameDialog = useCallback(() => {
     setRenamingFileId(null);
+  }, []);
+
+  const openPageEditor = useCallback((fileId: string) => {
+    setEditingPagesFileId(fileId);
+  }, []);
+
+  const closePageEditor = useCallback(() => {
+    setEditingPagesFileId(null);
   }, []);
 
   /**
@@ -175,6 +190,12 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
               // Rename dialog will be opened by the consumer
               // since it needs the current filename which isn't in the context
               openRenameDialog(targetIds[0]);
+            }
+            break;
+
+          case 'editPages':
+            if (targetIds.length === 1 && targetIds[0]) {
+              openPageEditor(targetIds[0]);
             }
             break;
 
@@ -314,6 +335,7 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
       openMetadataEditor,
       openCollectionPicker,
       openRenameDialog,
+      openPageEditor,
     ]
   );
 
@@ -329,5 +351,8 @@ export function useMenuActions(options: UseMenuActionsOptions = {}): UseMenuActi
     renamingFileId,
     openRenameDialog,
     closeRenameDialog,
+    editingPagesFileId,
+    openPageEditor,
+    closePageEditor,
   };
 }

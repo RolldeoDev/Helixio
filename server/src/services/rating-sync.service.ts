@@ -20,7 +20,13 @@ import {
   formatRatingDisplay,
   RATING_TTL_MS,
 } from './rating-providers/index.js';
-import { ComicBookRoundupProvider } from './rating-providers/comicbookroundup.provider.js';
+import {
+  ComicBookRoundupProvider,
+  getSeriesRatingsWithReviews,
+  getIssueRatingsWithReviews,
+  type RatingsWithReviews,
+  type CBRParsedReview,
+} from './rating-providers/comicbookroundup.provider.js';
 
 const logger = createServiceLogger('rating-sync');
 
@@ -159,6 +165,162 @@ function isProviderCompatibleWithSeries(
     default:
       return { compatible: true };
   }
+}
+
+// =============================================================================
+// Review Storage Functions
+// =============================================================================
+
+/**
+ * Generate a summary from review text (first ~200 chars)
+ */
+function generateReviewSummary(text: string, maxLength: number = 200): string {
+  if (text.length <= maxLength) return text;
+
+  // Try to break at a sentence boundary
+  const truncated = text.substring(0, maxLength);
+  const lastSentence = truncated.lastIndexOf('. ');
+  if (lastSentence > maxLength * 0.6) {
+    return truncated.substring(0, lastSentence + 1);
+  }
+
+  // Fall back to word boundary
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > maxLength * 0.8) {
+    return truncated.substring(0, lastSpace) + '...';
+  }
+
+  return truncated + '...';
+}
+
+/**
+ * Generate a unique review ID for CBR reviews (since they don't have native IDs)
+ */
+function generateCbrReviewId(review: CBRParsedReview, sourceId: string): string {
+  // Create a hash-like ID from author + first 50 chars of review text
+  const textSnippet = review.text.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
+  return `${review.author.replace(/[^a-zA-Z0-9]/g, '')}-${textSnippet}`.substring(0, 100);
+}
+
+/**
+ * Store reviews from CBR in the database.
+ * Called during rating sync to capture reviews from the same page fetch.
+ */
+async function storeReviewsFromCbr(
+  reviews: CBRParsedReview[],
+  sourceId: string,
+  target: { seriesId?: string; fileId?: string },
+  expiresAt: Date
+): Promise<number> {
+  if (reviews.length === 0) return 0;
+
+  const db = getDatabase();
+  let storedCount = 0;
+
+  for (const review of reviews) {
+    try {
+      const reviewId = generateCbrReviewId(review, sourceId);
+
+      // Determine which unique constraint to use based on target
+      if (target.seriesId) {
+        await db.externalReview.upsert({
+          where: {
+            seriesId_source_reviewId: {
+              seriesId: target.seriesId,
+              source: 'comicbookroundup',
+              reviewId,
+            },
+          },
+          create: {
+            seriesId: target.seriesId,
+            source: 'comicbookroundup',
+            sourceId,
+            reviewId,
+            authorName: review.author,
+            authorUrl: review.authorUrl,
+            reviewText: review.text,
+            summary: generateReviewSummary(review.text),
+            reviewUrl: review.reviewUrl,
+            rating: review.rating,
+            originalRating: review.rating,
+            ratingScale: 10,
+            reviewType: review.type,
+            likes: review.likes,
+            reviewDate: review.date,
+            confidence: 1.0,
+            matchMethod: 'id',
+            expiresAt,
+          },
+          update: {
+            authorName: review.author,
+            authorUrl: review.authorUrl,
+            reviewText: review.text,
+            summary: generateReviewSummary(review.text),
+            reviewUrl: review.reviewUrl,
+            rating: review.rating,
+            originalRating: review.rating,
+            likes: review.likes,
+            reviewDate: review.date,
+            lastSyncedAt: new Date(),
+            expiresAt,
+          },
+        });
+      } else if (target.fileId) {
+        await db.externalReview.upsert({
+          where: {
+            fileId_source_reviewId: {
+              fileId: target.fileId,
+              source: 'comicbookroundup',
+              reviewId,
+            },
+          },
+          create: {
+            fileId: target.fileId,
+            source: 'comicbookroundup',
+            sourceId,
+            reviewId,
+            authorName: review.author,
+            authorUrl: review.authorUrl,
+            reviewText: review.text,
+            summary: generateReviewSummary(review.text),
+            reviewUrl: review.reviewUrl,
+            rating: review.rating,
+            originalRating: review.rating,
+            ratingScale: 10,
+            reviewType: review.type,
+            likes: review.likes,
+            reviewDate: review.date,
+            confidence: 1.0,
+            matchMethod: 'id',
+            expiresAt,
+          },
+          update: {
+            authorName: review.author,
+            authorUrl: review.authorUrl,
+            reviewText: review.text,
+            summary: generateReviewSummary(review.text),
+            reviewUrl: review.reviewUrl,
+            rating: review.rating,
+            originalRating: review.rating,
+            likes: review.likes,
+            reviewDate: review.date,
+            lastSyncedAt: new Date(),
+            expiresAt,
+          },
+        });
+      }
+
+      storedCount++;
+    } catch (error) {
+      // Log but don't fail - individual review errors shouldn't stop the sync
+      logger.warn(
+        { author: review.author, error: error instanceof Error ? error.message : 'Unknown' },
+        'Failed to store review'
+      );
+    }
+  }
+
+  return storedCount;
 }
 
 // =============================================================================
@@ -358,8 +520,37 @@ export async function syncSeriesRatings(
         }
       }
 
-      // Fetch ratings
-      const ratings = await provider.getSeriesRatings(sourceId);
+      // Store ratings in database
+      const ttlDays = settings?.ratingTTLDays || 7;
+      const expiresAt = calculateExpirationDate(ttlDays * 24 * 60 * 60 * 1000);
+
+      // For CBR, use the extended function to get both ratings and reviews in one fetch
+      let ratings: RatingData[];
+      let reviewsStored = 0;
+
+      if (provider.name === 'comicbookroundup') {
+        // Fetch ratings AND reviews together (single page scrape)
+        const data = await getSeriesRatingsWithReviews(sourceId);
+        ratings = data.ratings;
+
+        // Store reviews alongside ratings
+        const allReviews = [...data.criticReviews, ...data.userReviews];
+        if (allReviews.length > 0) {
+          reviewsStored = await storeReviewsFromCbr(
+            allReviews,
+            sourceId,
+            { seriesId },
+            expiresAt
+          );
+          logger.debug(
+            { seriesId, reviewsStored, total: allReviews.length },
+            'Stored CBR reviews during rating sync'
+          );
+        }
+      } else {
+        // Other providers - just fetch ratings
+        ratings = await provider.getSeriesRatings(sourceId);
+      }
 
       if (ratings.length === 0) {
         logger.debug(
@@ -369,10 +560,6 @@ export async function syncSeriesRatings(
         result.unmatchedSources.push(provider.name);
         continue;
       }
-
-      // Store ratings in database
-      const ttlDays = settings?.ratingTTLDays || 7;
-      const expiresAt = calculateExpirationDate(ttlDays * 24 * 60 * 60 * 1000);
 
       for (const rating of ratings) {
         await db.externalRating.upsert({
@@ -412,7 +599,7 @@ export async function syncSeriesRatings(
 
       result.matchedSources.push(provider.name);
       logger.info(
-        { seriesId, provider: provider.name, ratingCount: ratings.length },
+        { seriesId, provider: provider.name, ratingCount: ratings.length, reviewsStored },
         'Successfully synced ratings'
       );
     } catch (error) {
@@ -545,15 +732,32 @@ export async function syncIssueRatings(
       };
     }
 
-    // Fetch ratings from CBR
-    const ratings = await ComicBookRoundupProvider.getIssueRatings(
-      seriesCbrRating.sourceId,
-      issueNumber
-    );
-
     // Use issue-specific TTL
     const ttlDays = settings?.issueRatingTTLDays || 14;
     const expiresAt = calculateExpirationDate(ttlDays * 24 * 60 * 60 * 1000);
+
+    // Fetch ratings AND reviews from CBR in a single page scrape
+    const data = await getIssueRatingsWithReviews(
+      seriesCbrRating.sourceId,
+      issueNumber
+    );
+    const ratings = data.ratings;
+    const issueSourceId = `${seriesCbrRating.sourceId}/${issueNumber}`;
+
+    // Store reviews alongside ratings
+    const allReviews = [...data.criticReviews, ...data.userReviews];
+    if (allReviews.length > 0) {
+      const reviewsStored = await storeReviewsFromCbr(
+        allReviews,
+        issueSourceId,
+        { fileId },
+        expiresAt
+      );
+      logger.debug(
+        { fileId, issueNumber, reviewsStored, total: allReviews.length },
+        'Stored CBR reviews during issue rating sync'
+      );
+    }
 
     if (ratings.length === 0) {
       // Store -1 to indicate "checked but no ratings available"
@@ -963,6 +1167,285 @@ export async function getRatingSourcesStatus(): Promise<
 // Exports
 // =============================================================================
 
+// =============================================================================
+// Manual CBR Match Types
+// =============================================================================
+
+export interface CBRMatchPreview {
+  sourceId: string;
+  seriesName: string;
+  publisher: string;
+  issueRange?: string;
+  criticRating?: { value: number; count: number };
+  communityRating?: { value: number; count: number };
+}
+
+export interface CBRMatchStatus {
+  matched: boolean;
+  sourceId?: string;
+  sourceUrl?: string;
+  matchMethod?: string;
+  confidence?: number;
+  matchedName?: string;
+}
+
+// =============================================================================
+// Manual CBR Match Functions
+// =============================================================================
+
+/**
+ * Validate a CBR URL and return preview data.
+ * Performs strict validation: URL must be valid, fetchable, and contain ratings.
+ */
+export async function validateCbrUrl(url: string): Promise<{
+  valid: boolean;
+  error?: string;
+  preview?: CBRMatchPreview;
+}> {
+  // Import CBR utilities dynamically to avoid circular deps
+  const { parseSourceIdFromUrl, buildUrlFromSourceId } = await import('./comicbookroundup/url-builder.js');
+  const { fetchSeriesData } = await import('./comicbookroundup/index.js');
+
+  // Step 1: Validate URL format
+  if (!url.includes('comicbookroundup.com/comic-books/reviews/')) {
+    return {
+      valid: false,
+      error: 'URL must be a Comic Book Roundup series page (e.g., https://comicbookroundup.com/comic-books/reviews/dc-comics/batman)',
+    };
+  }
+
+  // Step 2: Reject issue pages
+  if (/\/\d+$/.test(url)) {
+    return {
+      valid: false,
+      error: 'This appears to be an issue page. Please use the series page URL instead.',
+    };
+  }
+
+  // Step 3: Extract sourceId
+  const sourceId = parseSourceIdFromUrl(url);
+  if (!sourceId) {
+    return {
+      valid: false,
+      error: 'Could not parse series information from URL. Check URL format.',
+    };
+  }
+
+  // Step 4: Fetch and validate page data
+  try {
+    const pageData = await fetchSeriesData(sourceId);
+
+    // Check for valid ratings
+    const hasCriticRating = pageData.criticRating && pageData.criticRating.count > 0;
+    const hasCommunityRating = pageData.communityRating && pageData.communityRating.count > 0;
+
+    if (!hasCriticRating && !hasCommunityRating) {
+      return {
+        valid: false,
+        error: 'No ratings found on this page. The page may be empty or not a valid series.',
+      };
+    }
+
+    // Extract publisher from sourceId
+    const [publisherSlug] = sourceId.split('/');
+    const publisher = publisherSlug
+      ? publisherSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+      : 'Unknown';
+
+    return {
+      valid: true,
+      preview: {
+        sourceId,
+        seriesName: pageData.pageName || 'Unknown Series',
+        publisher,
+        criticRating: pageData.criticRating,
+        communityRating: pageData.communityRating,
+      },
+    };
+  } catch (error) {
+    logger.error({ error, url }, 'Error validating CBR URL');
+    return {
+      valid: false,
+      error: `Failed to fetch page: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
+  }
+}
+
+/**
+ * Save a manual CBR match for a series.
+ * Validates the URL, fetches ratings and reviews, and stores with matchMethod='manual'.
+ */
+export async function saveManualCbrMatch(
+  seriesId: string,
+  url: string
+): Promise<{
+  success: boolean;
+  error?: string;
+  preview?: CBRMatchPreview;
+}> {
+  const db = getDatabase();
+  const settings = getExternalRatingsSettings();
+
+  // Validate the URL first
+  const validation = await validateCbrUrl(url);
+  if (!validation.valid || !validation.preview) {
+    return { success: false, error: validation.error };
+  }
+
+  const { sourceId, seriesName, publisher, criticRating, communityRating } = validation.preview;
+
+  // Delete existing CBR ratings and reviews for this series
+  await db.externalRating.deleteMany({
+    where: {
+      seriesId,
+      source: 'comicbookroundup',
+    },
+  });
+  await db.externalReview.deleteMany({
+    where: {
+      seriesId,
+      source: 'comicbookroundup',
+    },
+  });
+
+  // Calculate expiration
+  const ttlDays = settings?.ratingTTLDays || 7;
+  const expiresAt = calculateExpirationDate(ttlDays * 24 * 60 * 60 * 1000);
+
+  // Fetch full data with reviews (the validation already fetched data, but we want reviews too)
+  const data = await getSeriesRatingsWithReviews(sourceId);
+
+  // Store critic rating if available
+  if (criticRating && criticRating.count > 0) {
+    await db.externalRating.create({
+      data: {
+        seriesId,
+        source: 'comicbookroundup',
+        sourceId,
+        ratingType: 'critic',
+        ratingValue: criticRating.value,
+        ratingScale: 10,
+        originalValue: criticRating.value,
+        voteCount: criticRating.count,
+        confidence: 1.0,
+        matchMethod: 'manual',
+        expiresAt,
+      },
+    });
+  }
+
+  // Store community rating if available
+  if (communityRating && communityRating.count > 0) {
+    await db.externalRating.create({
+      data: {
+        seriesId,
+        source: 'comicbookroundup',
+        sourceId,
+        ratingType: 'community',
+        ratingValue: communityRating.value,
+        ratingScale: 10,
+        originalValue: communityRating.value,
+        voteCount: communityRating.count,
+        confidence: 1.0,
+        matchMethod: 'manual',
+        expiresAt,
+      },
+    });
+  }
+
+  // Store reviews
+  const allReviews = [...data.criticReviews, ...data.userReviews];
+  let reviewsStored = 0;
+  if (allReviews.length > 0) {
+    reviewsStored = await storeReviewsFromCbr(
+      allReviews,
+      sourceId,
+      { seriesId },
+      expiresAt
+    );
+  }
+
+  logger.info(
+    { seriesId, sourceId, seriesName, reviewsStored },
+    'Saved manual CBR match with reviews'
+  );
+
+  return {
+    success: true,
+    preview: validation.preview,
+  };
+}
+
+/**
+ * Get the current CBR match status for a series.
+ */
+export async function getCbrMatchStatus(seriesId: string): Promise<CBRMatchStatus> {
+  const db = getDatabase();
+
+  const rating = await db.externalRating.findFirst({
+    where: {
+      seriesId,
+      source: 'comicbookroundup',
+    },
+    select: {
+      sourceId: true,
+      matchMethod: true,
+      confidence: true,
+    },
+  });
+
+  if (!rating || !rating.sourceId) {
+    return { matched: false };
+  }
+
+  return {
+    matched: true,
+    sourceId: rating.sourceId,
+    sourceUrl: `https://comicbookroundup.com/comic-books/reviews/${rating.sourceId}`,
+    matchMethod: rating.matchMethod || undefined,
+    confidence: rating.confidence,
+  };
+}
+
+/**
+ * Reset CBR match for a series.
+ * Optionally re-runs automatic search after clearing.
+ */
+export async function resetCbrMatch(
+  seriesId: string,
+  reSearch: boolean
+): Promise<{
+  success: boolean;
+  researchResult?: SeriesSyncResult;
+}> {
+  const db = getDatabase();
+
+  // Delete CBR ratings
+  await db.externalRating.deleteMany({
+    where: {
+      seriesId,
+      source: 'comicbookroundup',
+    },
+  });
+
+  logger.info({ seriesId, reSearch }, 'Reset CBR match');
+
+  // If re-search requested, trigger automatic search
+  if (reSearch) {
+    const researchResult = await syncSeriesRatings(seriesId, {
+      sources: ['comicbookroundup'] as RatingSource[],
+      forceRefresh: true,
+    });
+
+    return {
+      success: true,
+      researchResult,
+    };
+  }
+
+  return { success: true };
+}
+
 export const RatingSyncService = {
   syncSeriesRatings,
   syncIssueRatings,
@@ -975,6 +1458,11 @@ export const RatingSyncService = {
   getSeriesWithExpiredRatings,
   getSeriesAverageExternalRating,
   getRatingSourcesStatus,
+  // Manual CBR match functions
+  validateCbrUrl,
+  saveManualCbrMatch,
+  getCbrMatchStatus,
+  resetCbrMatch,
 };
 
 export default RatingSyncService;

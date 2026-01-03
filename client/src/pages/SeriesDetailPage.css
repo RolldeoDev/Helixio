@@ -1378,20 +1378,12 @@
   opacity: 0.6;
 }
 
-/* Similarity score badge */
+/* Similarity score badge - positioned in top-right corner */
+/* Colors are handled by the ConfidenceBadge component */
 .similar-series-card__score {
   position: absolute;
   top: var(--spacing-sm);
   right: var(--spacing-sm);
-  padding: 4px 8px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(4px);
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   z-index: 2;
 }
 
@@ -1488,8 +1480,5 @@
     padding: var(--spacing-sm);
   }
 
-  .similar-series-card__score {
-    font-size: 0.6rem;
-    padding: 3px 6px;
-  }
+  /* ConfidenceBadge component handles its own responsive sizing */
 }

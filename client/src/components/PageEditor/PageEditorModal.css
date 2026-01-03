@@ -1,0 +1,496 @@
+/**
+ * PageEditorModal Styles
+ *
+ * Modal for editing pages in a comic archive.
+ * Uses CSS variables from the theme system.
+ */
+
+/* =============================================================================
+   Modal Overlay & Container
+   ============================================================================= */
+
+.page-editor-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 32px;
+  /* Ensure overlay creates a new stacking context */
+  isolation: isolate;
+}
+
+.page-editor-modal {
+  background: var(--color-surface, #1a1a2e);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1200px;
+  height: 100%;
+  max-height: calc(100vh - 64px);
+  overflow: hidden;
+  /* Ensure modal is above overlay */
+  position: relative;
+  z-index: 1;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.page-editor-modal .page-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border, #2a2a40);
+  flex-shrink: 0;
+  background: var(--color-surface, #1a1a2e);
+}
+
+.page-editor-modal .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.page-editor-modal .header-left h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.page-editor-modal .filename {
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+
+.page-editor-modal .header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* =============================================================================
+   Error Banner
+   ============================================================================= */
+
+.page-editor-modal .error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+  border-bottom: 1px solid var(--color-error, #ef4444);
+  color: var(--color-error, #ef4444);
+  font-size: 0.875rem;
+}
+
+.page-editor-modal .error-icon {
+  font-size: 1rem;
+}
+
+/* =============================================================================
+   Toolbar
+   ============================================================================= */
+
+.page-editor-modal .page-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--color-surface-elevated, #1e1e32);
+  border-bottom: 1px solid var(--color-border, #2a2a40);
+  flex-shrink: 0;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-editor-modal .toolbar-left,
+.page-editor-modal .toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-editor-modal .toolbar-separator {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+}
+
+.page-editor-modal .page-count {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.page-editor-modal .deleted-count {
+  color: var(--color-error, #ef4444);
+  margin-left: 4px;
+}
+
+.page-editor-modal .selection-count {
+  font-size: 0.875rem;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.page-editor-modal .selection-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* Button styles */
+.page-editor-modal .btn-sm {
+  font-size: 0.8125rem;
+  padding: 6px 12px;
+}
+
+.page-editor-modal .btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.page-editor-modal .btn-ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.page-editor-modal .btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-editor-modal .btn-danger {
+  background: var(--color-error, #ef4444);
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.page-editor-modal .btn-danger:hover:not(:disabled) {
+  background: var(--color-error-hover, #dc2626);
+}
+
+.page-editor-modal .btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-editor-modal .btn-primary {
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.page-editor-modal .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.page-editor-modal .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-editor-modal .btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.page-editor-modal .btn-icon:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+/* Focus styles for keyboard accessibility */
+.page-editor-modal .btn-ghost:focus-visible,
+.page-editor-modal .btn-danger:focus-visible,
+.page-editor-modal .btn-primary:focus-visible,
+.page-editor-modal .btn-icon:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* =============================================================================
+   Loading State
+   ============================================================================= */
+
+.page-editor-modal .page-editor-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--color-text-secondary);
+}
+
+.page-editor-modal .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =============================================================================
+   Grid Content
+   ============================================================================= */
+
+.page-editor-modal .page-editor-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  min-height: 200px; /* Ensure minimum height for virtual grid calculation */
+  background: var(--color-background, #0f0f1a);
+}
+
+.page-editor-modal .page-grid-container {
+  position: relative;
+  width: 100%;
+  min-height: 100%; /* Ensure container fills available space */
+}
+
+/* =============================================================================
+   Page Item
+   ============================================================================= */
+
+.page-editor-modal .page-item {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-elevated);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+}
+
+.page-editor-modal .page-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.page-editor-modal .page-item.selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-bg, rgba(59, 130, 246, 0.1));
+}
+
+.page-editor-modal .page-item.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.page-editor-modal .page-item.drag-over {
+  border-color: var(--color-success, #22c55e);
+  border-style: dashed;
+}
+
+.page-editor-modal .page-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.page-editor-modal .page-thumbnail {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.page-editor-modal .page-thumbnail img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.page-editor-modal .selection-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-editor-modal .checkmark {
+  font-size: 2rem;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.page-editor-modal .page-info {
+  padding: 8px;
+  text-align: center;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.page-editor-modal .page-number {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+/* =============================================================================
+   Footer
+   ============================================================================= */
+
+.page-editor-modal .page-editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-top: 1px solid var(--color-border, #2a2a40);
+  background: var(--color-surface, #1a1a2e);
+  flex-shrink: 0;
+}
+
+.page-editor-modal .footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-editor-modal .footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-editor-modal .changes-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-editor-modal .change-item {
+  font-size: 0.875rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.page-editor-modal .change-item.delete {
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+  color: var(--color-error, #ef4444);
+}
+
+.page-editor-modal .change-item.reorder {
+  background: var(--color-warning-bg, rgba(245, 158, 11, 0.1));
+  color: var(--color-warning, #f59e0b);
+}
+
+.page-editor-modal .no-changes {
+  font-size: 0.875rem;
+  color: var(--color-text-tertiary);
+}
+
+/* =============================================================================
+   Preview Modal
+   ============================================================================= */
+
+.page-preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  padding: 32px;
+}
+
+.page-preview-modal .preview-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.page-preview-modal .preview-content img {
+  max-width: 100%;
+  max-height: calc(90vh - 48px);
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.page-preview-modal .close-btn {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  color: white;
+}
+
+.page-preview-modal .preview-info {
+  margin-top: 16px;
+  color: white;
+  font-size: 0.875rem;
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 768px) {
+  .page-editor-modal-overlay {
+    padding: 16px;
+  }
+
+  .page-editor-modal .page-editor-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .page-editor-modal .toolbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .page-editor-modal .filename {
+    max-width: 200px;
+  }
+}

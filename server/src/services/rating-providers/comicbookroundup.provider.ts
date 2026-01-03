@@ -6,6 +6,7 @@
  */
 
 import * as CBR from '../comicbookroundup/index.js';
+import type { CBRParsedReview } from '../comicbookroundup/types.js';
 import type {
   RatingProvider,
   RatingData,
@@ -14,6 +15,21 @@ import type {
 } from './types.js';
 import { normalizeRating } from './types.js';
 import { register } from './registry.js';
+
+// =============================================================================
+// Types for extended functionality
+// =============================================================================
+
+/**
+ * Extended result that includes both ratings and reviews from a single page fetch
+ */
+export interface RatingsWithReviews {
+  ratings: RatingData[];
+  criticReviews: CBRParsedReview[];
+  userReviews: CBRParsedReview[];
+  sourceUrl: string;
+  pageName?: string;
+}
 
 // =============================================================================
 // Transform Functions
@@ -118,6 +134,51 @@ export const ComicBookRoundupProvider: RatingProvider = {
     return transformToRatingData(data, `${seriesSourceId}/${issueNumber}`);
   },
 };
+
+// =============================================================================
+// Extended Functions (Ratings + Reviews in one fetch)
+// =============================================================================
+
+/**
+ * Fetch series ratings AND reviews in a single page scrape.
+ * Use this instead of getSeriesRatings when you want to capture reviews too.
+ */
+export async function getSeriesRatingsWithReviews(
+  sourceId: string,
+  reviewLimit: number = 15
+): Promise<RatingsWithReviews> {
+  const data = await CBR.fetchSeriesData(sourceId, reviewLimit);
+  return {
+    ratings: transformToRatingData(data, sourceId),
+    criticReviews: data.criticReviews,
+    userReviews: data.userReviews,
+    sourceUrl: data.sourceUrl,
+    pageName: data.pageName,
+  };
+}
+
+/**
+ * Fetch issue ratings AND reviews in a single page scrape.
+ * Use this instead of getIssueRatings when you want to capture reviews too.
+ */
+export async function getIssueRatingsWithReviews(
+  seriesSourceId: string,
+  issueNumber: string,
+  reviewLimit: number = 15
+): Promise<RatingsWithReviews> {
+  const data = await CBR.fetchIssueData(seriesSourceId, issueNumber, reviewLimit);
+  const sourceId = `${seriesSourceId}/${issueNumber}`;
+  return {
+    ratings: transformToRatingData(data, sourceId),
+    criticReviews: data.criticReviews,
+    userReviews: data.userReviews,
+    sourceUrl: data.sourceUrl,
+    pageName: data.pageName,
+  };
+}
+
+// Re-export CBRParsedReview type for consumers
+export type { CBRParsedReview };
 
 // Re-export reset function for testing
 export const resetRateLimiter = CBR.resetRateLimiter;

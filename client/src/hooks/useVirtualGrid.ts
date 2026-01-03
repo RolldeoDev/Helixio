@@ -8,6 +8,11 @@
  * - CSS transforms for GPU-accelerated positioning
  * - Minimal state updates (only when visible range changes)
  * - Scroll velocity detection to pause loading during fast scroll
+ *
+ * Architecture:
+ * - Layout calculation is memoized and only depends on container width + config
+ * - Visible range is calculated synchronously during resize/scroll
+ * - No circular dependencies between effects
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
@@ -49,8 +54,8 @@ export interface VirtualGridResult<T> {
   totalHeight: number;
   totalWidth: number;
 
-  // Scroll handling
-  containerRef: React.RefObject<HTMLDivElement>;
+  // Scroll handling - callback ref for proper portal/modal support
+  containerRef: (node: HTMLDivElement | null) => void;
   scrollTo: (index: number) => void;
 
   // Grid info
@@ -69,8 +74,15 @@ export interface VirtualItem<T> {
 }
 
 // =============================================================================
-// Hook
+// Layout Calculation (Pure Function)
 // =============================================================================
+
+interface GridLayout {
+  columns: number;
+  itemWidth: number;
+  itemHeight: number;
+  gap: number;
+}
 
 /**
  * Calculate optimal columns for a given container width to match target density.
@@ -120,6 +132,87 @@ function calculateOptimalColumns(
   return targetCols;
 }
 
+/**
+ * Calculate grid layout from container width and config.
+ * Pure function - no side effects.
+ */
+function calculateGridLayout(
+  containerWidth: number,
+  config: {
+    fixedItemWidth?: number;
+    fixedItemHeight?: number;
+    sliderValue?: number;
+    aspectRatio: number;
+    infoHeight: number;
+    minCoverWidth: number;
+    maxCoverWidth: number;
+    gap: number;
+  }
+): GridLayout {
+  const effectiveGap = Math.max(config.gap, 12);
+
+  // Dynamic sizing mode: use sliderValue to calculate optimal sizing
+  if (config.sliderValue !== undefined && containerWidth > 0) {
+    const cols = calculateOptimalColumns(
+      containerWidth,
+      config.sliderValue,
+      effectiveGap,
+      config.minCoverWidth,
+      config.maxCoverWidth
+    );
+    // Calculate item width to fill container exactly (minus gaps)
+    const totalGaps = (cols - 1) * effectiveGap;
+    const width = Math.floor((containerWidth - totalGaps) / cols);
+    const height = Math.round(width * config.aspectRatio) + config.infoHeight;
+
+    return { columns: cols, itemWidth: width, itemHeight: height, gap: effectiveGap };
+  }
+
+  // Fixed sizing mode: use provided dimensions
+  const width = config.fixedItemWidth ?? 160;
+  const height = config.fixedItemHeight ?? Math.round(width * 1.5) + 60;
+
+  if (containerWidth <= 0) {
+    return { columns: 1, itemWidth: width, itemHeight: height, gap: effectiveGap };
+  }
+
+  const availableWidth = containerWidth + effectiveGap;
+  const cols = Math.max(1, Math.floor(availableWidth / (width + effectiveGap)));
+  return { columns: cols, itemWidth: width, itemHeight: height, gap: effectiveGap };
+}
+
+/**
+ * Calculate visible row range based on scroll position and container height.
+ * Pure function - no side effects.
+ */
+function calculateVisibleRows(
+  scrollTop: number,
+  containerHeight: number,
+  itemHeight: number,
+  gap: number,
+  totalRows: number,
+  overscan: number,
+  paddingTop: number
+): { startRow: number; endRow: number } {
+  if (containerHeight <= 0 || totalRows <= 0) {
+    return { startRow: 0, endRow: 0 };
+  }
+
+  const rowHeight = itemHeight + gap;
+  const adjustedScrollTop = Math.max(0, scrollTop - paddingTop);
+  const startRow = Math.floor(adjustedScrollTop / rowHeight);
+  const visibleRows = Math.ceil(containerHeight / rowHeight);
+
+  const startRowWithOverscan = Math.max(0, startRow - overscan);
+  const endRowWithOverscan = Math.min(totalRows - 1, startRow + visibleRows + overscan);
+
+  return { startRow: startRowWithOverscan, endRow: endRowWithOverscan };
+}
+
+// =============================================================================
+// Hook
+// =============================================================================
+
 export function useVirtualGrid<T>(
   items: T[],
   config: VirtualGridConfig
@@ -136,86 +229,92 @@ export function useVirtualGrid<T>(
     paddingLeft = 0,
     paddingTop = 0,
     gap,
-    overscan = 5, // Increased for smoother fast scrolling
+    overscan = 5,
   } = config;
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // MutableRefObject is needed because we assign to .current in the callback ref
+  const containerRef = useRef<HTMLDivElement | null>(null) as React.MutableRefObject<HTMLDivElement | null>;
 
-  // Use refs for scroll position to avoid re-renders on every scroll
+  // Use refs for values that shouldn't trigger re-renders
   const scrollTopRef = useRef(0);
   const rafIdRef = useRef<number | null>(null);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const measureRetryRef = useRef<number | null>(null);
+  const lastMeasuredWidthRef = useRef(0);
+  const lastMeasuredHeightRef = useRef(0);
 
-  // Container dimensions - only update on resize
+  // Track when container node changes (for callback ref pattern)
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
+
+  // Callback ref that updates both the ref and state when node changes
+  // This ensures the effect re-runs when the container becomes available
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setContainerNode(node);
+  }, []);
+
+  // Container width state - triggers layout recalculation
   const [containerWidth, setContainerWidth] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(0);
 
-  // Visible range state - only update when range actually changes
+  // Visible range state - calculated from scroll position
   const [visibleRange, setVisibleRange] = useState({ startRow: 0, endRow: 0 });
 
-  // Scroll state for disabling effects
+  // Scroll state for UI effects
   const [isScrolling, setIsScrolling] = useState(false);
 
-  // Enforce minimum gap of 12px
-  const effectiveGap = Math.max(gap, 12);
+  // Memoize layout config to prevent recalculation
+  const layoutConfig = useMemo(
+    () => ({
+      fixedItemWidth,
+      fixedItemHeight,
+      sliderValue,
+      aspectRatio,
+      infoHeight,
+      minCoverWidth,
+      maxCoverWidth,
+      gap,
+    }),
+    [fixedItemWidth, fixedItemHeight, sliderValue, aspectRatio, infoHeight, minCoverWidth, maxCoverWidth, gap]
+  );
 
-  // Calculate columns and item dimensions based on config mode
-  const { columns, itemWidth, itemHeight, actualGap } = useMemo(() => {
-    // Dynamic sizing mode: use sliderValue to calculate optimal sizing
-    if (sliderValue !== undefined && containerWidth > 0) {
-      const cols = calculateOptimalColumns(
-        containerWidth,
-        sliderValue,
-        effectiveGap,
-        minCoverWidth,
-        maxCoverWidth
-      );
-      // Calculate item width to fill container exactly (minus gaps)
-      const totalGaps = (cols - 1) * effectiveGap;
-      const width = Math.floor((containerWidth - totalGaps) / cols);
-      const height = Math.round(width * aspectRatio) + infoHeight;
+  // Calculate layout based on container width - memoized
+  const layout = useMemo(
+    () => calculateGridLayout(containerWidth, layoutConfig),
+    [containerWidth, layoutConfig]
+  );
 
-      return { columns: cols, itemWidth: width, itemHeight: height, actualGap: effectiveGap };
-    }
+  const { columns, itemWidth, itemHeight, gap: actualGap } = layout;
 
-    // Fixed sizing mode: use provided dimensions
-    const width = fixedItemWidth ?? 160;
-    const height = fixedItemHeight ?? Math.round(width * 1.5) + 60;
-
-    if (containerWidth === 0) {
-      return { columns: 1, itemWidth: width, itemHeight: height, actualGap: effectiveGap };
-    }
-
-    const availableWidth = containerWidth + effectiveGap;
-    const cols = Math.max(1, Math.floor(availableWidth / (width + effectiveGap)));
-    return { columns: cols, itemWidth: width, itemHeight: height, actualGap: effectiveGap };
-  }, [containerWidth, sliderValue, fixedItemWidth, fixedItemHeight, effectiveGap, aspectRatio, infoHeight, minCoverWidth, maxCoverWidth]);
-
-  // Calculate total rows
-  const rows = Math.ceil(items.length / columns);
-
-  // Calculate total grid dimensions (using actualGap for proper spacing)
-  // Include padding offsets for proper sizing
+  // Calculate derived values
+  const rows = items.length > 0 ? Math.ceil(items.length / columns) : 0;
   const totalWidth = paddingLeft + columns * (itemWidth + actualGap) - actualGap;
-  const totalHeight = paddingTop + rows * (itemHeight + actualGap) - actualGap;
+  const totalHeight = rows > 0 ? paddingTop + rows * (itemHeight + actualGap) - actualGap : 0;
 
-  // Calculate visible range from scroll position
-  const calculateVisibleRange = useCallback((scrollTop: number) => {
-    const rowHeight = itemHeight + actualGap;
-    // Account for paddingTop when calculating which row is at the top
-    const adjustedScrollTop = Math.max(0, scrollTop - paddingTop);
-    const startRow = Math.floor(adjustedScrollTop / rowHeight);
-    const visibleRows = Math.ceil(containerHeight / rowHeight);
+  // Update visible range based on current measurements
+  const updateVisibleRange = useCallback(
+    (scrollTop: number, height: number) => {
+      const newRange = calculateVisibleRows(
+        scrollTop,
+        height,
+        itemHeight,
+        actualGap,
+        rows,
+        overscan,
+        paddingTop
+      );
 
-    const startRowWithOverscan = Math.max(0, startRow - overscan);
-    const endRowWithOverscan = Math.min(rows - 1, startRow + visibleRows + overscan);
-
-    return { startRow: startRowWithOverscan, endRow: endRowWithOverscan };
-  }, [containerHeight, itemHeight, actualGap, rows, overscan, paddingTop]);
+      setVisibleRange((prev) => {
+        if (prev.startRow !== newRange.startRow || prev.endRow !== newRange.endRow) {
+          return newRange;
+        }
+        return prev;
+      });
+    },
+    [itemHeight, actualGap, rows, overscan, paddingTop]
+  );
 
   // Handle scroll with RAF throttling
   const handleScroll = useCallback(() => {
-    // Cancel any pending RAF
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
     }
@@ -227,26 +326,14 @@ export function useVirtualGrid<T>(
       const scrollTop = container.scrollTop;
       scrollTopRef.current = scrollTop;
 
-      // Calculate new visible range
-      const newRange = calculateVisibleRange(scrollTop);
+      updateVisibleRange(scrollTop, container.clientHeight);
 
-      // Only update state if range actually changed
-      setVisibleRange((prev) => {
-        if (prev.startRow !== newRange.startRow || prev.endRow !== newRange.endRow) {
-          return newRange;
-        }
-        return prev;
-      });
-
-      // Set scrolling state
       setIsScrolling(true);
 
-      // Clear existing scroll end timeout
       if (scrollTimeoutRef.current !== null) {
         clearTimeout(scrollTimeoutRef.current);
       }
 
-      // Set scroll end timeout (shorter = more responsive, longer = less jittery)
       scrollTimeoutRef.current = setTimeout(() => {
         setIsScrolling(false);
         scrollTimeoutRef.current = null;
@@ -254,10 +341,14 @@ export function useVirtualGrid<T>(
 
       rafIdRef.current = null;
     });
-  }, [calculateVisibleRange]);
+  }, [updateVisibleRange]);
 
   // Create virtual items with positions - uses CSS transforms for GPU acceleration
   const virtualItems = useMemo<VirtualItem<T>[]>(() => {
+    if (items.length === 0 || columns === 0) {
+      return [];
+    }
+
     const result: VirtualItem<T>[] = [];
     const startIndex = visibleRange.startRow * columns;
     const endIndex = Math.min(items.length - 1, (visibleRange.endRow + 1) * columns - 1);
@@ -269,8 +360,6 @@ export function useVirtualGrid<T>(
       const row = Math.floor(i / columns);
       const col = i % columns;
 
-      // Use actualGap for proper spacing between items
-      // Apply paddingLeft and paddingTop offsets to position within container
       const x = paddingLeft + col * (itemWidth + actualGap);
       const y = paddingTop + row * (itemHeight + actualGap);
 
@@ -281,7 +370,6 @@ export function useVirtualGrid<T>(
           position: 'absolute',
           width: itemWidth,
           height: itemHeight,
-          // Use transform instead of top/left for GPU acceleration
           transform: `translate3d(${x}px, ${y}px, 0)`,
         },
       });
@@ -290,47 +378,100 @@ export function useVirtualGrid<T>(
     return result;
   }, [items, visibleRange, columns, itemWidth, itemHeight, actualGap, paddingLeft, paddingTop]);
 
-  // Handle resize events
-  useEffect(() => {
+  // Core measurement function - updates state when dimensions change
+  // This is extracted so it can be called from multiple places (RAF retry, ResizeObserver)
+  const performMeasurement = useCallback(() => {
     const container = containerRef.current;
+    if (!container) {
+      return false;
+    }
+
+    const rawWidth = container.clientWidth;
+    const rawHeight = container.clientHeight;
+    const width = Math.max(0, rawWidth - horizontalPadding);
+    const height = rawHeight;
+
+    const hasValidDimensions = width > 0 && height > 0;
+    const dimensionsChanged = width !== lastMeasuredWidthRef.current || height !== lastMeasuredHeightRef.current;
+
+    if (dimensionsChanged) {
+      lastMeasuredWidthRef.current = width;
+      lastMeasuredHeightRef.current = height;
+      setContainerWidth(width);
+
+      if (hasValidDimensions && items.length > 0) {
+        const scrollTop = container.scrollTop;
+        scrollTopRef.current = scrollTop;
+
+        const newLayout = calculateGridLayout(width, layoutConfig);
+        const newRows = Math.ceil(items.length / newLayout.columns);
+
+        if (newRows > 0) {
+          const newRange = calculateVisibleRows(
+            scrollTop,
+            height,
+            newLayout.itemHeight,
+            newLayout.gap,
+            newRows,
+            overscan,
+            paddingTop
+          );
+
+          setVisibleRange((prev) => {
+            if (prev.startRow !== newRange.startRow || prev.endRow !== newRange.endRow) {
+              return newRange;
+            }
+            return prev;
+          });
+        }
+      }
+    }
+
+    return hasValidDimensions;
+  }, [horizontalPadding, layoutConfig, items.length, overscan, paddingTop]);
+
+  // Effect for container measurement with portal/modal support
+  // Uses RAF polling to wait for browser to resolve flex layout
+  // NOTE: Depends on containerNode (from callback ref) so it re-runs when container becomes available
+  useEffect(() => {
+    const container = containerNode;
     if (!container) return;
 
-    const updateDimensions = () => {
-      // Subtract horizontal padding for actual usable width
-      const width = Math.max(0, container.clientWidth - horizontalPadding);
-      const height = container.clientHeight;
+    let retryCount = 0;
+    const maxRetries = 20;
 
-      setContainerWidth(width);
-      setContainerHeight(height);
-
-      // Calculate visible range directly using measured height
-      // This avoids stale closure issues with calculateVisibleRange callback
-      if (height > 0) {
-        const rowHeight = itemHeight + actualGap;
-        const scrollTop = scrollTopRef.current;
-        // Account for paddingTop when calculating which row is at the top
-        const adjustedScrollTop = Math.max(0, scrollTop - paddingTop);
-        const startRow = Math.floor(adjustedScrollTop / rowHeight);
-        const visibleRows = Math.ceil(height / rowHeight);
-        const startRowWithOverscan = Math.max(0, startRow - overscan);
-        const endRowWithOverscan = Math.min(rows - 1, startRow + visibleRows + overscan);
-
-        setVisibleRange({ startRow: startRowWithOverscan, endRow: endRowWithOverscan });
+    const measureWithRetry = () => {
+      const hasValidDimensions = performMeasurement();
+      if (!hasValidDimensions && retryCount < maxRetries) {
+        retryCount++;
+        measureRetryRef.current = requestAnimationFrame(measureWithRetry);
+      } else {
+        measureRetryRef.current = null;
       }
     };
 
-    updateDimensions();
+    measureRetryRef.current = requestAnimationFrame(measureWithRetry);
 
-    const resizeObserver = new ResizeObserver(updateDimensions);
+    const resizeObserver = new ResizeObserver(() => {
+      if (measureRetryRef.current !== null) {
+        cancelAnimationFrame(measureRetryRef.current);
+        measureRetryRef.current = null;
+      }
+      performMeasurement();
+    });
     resizeObserver.observe(container);
 
-    // Use passive listener for better scroll performance
+    // Scroll listener
     container.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
       resizeObserver.disconnect();
       container.removeEventListener('scroll', handleScroll);
 
+      if (measureRetryRef.current !== null) {
+        cancelAnimationFrame(measureRetryRef.current);
+        measureRetryRef.current = null;
+      }
       if (rafIdRef.current !== null) {
         cancelAnimationFrame(rafIdRef.current);
       }
@@ -338,27 +479,29 @@ export function useVirtualGrid<T>(
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [handleScroll, horizontalPadding, itemHeight, actualGap, rows, overscan, paddingTop]);
+  }, [containerNode, performMeasurement, handleScroll]);
 
   // Scroll to a specific item index
-  const scrollTo = useCallback((index: number) => {
-    if (!containerRef.current) return;
+  const scrollTo = useCallback(
+    (index: number) => {
+      if (!containerRef.current) return;
 
-    const row = Math.floor(index / columns);
-    // Include paddingTop offset when scrolling to an item
-    const top = paddingTop + row * (itemHeight + actualGap);
+      const row = Math.floor(index / columns);
+      const top = paddingTop + row * (itemHeight + actualGap);
 
-    containerRef.current.scrollTo({
-      top,
-      behavior: 'smooth',
-    });
-  }, [columns, itemHeight, actualGap, paddingTop]);
+      containerRef.current.scrollTo({
+        top,
+        behavior: 'smooth',
+      });
+    },
+    [columns, itemHeight, actualGap, paddingTop]
+  );
 
   return {
     virtualItems,
     totalHeight,
     totalWidth,
-    containerRef,
+    containerRef: setContainerRef,
     scrollTo,
     columns,
     rows,
@@ -406,15 +549,33 @@ export function useVirtualList<T>(
   const totalHeight = items.length * itemHeight;
 
   // Calculate visible range from scroll position
-  const calculateVisibleRange = useCallback((scrollTop: number) => {
-    const startIndex = Math.floor(scrollTop / itemHeight);
-    const visibleCount = Math.ceil(containerHeight / itemHeight);
+  const calculateVisibleRange = useCallback(
+    (scrollTop: number, height: number) => {
+      if (height <= 0) return { start: 0, end: 0 };
 
-    const startWithOverscan = Math.max(0, startIndex - overscan);
-    const endWithOverscan = Math.min(items.length - 1, startIndex + visibleCount + overscan);
+      const startIndex = Math.floor(scrollTop / itemHeight);
+      const visibleCount = Math.ceil(height / itemHeight);
 
-    return { start: startWithOverscan, end: endWithOverscan };
-  }, [containerHeight, itemHeight, overscan, items.length]);
+      const startWithOverscan = Math.max(0, startIndex - overscan);
+      const endWithOverscan = Math.min(items.length - 1, startIndex + visibleCount + overscan);
+
+      return { start: startWithOverscan, end: endWithOverscan };
+    },
+    [itemHeight, overscan, items.length]
+  );
+
+  const updateVisibleRange = useCallback(
+    (scrollTop: number, height: number) => {
+      const newRange = calculateVisibleRange(scrollTop, height);
+      setVisibleRange((prev) => {
+        if (prev.start !== newRange.start || prev.end !== newRange.end) {
+          return newRange;
+        }
+        return prev;
+      });
+    },
+    [calculateVisibleRange]
+  );
 
   // Handle scroll with RAF throttling
   const handleScroll = useCallback(() => {
@@ -429,14 +590,7 @@ export function useVirtualList<T>(
       const scrollTop = container.scrollTop;
       scrollTopRef.current = scrollTop;
 
-      const newRange = calculateVisibleRange(scrollTop);
-
-      setVisibleRange((prev) => {
-        if (prev.start !== newRange.start || prev.end !== newRange.end) {
-          return newRange;
-        }
-        return prev;
-      });
+      updateVisibleRange(scrollTop, container.clientHeight);
 
       setIsScrolling(true);
 
@@ -451,7 +605,7 @@ export function useVirtualList<T>(
 
       rafIdRef.current = null;
     });
-  }, [calculateVisibleRange]);
+  }, [updateVisibleRange]);
 
   // Create virtual items
   const virtualItems = useMemo<VirtualItem<T>[]>(() => {
@@ -476,22 +630,19 @@ export function useVirtualList<T>(
     return result;
   }, [items, visibleRange, itemHeight]);
 
-  // Handle resize
+  // Handle resize and setup scroll listener
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const updateHeight = () => {
+    const measureContainer = () => {
       const height = container.clientHeight;
-      setContainerHeight(height);
-
-      const newRange = calculateVisibleRange(scrollTopRef.current);
-      setVisibleRange(newRange);
+      setContainerHeight((prev) => (prev !== height ? height : prev));
     };
 
-    updateHeight();
+    measureContainer();
 
-    const resizeObserver = new ResizeObserver(updateHeight);
+    const resizeObserver = new ResizeObserver(measureContainer);
     resizeObserver.observe(container);
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -507,17 +658,27 @@ export function useVirtualList<T>(
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [handleScroll, calculateVisibleRange]);
+  }, [handleScroll]);
+
+  // Update visible range when container height changes
+  useEffect(() => {
+    if (containerHeight > 0) {
+      updateVisibleRange(scrollTopRef.current, containerHeight);
+    }
+  }, [containerHeight, updateVisibleRange]);
 
   // Scroll to index
-  const scrollTo = useCallback((index: number) => {
-    if (!containerRef.current) return;
+  const scrollTo = useCallback(
+    (index: number) => {
+      if (!containerRef.current) return;
 
-    containerRef.current.scrollTo({
-      top: index * itemHeight,
-      behavior: 'smooth',
-    });
-  }, [itemHeight]);
+      containerRef.current.scrollTo({
+        top: index * itemHeight,
+        behavior: 'smooth',
+      });
+    },
+    [itemHeight]
+  );
 
   return {
     virtualItems,

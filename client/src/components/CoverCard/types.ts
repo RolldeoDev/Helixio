@@ -39,6 +39,7 @@ export type MenuItemPreset =
   | 'addToCollection'
   | 'fetchMetadata'
   | 'editMetadata'
+  | 'editPages'
   | 'rename'
   | 'rebuildCache'
   | 'quarantine'

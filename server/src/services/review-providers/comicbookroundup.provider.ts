@@ -21,6 +21,17 @@ import { normalizeRating, generateSummary } from './types.js';
 // =============================================================================
 
 /**
+ * Generate a consistent review ID for CBR reviews.
+ * Uses author name + first 50 chars of text to create a unique, reproducible ID.
+ * This ensures the same review gets the same ID regardless of which sync path stores it.
+ */
+function generateCbrReviewId(author: string, text: string): string {
+  const authorKey = author.replace(/[^a-zA-Z0-9]/g, '');
+  const textSnippet = text.substring(0, 50).replace(/[^a-zA-Z0-9]/g, '');
+  return `${authorKey}-${textSnippet}`.substring(0, 100);
+}
+
+/**
  * Transform a CBR parsed review to ReviewData format.
  */
 function transformReview(
@@ -30,6 +41,9 @@ function transformReview(
   return {
     source: 'comicbookroundup',
     sourceId,
+    // Generate a consistent reviewId so rating-sync and review-sync paths
+    // create the same ID for the same review (prevents duplicates)
+    reviewId: generateCbrReviewId(review.author, review.text),
     author: {
       name: review.author,
       profileUrl: review.authorUrl,

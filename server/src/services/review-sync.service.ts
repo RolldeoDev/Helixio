@@ -875,6 +875,14 @@ export async function getSeriesReviewCount(
 }
 
 /**
+ * Get review count for an issue
+ */
+export async function getIssueReviewCount(fileId: string): Promise<number> {
+  const db = getDatabase();
+  return db.externalReview.count({ where: { fileId } });
+}
+
+/**
  * Get all available review sources and their status
  */
 export async function getReviewSourcesStatus(): Promise<
@@ -919,6 +927,7 @@ export const ReviewSyncService = {
   getExpiredReviewsCount,
   getSeriesWithExpiredReviews,
   getSeriesReviewCount,
+  getIssueReviewCount,
   getReviewSourcesStatus,
 };
 

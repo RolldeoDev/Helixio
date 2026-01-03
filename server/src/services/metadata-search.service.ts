@@ -725,13 +725,22 @@ export async function searchIssues(
             results.issues.push(match);
           }
         } else if (query.series) {
-          // General search
+          // General search - N+1 API pattern is unavoidable here
+          //
+          // KNOWN LIMITATION: ComicVine's /search/ endpoint returns minimal data
+          // (id, name, aliases, deck, description, image) and does NOT support
+          // the field_list parameter that resource endpoints do. We need volume,
+          // issue_number, and cover_date which require individual /issue/{id}/ calls.
+          //
+          // This is mitigated by:
+          // 1. Limiting search results (default 10)
+          // 2. Using the optimized getVolumeIssues() path when seriesId is known
+          // 3. User-initiated searches (not background jobs)
           const searchQuery = query.issueNumber ? `${query.series} ${query.issueNumber}` : query.series;
           const cvResults = await comicVine.searchIssues(searchQuery, { limit, sessionId });
           results.sources.comicVine.available = true;
 
           for (const result of cvResults.results) {
-            // Need to fetch full issue details
             const issueId = result.id;
             const issue = await comicVine.getIssue(issueId, sessionId);
 

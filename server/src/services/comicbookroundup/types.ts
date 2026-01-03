@@ -100,7 +100,7 @@ export interface CBRSearchQuery {
 /**
  * Match method used to find the series
  */
-export type CBRMatchMethod = 'exact' | 'fuzzy' | 'search' | 'imprint';
+export type CBRMatchMethod = 'exact' | 'fuzzy' | 'search' | 'imprint' | 'sitemap';
 
 /**
  * Result of a series search/match
@@ -130,4 +130,22 @@ export interface CBRFetchResult {
   fromCache: boolean;
   /** The cache key used */
   cacheKey: string;
+}
+
+// =============================================================================
+// Sitemap Index Types
+// =============================================================================
+
+/**
+ * A series entry extracted from CBR sitemaps
+ */
+export interface CBRSeriesEntry {
+  /** Full source ID (publisher-slug/series-slug) e.g., "dark-horse-comics/helen-of-wyndhorn-(2024)" */
+  sourceId: string;
+  /** Publisher slug e.g., "dark-horse-comics" */
+  publisher: string;
+  /** Series slug e.g., "helen-of-wyndhorn-(2024)" */
+  seriesSlug: string;
+  /** Human-readable series name derived from slug e.g., "Helen of Wyndhorn (2024)" */
+  seriesName: string;
 }

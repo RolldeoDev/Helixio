@@ -124,6 +124,18 @@ export function SystemSettings() {
   const [loadingSimilarityStats, setLoadingSimilarityStats] = useState(false);
   const [rebuildingSimilarity, setRebuildingSimilarity] = useState(false);
 
+  // CBR Sitemap Index state
+  const [sitemapStatus, setSitemapStatus] = useState<{
+    cached: boolean;
+    seriesCount: number;
+    createdAt: string | null;
+    expiresAt: string | null;
+    isStale: boolean;
+    sitemapUrls: string[];
+  } | null>(null);
+  const [loadingSitemapStatus, setLoadingSitemapStatus] = useState(false);
+  const [refreshingSitemap, setRefreshingSitemap] = useState(false);
+
   const { addToast } = useApiToast();
   const confirm = useConfirmModal();
 
@@ -462,6 +474,44 @@ export function SystemSettings() {
       addToast('error', err instanceof Error ? err.message : 'Failed to start similarity rebuild');
     } finally {
       setRebuildingSimilarity(false);
+    }
+  };
+
+  // CBR Sitemap Index handlers
+  const loadSitemapStatus = async () => {
+    setLoadingSitemapStatus(true);
+    try {
+      const response = await fetch(`${API_BASE}/external-ratings/cbr-sitemap/status`);
+      if (response.ok) {
+        const status = await response.json();
+        setSitemapStatus(status);
+      }
+    } catch (err) {
+      console.error('Failed to load sitemap status:', err);
+    } finally {
+      setLoadingSitemapStatus(false);
+    }
+  };
+
+  const handleRefreshSitemap = async () => {
+    setRefreshingSitemap(true);
+    try {
+      const response = await fetch(`${API_BASE}/external-ratings/cbr-sitemap/refresh`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to refresh sitemap');
+
+      const result = await response.json();
+      if (result.success) {
+        addToast('success', `Sitemap index refreshed: ${result.seriesCount.toLocaleString()} series`);
+      } else {
+        addToast('error', result.error || 'Failed to refresh sitemap');
+      }
+      await loadSitemapStatus();
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to refresh sitemap');
+    } finally {
+      setRefreshingSitemap(false);
     }
   };
 
@@ -1408,6 +1458,83 @@ export function SystemSettings() {
               {rebuildingSimilarity ? 'Starting...' : 'Recalculate Similarities'}
             </button>
           </div>
+        </div>
+      </SectionCard>
+
+      {/* CBR Sitemap Index Section */}
+      <SectionCard
+        title="CBR Sitemap Index"
+        description="Comic Book Roundup uses sitemaps to find series. The index is cached for 14 days."
+      >
+        <div className="setting-group">
+          {loadingSitemapStatus ? (
+            <div className="cache-loading">
+              <div className="spinner-small" />
+              <span>Loading...</span>
+            </div>
+          ) : sitemapStatus ? (
+            <div className="cache-stats">
+              <div className="stat-grid">
+                <div className="stat-item">
+                  <span className="stat-value">{sitemapStatus.seriesCount.toLocaleString()}</span>
+                  <span className="stat-label">Series Indexed</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {sitemapStatus.cached ? (sitemapStatus.isStale ? 'Stale' : 'Fresh') : 'Not Cached'}
+                  </span>
+                  <span className="stat-label">Cache Status</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {sitemapStatus.createdAt
+                      ? new Date(sitemapStatus.createdAt).toLocaleDateString()
+                      : 'Never'}
+                  </span>
+                  <span className="stat-label">Last Fetched</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {sitemapStatus.expiresAt
+                      ? new Date(sitemapStatus.expiresAt).toLocaleDateString()
+                      : 'N/A'}
+                  </span>
+                  <span className="stat-label">Expires</span>
+                </div>
+              </div>
+              <div className="sitemap-urls">
+                <span className="stat-label">Sitemap URLs:</span>
+                <ul>
+                  {sitemapStatus.sitemapUrls.map((url, i) => (
+                    <li key={i}><code>{url}</code></li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-ghost" onClick={loadSitemapStatus}>
+              Load Status
+            </button>
+          )}
+
+          {sitemapStatus && (
+            <div className="button-group" style={{ marginTop: '1rem' }}>
+              <button
+                className="btn-secondary"
+                onClick={loadSitemapStatus}
+                disabled={loadingSitemapStatus}
+              >
+                {loadingSitemapStatus ? 'Loading...' : 'Refresh Status'}
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleRefreshSitemap}
+                disabled={refreshingSitemap}
+              >
+                {refreshingSitemap ? 'Fetching Sitemaps...' : 'Re-fetch Sitemaps'}
+              </button>
+            </div>
+          )}
         </div>
       </SectionCard>
 

@@ -43,6 +43,7 @@ import { MetadataPreviewModal } from '../components/MetadataPreviewModal';
 import { ActionMenu, type ActionMenuItem } from '../components/ActionMenu';
 import { MarkdownContent } from '../components/MarkdownContent';
 import { CollectionPickerModal } from '../components/CollectionPickerModal';
+import { PageEditorModal } from '../components/PageEditor';
 import { DetailHeroSection } from '../components/DetailHeroSection';
 import { SeriesHero } from '../components/SeriesHero';
 import { ExpandablePillSection } from '../components/ExpandablePillSection';
@@ -54,7 +55,8 @@ import { SeriesUserDataPanel } from '../components/UserDataPanel';
 import { ExternalRatingsPreview } from '../components/ExternalRatingsPreview';
 import { CommunityRatingsModal } from '../components/CommunityRatingsModal';
 import { ExternalReviewsTab } from '../components/ExternalReviewsTab';
-import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings, useHasExternalReviews } from '../hooks/queries';
+import { ConfidenceBadge } from '../components/ConfidenceBadge';
+import { useSeriesUserData, useUpdateSeriesUserData, useHasExternalRatings, useSeriesReviews } from '../hooks/queries';
 import { applyPresetToSeries, deleteSeriesReaderSettingsById } from '../services/api/reading';
 import './SeriesDetailPage.css';
 
@@ -231,8 +233,9 @@ export function SeriesDetailPage() {
   // External ratings status (for showing fetch icon when no ratings exist)
   const { hasRatings: hasExternalRatings, isLoading: isLoadingExternalRatings } = useHasExternalRatings(seriesId);
 
-  // External reviews status (for showing the Reviews tab)
-  const { hasReviews: hasExternalReviews } = useHasExternalReviews(seriesId);
+  // External reviews (for tab badge)
+  const { data: reviewsData } = useSeriesReviews(seriesId, { limit: 1 });
+  const reviewCount = (reviewsData?.counts?.external ?? 0) + (reviewsData?.counts?.user ?? 0);
 
   // ==========================================================================
   // Derived State
@@ -384,6 +387,8 @@ export function SeriesDetailPage() {
     closeMetadataEditor,
     collectionPickerFileIds,
     closeCollectionPicker,
+    editingPagesFileId,
+    closePageEditor,
   } = useMenuActions({
     onRefresh: fetchSeries,
     series,
@@ -785,9 +790,7 @@ export function SeriesDetailPage() {
               onClick={() => setActiveTab('reviews')}
             >
               Reviews
-              {hasExternalReviews && (
-                <span className="tab-count-dot" title="Has external reviews" />
-              )}
+              {reviewCount > 0 && <span className="tab-count">{reviewCount}</span>}
             </button>
           </div>
 
@@ -966,7 +969,7 @@ export function SeriesDetailPage() {
                   </div>
                 ) : (
                   similarSeries.map((entry) => {
-                    const { series: sim, similarityScore, matchReasons } = entry;
+                    const { series: sim, similarityScore, matchReasons, matchType } = entry;
                     // Smart cover fallback: series coverHash > coverUrl > first issue coverHash > first issue file
                     const simCoverUrl = sim.coverHash
                       ? getApiCoverUrl(sim.coverHash)
@@ -978,25 +981,30 @@ export function SeriesDetailPage() {
                             ? getCoverUrl(sim.firstIssueId)
                             : null;
 
+                    // Check if this is a fallback recommendation
+                    const isFallback = matchType === 'genre_fallback';
+
                     // Get top match reason for display
                     const topReason = matchReasons[0];
-                    const reasonText = topReason
-                      ? topReason.type === 'character'
-                        ? 'Similar characters'
-                        : topReason.type === 'genre'
-                          ? 'Similar genres'
-                          : topReason.type === 'creator'
-                            ? 'Same creators'
-                            : topReason.type === 'tag'
-                              ? 'Similar tags'
-                              : topReason.type === 'team'
-                                ? 'Same teams'
-                                : topReason.type === 'keyword'
-                                  ? 'Related themes'
-                                  : topReason.type === 'publisher'
-                                    ? 'Same publisher'
-                                    : 'Similar'
-                      : null;
+                    const reasonText = isFallback
+                      ? 'Similar genres'
+                      : topReason
+                        ? topReason.type === 'character' || topReason.type === 'characters'
+                          ? 'Similar characters'
+                          : topReason.type === 'genre' || topReason.type === 'genres'
+                            ? 'Similar genres'
+                            : topReason.type === 'creator' || topReason.type === 'creators'
+                              ? 'Same creators'
+                              : topReason.type === 'tag' || topReason.type === 'tags'
+                                ? 'Similar tags'
+                                : topReason.type === 'team' || topReason.type === 'teams'
+                                  ? 'Same teams'
+                                  : topReason.type === 'keyword' || topReason.type === 'keywords'
+                                    ? 'Related themes'
+                                    : topReason.type === 'publisher'
+                                      ? 'Same publisher'
+                                      : 'Similar'
+                        : null;
 
                     return (
                       <div
@@ -1013,10 +1021,12 @@ export function SeriesDetailPage() {
                               {sim.name.charAt(0).toUpperCase()}
                             </div>
                           )}
-                          {/* Match score badge */}
-                          <div className="similar-series-card__score">
-                            {Math.round(similarityScore * 100)}% match
-                          </div>
+                          {/* Match score badge with confidence coloring */}
+                          <ConfidenceBadge
+                            score={similarityScore}
+                            isFallback={isFallback}
+                            className="similar-series-card__score"
+                          />
                         </div>
 
                         {/* Info section */}
@@ -1198,6 +1208,23 @@ export function SeriesDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Page Editor Modal */}
+      {editingPagesFileId && (() => {
+        const editingIssue = issues.find((i) => i.id === editingPagesFileId);
+        return editingIssue ? (
+          <PageEditorModal
+            fileId={editingPagesFileId}
+            filename={editingIssue.filename}
+            isOpen={true}
+            onClose={closePageEditor}
+            onSave={() => {
+              closePageEditor();
+              fetchSeries();
+            }}
+          />
+        ) : null;
+      })()}
 
       {/* Edit Series Modal */}
       {seriesId && (

@@ -16,10 +16,15 @@ import {
   useSyncSeriesIssueRatings,
   useSyncJobStatus,
   useCancelSyncJob,
+  useValidateCbrUrl,
+  useSaveManualCbrMatch,
+  useResetCbrMatch,
   type ExternalRatingDisplay,
+  type CBRMatchPreview,
 } from '../../hooks/queries/useExternalRatings';
 import { toStarRating, formatStarRating } from '../../utils/ratings';
 import { RatingStars } from '../RatingStars';
+import { RatingBadge } from '../RatingBadge';
 import './CommunityRatingsModal.css';
 
 // =============================================================================
@@ -127,11 +132,11 @@ function RatingRow({ rating }: RatingRowProps) {
         </span>
       </div>
       <div className="ratings-modal__value">
+        <RatingBadge value={rating.value} size="small" />
         <div className="ratings-modal__stars">
           <RatingStars value={toStarRating(rating.value)} readonly size="small" showEmpty />
         </div>
         <span className="ratings-modal__number">{formatStarRating(rating.value)}/5</span>
-        <span className="ratings-modal__original">({rating.displayValue})</span>
         {rating.voteCount !== undefined && rating.voteCount > 0 && (
           <span className="ratings-modal__vote-count">
             ({rating.voteCount.toLocaleString()})
@@ -174,6 +179,12 @@ export function CommunityRatingsModal({
   const [issueJobId, setIssueJobId] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  // State for manual CBR match
+  const [showManualMatch, setShowManualMatch] = useState(false);
+  const [manualUrl, setManualUrl] = useState('');
+  const [matchPreview, setMatchPreview] = useState<CBRMatchPreview | null>(null);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+
   // Determine mode and display name
   const isSeriesMode = !!seriesId;
   const displayName = isSeriesMode ? seriesName : issueName;
@@ -187,6 +198,11 @@ export function CommunityRatingsModal({
   // Hooks for issue ratings sync
   const syncIssuesMutation = useSyncSeriesIssueRatings();
   const cancelJobMutation = useCancelSyncJob();
+
+  // Hooks for manual CBR match
+  const validateUrlMutation = useValidateCbrUrl();
+  const saveMatchMutation = useSaveManualCbrMatch();
+  const resetMatchMutation = useResetCbrMatch();
 
   // Poll job status every 3 seconds when active
   const { data: jobStatus } = useSyncJobStatus(issueJobId || undefined, {
@@ -222,6 +238,23 @@ export function CommunityRatingsModal({
   const hasCbrMatch = useMemo(() => {
     if (!data?.ratings) return false;
     return data.ratings.some((r) => r.source === 'comicbookroundup');
+  }, [data]);
+
+  // Get CBR rating info for match status display
+  const cbrRatingInfo = useMemo(() => {
+    if (!data?.ratings) return null;
+    const cbrRating = data.ratings.find((r) => r.source === 'comicbookroundup');
+    if (!cbrRating?.sourceUrl) return null;
+
+    // Extract sourceId from URL
+    const match = cbrRating.sourceUrl.match(/\/reviews\/(.+)$/);
+    const sourceId = match?.[1] || null;
+
+    return {
+      sourceUrl: cbrRating.sourceUrl,
+      sourceId,
+      matchMethod: undefined as string | undefined, // Could be fetched from backend if needed
+    };
   }, [data]);
 
   // Job is active if status is pending or processing
@@ -264,6 +297,70 @@ export function CommunityRatingsModal({
       cancelJobMutation.mutate(issueJobId);
     }
   }, [issueJobId, cancelJobMutation]);
+
+  // Handle validating manual CBR URL
+  const handleValidateUrl = useCallback(() => {
+    if (!manualUrl.trim()) return;
+
+    validateUrlMutation.mutate(
+      { url: manualUrl },
+      {
+        onSuccess: (result) => {
+          if (result.valid && result.preview) {
+            setMatchPreview(result.preview);
+          } else {
+            setMatchPreview(null);
+          }
+        },
+        onError: () => {
+          setMatchPreview(null);
+        },
+      }
+    );
+  }, [manualUrl, validateUrlMutation]);
+
+  // Handle applying manual CBR match
+  const handleApplyMatch = useCallback(() => {
+    if (!seriesId || !manualUrl.trim()) return;
+
+    saveMatchMutation.mutate(
+      { seriesId, url: manualUrl },
+      {
+        onSuccess: () => {
+          setShowManualMatch(false);
+          setManualUrl('');
+          setMatchPreview(null);
+          activeQuery.refetch();
+        },
+      }
+    );
+  }, [seriesId, manualUrl, saveMatchMutation, activeQuery]);
+
+  // Handle resetting CBR match
+  const handleResetMatch = useCallback(
+    (reSearch: boolean) => {
+      if (!seriesId) return;
+
+      resetMatchMutation.mutate(
+        { seriesId, reSearch },
+        {
+          onSuccess: () => {
+            setShowResetDialog(false);
+            activeQuery.refetch();
+          },
+        }
+      );
+    },
+    [seriesId, resetMatchMutation, activeQuery]
+  );
+
+  // Cancel manual match UI
+  const handleCancelManualMatch = useCallback(() => {
+    setShowManualMatch(false);
+    setManualUrl('');
+    setMatchPreview(null);
+    validateUrlMutation.reset();
+  }, [validateUrlMutation]);
 
   // Focus management
   useEffect(() => {
@@ -336,6 +433,53 @@ export function CommunityRatingsModal({
           <div className="ratings-modal__header-content">
             <h2 id="ratings-modal-title">Community Ratings</h2>
             {displayName && <span className="ratings-modal__series-name">{displayName}</span>}
+
+            {/* CBR Match Status - only in series mode */}
+            {isSeriesMode && (
+              <div className={`ratings-modal__match-status ${hasCbrMatch ? 'matched' : 'no-match'}`}>
+                <span className="ratings-modal__match-label">CBR:</span>
+                {hasCbrMatch && cbrRatingInfo ? (
+                  <>
+                    <a
+                      href={cbrRatingInfo.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ratings-modal__match-link"
+                      title={cbrRatingInfo.sourceId || 'View on ComicBookRoundup'}
+                    >
+                      {cbrRatingInfo.sourceId || 'Matched'}
+                    </a>
+                    <button
+                      type="button"
+                      className="ratings-modal__edit-match-btn"
+                      onClick={() => setShowManualMatch(true)}
+                      title="Edit match"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="ratings-modal__reset-match-btn"
+                      onClick={() => setShowResetDialog(true)}
+                      title="Reset match"
+                    >
+                      Reset
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="ratings-modal__no-match-text">No match</span>
+                    <button
+                      type="button"
+                      className="ratings-modal__manual-match-btn"
+                      onClick={() => setShowManualMatch(true)}
+                    >
+                      Match manually
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
           <button
             ref={closeButtonRef}
@@ -371,6 +515,94 @@ export function CommunityRatingsModal({
               <p className="ratings-modal__empty-hint">
                 Click the button below to search for ratings from external sources.
               </p>
+            </div>
+          )}
+
+          {/* Manual Match Section - only in series mode */}
+          {isSeriesMode && showManualMatch && (
+            <div className="ratings-modal__manual-match-section">
+              <h3 className="ratings-modal__manual-match-title">Manual CBR Match</h3>
+              <p className="ratings-modal__manual-match-hint">
+                Paste a ComicBookRoundup series page URL to manually match this series.
+              </p>
+
+              <div className="ratings-modal__manual-input-row">
+                <input
+                  type="text"
+                  className="ratings-modal__manual-input"
+                  placeholder="https://comicbookroundup.com/comic-books/reviews/..."
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  disabled={validateUrlMutation.isPending || saveMatchMutation.isPending}
+                />
+                <button
+                  type="button"
+                  className="ratings-modal__validate-btn"
+                  onClick={handleValidateUrl}
+                  disabled={!manualUrl.trim() || validateUrlMutation.isPending || saveMatchMutation.isPending}
+                >
+                  {validateUrlMutation.isPending ? 'Validating...' : 'Validate'}
+                </button>
+              </div>
+
+              {/* Validation Error */}
+              {validateUrlMutation.data && !validateUrlMutation.data.valid && (
+                <div className="ratings-modal__validation-error">
+                  {validateUrlMutation.data.error || 'Validation failed'}
+                </div>
+              )}
+
+              {/* Preview */}
+              {matchPreview && (
+                <div className="ratings-modal__match-preview">
+                  <h4 className="ratings-modal__preview-title">Preview</h4>
+                  <div className="ratings-modal__preview-grid">
+                    <div className="ratings-modal__preview-row">
+                      <span className="ratings-modal__preview-label">Series:</span>
+                      <span className="ratings-modal__preview-value">{matchPreview.seriesName}</span>
+                    </div>
+                    <div className="ratings-modal__preview-row">
+                      <span className="ratings-modal__preview-label">Publisher:</span>
+                      <span className="ratings-modal__preview-value">{matchPreview.publisher}</span>
+                    </div>
+                    {matchPreview.criticRating && (
+                      <div className="ratings-modal__preview-row">
+                        <span className="ratings-modal__preview-label">Critic Rating:</span>
+                        <span className="ratings-modal__preview-value">
+                          <RatingBadge value={matchPreview.criticRating.value} size="small" />
+                          <span className="ratings-modal__preview-count">({matchPreview.criticRating.count} reviews)</span>
+                        </span>
+                      </div>
+                    )}
+                    {matchPreview.communityRating && (
+                      <div className="ratings-modal__preview-row">
+                        <span className="ratings-modal__preview-label">User Rating:</span>
+                        <span className="ratings-modal__preview-value">
+                          <RatingBadge value={matchPreview.communityRating.value} size="small" />
+                          <span className="ratings-modal__preview-count">({matchPreview.communityRating.count} votes)</span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="ratings-modal__apply-match-btn"
+                    onClick={handleApplyMatch}
+                    disabled={saveMatchMutation.isPending}
+                  >
+                    {saveMatchMutation.isPending ? 'Applying...' : 'Apply Match'}
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="ratings-modal__cancel-manual-btn"
+                onClick={handleCancelManualMatch}
+                disabled={saveMatchMutation.isPending}
+              >
+                Cancel
+              </button>
             </div>
           )}
 
@@ -414,12 +646,7 @@ export function CommunityRatingsModal({
                     {data.averages.critic.average !== null && (
                       <div className="ratings-modal__average-item">
                         <span className="ratings-modal__average-label">Avg. Critic</span>
-                        <span className="ratings-modal__average-value">
-                          {formatStarRating(data.averages.critic.average)}/5
-                        </span>
-                        <span className="ratings-modal__average-original">
-                          ({data.averages.critic.average.toFixed(1)}/10)
-                        </span>
+                        <RatingBadge value={data.averages.critic.average} />
                         <span className="ratings-modal__average-count">
                           ({data.averages.critic.count} source
                           {data.averages.critic.count !== 1 ? 's' : ''})
@@ -429,12 +656,7 @@ export function CommunityRatingsModal({
                     {data.averages.community.average !== null && (
                       <div className="ratings-modal__average-item">
                         <span className="ratings-modal__average-label">Avg. User</span>
-                        <span className="ratings-modal__average-value">
-                          {formatStarRating(data.averages.community.average)}/5
-                        </span>
-                        <span className="ratings-modal__average-original">
-                          ({data.averages.community.average.toFixed(1)}/10)
-                        </span>
+                        <RatingBadge value={data.averages.community.average} />
                         <span className="ratings-modal__average-count">
                           ({data.averages.community.count} source
                           {data.averages.community.count !== 1 ? 's' : ''})
@@ -494,6 +716,41 @@ export function CommunityRatingsModal({
                   type="button"
                   className="ratings-modal__cancel-btn"
                   onClick={() => setShowConfirmation(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Reset CBR match dialog */}
+          {showResetDialog && (
+            <div className="ratings-modal__confirmation ratings-modal__reset-dialog">
+              <span className="ratings-modal__confirmation-text">
+                Reset CBR match for this series?
+              </span>
+              <div className="ratings-modal__confirmation-actions">
+                <button
+                  type="button"
+                  className="ratings-modal__confirm-btn"
+                  onClick={() => handleResetMatch(false)}
+                  disabled={resetMatchMutation.isPending}
+                >
+                  {resetMatchMutation.isPending ? 'Clearing...' : 'Clear Only'}
+                </button>
+                <button
+                  type="button"
+                  className="ratings-modal__confirm-btn ratings-modal__research-btn"
+                  onClick={() => handleResetMatch(true)}
+                  disabled={resetMatchMutation.isPending}
+                >
+                  {resetMatchMutation.isPending ? 'Searching...' : 'Clear & Re-search'}
+                </button>
+                <button
+                  type="button"
+                  className="ratings-modal__cancel-btn"
+                  onClick={() => setShowResetDialog(false)}
+                  disabled={resetMatchMutation.isPending}
                 >
                   Cancel
                 </button>

@@ -531,26 +531,32 @@ async function getRandomDiverseSeries(
 // Per-Series Similar Recommendations
 // =============================================================================
 
+export type SimilarSeriesMatchType = 'similarity' | 'genre_fallback';
+
+export interface SimilarSeriesResult {
+  series: SeriesInfo;
+  similarityScore: number;
+  matchReasons: Array<{ type: string; score: number }>;
+  matchType: SimilarSeriesMatchType;
+}
+
 /**
  * Get series similar to a specific series.
  * Used for the "Similar Series" section on SeriesDetailPage.
  *
+ * When similarity-based matches are insufficient, falls back to genre-based matches
+ * to ensure users always see some recommendations.
+ *
  * @param seriesId - The series to find similar series for
  * @param limit - Maximum number of results (default: 10)
  * @param userId - Optional user ID for filtering read series
- * @returns Array of similar series with similarity details
+ * @returns Array of similar series with similarity details and match type
  */
 export async function getSimilarSeriesRecommendations(
   seriesId: string,
   limit = 10,
   userId?: string
-): Promise<
-  Array<{
-    series: SeriesInfo;
-    similarityScore: number;
-    matchReasons: Array<{ type: string; score: number }>;
-  }>
-> {
+): Promise<SimilarSeriesResult[]> {
   const db = getDatabase();
 
   // Get similar series from precomputed scores
@@ -562,11 +568,8 @@ export async function getSimilarSeriesRecommendations(
     excludeIds = await getUserReadSeriesIds(userId);
   }
 
-  const results: Array<{
-    series: SeriesInfo;
-    similarityScore: number;
-    matchReasons: Array<{ type: string; score: number }>;
-  }> = [];
+  const results: SimilarSeriesResult[] = [];
+  const includedSeriesIds = new Set<string>();
 
   for (const sim of similar) {
     if (excludeIds.has(sim.seriesId)) continue;
@@ -628,9 +631,142 @@ export async function getSimilarSeriesRecommendations(
       },
       similarityScore: sim.similarityScore,
       matchReasons,
+      matchType: 'similarity',
     });
 
+    includedSeriesIds.add(sim.seriesId);
+
     if (results.length >= limit) break;
+  }
+
+  // If we have fewer results than requested, add genre-based fallbacks
+  if (results.length < limit) {
+    const fallbacks = await getGenreFallbackSeries(
+      seriesId,
+      limit - results.length,
+      new Set([...Array.from(excludeIds), ...Array.from(includedSeriesIds), seriesId])
+    );
+    results.push(...fallbacks);
+  }
+
+  return results;
+}
+
+/**
+ * Get genre-based fallback series when similarity matches are insufficient.
+ * Finds series with overlapping genres and calculates a score based on genre overlap.
+ */
+async function getGenreFallbackSeries(
+  sourceSeriesId: string,
+  limit: number,
+  excludeIds: Set<string>
+): Promise<SimilarSeriesResult[]> {
+  const db = getDatabase();
+
+  // Get source series to extract its genres
+  const sourceSeries = await db.series.findUnique({
+    where: { id: sourceSeriesId },
+    select: { genres: true, publisher: true },
+  });
+
+  if (!sourceSeries) return [];
+
+  const sourceGenres = sourceSeries.genres
+    ?.split(',')
+    .map((g) => g.trim().toLowerCase())
+    .filter((g) => g.length > 0) || [];
+
+  // If no genres, we can't do genre-based fallback
+  if (sourceGenres.length === 0) return [];
+
+  // Find series with matching genres
+  // We use a simple approach: find series where genres field contains any of the source genres
+  const candidateSeries = await db.series.findMany({
+    where: {
+      deletedAt: null,
+      id: { notIn: Array.from(excludeIds) },
+      genres: { not: null },
+    },
+    select: {
+      id: true,
+      name: true,
+      publisher: true,
+      startYear: true,
+      coverHash: true,
+      coverUrl: true,
+      genres: true,
+      _count: { select: { issues: true } },
+      issues: {
+        take: 1,
+        orderBy: [
+          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+          { filename: 'asc' },
+        ],
+        select: { id: true, coverHash: true },
+      },
+    },
+    take: limit * 10, // Get extra to filter and sort
+  });
+
+  // Calculate genre overlap scores
+  const scoredCandidates: Array<{
+    series: typeof candidateSeries[0];
+    overlapCount: number;
+    overlapScore: number;
+  }> = [];
+
+  for (const candidate of candidateSeries) {
+    const candidateGenres = candidate.genres
+      ?.split(',')
+      .map((g) => g.trim().toLowerCase())
+      .filter((g) => g.length > 0) || [];
+
+    if (candidateGenres.length === 0) continue;
+
+    // Count overlapping genres
+    const overlappingGenres = sourceGenres.filter((g) =>
+      candidateGenres.includes(g)
+    );
+
+    if (overlappingGenres.length > 0) {
+      // Score = overlap / total unique genres (Jaccard-like)
+      const unionSize = new Set([...sourceGenres, ...candidateGenres]).size;
+      const overlapScore = overlappingGenres.length / unionSize;
+
+      scoredCandidates.push({
+        series: candidate,
+        overlapCount: overlappingGenres.length,
+        overlapScore,
+      });
+    }
+  }
+
+  // Sort by overlap score descending
+  scoredCandidates.sort((a, b) => b.overlapScore - a.overlapScore);
+
+  // Take top candidates up to limit
+  const results: SimilarSeriesResult[] = [];
+
+  for (const { series, overlapScore } of scoredCandidates.slice(0, limit)) {
+    const firstIssue = series.issues[0] || null;
+
+    results.push({
+      series: {
+        id: series.id,
+        name: series.name,
+        publisher: series.publisher,
+        startYear: series.startYear,
+        coverHash: series.coverHash,
+        coverUrl: series.coverUrl,
+        genres: series.genres,
+        issueCount: series._count.issues,
+        firstIssueId: firstIssue?.id || null,
+        firstIssueCoverHash: firstIssue?.coverHash || null,
+      },
+      similarityScore: overlapScore,
+      matchReasons: [{ type: 'genres', score: overlapScore }],
+      matchType: 'genre_fallback',
+    });
   }
 
   return results;

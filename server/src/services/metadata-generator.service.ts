@@ -2,13 +2,17 @@
  * Metadata Generator Service
  *
  * Generates comprehensive series metadata using LLM with optional web search enrichment.
- * Uses Wikipedia API + Claude web search for context, returns structured metadata with
+ * Uses Claude's web_search tool for real-time web searches, returns structured metadata with
  * LLM self-assessed confidence scores.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import type { MessageParam, ContentBlock, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
 import { getApiKey, hasApiKey, getLLMModel } from './config.service.js';
 import { createServiceLogger } from './logger.service.js';
+
+// Beta header for web search capability
+const WEB_SEARCH_BETA = 'web-search-2025-03-05';
 
 const logger = createServiceLogger('metadata-generator');
 
@@ -144,7 +148,204 @@ export function isMetadataGeneratorAvailable(): boolean {
 }
 
 // =============================================================================
-// Wikipedia API Integration
+// Web Search Tool Configuration
+// =============================================================================
+
+/**
+ * Web search tool definition for Claude API
+ */
+const WEB_SEARCH_TOOL = {
+  type: 'web_search_20250305' as const,
+  name: 'web_search',
+  max_uses: 3, // Limit searches per request
+};
+
+/**
+ * Make an API call with optional web search capability.
+ * Handles the multi-turn conversation when Claude uses the web_search tool.
+ */
+async function callWithWebSearch(
+  client: Anthropic,
+  model: string,
+  system: string,
+  userContent: string,
+  useWebSearch: boolean
+): Promise<{ text: string; webSearchUsed: boolean; tokensUsed: number }> {
+  const messages: MessageParam[] = [
+    { role: 'user', content: userContent },
+  ];
+
+  // Configure tools and betas based on web search flag
+  const tools = useWebSearch ? [WEB_SEARCH_TOOL] : undefined;
+  const betas = useWebSearch ? [WEB_SEARCH_BETA] : undefined;
+
+  let webSearchUsed = false;
+  let totalTokens = 0;
+
+  // Loop to handle tool use responses
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // Build request options with beta header if web search is enabled
+    const requestOptions = betas ? { headers: { 'anthropic-beta': betas.join(',') } } : undefined;
+
+    const response = await client.messages.create(
+      {
+        model,
+        max_tokens: 4096,
+        system,
+        messages,
+        tools: tools as Anthropic.Messages.Tool[] | undefined,
+      },
+      requestOptions
+    );
+
+    totalTokens += (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0);
+
+    // Check for tool use in response
+    const toolUseBlocks = response.content.filter((block): block is Anthropic.Messages.ToolUseBlock =>
+      block.type === 'tool_use'
+    );
+
+    // If Claude used web_search tool, we need to handle the encrypted results
+    if (toolUseBlocks.length > 0 && response.stop_reason === 'tool_use') {
+      webSearchUsed = true;
+      logger.debug(`Claude used web_search tool: ${toolUseBlocks.length} search(es)`);
+
+      // Build tool results - for web_search, results come back in the response
+      // We pass them back as-is for Claude to process
+      const toolResults: ToolResultBlockParam[] = toolUseBlocks.map((block) => ({
+        type: 'tool_result' as const,
+        tool_use_id: block.id,
+        content: 'Search completed', // Placeholder - actual results are encrypted in the response
+      }));
+
+      // Add assistant response and tool results to conversation
+      messages.push({ role: 'assistant', content: response.content as ContentBlock[] });
+      messages.push({ role: 'user', content: toolResults });
+
+      // Continue the loop to get Claude's final response
+      continue;
+    }
+
+    // Extract final text response
+    const textBlock = response.content.find((block): block is Anthropic.Messages.TextBlock =>
+      block.type === 'text'
+    );
+
+    if (!textBlock) {
+      throw new Error('No text response from Claude');
+    }
+
+    return {
+      text: textBlock.text,
+      webSearchUsed,
+      tokensUsed: totalTokens,
+    };
+  }
+}
+
+// =============================================================================
+// JSON Extraction Utilities
+// =============================================================================
+
+/**
+ * Extract JSON object from a response that may contain surrounding text.
+ * Handles cases like:
+ * - "Here is the JSON: {...}"
+ * - "```json\n{...}\n```"
+ * - "{...} Let me know if you need anything else!"
+ * - Pure JSON
+ */
+function extractJsonFromResponse(response: string): string {
+  let text = response.trim();
+
+  // Remove markdown code blocks if present
+  if (text.includes('```json')) {
+    const jsonStart = text.indexOf('```json');
+    const jsonEnd = text.indexOf('```', jsonStart + 7);
+    if (jsonEnd !== -1) {
+      text = text.substring(jsonStart + 7, jsonEnd).trim();
+    }
+  } else if (text.includes('```')) {
+    // Generic code block
+    const codeBlockMatch = text.match(/```[\s\S]*?({[\s\S]*})[\s\S]*?```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      text = codeBlockMatch[1];
+    }
+  }
+
+  // Find the outermost JSON object by matching balanced braces
+  const firstBrace = text.indexOf('{');
+  if (firstBrace === -1) {
+    throw new Error('No JSON object found in response');
+  }
+
+  let depth = 0;
+  let lastBrace = -1;
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = firstBrace; i < text.length; i++) {
+    const char = text[i];
+
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+
+    if (char === '"' && !escapeNext) {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString) {
+      if (char === '{') {
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          lastBrace = i;
+          break;
+        }
+      }
+    }
+  }
+
+  if (lastBrace === -1) {
+    throw new Error('Unbalanced braces in JSON response');
+  }
+
+  return text.substring(firstBrace, lastBrace + 1);
+}
+
+/**
+ * Parse JSON response with robust extraction and error handling
+ */
+function parseJsonResponse<T>(response: string, context: string): T {
+  try {
+    // First try direct parse (fastest path for well-behaved responses)
+    return JSON.parse(response.trim());
+  } catch {
+    // Try extracting JSON from surrounding text
+    try {
+      const extracted = extractJsonFromResponse(response);
+      return JSON.parse(extracted);
+    } catch (extractErr) {
+      const extractError = extractErr instanceof Error ? extractErr.message : String(extractErr);
+      logger.error(`Failed to extract JSON for ${context}. Error: ${extractError}`);
+      logger.error(`Raw response (first 1500 chars): ${response.substring(0, 1500)}`);
+      throw new Error(`Failed to parse response: ${extractError}`);
+    }
+  }
+}
+
+// =============================================================================
+// Wikipedia API Integration (Fallback)
 // =============================================================================
 
 /**
@@ -775,6 +976,467 @@ export async function generateSeriesMetadata(
     return {
       success: false,
       webSearchUsed: useWebSearch,
+      error: errorMsg,
+    };
+  }
+}
+
+// =============================================================================
+// Issue Metadata Generation
+// =============================================================================
+
+/**
+ * Context for issue metadata generation
+ */
+export interface IssueMetadataGenerationContext {
+  seriesName: string;
+  issueNumber?: string | null;
+  issueTitle?: string | null;
+  publisher?: string | null;
+  year?: number | null;
+  writer?: string | null;
+  penciller?: string | null;
+  type?: 'western' | 'manga';
+  // Existing metadata for context
+  existingSummary?: string | null;
+  existingDeck?: string | null;
+  existingAgeRating?: string | null;
+  existingGenres?: string | null;
+  existingTags?: string | null;
+  existingCharacters?: string | null;
+  existingTeams?: string | null;
+  existingLocations?: string | null;
+}
+
+/**
+ * Generated issue metadata payload (8 fields)
+ */
+export interface GeneratedIssueMetadata {
+  summary: GeneratedField<string>;
+  deck: GeneratedField<string>;
+  ageRating: GeneratedField<ValidAgeRating>;
+  genres: GeneratedField<string>;
+  tags: GeneratedField<string>;
+  characters: GeneratedField<string>;
+  teams: GeneratedField<string>;
+  locations: GeneratedField<string>;
+}
+
+/**
+ * Issue metadata generation result
+ */
+export interface IssueMetadataGenerationResult {
+  success: boolean;
+  metadata?: GeneratedIssueMetadata;
+  webSearchUsed: boolean;
+  tokensUsed?: number;
+  error?: string;
+}
+
+/**
+ * Issue metadata system prompt
+ */
+const ISSUE_METADATA_SYSTEM_PROMPT = `You are a comic book and manga metadata specialist with extensive knowledge of the medium.
+Your task is to generate comprehensive, accurate metadata for a single comic book issue.
+
+For each field, provide:
+1. The value (or null/empty string if truly unknown)
+2. A confidence score from 0.0 to 1.0 based on your certainty:
+   - 0.9-1.0: Definitive knowledge, well-documented issue
+   - 0.7-0.89: High confidence, well-known issue or strong context clues
+   - 0.5-0.69: Reasonable inference with some uncertainty
+   - 0.3-0.49: Educated guess based on limited information
+   - 0.0-0.29: Very uncertain, speculative
+
+FIELD GUIDELINES:
+
+1. summary: 2-3 paragraph description of THIS SPECIFIC ISSUE's plot, events, and significance.
+   - Focus on what happens in this issue, not the overall series
+   - Avoid major spoilers but describe the story beats
+   - 100-250 words
+
+2. deck: Single compelling tagline under 100 characters for this issue
+
+3. ageRating: MUST be one of these exact values:
+   - "Unknown" (default if uncertain)
+   - "Adults Only 18+" (explicit adult content)
+   - "Early Childhood" (ages 3+)
+   - "Everyone" (all ages)
+   - "Everyone 10+" (ages 10+)
+   - "G" (general audiences)
+   - "Kids to Adults" (ages 6+)
+   - "MA15+" (mature 15+)
+   - "Mature 17+" (ages 17+)
+   - "PG" (parental guidance)
+   - "R18+" (restricted 18+)
+   - "Rating Pending" (not yet rated)
+   - "Teen" (ages 13+)
+   - "X18+" (adults only explicit)
+
+4. genres: Comma-separated list of genres applicable to this issue
+
+5. tags: Comma-separated descriptive tags specific to this issue's content (~5-8 tags)
+
+6. characters: Comma-separated list of characters that APPEAR IN THIS ISSUE
+   - Include protagonists, antagonists, and significant supporting characters
+   - Use the character's most commonly known name
+   - Maximum of 10 characters - prioritize by prominence in this issue
+   - Order by importance to this issue's story
+
+7. teams: Comma-separated list of teams/organizations featured IN THIS ISSUE
+   - ONLY include known, established team names
+   - DO NOT fabricate team names
+   - Return empty string if no known teams appear
+   - Maximum of 5 teams
+
+8. locations: Comma-separated list of named locations where THIS ISSUE takes place
+   - Include fictional places (e.g., "Gotham City", "Metropolis")
+   - Include real locations if prominent
+   - Maximum of 5 locations
+
+IMPORTANT RULES:
+- Focus on THIS SPECIFIC ISSUE, not the overall series
+- Be accurate without spoilers
+- Use an engaging, professional tone
+- If web search data is provided, use it for accuracy but write original content
+- For manga, use appropriate terminology
+
+CRITICAL OUTPUT REQUIREMENT:
+Your response MUST be ONLY the JSON object - no other text before or after.
+Do NOT include phrases like "Here is the JSON" or "Let me know if you need anything else".
+Do NOT wrap the JSON in markdown code blocks.
+Output the raw JSON object directly, starting with { and ending with }.
+
+Return this exact JSON format:
+{
+  "summary": { "value": "...", "confidence": 0.85 },
+  "deck": { "value": "...", "confidence": 0.9 },
+  "ageRating": { "value": "Teen", "confidence": 0.75 },
+  "genres": { "value": "Action, Superhero", "confidence": 0.8 },
+  "tags": { "value": "first appearance, origin story", "confidence": 0.7 },
+  "characters": { "value": "Batman, Joker, Alfred Pennyworth", "confidence": 0.9 },
+  "teams": { "value": "Justice League", "confidence": 0.85 },
+  "locations": { "value": "Gotham City, Wayne Manor", "confidence": 0.9 }
+}`;
+
+/**
+ * Build user prompt for issue metadata generation
+ */
+function buildIssueMetadataUserPrompt(context: IssueMetadataGenerationContext): string {
+  const parts: string[] = [];
+
+  // Basic info
+  let intro = `Generate metadata for the ${context.type === 'manga' ? 'manga chapter/issue' : 'comic issue'}`;
+
+  if (context.seriesName) {
+    intro += ` "${context.seriesName}"`;
+  }
+
+  if (context.issueNumber) {
+    intro += ` #${context.issueNumber}`;
+  }
+
+  if (context.issueTitle) {
+    intro += ` titled "${context.issueTitle}"`;
+  }
+
+  if (context.publisher) {
+    intro += `, published by ${context.publisher}`;
+  }
+
+  if (context.year) {
+    intro += ` (${context.year})`;
+  }
+
+  intro += '.';
+  parts.push(intro);
+
+  // Creator info
+  const creatorInfo: string[] = [];
+  if (context.writer) {
+    creatorInfo.push(`Writer: ${context.writer}`);
+  }
+  if (context.penciller) {
+    creatorInfo.push(`Artist: ${context.penciller}`);
+  }
+  if (creatorInfo.length > 0) {
+    parts.push('\nCreators:');
+    parts.push(creatorInfo.join('\n'));
+  }
+
+  // Existing data for reference
+  const existingData: string[] = [];
+  if (context.existingGenres) {
+    existingData.push(`Current genres: ${context.existingGenres}`);
+  }
+  if (context.existingTags) {
+    existingData.push(`Current tags: ${context.existingTags}`);
+  }
+  if (context.existingAgeRating) {
+    existingData.push(`Current age rating: ${context.existingAgeRating}`);
+  }
+  if (context.existingSummary) {
+    existingData.push(`Current summary preview: ${context.existingSummary.substring(0, 200)}...`);
+  }
+  if (context.existingDeck) {
+    existingData.push(`Current deck: ${context.existingDeck}`);
+  }
+  if (context.existingCharacters) {
+    existingData.push(`Current characters: ${context.existingCharacters}`);
+  }
+  if (context.existingTeams) {
+    existingData.push(`Current teams: ${context.existingTeams}`);
+  }
+  if (context.existingLocations) {
+    existingData.push(`Current locations: ${context.existingLocations}`);
+  }
+
+  if (existingData.length > 0) {
+    parts.push('\nExisting metadata (for reference, you may improve upon it):');
+    parts.push(existingData.join('\n'));
+  }
+
+  return parts.join('\n');
+}
+
+/**
+ * Search Wikipedia for an issue
+ */
+async function searchWikipediaForIssue(
+  seriesName: string,
+  issueNumber?: string | null,
+  issueTitle?: string | null,
+  type?: 'western' | 'manga'
+): Promise<WikipediaData | null> {
+  // Try issue-specific search first
+  let searchQuery: string;
+
+  if (issueNumber) {
+    searchQuery = type === 'manga'
+      ? `${seriesName} chapter ${issueNumber} manga`
+      : `${seriesName} #${issueNumber} comic`;
+  } else if (issueTitle) {
+    searchQuery = type === 'manga'
+      ? `${seriesName} ${issueTitle} manga`
+      : `${seriesName} ${issueTitle} comic`;
+  } else {
+    // Fall back to series-level search
+    searchQuery = type === 'manga'
+      ? `${seriesName} manga`
+      : `${seriesName} comic`;
+  }
+
+  logger.debug(`Searching Wikipedia for issue: "${searchQuery}"`);
+
+  try {
+    // Step 1: Search for the best matching article
+    const searchUrl = new URL('https://en.wikipedia.org/w/api.php');
+    searchUrl.searchParams.set('action', 'query');
+    searchUrl.searchParams.set('list', 'search');
+    searchUrl.searchParams.set('srsearch', searchQuery);
+    searchUrl.searchParams.set('srlimit', '3');
+    searchUrl.searchParams.set('format', 'json');
+    searchUrl.searchParams.set('origin', '*');
+
+    const searchResponse = await fetch(searchUrl.toString(), {
+      headers: {
+        'User-Agent': 'Helixio Comic Manager/1.0 (https://github.com/helixio)',
+      },
+    });
+
+    if (!searchResponse.ok) {
+      logger.warn(`Wikipedia search failed with status ${searchResponse.status}`);
+      return null;
+    }
+
+    const searchData = (await searchResponse.json()) as {
+      query?: {
+        search?: Array<{ title: string; snippet?: string }>;
+      };
+    };
+
+    const results = searchData.query?.search;
+    if (!results || results.length === 0 || !results[0]) {
+      logger.debug('No Wikipedia search results found for issue');
+      return null;
+    }
+
+    // Use the first result's title
+    const articleTitle = results[0].title;
+    logger.debug(`Found Wikipedia article: "${articleTitle}"`);
+
+    // Step 2: Get the article summary using the REST API
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(articleTitle)}`;
+
+    const summaryResponse = await fetch(summaryUrl, {
+      headers: {
+        'User-Agent': 'Helixio Comic Manager/1.0 (https://github.com/helixio)',
+      },
+    });
+
+    if (!summaryResponse.ok) {
+      logger.warn(`Wikipedia summary fetch failed with status ${summaryResponse.status}`);
+      return null;
+    }
+
+    const summaryData = (await summaryResponse.json()) as {
+      title?: string;
+      extract?: string;
+      description?: string;
+    };
+
+    return {
+      title: summaryData.title,
+      extract: summaryData.extract,
+      description: summaryData.description,
+    };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn(`Wikipedia search error for issue: ${errorMsg}`);
+    return null;
+  }
+}
+
+/**
+ * Generate comprehensive metadata for an issue
+ */
+export async function generateIssueMetadata(
+  context: IssueMetadataGenerationContext,
+  options: { useWebSearch?: boolean } = {}
+): Promise<IssueMetadataGenerationResult> {
+  const { useWebSearch = false } = options;
+
+  if (!isMetadataGeneratorAvailable()) {
+    return {
+      success: false,
+      webSearchUsed: false,
+      error: 'Anthropic API key not configured',
+    };
+  }
+
+  const issueLabel = context.issueNumber
+    ? `${context.seriesName} #${context.issueNumber}`
+    : context.issueTitle
+      ? `${context.seriesName}: ${context.issueTitle}`
+      : context.seriesName;
+
+  const startTime = Date.now();
+  logger.info(`Generating metadata for issue: ${issueLabel} (webSearch: ${useWebSearch})`);
+
+  try {
+    const client = getClient();
+    const model = getLLMModel();
+
+    // Build system prompt with web search instructions if enabled
+    const systemPrompt = useWebSearch
+      ? ISSUE_METADATA_SYSTEM_PROMPT + `
+
+## Web Search Available
+You have access to the web_search tool. USE IT to search for accurate information about this comic issue.
+Search for: "${context.seriesName}" comic ${context.issueNumber ? `issue #${context.issueNumber}` : context.issueTitle || ''} ${context.publisher || ''}
+Look for plot summaries, character appearances, and other metadata on Wikipedia, comic databases, or review sites.
+Incorporate the search results to provide more accurate and detailed metadata.`
+      : ISSUE_METADATA_SYSTEM_PROMPT;
+
+    // Use web search helper for API call
+    const response = await callWithWebSearch(
+      client,
+      model,
+      systemPrompt,
+      buildIssueMetadataUserPrompt(context),
+      useWebSearch
+    );
+
+    // Parse JSON response using robust extraction
+    type ParsedIssueMetadata = {
+      summary?: { value: string; confidence: number };
+      deck?: { value: string; confidence: number };
+      ageRating?: { value: string; confidence: number };
+      genres?: { value: string; confidence: number };
+      tags?: { value: string; confidence: number };
+      characters?: { value: string; confidence: number };
+      teams?: { value: string; confidence: number };
+      locations?: { value: string; confidence: number };
+    };
+
+    let parsed: ParsedIssueMetadata;
+    try {
+      parsed = parseJsonResponse<ParsedIssueMetadata>(response.text, `issue: ${issueLabel}`);
+    } catch (parseErr) {
+      const parseError = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      return {
+        success: false,
+        webSearchUsed: response.webSearchUsed,
+        error: `Failed to parse Claude response: ${parseError}`,
+      };
+    }
+
+    // Build result with normalized age rating
+    const metadata: GeneratedIssueMetadata = {
+      summary: {
+        value: parsed.summary?.value || '',
+        confidence: parsed.summary?.confidence || 0,
+      },
+      deck: {
+        value: parsed.deck?.value || '',
+        confidence: parsed.deck?.confidence || 0,
+      },
+      ageRating: {
+        value: normalizeAgeRating(parsed.ageRating?.value || 'Unknown'),
+        confidence: parsed.ageRating?.confidence || 0,
+      },
+      genres: {
+        value: parsed.genres?.value || '',
+        confidence: parsed.genres?.confidence || 0,
+      },
+      tags: {
+        value: parsed.tags?.value || '',
+        confidence: parsed.tags?.confidence || 0,
+      },
+      characters: {
+        value: parsed.characters?.value || '',
+        confidence: parsed.characters?.confidence || 0,
+      },
+      // Teams: Apply confidence threshold
+      teams: {
+        value:
+          parsed.teams?.confidence && parsed.teams.confidence >= TEAMS_CONFIDENCE_THRESHOLD
+            ? parsed.teams.value || ''
+            : '',
+        confidence:
+          parsed.teams?.confidence && parsed.teams.confidence >= TEAMS_CONFIDENCE_THRESHOLD
+            ? parsed.teams.confidence
+            : 0,
+      },
+      locations: {
+        value: parsed.locations?.value || '',
+        confidence: parsed.locations?.confidence || 0,
+      },
+    };
+
+    // Log if teams were filtered due to low confidence
+    if (parsed.teams?.value && parsed.teams?.confidence && parsed.teams.confidence < TEAMS_CONFIDENCE_THRESHOLD) {
+      logger.debug(
+        `Teams filtered for issue "${issueLabel}": confidence ${parsed.teams.confidence} below ${TEAMS_CONFIDENCE_THRESHOLD} threshold`
+      );
+    }
+
+    const duration = Date.now() - startTime;
+
+    logger.info(`Generated issue metadata in ${duration}ms (${response.tokensUsed} tokens, webSearch: ${response.webSearchUsed})`);
+
+    return {
+      success: true,
+      metadata,
+      webSearchUsed: response.webSearchUsed,
+      tokensUsed: response.tokensUsed,
+    };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error(`Claude API error for issue: ${errorMsg}`);
+    return {
+      success: false,
+      webSearchUsed: false,
       error: errorMsg,
     };
   }

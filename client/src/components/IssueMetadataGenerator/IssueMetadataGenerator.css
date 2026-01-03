@@ -1,0 +1,244 @@
+/* =============================================================================
+   IssueMetadataGenerator Styles
+   ============================================================================= */
+
+.issue-metadata-generator {
+  position: relative;
+}
+
+.issue-metadata-generator .generate-btn-wrapper {
+  display: flex;
+  align-items: stretch;
+  position: relative;
+}
+
+/* Secondary/Subdued Button Style */
+.issue-metadata-generator .generate-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  padding-right: var(--spacing-xs);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.5));
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.issue-metadata-generator .generate-btn-secondary:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text, #e8e4df);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.issue-metadata-generator .generate-btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Small Spinner */
+.issue-metadata-generator .spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* BETA Badge */
+.issue-metadata-generator .beta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  margin-left: var(--spacing-xs);
+  border-radius: 3px;
+  background: rgba(212, 165, 116, 0.2);
+  color: var(--color-primary, #d4a574);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Options Chevron Toggle */
+.issue-metadata-generator .generate-options-toggle {
+  display: flex;
+  align-items: stretch;
+}
+
+.issue-metadata-generator .options-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--spacing-xs);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: transparent;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.5));
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.issue-metadata-generator .options-chevron:hover:not(:disabled) {
+  border-color: var(--color-text-muted);
+  color: var(--color-text, #e8e4df);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.issue-metadata-generator .options-chevron:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Options Dropdown */
+.issue-metadata-generator .generate-options-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 280px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-secondary, #151b23);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.3));
+}
+
+/* Disclaimer Warning */
+.issue-metadata-generator .generate-disclaimer {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: rgba(212, 165, 116, 0.08);
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.6));
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.issue-metadata-generator .generate-disclaimer svg {
+  flex-shrink: 0;
+  color: var(--color-primary, #d4a574);
+  opacity: 0.7;
+}
+
+/* Web Search Toggle in Dropdown */
+.issue-metadata-generator .web-search-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+}
+
+.issue-metadata-generator .web-search-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.issue-metadata-generator .web-search-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* Compact Error */
+.issue-metadata-generator .generation-error-compact {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 200px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error, #ef4444);
+  font-size: 0.75rem;
+  z-index: 99;
+}
+
+/* =============================================================================
+   CBR Conversion Prompt Modal
+   ============================================================================= */
+
+.cbr-prompt-modal {
+  background: var(--color-bg-secondary, #151b23);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl, 0 25px 50px rgba(0, 0, 0, 0.5));
+  max-width: 420px;
+  width: 90%;
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cbr-prompt-header {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+}
+
+.cbr-prompt-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text, #e8e4df);
+}
+
+.cbr-prompt-content {
+  padding: var(--spacing-lg);
+}
+
+.cbr-prompt-content p {
+  margin: 0 0 var(--spacing-sm);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, rgba(232, 228, 223, 0.7));
+}
+
+.cbr-prompt-content p:last-child {
+  margin-bottom: 0;
+}
+
+.cbr-prompt-note {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: rgba(59, 130, 246, 0.1);
+  color: rgba(147, 197, 253, 0.9) !important;
+  font-size: 0.8125rem !important;
+}
+
+.cbr-prompt-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border, rgba(255, 255, 255, 0.1));
+}

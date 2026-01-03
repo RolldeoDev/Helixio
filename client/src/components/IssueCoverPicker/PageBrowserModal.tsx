@@ -89,19 +89,6 @@ export function PageBrowserModal({
     }
   }, [isOpen]);
 
-  // Force grid recalculation after modal opens
-  // The useVirtualGrid hook has a timing issue where visible range is calculated
-  // before container dimensions are measured. Triggering a scroll event forces recalculation.
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const timer = setTimeout(() => {
-        // Dispatch a scroll event to trigger visible range recalculation
-        containerRef.current?.dispatchEvent(new Event('scroll'));
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen, containerRef]);
-
   // Scroll to current selection when modal opens
   useEffect(() => {
     if (isOpen && currentSelectedIndex !== null && currentSelectedIndex >= 0) {

@@ -37,6 +37,15 @@ vi.mock('./registry.js', () => ({
   register: vi.fn(),
 }));
 
+// Mock sitemap index to return null by default (so URL construction tests work)
+// Individual tests can override this if they want to test sitemap behavior
+vi.mock('../comicbookroundup/sitemap-index.js', () => ({
+  searchViaSitemapIndex: vi.fn().mockResolvedValue(null),
+  getSeriesIndex: vi.fn().mockResolvedValue([]),
+  getSitemapIndexStatus: vi.fn().mockResolvedValue({ cached: false, seriesCount: 0 }),
+  refreshSitemapIndex: vi.fn().mockResolvedValue({ success: true, seriesCount: 0 }),
+}));
+
 // Mock global fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -604,229 +613,10 @@ describe('ComicBookRoundup Provider', () => {
   });
 
   // ===========================================================================
-  // Web Search Fallback
+  // Sitemap Index Fallback
   // ===========================================================================
 
-  describe('Web Search Fallback', () => {
-    it('should find series via search when URL construction fails', async () => {
-      vi.useFakeTimers();
-
-      // All direct URL and imprint attempts fail (return homepage HTML)
-      const homepageHtml =
-        '<html><body><h1>New Comics - Compare What The Critics Say</h1></body></html>';
-
-      // Google search results with wrapped URLs
-      const googleResultsHtml = `
-        <html>
-          <body>
-            <div>
-              <h3>Helen of Wyndhorn (2024) Comic Series Reviews</h3>
-              <a href="/url?q=https://comicbookroundup.com/comic-books/reviews/dark-horse-comics/helen-of-wyndhorn-(2024)&sa=U">
-                Helen of Wyndhorn (2024) Comic Series Reviews at ComicBookRoundUp.com
-              </a>
-            </div>
-          </body>
-        </html>
-      `;
-
-      // Verification page HTML
-      const verificationHtml = createMockHtml({
-        title: 'Helen of Wyndhorn',
-        criticRating: 9.3,
-      });
-
-      // Smart mock: return different results based on URL
-      mockFetch.mockImplementation(async (url: string) => {
-        if (url.includes('google.com')) {
-          return {
-            ok: true,
-            text: async () => googleResultsHtml,
-          };
-        }
-        if (url.includes('helen-of-wyndhorn-(2024)')) {
-          return {
-            ok: true,
-            text: async () => verificationHtml,
-          };
-        }
-        // All other CBR URLs fail (homepage redirect)
-        return {
-          ok: true,
-          text: async () => homepageHtml,
-        };
-      });
-
-      const searchPromise = ComicBookRoundupProvider.searchSeries({
-        seriesName: 'Helen of Wyndhorn',
-        publisher: 'Dark Horse Comics',
-        year: 2024,
-        writer: 'Tom King',
-      });
-
-      await vi.runAllTimersAsync();
-      const result = await searchPromise;
-
-      expect(result).not.toBeNull();
-      expect(result!.sourceId).toBe('dark-horse-comics/helen-of-wyndhorn-(2024)');
-      expect(result!.matchMethod).toBe('search');
-      expect(result!.confidence).toBeGreaterThanOrEqual(0.6);
-
-      vi.useRealTimers();
-    }, 60000);
-
-    it('should return null when search finds no results', async () => {
-      vi.useFakeTimers();
-
-      // All direct URL attempts fail
-      const homepageHtml =
-        '<html><body><h1>New Comics - Compare What The Critics Say</h1></body></html>';
-
-      // Google search returns no CBR results
-      const googleNoResultsHtml = `
-        <html>
-          <body>
-            <div>
-              <a href="/url?q=https://example.com/unrelated&sa=U">
-                Some unrelated page
-              </a>
-            </div>
-          </body>
-        </html>
-      `;
-
-      // Smart mock: return different results based on URL
-      mockFetch.mockImplementation(async (url: string) => {
-        if (url.includes('google.com')) {
-          return {
-            ok: true,
-            text: async () => googleNoResultsHtml,
-          };
-        }
-        // All CBR URLs fail (homepage redirect)
-        return {
-          ok: true,
-          text: async () => homepageHtml,
-        };
-      });
-
-      const searchPromise = ComicBookRoundupProvider.searchSeries({
-        seriesName: 'Nonexistent Series 12345',
-        publisher: 'Unknown Publisher',
-      });
-
-      await vi.runAllTimersAsync();
-      const result = await searchPromise;
-
-      expect(result).toBeNull();
-
-      vi.useRealTimers();
-    }, 60000);
-
-    it('should include year and writer in search query when provided', async () => {
-      vi.useFakeTimers();
-
-      const homepageHtml =
-        '<html><body><h1>New Comics - Compare What The Critics Say</h1></body></html>';
-
-      let googleSearchUrl = '';
-
-      // Smart mock to capture the Google search URL
-      mockFetch.mockImplementation(async (url: string) => {
-        if (url.includes('google.com')) {
-          googleSearchUrl = url;
-          return {
-            ok: true,
-            text: async () => '<html><body></body></html>',
-          };
-        }
-        return {
-          ok: true,
-          text: async () => homepageHtml,
-        };
-      });
-
-      const searchPromise = ComicBookRoundupProvider.searchSeries({
-        seriesName: 'Helen of Wyndhorn',
-        publisher: 'Dark Horse Comics',
-        year: 2024,
-        writer: 'Tom King',
-      });
-
-      await vi.runAllTimersAsync();
-      await searchPromise;
-
-      // Verify the search query included year and writer
-      expect(googleSearchUrl).toContain('Helen');
-      expect(googleSearchUrl).toContain('2024');
-      expect(googleSearchUrl).toContain('Tom');
-
-      vi.useRealTimers();
-    }, 60000);
-
-    it('should skip issue pages in search results and prefer series pages', async () => {
-      vi.useFakeTimers();
-
-      // All direct URL attempts fail
-      const homepageHtml =
-        '<html><body><h1>New Comics - Compare What The Critics Say</h1></body></html>';
-
-      // Google returns issue pages and series page
-      const googleResultsHtml = `
-        <html>
-          <body>
-            <div>
-              <h3>Batman #1 Reviews</h3>
-              <a href="/url?q=https://comicbookroundup.com/comic-books/reviews/dc-comics/batman/1&sa=U">
-                Batman #1 Reviews at ComicBookRoundUp.com
-              </a>
-            </div>
-            <div>
-              <h3>Batman Comic Series Reviews</h3>
-              <a href="/url?q=https://comicbookroundup.com/comic-books/reviews/dc-comics/batman&sa=U">
-                Batman Comic Series Reviews at ComicBookRoundUp.com
-              </a>
-            </div>
-          </body>
-        </html>
-      `;
-
-      const batmanSeriesHtml = createMockHtml({ title: 'Batman' });
-
-      // Smart mock: return different results based on URL
-      mockFetch.mockImplementation(async (url: string) => {
-        if (url.includes('google.com')) {
-          return {
-            ok: true,
-            text: async () => googleResultsHtml,
-          };
-        }
-        if (url.includes('/dc-comics/batman') && !url.includes('/1')) {
-          return {
-            ok: true,
-            text: async () => batmanSeriesHtml,
-          };
-        }
-        // All other CBR URLs fail (homepage redirect)
-        return {
-          ok: true,
-          text: async () => homepageHtml,
-        };
-      });
-
-      const searchPromise = ComicBookRoundupProvider.searchSeries({
-        seriesName: 'Batman',
-        publisher: 'DC Comics',
-      });
-
-      await vi.runAllTimersAsync();
-      const result = await searchPromise;
-
-      // Should return series page, not issue page
-      expect(result).not.toBeNull();
-      expect(result!.sourceId).toBe('dc-comics/batman');
-      expect(result!.sourceId).not.toContain('/1');
-
-      vi.useRealTimers();
-    }, 60000);
-  });
+  // Note: Sitemap index fallback tests are now in sitemap-index.test.ts
+  // The old Google search tests have been removed since that functionality
+  // has been replaced by sitemap-based searching.
 });

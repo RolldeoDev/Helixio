@@ -450,6 +450,8 @@ export interface SimilarSeriesMatch {
   score: number;
 }
 
+export type SimilarSeriesMatchType = 'similarity' | 'genre_fallback';
+
 export interface SimilarSeriesEntry {
   series: {
     id: string;
@@ -467,6 +469,8 @@ export interface SimilarSeriesEntry {
   };
   similarityScore: number;
   matchReasons: SimilarSeriesMatch[];
+  /** Type of match: 'similarity' for precomputed scores, 'genre_fallback' for genre-based */
+  matchType: SimilarSeriesMatchType;
 }
 
 export interface SimilarSeriesResult {

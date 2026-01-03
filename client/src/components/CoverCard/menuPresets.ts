@@ -35,6 +35,11 @@ export const MENU_ITEM_DEFINITIONS: Record<MenuItemPreset, CoverCardMenuItem> = 
   editMetadata: {
     id: 'editMetadata',
     label: 'Edit Metadata',
+  },
+  editPages: {
+    id: 'editPages',
+    label: 'Edit Pages',
+    singleOnly: true,
     dividerAfter: true,
   },
   rename: {

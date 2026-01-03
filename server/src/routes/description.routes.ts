@@ -19,7 +19,9 @@ import {
 import {
   isMetadataGeneratorAvailable,
   generateSeriesMetadata,
+  generateIssueMetadata,
   type MetadataGenerationContext,
+  type IssueMetadataGenerationContext,
 } from '../services/metadata-generator.service.js';
 import {
   isCollectionDescriptionGeneratorAvailable,
@@ -273,6 +275,89 @@ router.post('/files/:id/generate-summary', requireAuth, asyncHandler(async (req:
 
   sendSuccess(res, {
     summary: result.description,
+    tokensUsed: result.tokensUsed,
+  });
+}));
+
+// =============================================================================
+// Issue Metadata Generation (Enhanced)
+// =============================================================================
+
+/**
+ * POST /api/files/:id/generate-metadata
+ * Generate comprehensive metadata for an issue using LLM with optional web search
+ *
+ * Body: { useWebSearch?: boolean }
+ * Returns: { metadata: GeneratedIssueMetadata, webSearchUsed: boolean, tokensUsed?: number }
+ */
+router.post('/files/:id/generate-metadata', requireAuth, asyncHandler(async (req: Request, res: Response) => {
+  const fileId = req.params.id!;
+  const { useWebSearch } = req.body as { useWebSearch?: boolean };
+
+  // Check if LLM is available
+  if (!isMetadataGeneratorAvailable()) {
+    sendBadRequest(res, 'LLM metadata generation is not available. Please configure an Anthropic API key.');
+    return;
+  }
+
+  // Fetch file with metadata and series from database
+  const db = getDatabase();
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    include: {
+      metadata: true,
+      series: true,
+    },
+  });
+
+  if (!file) {
+    sendNotFound(res, 'File not found');
+    return;
+  }
+
+  // Build context for generation
+  const context: IssueMetadataGenerationContext = {
+    seriesName: file.series?.name || file.metadata?.series || file.filename,
+    issueNumber: file.metadata?.number,
+    issueTitle: file.metadata?.title,
+    publisher: file.series?.publisher || file.metadata?.publisher,
+    year: file.metadata?.year,
+    writer: file.metadata?.writer,
+    penciller: file.metadata?.penciller,
+    type: file.series?.type as 'western' | 'manga' | undefined,
+    // Existing metadata for context
+    existingSummary: file.metadata?.summary,
+    existingAgeRating: file.metadata?.ageRating,
+    existingGenres: file.metadata?.genre,
+    existingTags: file.metadata?.tags,
+    existingCharacters: file.metadata?.characters,
+    existingTeams: file.metadata?.teams,
+    existingLocations: file.metadata?.locations,
+  };
+
+  const issueLabel = context.issueNumber
+    ? `${context.seriesName} #${context.issueNumber}`
+    : context.seriesName;
+
+  logger.info({ fileId, useWebSearch }, `Generating metadata for issue: ${issueLabel}`);
+
+  // Generate metadata
+  const result = await generateIssueMetadata(context, { useWebSearch });
+
+  if (!result.success) {
+    logger.error({ fileId, error: result.error }, `Failed to generate metadata for issue: ${issueLabel}`);
+    sendBadRequest(res, result.error || 'Failed to generate metadata');
+    return;
+  }
+
+  logger.info(
+    { fileId, tokensUsed: result.tokensUsed, webSearchUsed: result.webSearchUsed },
+    `Generated metadata for issue: ${issueLabel}`
+  );
+
+  sendSuccess(res, {
+    metadata: result.metadata,
+    webSearchUsed: result.webSearchUsed,
     tokensUsed: result.tokensUsed,
   });
 }));

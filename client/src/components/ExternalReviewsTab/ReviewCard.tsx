@@ -9,6 +9,7 @@ import { useState, useMemo } from 'react';
 import type { ExternalReview, UserReview } from '../../hooks/queries';
 import { SpoilerText } from './SpoilerText';
 import { RatingStars } from '../RatingStars';
+import { RatingBadge } from '../RatingBadge';
 import { MarkdownContent } from '../MarkdownContent';
 import './ReviewCard.css';
 
@@ -71,6 +72,31 @@ function formatDate(dateStr: string | null | undefined): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * Parse a display rating string like "8.5/10" to get the numeric value.
+ * Returns undefined if the format is not recognized.
+ */
+function parseDisplayRating(displayRating: string | null | undefined): number | undefined {
+  if (!displayRating) return undefined;
+
+  // Match patterns like "8.5/10", "7/10", "85%"
+  const slashMatch = displayRating.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+)$/);
+  if (slashMatch?.[1] && slashMatch[2]) {
+    const value = parseFloat(slashMatch[1]);
+    const scale = parseFloat(slashMatch[2]);
+    // Normalize to 0-10 scale
+    return (value / scale) * 10;
+  }
+
+  const percentMatch = displayRating.match(/^(\d+(?:\.\d+)?)\s*%$/);
+  if (percentMatch?.[1]) {
+    // Convert percentage to 0-10 scale
+    return parseFloat(percentMatch[1]) / 10;
+  }
+
+  return undefined;
 }
 
 // Reserved for future source-specific styling
@@ -182,7 +208,15 @@ export function ReviewCard({
         {rating !== null && rating !== undefined && (
           <div className="review-card__rating">
             {displayRating ? (
-              <span className="review-card__rating-display">{displayRating}</span>
+              // External reviews with numeric ratings get colored badge
+              (() => {
+                const numericRating = parseDisplayRating(displayRating);
+                return numericRating !== undefined ? (
+                  <RatingBadge value={numericRating} size="small" />
+                ) : (
+                  <span className="review-card__rating-display">{displayRating}</span>
+                );
+              })()
             ) : (
               <RatingStars value={rating} readonly size="small" showEmpty />
             )}

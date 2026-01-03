@@ -714,3 +714,37 @@ export async function getIssuePublicReviews(
     reviewedAt: r.reviewedAt,
   }));
 }
+
+/**
+ * Get count of public reviews for a series (Helixio users)
+ */
+export async function getSeriesPublicReviewCount(seriesId: string): Promise<number> {
+  const db = getDatabase();
+  return db.userSeriesData.count({
+    where: {
+      seriesId,
+      reviewVisibility: 'public',
+      OR: [
+        { rating: { not: null } },
+        { publicReview: { not: null } },
+      ],
+    },
+  });
+}
+
+/**
+ * Get count of public reviews for an issue (Helixio users)
+ */
+export async function getIssuePublicReviewCount(fileId: string): Promise<number> {
+  const db = getDatabase();
+  return db.userReadingProgress.count({
+    where: {
+      fileId,
+      reviewVisibility: 'public',
+      OR: [
+        { rating: { not: null } },
+        { publicReview: { not: null } },
+      ],
+    },
+  });
+}

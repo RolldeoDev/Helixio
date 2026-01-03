@@ -25,7 +25,7 @@ import {
 } from './archive.service.js';
 import { getDatabase } from './database.service.js';
 import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
-import { logDebug, logWarn } from './logger.service.js';
+import { logDebug, logWarn, logError } from './logger.service.js';
 
 // =============================================================================
 // Cover Optimization Config
@@ -2214,7 +2214,7 @@ export async function recalculateAllSeriesCovers(): Promise<{ processed: number;
       await recalculateSeriesCover(series.id);
       processed++;
     } catch (error) {
-      console.error(`Failed to recalculate cover for series ${series.id}:`, error);
+      logError('covers', error, { seriesId: series.id, action: 'recalculate-all-covers' });
       errors++;
     }
   }

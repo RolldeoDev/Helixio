@@ -1,0 +1,204 @@
+/**
+ * IssueMetadataGeneratorPreviewModal Styles
+ *
+ * Preview modal for LLM-generated issue metadata with confidence scores.
+ * Uses shared FieldComparison styles for field rows.
+ */
+
+@import '../FieldComparison/FieldComparison.css';
+
+/* Override modal-overlay z-index when this modal is open */
+/* This modal appears on top of MetadataEditor, so needs higher z-index */
+.modal-overlay:has(.issue-metadata-generator-modal) {
+  z-index: 1050;
+}
+
+.issue-metadata-generator-modal {
+  background: var(--color-bg-elevated, #1a222c);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 700px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  z-index: 1051;
+}
+
+.issue-metadata-generator-modal .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, #1a222c);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.issue-metadata-generator-modal .modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Ensure close button is clickable */
+.issue-metadata-generator-modal .btn-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+  z-index: 3;
+}
+
+.issue-metadata-generator-modal .btn-close:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.issue-metadata-generator-modal .modal-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-bg-elevated, #1a222c);
+  position: relative;
+  z-index: 1;
+  min-height: 0; /* Critical for flex scroll - allows content to shrink */
+}
+
+/* Issue info */
+.issue-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.issue-name {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.web-search-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0.25rem 0.75rem;
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.web-search-badge svg {
+  flex-shrink: 0;
+}
+
+/* Modal footer */
+.issue-metadata-generator-modal .modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-elevated, #1a222c);
+  flex-shrink: 0;
+  min-height: 60px;
+  position: relative;
+  z-index: 2;
+}
+
+.issue-metadata-generator-modal .footer-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.issue-metadata-generator-modal .footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.issue-metadata-generator-modal .btn {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.issue-metadata-generator-modal .btn-secondary {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.issue-metadata-generator-modal .btn-secondary:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-hover);
+}
+
+.issue-metadata-generator-modal .btn-primary {
+  border: none;
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.issue-metadata-generator-modal .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.issue-metadata-generator-modal .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .issue-metadata-generator-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+
+  .issue-metadata-generator-modal .field-row {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+
+  .issue-metadata-generator-modal .field-checkbox {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .confidence-badge {
+    justify-self: flex-end;
+  }
+
+  .issue-metadata-generator-modal .modal-footer {
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .issue-metadata-generator-modal .footer-left,
+  .issue-metadata-generator-modal .footer-right {
+    width: 100%;
+    justify-content: center;
+  }
+}

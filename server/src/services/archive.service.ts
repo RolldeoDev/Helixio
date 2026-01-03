@@ -1306,3 +1306,483 @@ export async function deletePagesFromArchive(
     await cleanupTempDir(tempDir);
   }
 }
+
+// =============================================================================
+// Page Reordering Functions
+// =============================================================================
+
+/**
+ * Regex for detecting existing order prefixes.
+ * Matches: 4 digits + underscore + rest of filename
+ * Examples: "0000_cover.jpg", "0123_page.png"
+ */
+const ORDER_PREFIX_REGEX = /^(\d{4})_(.+)$/;
+
+/**
+ * Apply a zero-padded order prefix to a filename.
+ * If the filename already has a prefix, replaces it.
+ *
+ * @param filename - Original filename (e.g., "cover.jpg" or "0005_cover.jpg")
+ * @param newIndex - New order index (0-based)
+ * @returns Prefixed filename (e.g., "0000_cover.jpg")
+ */
+export function applyOrderPrefix(filename: string, newIndex: number): string {
+  const match = filename.match(ORDER_PREFIX_REGEX);
+  const baseName = match ? match[2]! : filename;
+  const newPrefix = String(newIndex).padStart(4, '0');
+  return `${newPrefix}_${baseName}`;
+}
+
+// =============================================================================
+// Archive Modifiability Check
+// =============================================================================
+
+export interface ArchiveModifiability {
+  /** Whether the archive can be modified (delete/reorder pages) */
+  isModifiable: boolean;
+  /** Detected archive format */
+  format: 'zip' | 'rar' | '7z' | 'unknown';
+  /** Number of image pages in the archive */
+  pageCount: number;
+  /** Reason why archive is not modifiable (if applicable) */
+  reason?: string;
+  /** Whether the archive can be converted to CBZ */
+  canConvert?: boolean;
+}
+
+/**
+ * Check if an archive can be modified (reorder/delete pages).
+ * Only CBZ (ZIP) archives are modifiable.
+ * CBR/CB7 archives require conversion first.
+ */
+export async function checkArchiveModifiable(
+  archivePath: string
+): Promise<ArchiveModifiability> {
+  try {
+    // Detect format using magic bytes (more reliable than extension)
+    const isRar = await isRarArchive(archivePath);
+    const extensionFormat = getArchiveFormat(archivePath);
+
+    // Get archive contents to count pages
+    const info = await listArchiveContents(archivePath);
+    const imagePages = info.entries.filter(
+      (e) => !e.isDirectory && isImageFile(e.path)
+    );
+
+    // Determine modifiability based on format
+    if (isRar) {
+      return {
+        isModifiable: false,
+        format: 'rar',
+        pageCount: imagePages.length,
+        reason: 'RAR archives are read-only. Convert to CBZ first.',
+        canConvert: true,
+      };
+    }
+
+    if (extensionFormat === '7z') {
+      return {
+        isModifiable: false,
+        format: '7z',
+        pageCount: imagePages.length,
+        reason: '7z archives cannot be modified. Convert to CBZ first.',
+        canConvert: true,
+      };
+    }
+
+    if (extensionFormat === 'zip') {
+      return {
+        isModifiable: true,
+        format: 'zip',
+        pageCount: imagePages.length,
+      };
+    }
+
+    return {
+      isModifiable: false,
+      format: 'unknown',
+      pageCount: imagePages.length,
+      reason: 'Unknown archive format',
+      canConvert: false,
+    };
+  } catch (err) {
+    logger.error({ err, archivePath }, 'Failed to check archive modifiability');
+    return {
+      isModifiable: false,
+      format: 'unknown',
+      pageCount: 0,
+      reason: err instanceof Error ? err.message : 'Unknown error',
+      canConvert: false,
+    };
+  }
+}
+
+// =============================================================================
+// Page Reordering
+// =============================================================================
+
+export interface PageReorderItem {
+  /** Original path of the page in the archive */
+  originalPath: string;
+  /** New index for this page (0-based) */
+  newIndex: number;
+}
+
+export interface ReorderResult {
+  success: boolean;
+  reorderedCount: number;
+  newTotalPages: number;
+  error?: string;
+}
+
+/**
+ * Reorder pages in a CBZ archive by applying zero-padded prefixes.
+ * Follows the same backup/restore pattern as deletePagesFromArchive.
+ */
+export async function reorderPagesInArchive(
+  archivePath: string,
+  reorderItems: PageReorderItem[]
+): Promise<ReorderResult> {
+  // Verify archive is modifiable (ZIP only)
+  if (await isRarArchive(archivePath)) {
+    return {
+      success: false,
+      reorderedCount: 0,
+      newTotalPages: 0,
+      error: 'Cannot modify RAR archives. Convert to CBZ first.',
+    };
+  }
+
+  const format = getArchiveFormat(archivePath);
+  if (format !== 'zip') {
+    return {
+      success: false,
+      reorderedCount: 0,
+      newTotalPages: 0,
+      error: `Cannot modify ${format} archives. Only CBZ (ZIP) archives can be modified.`,
+    };
+  }
+
+  // Create temp directory for extraction
+  const tempDir = await createTempDir('helixio-reorder-pages-');
+
+  try {
+    logger.debug({ tempDir, itemCount: reorderItems.length }, 'Reordering pages in archive');
+
+    // Extract the entire archive
+    const extractResult = await extractArchive(archivePath, tempDir);
+    if (!extractResult.success) {
+      return {
+        success: false,
+        reorderedCount: 0,
+        newTotalPages: 0,
+        error: `Failed to extract archive: ${extractResult.error}`,
+      };
+    }
+
+    // Build a map of original path → new index
+    const reorderMap = new Map<string, number>();
+    for (const item of reorderItems) {
+      // Store both full path and just filename for matching
+      reorderMap.set(item.originalPath, item.newIndex);
+      const filename = item.originalPath.split('/').pop() || item.originalPath;
+      if (filename !== item.originalPath) {
+        reorderMap.set(filename, item.newIndex);
+      }
+    }
+
+    // Read files in temp directory and rename with new prefixes
+    const files = await readdir(tempDir);
+    let reorderedCount = 0;
+
+    for (const file of files) {
+      if (!isImageFile(file)) continue;
+
+      const newIndex = reorderMap.get(file);
+      if (newIndex === undefined) continue;
+
+      const oldPath = join(tempDir, file);
+      const newFilename = applyOrderPrefix(file, newIndex);
+      const newPath = join(tempDir, newFilename);
+
+      try {
+        await rename(oldPath, newPath);
+        reorderedCount++;
+        logger.debug({ oldFile: file, newFile: newFilename }, 'Renamed page');
+      } catch (err) {
+        logger.warn({ err, file }, 'Failed to rename page');
+      }
+    }
+
+    if (reorderedCount === 0) {
+      return {
+        success: false,
+        reorderedCount: 0,
+        newTotalPages: 0,
+        error: 'No pages were reordered',
+      };
+    }
+
+    // Create backup of original
+    const backupPath = `${archivePath}.bak`;
+    await rename(archivePath, backupPath);
+
+    try {
+      // Create new archive from temp directory
+      const createResult = await createCbzArchive(tempDir, archivePath);
+      if (!createResult.success) {
+        // Restore backup
+        await rename(backupPath, archivePath);
+        return {
+          success: false,
+          reorderedCount: 0,
+          newTotalPages: 0,
+          error: `Failed to create new archive: ${createResult.error}`,
+        };
+      }
+
+      // Count final pages
+      const finalFiles = await readdir(tempDir);
+      const finalPageCount = finalFiles.filter(isImageFile).length;
+
+      // Remove backup on success
+      await unlink(backupPath);
+
+      logger.info({ reorderedCount, finalPageCount }, 'Successfully reordered pages');
+      return {
+        success: true,
+        reorderedCount,
+        newTotalPages: finalPageCount,
+      };
+    } catch (err) {
+      // Try to restore backup
+      try {
+        await rename(backupPath, archivePath);
+      } catch {
+        // Backup restore failed
+      }
+      throw err;
+    }
+  } finally {
+    // Always clean up temp directory
+    await cleanupTempDir(tempDir);
+  }
+}
+
+// =============================================================================
+// Combined Page Modification (Delete + Reorder)
+// =============================================================================
+
+export interface PageModifyOperation {
+  type: 'delete' | 'reorder';
+  /** For delete: page path to delete. For reorder: page path to move. */
+  path: string;
+  /** For reorder: new index for this page (0-based) */
+  newIndex?: number;
+}
+
+export interface ModifyResult {
+  success: boolean;
+  deletedCount: number;
+  reorderedCount: number;
+  newTotalPages: number;
+  error?: string;
+}
+
+/**
+ * Combined delete + reorder operation on a CBZ archive.
+ * More efficient than separate operations since it only extracts/recreates once.
+ *
+ * Operations are applied in order:
+ * 1. Delete specified pages
+ * 2. Reorder remaining pages with prefixes
+ */
+export async function modifyPagesInArchive(
+  archivePath: string,
+  operations: PageModifyOperation[]
+): Promise<ModifyResult> {
+  // Verify archive is modifiable (ZIP only)
+  if (await isRarArchive(archivePath)) {
+    return {
+      success: false,
+      deletedCount: 0,
+      reorderedCount: 0,
+      newTotalPages: 0,
+      error: 'Cannot modify RAR archives. Convert to CBZ first.',
+    };
+  }
+
+  const format = getArchiveFormat(archivePath);
+  if (format !== 'zip') {
+    return {
+      success: false,
+      deletedCount: 0,
+      reorderedCount: 0,
+      newTotalPages: 0,
+      error: `Cannot modify ${format} archives. Only CBZ (ZIP) archives can be modified.`,
+    };
+  }
+
+  // Separate operations by type
+  const deleteOps = operations.filter((op) => op.type === 'delete');
+  const reorderOps = operations.filter((op) => op.type === 'reorder');
+
+  // Create temp directory for extraction
+  const tempDir = await createTempDir('helixio-modify-pages-');
+
+  try {
+    logger.debug({
+      tempDir,
+      deleteCount: deleteOps.length,
+      reorderCount: reorderOps.length,
+    }, 'Modifying pages in archive');
+
+    // Extract the entire archive
+    const extractResult = await extractArchive(archivePath, tempDir);
+    if (!extractResult.success) {
+      return {
+        success: false,
+        deletedCount: 0,
+        reorderedCount: 0,
+        newTotalPages: 0,
+        error: `Failed to extract archive: ${extractResult.error}`,
+      };
+    }
+
+    let deletedCount = 0;
+    let reorderedCount = 0;
+
+    // Apply DELETE operations first
+    for (const op of deleteOps) {
+      if (!op.path) continue;
+
+      // Try both full path and just filename (7zip sometimes flattens)
+      const fullPath = join(tempDir, op.path);
+      const filename = op.path.split('/').pop() || op.path;
+      const flatPath = join(tempDir, filename);
+
+      let deleted = false;
+      try {
+        await unlink(fullPath);
+        deleted = true;
+        logger.debug({ path: op.path }, 'Deleted page');
+      } catch {
+        try {
+          await unlink(flatPath);
+          deleted = true;
+          logger.debug({ flatPath: filename }, 'Deleted page (flat path)');
+        } catch {
+          logger.warn({ path: op.path }, 'Could not find file to delete');
+        }
+      }
+
+      if (deleted) deletedCount++;
+    }
+
+    // Get remaining files after deletion
+    const remainingFiles = await readdir(tempDir);
+    const remainingImages = remainingFiles.filter(isImageFile);
+
+    if (remainingImages.length === 0) {
+      return {
+        success: false,
+        deletedCount,
+        reorderedCount: 0,
+        newTotalPages: 0,
+        error: 'Cannot delete all pages - archive must contain at least one image',
+      };
+    }
+
+    // Apply REORDER operations
+    const reorderMap = new Map<string, number>();
+    for (const op of reorderOps) {
+      if (op.path && op.newIndex !== undefined) {
+        reorderMap.set(op.path, op.newIndex);
+        // Also map by filename for flat path matching
+        const filename = op.path.split('/').pop() || op.path;
+        if (filename !== op.path) {
+          reorderMap.set(filename, op.newIndex);
+        }
+      }
+    }
+
+    for (const file of remainingImages) {
+      const newIndex = reorderMap.get(file);
+      if (newIndex === undefined) continue;
+
+      const oldPath = join(tempDir, file);
+      const newFilename = applyOrderPrefix(file, newIndex);
+      const newPath = join(tempDir, newFilename);
+
+      try {
+        await rename(oldPath, newPath);
+        reorderedCount++;
+        logger.debug({ oldFile: file, newFile: newFilename }, 'Renamed page');
+      } catch (err) {
+        logger.warn({ err, file }, 'Failed to rename page');
+      }
+    }
+
+    // At this point, we either have deletions or reorders (or both)
+    if (deletedCount === 0 && reorderedCount === 0) {
+      return {
+        success: false,
+        deletedCount: 0,
+        reorderedCount: 0,
+        newTotalPages: remainingImages.length,
+        error: 'No changes were applied',
+      };
+    }
+
+    // Create backup of original
+    const backupPath = `${archivePath}.bak`;
+    await rename(archivePath, backupPath);
+
+    try {
+      // Create new archive from temp directory
+      const createResult = await createCbzArchive(tempDir, archivePath);
+      if (!createResult.success) {
+        // Restore backup
+        await rename(backupPath, archivePath);
+        return {
+          success: false,
+          deletedCount: 0,
+          reorderedCount: 0,
+          newTotalPages: 0,
+          error: `Failed to create new archive: ${createResult.error}`,
+        };
+      }
+
+      // Count final pages
+      const finalFiles = await readdir(tempDir);
+      const finalPageCount = finalFiles.filter(isImageFile).length;
+
+      // Remove backup on success
+      await unlink(backupPath);
+
+      logger.info({
+        deletedCount,
+        reorderedCount,
+        finalPageCount,
+      }, 'Successfully modified pages in archive');
+
+      return {
+        success: true,
+        deletedCount,
+        reorderedCount,
+        newTotalPages: finalPageCount,
+      };
+    } catch (err) {
+      // Try to restore backup
+      try {
+        await rename(backupPath, archivePath);
+      } catch {
+        // Backup restore failed
+      }
+      throw err;
+    }
+  } finally {
+    // Always clean up temp directory
+    await cleanupTempDir(tempDir);
+  }
+}

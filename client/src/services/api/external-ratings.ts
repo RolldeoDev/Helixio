@@ -90,6 +90,45 @@ export interface ExternalRatingsSettings {
 }
 
 // =============================================================================
+// Manual CBR Match Types
+// =============================================================================
+
+export interface CBRMatchPreview {
+  sourceId: string;
+  seriesName: string;
+  publisher: string;
+  issueRange?: string;
+  criticRating?: { value: number; count: number };
+  communityRating?: { value: number; count: number };
+}
+
+export interface CBRValidationResult {
+  valid: boolean;
+  error?: string;
+  preview?: CBRMatchPreview;
+}
+
+export interface CBRMatchResult {
+  success: boolean;
+  error?: string;
+  preview?: CBRMatchPreview;
+}
+
+export interface CBRMatchStatus {
+  matched: boolean;
+  sourceId?: string;
+  sourceUrl?: string;
+  matchMethod?: string;
+  confidence?: number;
+  matchedName?: string;
+}
+
+export interface CBRResetResult {
+  success: boolean;
+  researchResult?: SyncResult;
+}
+
+// =============================================================================
 // Series Rating Functions
 // =============================================================================
 
@@ -277,5 +316,53 @@ export async function updateExternalRatingsSettings(
   return put<ExternalRatingsSettings>(
     '/external-ratings/settings',
     settings
+  );
+}
+
+// =============================================================================
+// Manual CBR Match Functions
+// =============================================================================
+
+/**
+ * Validate a CBR URL and return preview data (does NOT save)
+ */
+export async function validateCbrUrl(
+  url: string
+): Promise<CBRValidationResult> {
+  return post<CBRValidationResult>('/external-ratings/cbr/validate', { url });
+}
+
+/**
+ * Apply a manual CBR match: validate, fetch ratings, and save
+ */
+export async function saveManualCbrMatch(
+  seriesId: string,
+  url: string
+): Promise<CBRMatchResult> {
+  return post<CBRMatchResult>(
+    `/external-ratings/cbr/match/${seriesId}`,
+    { url }
+  );
+}
+
+/**
+ * Get current CBR match status for a series
+ */
+export async function getCbrMatchStatus(
+  seriesId: string
+): Promise<CBRMatchStatus> {
+  return get<CBRMatchStatus>(`/external-ratings/cbr/status/${seriesId}`);
+}
+
+/**
+ * Reset CBR match for a series
+ * @param reSearch - If true, re-run automatic search after clearing
+ */
+export async function resetCbrMatch(
+  seriesId: string,
+  reSearch: boolean
+): Promise<CBRResetResult> {
+  return del<CBRResetResult>(
+    `/external-ratings/cbr/match/${seriesId}?reSearch=${reSearch}`
   );
 }

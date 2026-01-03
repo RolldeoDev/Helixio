@@ -16,6 +16,10 @@ import {
   deleteIssueRatings,
   getRatingSourcesStatus,
   getSeriesAverageExternalRating,
+  validateCbrUrl,
+  saveManualCbrMatch,
+  getCbrMatchStatus,
+  resetCbrMatch,
 } from '../services/rating-sync.service.js';
 import {
   createRatingSyncJob,
@@ -28,6 +32,10 @@ import {
   updateExternalRatingsSettings,
 } from '../services/config.service.js';
 import { initializeSSE } from '../services/sse.service.js';
+import {
+  getSitemapIndexStatus,
+  refreshSitemapIndex,
+} from '../services/comicbookroundup/sitemap-index.js';
 import type { RatingSource } from '../services/rating-providers/types.js';
 import { createServiceLogger } from '../services/logger.service.js';
 
@@ -176,6 +184,123 @@ router.delete('/series/:seriesId', async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Failed to delete ratings',
       message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+// =============================================================================
+// Manual CBR Match Endpoints
+// =============================================================================
+
+/**
+ * POST /api/external-ratings/cbr/validate
+ * Validate a CBR URL and return preview data (does NOT save)
+ */
+router.post('/cbr/validate', async (req: Request, res: Response) => {
+  try {
+    const { url } = req.body as { url?: string };
+
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'URL is required' });
+      return;
+    }
+
+    const result = await validateCbrUrl(url);
+    res.json(result);
+  } catch (error) {
+    logger.error({ error }, 'Error validating CBR URL');
+    res.status(500).json({
+      valid: false,
+      error: 'Failed to validate URL',
+    });
+  }
+});
+
+/**
+ * POST /api/external-ratings/cbr/match/:seriesId
+ * Apply manual CBR match: validate, fetch ratings, save
+ */
+router.post('/cbr/match/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const seriesId = req.params.seriesId;
+    const { url } = req.body as { url?: string };
+
+    if (!seriesId) {
+      res.status(400).json({ error: 'Series ID is required' });
+      return;
+    }
+
+    if (!url || typeof url !== 'string') {
+      res.status(400).json({ error: 'URL is required' });
+      return;
+    }
+
+    logger.info({ seriesId, url }, 'Manual CBR match requested');
+
+    const result = await saveManualCbrMatch(seriesId, url);
+
+    if (!result.success) {
+      res.status(400).json(result);
+      return;
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error({ error, seriesId: req.params.seriesId }, 'Error applying manual CBR match');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to apply manual match',
+    });
+  }
+});
+
+/**
+ * GET /api/external-ratings/cbr/status/:seriesId
+ * Get current CBR match status for a series
+ */
+router.get('/cbr/status/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const seriesId = req.params.seriesId;
+    if (!seriesId) {
+      res.status(400).json({ error: 'Series ID is required' });
+      return;
+    }
+
+    const status = await getCbrMatchStatus(seriesId);
+    res.json(status);
+  } catch (error) {
+    logger.error({ error, seriesId: req.params.seriesId }, 'Error getting CBR match status');
+    res.status(500).json({
+      error: 'Failed to get match status',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/external-ratings/cbr/match/:seriesId
+ * Reset CBR match for a series
+ * Query param: reSearch=true to re-run automatic search after clearing
+ */
+router.delete('/cbr/match/:seriesId', async (req: Request, res: Response) => {
+  try {
+    const seriesId = req.params.seriesId;
+    if (!seriesId) {
+      res.status(400).json({ error: 'Series ID is required' });
+      return;
+    }
+
+    const reSearch = req.query.reSearch === 'true';
+
+    logger.info({ seriesId, reSearch }, 'CBR match reset requested');
+
+    const result = await resetCbrMatch(seriesId, reSearch);
+    res.json(result);
+  } catch (error) {
+    logger.error({ error, seriesId: req.params.seriesId }, 'Error resetting CBR match');
+    res.status(500).json({
+      success: false,
+      error: 'Failed to reset match',
     });
   }
 });
@@ -473,6 +598,38 @@ router.post('/jobs/:jobId/cancel', async (req: Request, res: Response) => {
       error: 'Failed to cancel job',
       message: error instanceof Error ? error.message : 'Unknown error',
     });
+  }
+});
+
+// =============================================================================
+// CBR Sitemap Index Endpoints
+// =============================================================================
+
+/**
+ * GET /api/external-ratings/cbr-sitemap/status
+ * Get the status of the CBR sitemap index cache
+ */
+router.get('/cbr-sitemap/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await getSitemapIndexStatus();
+    res.json(status);
+  } catch (error) {
+    logger.error({ error }, 'Error getting sitemap index status');
+    res.status(500).json({ error: 'Failed to get sitemap status' });
+  }
+});
+
+/**
+ * POST /api/external-ratings/cbr-sitemap/refresh
+ * Force refresh the CBR sitemap index
+ */
+router.post('/cbr-sitemap/refresh', async (_req: Request, res: Response) => {
+  try {
+    const result = await refreshSitemapIndex();
+    res.json(result);
+  } catch (error) {
+    logger.error({ error }, 'Error refreshing sitemap index');
+    res.status(500).json({ error: 'Failed to refresh sitemap index' });
   }
 });
 

@@ -15,6 +15,7 @@ import {
   deleteSeriesReviews,
   deleteIssueReviews,
   getSeriesReviewCount,
+  getIssueReviewCount,
   getReviewSourcesStatus,
 } from '../services/review-sync.service.js';
 import {
@@ -23,7 +24,12 @@ import {
   cancelJob,
   getRecentJobs,
 } from '../services/review-sync-job.service.js';
-import { getSeriesPublicReviews, getIssuePublicReviews } from '../services/user-data.service.js';
+import {
+  getSeriesPublicReviews,
+  getIssuePublicReviews,
+  getSeriesPublicReviewCount,
+  getIssuePublicReviewCount,
+} from '../services/user-data.service.js';
 import { initializeSSE } from '../services/sse.service.js';
 import type { ReviewSource } from '../services/review-providers/types.js';
 import { createServiceLogger } from '../services/logger.service.js';
@@ -99,16 +105,19 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
       }));
     }
 
-    // Get review counts by source
-    const counts = await getSeriesReviewCount(seriesId);
+    // Get review counts (always count all reviews, even if not returning them)
+    const [externalCounts, helixioCount] = await Promise.all([
+      getSeriesReviewCount(seriesId),
+      getSeriesPublicReviewCount(seriesId),
+    ]);
 
     return res.json({
       externalReviews,
       userReviews,
       counts: {
-        external: counts.total,
-        user: userReviews.length,
-        bySource: counts.bySource,
+        external: externalCounts.total,
+        user: helixioCount,
+        bySource: externalCounts.bySource,
       },
     });
   } catch (error) {
@@ -230,12 +239,18 @@ router.get('/issues/:fileId', async (req: Request, res: Response) => {
       }));
     }
 
+    // Get review counts (always count all reviews, even if not returning them)
+    const [externalCount, helixioCount] = await Promise.all([
+      getIssueReviewCount(fileId),
+      getIssuePublicReviewCount(fileId),
+    ]);
+
     return res.json({
       externalReviews,
       userReviews,
       counts: {
-        external: externalReviews.length,
-        user: userReviews.length,
+        external: externalCount,
+        user: helixioCount,
       },
     });
   } catch (error) {

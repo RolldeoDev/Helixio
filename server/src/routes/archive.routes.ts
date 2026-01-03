@@ -18,6 +18,12 @@ import {
   extractArchive,
   getArchiveFormat,
   deletePagesFromArchive,
+  checkArchiveModifiable,
+  reorderPagesInArchive,
+  modifyPagesInArchive,
+  clearArchiveListingCache,
+  type PageReorderItem,
+  type PageModifyOperation,
 } from '../services/archive.service.js';
 import {
   readComicInfo,
@@ -37,7 +43,7 @@ import {
   extractCover,
 } from '../services/cover.service.js';
 import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
-import { mkdir, stat, access } from 'fs/promises';
+import { mkdir, stat, access, rm } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { archiveLogger, logError, logWarn } from '../services/logger.service.js';
@@ -802,6 +808,319 @@ router.post('/:fileId/pages/delete', async (req: Request, res: Response) => {
     logError('archive', error, { action: 'delete-pages' });
     res.status(500).json({
       error: 'Failed to delete pages',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// =============================================================================
+// Page Editor Operations
+// =============================================================================
+
+/**
+ * Helper function for cache invalidation after page modifications.
+ * Clears all caches and updates reading progress.
+ */
+async function invalidateCachesAfterPageModification(
+  fileId: string,
+  newTotalPages: number
+): Promise<void> {
+  const db = getDatabase();
+
+  // 1. Clear archive listing cache
+  clearArchiveListingCache();
+
+  // 2. Clear page extraction cache
+  const cacheDir = `/tmp/helixio-archive-cache-${fileId}`;
+  try {
+    await rm(cacheDir, { recursive: true, force: true });
+    archiveLogger.debug({ cacheDir }, 'Cleared page extraction cache');
+  } catch {
+    // Cache dir might not exist, ignore
+  }
+
+  // 3. Update reading progress totalPages for all users
+  await db.userReadingProgress.updateMany({
+    where: { fileId },
+    data: { totalPages: newTotalPages },
+  });
+
+  // 4. Reset currentPage to 0 for in-progress issues (not completed)
+  // This prevents "page 45 of 40" errors after deletion
+  await db.userReadingProgress.updateMany({
+    where: {
+      fileId,
+      completed: false,
+    },
+    data: { currentPage: 0 },
+  });
+
+  // 5. Invalidate and regenerate cover (first page may have changed)
+  const file = await db.comicFile.findUnique({
+    where: { id: fileId },
+    select: {
+      path: true,
+      libraryId: true,
+      hash: true,
+    },
+  });
+
+  if (file?.hash) {
+    try {
+      // Delete existing cover from both disk and memory cache
+      await deleteCachedCover(file.libraryId, file.hash);
+      archiveLogger.debug({ fileHash: file.hash }, 'Cleared cover cache');
+
+      // Re-extract cover with the new first page
+      const coverResult = await extractCover(file.path, file.libraryId, file.hash);
+      if (coverResult.success) {
+        archiveLogger.debug('Re-extracted cover from new first page');
+      } else {
+        archiveLogger.warn({ error: coverResult.error }, 'Failed to re-extract cover');
+      }
+    } catch (coverErr) {
+      logWarn('archive', 'Error updating cover cache', { err: coverErr });
+      // Don't fail the whole operation if cover update fails
+    }
+  }
+}
+
+/**
+ * GET /api/archives/:fileId/modifiable
+ * Check if an archive can be modified (reordered/deleted)
+ */
+router.get('/:fileId/modifiable', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.fileId! },
+      select: {
+        id: true,
+        path: true,
+        filename: true,
+        relativePath: true,
+      },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file exists and fix stale paths
+    let filePath: string;
+    try {
+      filePath = await verifyAndFixFilePath(file, db);
+    } catch (err) {
+      res.status(404).json({
+        error: 'Archive file not found on disk',
+        message: err instanceof Error ? err.message : String(err),
+        path: file.path,
+      });
+      return;
+    }
+
+    // Check modifiability
+    const modifiability = await checkArchiveModifiable(filePath);
+
+    // Get bookmarks for this file (for current user)
+    // Bookmarks are stored as JSON array in userReadingProgress
+    const userId = (req as Request & { user?: { id: string } }).user?.id;
+    let bookmarkPages: number[] = [];
+    if (userId) {
+      const progress = await db.userReadingProgress.findUnique({
+        where: { userId_fileId: { userId, fileId: file.id } },
+        select: { bookmarks: true },
+      });
+      if (progress?.bookmarks) {
+        try {
+          bookmarkPages = JSON.parse(progress.bookmarks) as number[];
+        } catch {
+          bookmarkPages = [];
+        }
+      }
+    }
+
+    res.json({
+      fileId: file.id,
+      filename: file.filename,
+      isModifiable: modifiability.isModifiable,
+      format: modifiability.format,
+      pageCount: modifiability.pageCount,
+      reason: modifiability.reason,
+      canConvert: modifiability.canConvert,
+      hasBookmarks: bookmarkPages.length > 0,
+      bookmarkPages,
+    });
+  } catch (error) {
+    logError('archive', error, { action: 'check-modifiable' });
+    res.status(500).json({
+      error: 'Failed to check archive modifiability',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/archives/:fileId/pages/reorder
+ * Reorder pages in an archive
+ */
+router.post('/:fileId/pages/reorder', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const { reorderItems } = req.body as { reorderItems: PageReorderItem[] };
+
+    if (!reorderItems || !Array.isArray(reorderItems) || reorderItems.length === 0) {
+      res.status(400).json({ error: 'No reorder items specified' });
+      return;
+    }
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.fileId! },
+      select: {
+        id: true,
+        path: true,
+        filename: true,
+        relativePath: true,
+      },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file exists and fix stale paths
+    let filePath: string;
+    try {
+      filePath = await verifyAndFixFilePath(file, db);
+    } catch (err) {
+      res.status(404).json({
+        error: 'Archive file not found on disk',
+        message: err instanceof Error ? err.message : String(err),
+        path: file.path,
+      });
+      return;
+    }
+
+    // Reorder pages
+    const result = await reorderPagesInArchive(filePath, reorderItems);
+
+    if (!result.success) {
+      res.status(400).json({
+        error: 'Failed to reorder pages',
+        message: result.error,
+      });
+      return;
+    }
+
+    // Cache invalidation
+    await invalidateCachesAfterPageModification(file.id, result.newTotalPages);
+
+    res.json({
+      success: true,
+      reorderedCount: result.reorderedCount,
+      newTotalPages: result.newTotalPages,
+      message: `Successfully reordered ${result.reorderedCount} page(s)`,
+    });
+  } catch (error) {
+    logError('archive', error, { action: 'reorder-pages' });
+    res.status(500).json({
+      error: 'Failed to reorder pages',
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
+ * POST /api/archives/:fileId/pages/modify
+ * Combined delete + reorder operation on an archive
+ */
+router.post('/:fileId/pages/modify', async (req: Request, res: Response) => {
+  try {
+    const db = getDatabase();
+    const { operations } = req.body as { operations: PageModifyOperation[] };
+
+    if (!operations || !Array.isArray(operations) || operations.length === 0) {
+      res.status(400).json({ error: 'No operations specified' });
+      return;
+    }
+
+    const file = await db.comicFile.findUnique({
+      where: { id: req.params.fileId! },
+      select: {
+        id: true,
+        path: true,
+        filename: true,
+        relativePath: true,
+      },
+    });
+
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+
+    // Verify file exists and fix stale paths
+    let filePath: string;
+    try {
+      filePath = await verifyAndFixFilePath(file, db);
+    } catch (err) {
+      res.status(404).json({
+        error: 'Archive file not found on disk',
+        message: err instanceof Error ? err.message : String(err),
+        path: file.path,
+      });
+      return;
+    }
+
+    // Apply combined operations
+    const result = await modifyPagesInArchive(filePath, operations);
+
+    if (!result.success) {
+      res.status(400).json({
+        error: 'Failed to modify pages',
+        message: result.error,
+      });
+      return;
+    }
+
+    // Cache invalidation
+    await invalidateCachesAfterPageModification(file.id, result.newTotalPages);
+
+    // Build warnings - check if user has bookmarks that may be affected
+    const warnings: string[] = [];
+    const userId = (req as Request & { user?: { id: string } }).user?.id;
+    if (userId) {
+      const progress = await db.userReadingProgress.findUnique({
+        where: { userId_fileId: { userId, fileId: file.id } },
+        select: { bookmarks: true },
+      });
+      if (progress?.bookmarks) {
+        try {
+          const bookmarkPages = JSON.parse(progress.bookmarks) as number[];
+          if (bookmarkPages.length > 0) {
+            warnings.push('Bookmarks may be affected by page changes');
+          }
+        } catch {
+          // Invalid JSON, ignore
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      reorderedCount: result.reorderedCount,
+      newTotalPages: result.newTotalPages,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      message: `Successfully modified archive: ${result.deletedCount} deleted, ${result.reorderedCount} reordered`,
+    });
+  } catch (error) {
+    logError('archive', error, { action: 'modify-pages' });
+    res.status(500).json({
+      error: 'Failed to modify pages',
       message: error instanceof Error ? error.message : String(error),
     });
   }
