@@ -16,6 +16,20 @@ import { getAllPermissions, hasPermission } from '../types/permissions.js';
 
 const router = Router();
 
+/**
+ * Determine if cookies should use the Secure flag.
+ * In production, defaults to true (HTTPS only).
+ * Can be overridden with COOKIE_SECURE=false for HTTP-only setups (e.g., local network access).
+ */
+function shouldUseSecureCookies(): boolean {
+  // Explicit override takes precedence
+  if (process.env.COOKIE_SECURE !== undefined) {
+    return process.env.COOKIE_SECURE === 'true';
+  }
+  // Default to secure in production
+  return process.env.NODE_ENV === 'production';
+}
+
 // Configure multer for avatar uploads (memory storage)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -79,7 +93,7 @@ router.post('/setup', rateLimitByIP, async (req: Request, res: Response) => {
     // Set cookie
     res.cookie('helixio_token', loginResult.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
@@ -137,7 +151,7 @@ router.post('/login', rateLimitByIP, async (req: Request, res: Response) => {
     // Set cookie
     res.cookie('helixio_token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });
@@ -760,7 +774,7 @@ router.post('/register', rateLimitByIP, async (req: Request, res: Response) => {
     // Set cookie
     res.cookie('helixio_token', loginResult.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: shouldUseSecureCookies(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     });

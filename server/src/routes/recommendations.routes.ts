@@ -79,7 +79,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/discover', async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
     const libraryId = req.query.libraryId as string | undefined;
     const userId = req.query.userId as string;
     const noCache = req.query.noCache === 'true';

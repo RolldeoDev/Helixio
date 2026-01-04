@@ -374,7 +374,7 @@ app.post('/api/config/test-anthropic', async (req, res) => {
 });
 
 // Update metadata settings
-app.put('/api/config/metadata', (req, res) => {
+app.put('/api/config/metadata', requireAdmin, (req, res) => {
   try {
     const { primarySource, rateLimitLevel } = req.body as {
       primarySource?: 'comicvine' | 'metron';
@@ -394,7 +394,7 @@ app.put('/api/config/metadata', (req, res) => {
 });
 
 // Update cache settings
-app.put('/api/config/cache', (req, res) => {
+app.put('/api/config/cache', requireAdmin, (req, res) => {
   try {
     const { coverCacheSizeMb } = req.body as { coverCacheSizeMb?: number };
 
@@ -410,7 +410,7 @@ app.put('/api/config/cache', (req, res) => {
 });
 
 // Update general settings (from Settings UI)
-app.put('/api/config/settings', (req, res) => {
+app.put('/api/config/settings', requireAdmin, (req, res) => {
   try {
     const {
       metadataSourcePriority,
@@ -458,7 +458,7 @@ app.get('/api/config/manga-classification', (_req, res) => {
 });
 
 // Update manga classification settings
-app.put('/api/config/manga-classification', (req, res) => {
+app.put('/api/config/manga-classification', requireAdmin, (req, res) => {
   try {
     const { enabled, volumePageThreshold, filenameOverridesPageCount } = req.body as {
       enabled?: boolean;
@@ -491,7 +491,7 @@ app.get('/api/config/comic-classification', (_req, res) => {
 });
 
 // Update comic (Western) classification settings
-app.put('/api/config/comic-classification', (req, res) => {
+app.put('/api/config/comic-classification', requireAdmin, (req, res) => {
   try {
     const { enabled, issuePageThreshold, omnibusPageThreshold, filenameOverridesPageCount } = req.body as {
       enabled?: boolean;
@@ -543,7 +543,7 @@ app.put('/api/config/file-renaming', requireAdmin, (req, res) => {
 });
 
 // Update full config
-app.put('/api/config', (req, res) => {
+app.put('/api/config', requireAdmin, (req, res) => {
   try {
     const updates = req.body;
     const updated = updateConfig(updates);

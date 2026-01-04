@@ -71,7 +71,12 @@ function getStartingLocations(): DirectoryEntry[] {
     // Unix: common locations
     locations.push(
       { name: 'Root', path: '/', isDirectory: true },
+      // Docker/UNRAID standard mount points
+      { name: 'Comics', path: '/comics', isDirectory: true },
+      { name: 'Data', path: '/data', isDirectory: true },
+      // macOS
       { name: 'Volumes', path: '/Volumes', isDirectory: true },
+      // Linux standard mount points
       { name: 'Media', path: '/media', isDirectory: true },
       { name: 'mnt', path: '/mnt', isDirectory: true }
     );

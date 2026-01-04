@@ -16,6 +16,26 @@ vi.mock('../../../services/api.service', () => ({
   markAchievementsNotified: vi.fn(),
 }));
 
+// Mock the AuthContext - AchievementProvider depends on useAuth
+vi.mock('../../../contexts/AuthContext', () => ({
+  useAuth: vi.fn(() => ({
+    isAuthenticated: true,
+    user: { id: 'test-user', username: 'testuser', role: 'user' },
+    isLoading: false,
+    setupRequired: false,
+    registrationAllowed: false,
+    error: null,
+  })),
+  AuthProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+// Mock react-router-dom Link component to avoid router context errors
+vi.mock('react-router-dom', () => ({
+  Link: ({ children, to, ...props }: { children: React.ReactNode; to: string; [key: string]: unknown }) => (
+    <a href={to} {...props}>{children}</a>
+  ),
+}));
+
 // =============================================================================
 // Test Helpers
 // =============================================================================
@@ -196,8 +216,10 @@ describe('AchievementToast Polling', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(apiService.getRecentAchievements).toHaveBeenCalledTimes(1);
 
-    // Next poll after 30 seconds
-    await vi.advanceTimersByTimeAsync(30000);
+    // Fallback polling happens every 120 seconds (FALLBACK_POLL_INTERVAL)
+    // Note: In real usage, polling only happens when SSE is disconnected
+    // Since EventSource is not defined in test environment, SSE fails and polling takes over
+    await vi.advanceTimersByTimeAsync(120000);
     expect(apiService.getRecentAchievements).toHaveBeenCalledTimes(2);
   });
 

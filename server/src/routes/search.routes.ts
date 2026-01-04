@@ -49,14 +49,15 @@ const logger = createServiceLogger('search-routes');
  */
 router.get('/', async (req: Request, res: Response): Promise<void> => {
   try {
+    const parsedYear = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
     const query: SearchQuery = {
       series: req.query.series as string | undefined,
       issueNumber: req.query.issueNumber as string | undefined,
       publisher: req.query.publisher as string | undefined,
-      year: req.query.year ? parseInt(req.query.year as string, 10) : undefined,
+      year: parsedYear && !isNaN(parsedYear) ? parsedYear : undefined,
     };
 
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
           ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
@@ -92,13 +93,14 @@ router.get('/series', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const parsedYear = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
     const query: SearchQuery = {
       series,
       publisher: req.query.publisher as string | undefined,
-      year: req.query.year ? parseInt(req.query.year as string, 10) : undefined,
+      year: parsedYear && !isNaN(parsedYear) ? parsedYear : undefined,
     };
 
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
           ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
@@ -124,14 +126,15 @@ router.get('/series', async (req: Request, res: Response): Promise<void> => {
  */
 router.get('/issues', async (req: Request, res: Response): Promise<void> => {
   try {
+    const parsedYear = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
     const query: SearchQuery = {
       series: req.query.series as string | undefined,
       issueNumber: req.query.issueNumber as string | undefined,
       publisher: req.query.publisher as string | undefined,
-      year: req.query.year ? parseInt(req.query.year as string, 10) : undefined,
+      year: parsedYear && !isNaN(parsedYear) ? parsedYear : undefined,
     };
 
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
     const sources = req.query.sources
       ? (req.query.sources as string).split(',').filter((s): s is MetadataSource =>
           ['comicvine', 'metron', 'gcd', 'anilist', 'mal'].includes(s)
@@ -284,8 +287,8 @@ router.get('/series/:source/:id/issues', async (req: Request, res: Response): Pr
       return;
     }
 
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 100;
-    const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+    const limit = parseInt(req.query.limit as string, 10) || 100;
+    const page = parseInt(req.query.page as string, 10) || 1;
 
     const result = await getSeriesIssues(source as MetadataSource, id!, { limit, page });
 
@@ -980,7 +983,7 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
  */
 router.get('/logs/sessions', async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
     const sessions = MetadataFetchLogger.getRecentSessions(limit);
 
     res.json({

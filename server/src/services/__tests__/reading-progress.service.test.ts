@@ -404,7 +404,8 @@ describe('Reading Progress Service', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0]!.fileId).toBe('file-1');
-      expect(result[0]!.progress).toBe(50);
+      // Progress = (currentPage + 1) / totalPages * 100 = (10 + 1) / 20 * 100 = 55%
+      expect(result[0]!.progress).toBe(55);
       expect(result[0]!.series).toBe('Batman');
     });
 
@@ -447,7 +448,8 @@ describe('Reading Progress Service', () => {
 
       const result = await getContinueReading('user-1', 3);
 
-      expect(result[0]!.progress).toBe(50);
+      // Progress = (currentPage + 1) / totalPages * 100 = (15 + 1) / 30 * 100 = 53%
+      expect(result[0]!.progress).toBe(53);
     });
 
     it('should handle zero total pages', async () => {

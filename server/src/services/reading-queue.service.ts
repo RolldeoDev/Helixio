@@ -75,7 +75,7 @@ export async function getQueue(): Promise<QueueStatus> {
     currentPage: item.file.readingProgress?.currentPage,
     totalPages: item.file.readingProgress?.totalPages,
     progress: item.file.readingProgress?.totalPages
-      ? Math.round((item.file.readingProgress.currentPage / item.file.readingProgress.totalPages) * 100)
+      ? Math.round(((item.file.readingProgress.currentPage + 1) / item.file.readingProgress.totalPages) * 100)
       : undefined,
   }));
 
@@ -152,7 +152,7 @@ export async function addToQueue(fileId: string, position?: number): Promise<Que
     currentPage: file.readingProgress?.currentPage,
     totalPages: file.readingProgress?.totalPages,
     progress: file.readingProgress?.totalPages
-      ? Math.round((file.readingProgress.currentPage / file.readingProgress.totalPages) * 100)
+      ? Math.round(((file.readingProgress.currentPage + 1) / file.readingProgress.totalPages) * 100)
       : undefined,
   };
 }
@@ -365,7 +365,7 @@ export async function getNextInQueue(): Promise<QueueItem | null> {
     currentPage: item.file.readingProgress?.currentPage,
     totalPages: item.file.readingProgress?.totalPages,
     progress: item.file.readingProgress?.totalPages
-      ? Math.round((item.file.readingProgress.currentPage / item.file.readingProgress.totalPages) * 100)
+      ? Math.round(((item.file.readingProgress.currentPage + 1) / item.file.readingProgress.totalPages) * 100)
       : undefined,
   };
 }
@@ -432,7 +432,7 @@ export async function getNextAfter(fileId: string): Promise<QueueItem | null> {
     currentPage: nextItem.file.readingProgress?.currentPage,
     totalPages: nextItem.file.readingProgress?.totalPages,
     progress: nextItem.file.readingProgress?.totalPages
-      ? Math.round((nextItem.file.readingProgress.currentPage / nextItem.file.readingProgress.totalPages) * 100)
+      ? Math.round(((nextItem.file.readingProgress.currentPage + 1) / nextItem.file.readingProgress.totalPages) * 100)
       : undefined,
   };
 }

@@ -20,6 +20,18 @@ mkdir -p "$HELIXIO_DIR"/{logs,cache/covers,cache/series/comicvine,cache/series/m
 chown -R helixio:helixio /config /app
 
 # =============================================================================
+# Cookie Security handling
+# =============================================================================
+# Default COOKIE_SECURE to false for Docker deployments accessed via HTTP.
+# Users with HTTPS reverse proxy can set COOKIE_SECURE=true.
+# =============================================================================
+
+if [ -z "$COOKIE_SECURE" ]; then
+    export COOKIE_SECURE=false
+    echo "COOKIE_SECURE defaulted to false (HTTP access)"
+fi
+
+# =============================================================================
 # API_KEY_SECRET handling
 # =============================================================================
 # API_KEY_SECRET is required for secure API key authentication.

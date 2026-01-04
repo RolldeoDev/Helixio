@@ -30,7 +30,8 @@ router.get('/', async (req: Request, res: Response) => {
     const status = req.query.status as 'active' | 'completed' | 'all' | undefined;
     const typesParam = req.query.types as string | undefined;
     const types = typesParam?.split(',') as UnifiedJobType[] | undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const limit = parsedLimit && !isNaN(parsedLimit) ? parsedLimit : undefined;
 
     const result = await getAggregatedJobs({ status, types, limit });
 

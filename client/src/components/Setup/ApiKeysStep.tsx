@@ -43,7 +43,9 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
   useEffect(() => {
     const loadApiKeyMeta = async () => {
       try {
-        const response = await fetch(`${API_BASE}/config/api-keys`);
+        const response = await fetch(`${API_BASE}/config/api-keys`, {
+          credentials: 'include',
+        });
         if (!response.ok) {
           console.error('Failed to fetch API key metadata:', response.status);
           return;
@@ -92,6 +94,7 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
       const response = await fetch(`${API_BASE}/config/test-comicvine`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ apiKey: comicVineKey }),
       });
       const data = await response.json();
@@ -113,6 +116,7 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
       const response = await fetch(`${API_BASE}/config/test-anthropic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ apiKey: anthropicKey }),
       });
       const data = await response.json();
@@ -154,6 +158,7 @@ export function ApiKeysStep({ onNext, onSkip }: ApiKeysStepProps) {
       const response = await fetch(`${API_BASE}/config/api-keys`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(keysToSave),
       });
 

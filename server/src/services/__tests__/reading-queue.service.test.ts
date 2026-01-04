@@ -135,7 +135,7 @@ describe('ReadingQueueService', () => {
 
       const result = await getQueue();
 
-      expect(result.items[0]?.progress).toBe(20); // 5/25 * 100 = 20%
+      expect(result.items[0]?.progress).toBe(24); // (5+1)/25 * 100 = 24% (0-indexed pages)
     });
 
     it('should order items by position', async () => {
@@ -472,7 +472,7 @@ describe('ReadingQueueService', () => {
 
       const result = await getNextInQueue();
 
-      expect(result?.progress).toBe(20); // 5/25 * 100
+      expect(result?.progress).toBe(24); // (5+1)/25 * 100 (0-indexed pages)
     });
   });
 

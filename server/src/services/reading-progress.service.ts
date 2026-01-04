@@ -555,7 +555,7 @@ export async function getContinueReading(
     coverHash: p.file.coverHash ?? null,
     currentPage: p.currentPage,
     totalPages: p.totalPages,
-    progress: p.totalPages > 0 ? Math.round((p.currentPage / p.totalPages) * 100) : 0,
+    progress: p.totalPages > 0 ? Math.round(((p.currentPage + 1) / p.totalPages) * 100) : 0,
     lastReadAt: p.lastReadAt,
     itemType: 'in_progress' as const,
     series: p.file.metadata?.series ?? null,

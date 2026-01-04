@@ -45,7 +45,7 @@ router.use(requireAuth);
 router.get('/continue-reading', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
     const libraryId = req.query.libraryId as string | undefined;
 
     const items = await getContinueReading(userId, limit, libraryId);

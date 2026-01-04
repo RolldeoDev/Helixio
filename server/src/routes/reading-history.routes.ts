@@ -125,7 +125,7 @@ router.post('/session/:sessionId/end', optionalAuth, async (req: Request, res: R
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
     const libraryId = req.query.libraryId as string | undefined;
 
     const history = await getRecentHistory(limit, libraryId);

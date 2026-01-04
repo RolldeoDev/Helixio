@@ -513,7 +513,8 @@ router.post('/sync/scheduled', requireAdmin, async (req: Request, res: Response)
 router.get('/jobs', async (req: Request, res: Response) => {
   try {
     const status = req.query.status as string | undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const limit = parsedLimit && !isNaN(parsedLimit) ? parsedLimit : undefined;
 
     const jobs = await getJobs({
       status: status as 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | undefined,

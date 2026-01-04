@@ -11,7 +11,7 @@
  * - Cleanup functions
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import {
   createMockPrismaClient,
   createMockUser,
@@ -19,6 +19,13 @@ import {
   createMockApiKeyUsageLog,
   createMockLibrary,
 } from './__mocks__/prisma.mock.js';
+
+// =============================================================================
+// Environment Setup - Must be done before imports that use API_KEY_SECRET
+// =============================================================================
+
+const originalEnv = process.env.API_KEY_SECRET;
+process.env.API_KEY_SECRET = 'test-secret-key-for-unit-tests-32chars!';
 
 // =============================================================================
 // Mock Setup
@@ -100,6 +107,15 @@ function createActiveUser(overrides: Parameters<typeof createMockUser>[0] = {}) 
 // =============================================================================
 
 describe('API Key Service', () => {
+  afterAll(() => {
+    // Restore original environment
+    if (originalEnv === undefined) {
+      delete process.env.API_KEY_SECRET;
+    } else {
+      process.env.API_KEY_SECRET = originalEnv;
+    }
+  });
+
   beforeEach(() => {
     resetMocks();
   });

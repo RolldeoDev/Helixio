@@ -493,7 +493,7 @@ router.get('/:id', optionalAuth, asyncHandler(async (req: Request, res: Response
  */
 router.get('/:id/similar', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
   const seriesId = req.params.id!;
-  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+  const limit = parseInt(req.query.limit as string, 10) || 10;
   // SECURITY: Always use authenticated user's ID, never allow query param override
   const userId = req.user?.id;
   const noCache = req.query.noCache === 'true';

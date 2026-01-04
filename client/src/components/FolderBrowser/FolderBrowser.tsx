@@ -63,7 +63,9 @@ export function FolderBrowser({ isOpen, onClose, onSelect, initialPath }: Folder
 
   const loadRoots = useCallback(async (): Promise<RootLocation[] | null> => {
     try {
-      const response = await fetch(`${API_BASE}/filesystem/roots`);
+      const response = await fetch(`${API_BASE}/filesystem/roots`, {
+        credentials: 'include',
+      });
       if (!response.ok) throw new Error('Failed to load roots');
       const data = await response.json();
       setRoots(data.locations);
@@ -79,11 +81,13 @@ export function FolderBrowser({ isOpen, onClose, onSelect, initialPath }: Folder
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE}/filesystem/browse?path=${encodeURIComponent(path)}`);
+      const response = await fetch(`${API_BASE}/filesystem/browse?path=${encodeURIComponent(path)}`, {
+        credentials: 'include',
+      });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.message || 'Failed to browse directory');
+        throw new Error(data.message || data.error || 'Failed to browse directory');
       }
 
       const data = await response.json();

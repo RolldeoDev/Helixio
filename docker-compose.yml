@@ -23,6 +23,11 @@ services:
       # container recreations or existing API keys will become invalid.
       # Generate with: openssl rand -hex 32
       # - API_KEY_SECRET=your-64-char-hex-secret
+      #
+      # COOKIE_SECURE controls whether cookies require HTTPS.
+      # Defaults to true in production (Docker). Set to false if accessing
+      # via HTTP on a trusted local network (e.g., UNRAID without HTTPS).
+      - COOKIE_SECURE=false
 
       # =========================================================================
       # External API Keys (optional - can also be configured via Settings UI)
