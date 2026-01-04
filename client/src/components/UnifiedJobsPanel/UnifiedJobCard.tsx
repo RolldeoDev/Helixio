@@ -2,11 +2,14 @@
  * UnifiedJobCard Component
  *
  * Displays a single job in the unified jobs panel.
+ * For library-scan jobs, enriches with real-time SSE data from LibraryScanContext.
  */
 
 import { formatDistanceToNow } from 'date-fns';
 import type { UnifiedJob } from '../../services/api/jobs';
 import { useCancelJob } from '../../hooks/queries/useUnifiedJobs';
+import { useLibraryScan } from '../../contexts/LibraryScanContext';
+import { truncatePath } from '../../utils/format';
 import './UnifiedJobCard.css';
 
 function getJobIcon(job: UnifiedJob): string {
@@ -39,6 +42,7 @@ interface UnifiedJobCardProps {
 
 export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
   const cancelMutation = useCancelJob();
+  const { getActiveScan } = useLibraryScan();
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -48,6 +52,25 @@ export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
   };
 
   const timeAgo = formatDistanceToNow(new Date(job.createdAt), { addSuffix: true });
+
+  // For library-scan jobs, get real-time SSE data from LibraryScanContext
+  const scanData = job.type === 'library-scan' && job.libraryId
+    ? getActiveScan(job.libraryId)
+    : null;
+
+  // Build enriched subtitle for library-scan jobs
+  const enrichedSubtitle = (() => {
+    if (job.type !== 'library-scan' || !scanData) {
+      return job.subtitle;
+    }
+
+    // Show folder progress if available
+    if (scanData.foldersTotal && scanData.foldersTotal > 0 && job.status === 'running') {
+      return `Folder ${scanData.foldersComplete || 0} of ${scanData.foldersTotal}`;
+    }
+
+    return job.subtitle;
+  })();
 
   return (
     <div
@@ -62,7 +85,7 @@ export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
         <div className="job-card-header">
           <div className="job-card-info">
             <h4 className="job-card-title">{job.title}</h4>
-            {job.subtitle && <p className="job-card-subtitle">{job.subtitle}</p>}
+            {enrichedSubtitle && <p className="job-card-subtitle">{enrichedSubtitle}</p>}
           </div>
           <div className="job-card-meta">
             <span className={`job-status-badge ${job.status}`}>{job.status}</span>
@@ -78,6 +101,38 @@ export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
               />
             </div>
             <div className="job-progress-text">{job.progress}%</div>
+          </div>
+        )}
+
+        {/* Library scan stats */}
+        {job.type === 'library-scan' && scanData && job.status === 'running' && (
+          <div className="job-card-scan-stats">
+            <span className="job-scan-stat">
+              <span className="job-scan-stat-value">{scanData.indexedFiles || 0}</span>
+              <span className="job-scan-stat-label">Files</span>
+            </span>
+            {(scanData.foldersTotal ?? 0) > 0 && (
+              <span className="job-scan-stat">
+                <span className="job-scan-stat-value">{scanData.foldersComplete || 0}/{scanData.foldersTotal}</span>
+                <span className="job-scan-stat-label">Folders</span>
+              </span>
+            )}
+            <span className="job-scan-stat">
+              <span className="job-scan-stat-value">{scanData.coversExtracted || 0}</span>
+              <span className="job-scan-stat-label">Covers</span>
+            </span>
+            <span className="job-scan-stat">
+              <span className="job-scan-stat-value">{scanData.seriesCreated || 0}</span>
+              <span className="job-scan-stat-label">Series</span>
+            </span>
+          </div>
+        )}
+
+        {/* Current folder being scanned */}
+        {job.type === 'library-scan' && scanData?.currentFolder && job.status === 'running' && (
+          <div className="job-card-current-folder">
+            <span className="job-current-folder-label">Scanning:</span>
+            <span className="job-current-folder-path">{truncatePath(scanData.currentFolder, 40)}</span>
           </div>
         )}
 

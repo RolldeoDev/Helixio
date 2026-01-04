@@ -22,6 +22,8 @@ import { JobLogEntry } from './JobLogEntry';
 import { LogTypeFilter } from './LogTypeFilter';
 import { useVirtualList } from '../../../hooks/useVirtualGrid';
 import { useMetadataJob } from '../../../contexts/MetadataJobContext';
+import { useLibraryScan } from '../../../contexts/LibraryScanContext';
+import { truncatePath } from '../../../utils/format';
 import './JobDetailPanel.css';
 
 interface JobDetailPanelProps {
@@ -78,6 +80,26 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
 
   // Metadata job context for opening full results modal
   const { resumeJob } = useMetadataJob();
+
+  // Library scan context for real-time SSE data
+  const { getActiveScan } = useLibraryScan();
+  const scanData = jobType === 'library-scan' && job?.libraryId
+    ? getActiveScan(job.libraryId)
+    : null;
+
+  // Build enriched subtitle for library-scan jobs
+  const enrichedSubtitle = useMemo(() => {
+    if (jobType !== 'library-scan' || !scanData) {
+      return job?.subtitle;
+    }
+
+    // Show folder progress if available
+    if (scanData.foldersTotal && scanData.foldersTotal > 0 && job?.status === 'running') {
+      return `Folder ${scanData.foldersComplete || 0} of ${scanData.foldersTotal}`;
+    }
+
+    return job?.subtitle;
+  }, [jobType, job?.subtitle, job?.status, scanData]);
 
   // Show "View Full Results" button for completed metadata jobs
   const showViewFullResults =
@@ -188,7 +210,7 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
         <div className="panel-header">
           <div className="panel-title-section">
             <h2 className="panel-title">{job?.title || 'Loading...'}</h2>
-            {job?.subtitle && <p className="panel-subtitle">{job.subtitle}</p>}
+            {enrichedSubtitle && <p className="panel-subtitle">{enrichedSubtitle}</p>}
           </div>
           {(showViewFullResults || batchActions.length > 0) && (
             <div className="panel-header-actions">
@@ -232,6 +254,38 @@ export function JobDetailPanel({ jobType, jobId, onClose }: JobDetailPanelProps)
               <div className="panel-meta-item">
                 <span className="panel-meta-label">Progress:</span>
                 <span>{job.progress}%</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Library scan stats */}
+        {jobType === 'library-scan' && scanData && job?.status === 'running' && (
+          <div className="panel-scan-section">
+            <div className="panel-scan-stats">
+              <div className="panel-scan-stat">
+                <span className="panel-scan-stat-value">{scanData.indexedFiles || 0}</span>
+                <span className="panel-scan-stat-label">Files</span>
+              </div>
+              {(scanData.foldersTotal ?? 0) > 0 && (
+                <div className="panel-scan-stat">
+                  <span className="panel-scan-stat-value">{scanData.foldersComplete || 0}/{scanData.foldersTotal}</span>
+                  <span className="panel-scan-stat-label">Folders</span>
+                </div>
+              )}
+              <div className="panel-scan-stat">
+                <span className="panel-scan-stat-value">{scanData.coversExtracted || 0}</span>
+                <span className="panel-scan-stat-label">Covers</span>
+              </div>
+              <div className="panel-scan-stat">
+                <span className="panel-scan-stat-value">{scanData.seriesCreated || 0}</span>
+                <span className="panel-scan-stat-label">Series</span>
+              </div>
+            </div>
+            {scanData.currentFolder && (
+              <div className="panel-current-folder">
+                <span className="panel-current-folder-label">Scanning:</span>
+                <span className="panel-current-folder-path">{truncatePath(scanData.currentFolder, 50)}</span>
               </div>
             )}
           </div>

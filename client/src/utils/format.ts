@@ -56,3 +56,42 @@ export function formatPageCount(pages: number, label = true): string {
   if (!label) return formatted;
   return `${formatted} ${pages === 1 ? 'page' : 'pages'}`;
 }
+
+/**
+ * Truncate a folder path for display, showing first and last segments.
+ * Ensures the result never exceeds maxLength.
+ *
+ * @param path - The full folder path to truncate
+ * @param maxLength - Maximum length of the result (default: 50)
+ * @returns Truncated path string (e.g., "Comics/.../Issue 001")
+ *
+ * @example
+ * truncatePath('/Comics/Marvel/Spider-Man/Issue 001', 30)
+ * // "Comics/.../Issue 001"
+ */
+export function truncatePath(path: string, maxLength = 50): string {
+  if (!path || path.length <= maxLength) return path;
+  const parts = path.split('/').filter(Boolean);
+
+  // For paths with 2 or fewer segments, use ellipsis truncation
+  if (parts.length <= 2) {
+    return path.substring(0, maxLength - 3) + '...';
+  }
+
+  const firstPart = parts[0] ?? '';
+  const lastPart = parts[parts.length - 1] ?? '';
+
+  // Build "first/.../last" format
+  const truncated = `${firstPart}/.../${lastPart}`;
+
+  // If still too long, truncate the last segment
+  if (truncated.length > maxLength) {
+    const maxLastPartLength = maxLength - firstPart.length - 7; // Account for "/.../..."
+    if (maxLastPartLength > 3) {
+      return `${firstPart}/.../${lastPart.substring(0, maxLastPartLength - 3)}...`;
+    }
+    return truncated.substring(0, maxLength - 3) + '...';
+  }
+
+  return truncated;
+}

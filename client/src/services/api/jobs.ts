@@ -48,6 +48,8 @@ export interface UnifiedJob {
     failed: number;
     pending: number;
   };
+  // Library-scan specific fields (for real-time SSE data)
+  libraryId?: string;
 }
 
 export type UnifiedLogType = 'info' | 'success' | 'warning' | 'error';
