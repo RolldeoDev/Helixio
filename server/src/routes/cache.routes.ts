@@ -23,6 +23,7 @@ import {
   cancelCacheJob,
   rebuildCacheForFiles,
   rebuildCacheForFolder,
+  rebuildCacheForLibrary,
   getQueuedFileCount,
   CacheJobType,
 } from '../services/cache-job.service.js';
@@ -187,6 +188,59 @@ router.post('/rebuild', async (req: Request, res: Response) => {
     logError('cache', err, { action: 'queue-rebuild' });
     res.status(500).json({
       error: 'Failed to queue cache rebuild',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * POST /api/cache/rebuild-library
+ * Rebuild cache for all files in a library (or all libraries)
+ */
+router.post('/rebuild-library', async (req: Request, res: Response) => {
+  try {
+    const { libraryId, type = 'cover' } = req.body as {
+      libraryId?: string;
+      type?: CacheJobType;
+    };
+
+    // Validate type
+    if (!['cover', 'thumbnails', 'full'].includes(type)) {
+      res.status(400).json({
+        error: 'Invalid type. Must be "cover", "thumbnails", or "full"',
+      });
+      return;
+    }
+
+    // If libraryId provided, verify it exists
+    if (libraryId) {
+      const prisma = getDatabase();
+      const library = await prisma.library.findUnique({
+        where: { id: libraryId },
+        select: { id: true, name: true },
+      });
+
+      if (!library) {
+        res.status(404).json({ error: 'Library not found' });
+        return;
+      }
+    }
+
+    const job = await rebuildCacheForLibrary(libraryId || null, type);
+
+    res.json({
+      jobId: job.id,
+      fileCount: job.totalFiles,
+      type,
+      libraryId: libraryId || null,
+      message: job.totalFiles === 0
+        ? 'No files to rebuild'
+        : `Cache rebuild job queued for ${job.totalFiles} file(s)`,
+    });
+  } catch (err) {
+    logError('cache', err, { action: 'queue-library-rebuild' });
+    res.status(500).json({
+      error: 'Failed to queue library cache rebuild',
       message: err instanceof Error ? err.message : String(err),
     });
   }
