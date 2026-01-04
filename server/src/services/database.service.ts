@@ -10,6 +10,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+import { Client } from 'pg';
 import { getDatabaseUrl, ensureAppDirectories } from './app-paths.service.js';
 import { databaseLogger as logger } from './logger.service.js';
 
@@ -140,6 +141,68 @@ export async function closeDatabase(): Promise<void> {
     await prisma.$disconnect();
     prisma = null;
     logger.info('Database connection closed');
+  }
+}
+
+/**
+ * Drop and recreate the PostgreSQL database
+ * Used for factory reset in development environments where we can't delete the data directory.
+ *
+ * CRITICAL: This will destroy ALL data. Use only for factory reset.
+ */
+export async function dropAndRecreateDatabase(): Promise<void> {
+  const dbUrl = getDatabaseUrl();
+  const parsed = new URL(dbUrl);
+  const databaseName = parsed.pathname.slice(1); // Remove leading /
+
+  if (!databaseName || databaseName === 'postgres') {
+    throw new Error('Cannot drop the postgres system database');
+  }
+
+  // Connect to 'postgres' database for maintenance operations
+  parsed.pathname = '/postgres';
+  const maintenanceUrl = parsed.toString();
+
+  logger.info({ database: databaseName }, 'Dropping and recreating database');
+
+  const client = new Client({ connectionString: maintenanceUrl });
+
+  try {
+    await client.connect();
+
+    // Terminate all connections to target database
+    await client.query(
+      `
+      SELECT pg_terminate_backend(pid)
+      FROM pg_stat_activity
+      WHERE datname = $1 AND pid <> pg_backend_pid()
+    `,
+      [databaseName]
+    );
+
+    // Small delay for connections to fully terminate
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Drop and recreate the database
+    await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+    logger.info({ database: databaseName }, 'Database dropped');
+
+    await client.query(`CREATE DATABASE "${databaseName}"`);
+    logger.info({ database: databaseName }, 'Database created');
+
+    // Connect to new database to enable citext extension
+    const newClient = new Client({ connectionString: dbUrl });
+    try {
+      await newClient.connect();
+      await newClient.query('CREATE EXTENSION IF NOT EXISTS citext');
+      logger.info('CITEXT extension enabled');
+    } finally {
+      await newClient.end();
+    }
+
+    logger.info({ database: databaseName }, 'Database dropped and recreated successfully');
+  } finally {
+    await client.end();
   }
 }
 
