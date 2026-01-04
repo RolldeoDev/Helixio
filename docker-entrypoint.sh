@@ -62,8 +62,14 @@ fi
 
 export DATABASE_URL="file:${HELIXIO_DIR}/helixio.db"
 cd /app/server
+
+# Run database migrations
 gosu helixio npx prisma migrate deploy 2>/dev/null || \
     gosu helixio npx prisma db push --skip-generate 2>/dev/null || true
+
+# Generate Prisma client (required because npm ci may overwrite the pre-built client)
+echo "Generating Prisma client..."
+gosu helixio npx prisma generate
 
 # Start application
 # Export HOME explicitly to ensure app uses /config for data storage
