@@ -14,19 +14,37 @@ import { batchLogger } from './logger.service.js';
 // =============================================================================
 
 /** Cached concurrency values by type */
-const concurrencyCache = new Map<'io' | 'cpu', number>();
+const concurrencyCache = new Map<'io' | 'cpu' | 'db', number>();
+
+/**
+ * Default database connection limit.
+ * This should match the value in database.service.ts.
+ * Can be overridden via DATABASE_CONNECTION_LIMIT env var.
+ */
+function getDbConnectionLimit(): number {
+  const envLimit = process.env.DATABASE_CONNECTION_LIMIT;
+  if (envLimit) {
+    const parsed = parseInt(envLimit, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return 30; // Default matches database.service.ts
+}
 
 /**
  * Get optimal concurrency based on CPU cores and operation type.
  *
  * @param type - 'io' for I/O-bound operations (archive extraction, file reads)
  *               'cpu' for CPU-bound operations (Sharp image processing)
+ *               'db' for database-heavy operations (limit to prevent connection exhaustion)
  * @returns Optimal concurrency value
  *
  * For I/O-bound operations: Higher concurrency (2x CPU cores, max 16)
  * For CPU-bound operations: Match CPU cores minus 1 (leave headroom)
+ * For DB-bound operations: Fraction of connection pool (pool_size / 2, max 10)
  */
-export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
+export function getOptimalConcurrency(type: 'io' | 'cpu' | 'db' = 'io'): number {
   // Check cache first
   const cached = concurrencyCache.get(type);
   if (cached !== undefined) return cached;
@@ -39,6 +57,14 @@ export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
     // because they spend most time waiting for disk/network
     // Modern SSDs benefit from higher parallelism (cap at 16)
     concurrency = Math.min(cpuCount * 2, 16);
+  } else if (type === 'db') {
+    // Database-heavy operations should be limited to prevent
+    // connection pool exhaustion. Use half the pool size to leave
+    // headroom for other concurrent database operations.
+    const poolSize = getDbConnectionLimit();
+    concurrency = Math.min(Math.floor(poolSize / 2), 10);
+    // Ensure at least 2 for reasonable throughput
+    concurrency = Math.max(concurrency, 2);
   } else {
     // CPU-bound operations should not exceed available cores
     // Leave 1 core free for OS and other processes
@@ -52,6 +78,7 @@ export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
     type,
     cpuCount,
     concurrency,
+    ...(type === 'db' ? { dbPoolSize: getDbConnectionLimit() } : {}),
   }, `Auto-detected optimal concurrency: ${concurrency} for ${type}-bound operations`);
 
   return concurrency;
@@ -61,7 +88,7 @@ export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
  * Override the auto-detected concurrency for a specific type.
  * Useful for testing or manual tuning.
  */
-export function setCustomConcurrency(type: 'io' | 'cpu', value: number): void {
+export function setCustomConcurrency(type: 'io' | 'cpu' | 'db', value: number): void {
   if (value < 1) {
     throw new Error('Concurrency must be at least 1');
   }
@@ -83,11 +110,15 @@ export function getConcurrencyStats(): {
   cpuCount: number;
   ioConcurrency: number;
   cpuConcurrency: number;
+  dbConcurrency: number;
+  dbConnectionLimit: number;
 } {
   return {
     cpuCount: os.cpus().length,
     ioConcurrency: getOptimalConcurrency('io'),
     cpuConcurrency: getOptimalConcurrency('cpu'),
+    dbConcurrency: getOptimalConcurrency('db'),
+    dbConnectionLimit: getDbConnectionLimit(),
   };
 }
 

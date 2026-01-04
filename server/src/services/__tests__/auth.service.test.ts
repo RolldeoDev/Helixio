@@ -18,18 +18,10 @@ import { createMockPrismaClient, createMockUser, createMockUserSession } from '.
 
 const mockPrisma = createMockPrismaClient();
 
-// Mock the PrismaClient constructor - must be a proper class mock
-vi.mock('@prisma/client', () => {
-  return {
-    PrismaClient: class MockPrismaClient {
-      user = mockPrisma.user;
-      userSession = mockPrisma.userSession;
-      appSettings = mockPrisma.appSettings;
-      library = mockPrisma.library;
-      userLibraryAccess = mockPrisma.userLibraryAccess;
-    },
-  };
-});
+// Mock the database service to return our mock Prisma client
+vi.mock('../database.service.js', () => ({
+  getDatabase: () => mockPrisma,
+}));
 
 // Mock app-paths for avatar functions
 vi.mock('../app-paths.service.js', () => ({

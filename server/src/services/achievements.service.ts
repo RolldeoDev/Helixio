@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import { logInfo } from './logger.service.js';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // Category information (mirrored from client config)
 export const CATEGORY_INFO: Record<string, { name: string; icon: string; description: string }> = {
@@ -126,7 +127,7 @@ export interface UserStats {
 export async function seedAchievements(achievements?: AchievementSeedData[]): Promise<void> {
   // If no achievements provided, check if already seeded
   if (!achievements) {
-    const count = await prisma.achievement.count();
+    const count = await getPrisma().achievement.count();
     if (count > 0) {
       logInfo('achievements', `Achievements already seeded (${count} achievements)`);
       return;
@@ -139,7 +140,7 @@ export async function seedAchievements(achievements?: AchievementSeedData[]): Pr
 
   // Upsert all achievements
   for (const achievement of achievements) {
-    await prisma.achievement.upsert({
+    await getPrisma().achievement.upsert({
       where: { key: achievement.key },
       update: {
         name: achievement.name,
@@ -170,7 +171,7 @@ export async function seedAchievements(achievements?: AchievementSeedData[]): Pr
  * Get all achievements with user progress
  */
 export async function getAllAchievementsWithProgress(userId: string): Promise<AchievementWithProgress[]> {
-  const achievements = await prisma.achievement.findMany({
+  const achievements = await getPrisma().achievement.findMany({
     include: {
       userAchievements: {
         where: { userId },
@@ -205,7 +206,7 @@ export async function getAllAchievementsWithProgress(userId: string): Promise<Ac
  * Get achievements by category
  */
 export async function getAchievementsByCategory(userId: string, category: string): Promise<AchievementWithProgress[]> {
-  const achievements = await prisma.achievement.findMany({
+  const achievements = await getPrisma().achievement.findMany({
     where: { category },
     include: {
       userAchievements: {
@@ -240,7 +241,7 @@ export async function getAchievementsByCategory(userId: string, category: string
  * Get unlocked achievements
  */
 export async function getUnlockedAchievements(userId: string): Promise<AchievementWithProgress[]> {
-  const userAchievements = await prisma.userAchievement.findMany({
+  const userAchievements = await getPrisma().userAchievement.findMany({
     where: { userId, unlockedAt: { not: null } },
     include: { achievement: true },
     orderBy: { unlockedAt: 'desc' },
@@ -266,7 +267,7 @@ export async function getUnlockedAchievements(userId: string): Promise<Achieveme
  * Get recently unlocked achievements (for notifications)
  */
 export async function getRecentUnlocks(userId: string, limit = 5): Promise<AchievementWithProgress[]> {
-  const userAchievements = await prisma.userAchievement.findMany({
+  const userAchievements = await getPrisma().userAchievement.findMany({
     where: {
       userId,
       unlockedAt: { not: null },
@@ -297,7 +298,7 @@ export async function getRecentUnlocks(userId: string, limit = 5): Promise<Achie
  * Mark achievements as notified
  */
 export async function markAchievementsNotified(userId: string, achievementIds: string[]): Promise<void> {
-  await prisma.userAchievement.updateMany({
+  await getPrisma().userAchievement.updateMany({
     where: { userId, achievementId: { in: achievementIds } },
     data: { notified: true },
   });
@@ -308,8 +309,8 @@ export async function markAchievementsNotified(userId: string, achievementIds: s
  */
 export async function getAchievementSummary(userId: string): Promise<AchievementSummary> {
   const [achievements, userAchievements] = await Promise.all([
-    prisma.achievement.findMany(),
-    prisma.userAchievement.findMany({
+    getPrisma().achievement.findMany(),
+    getPrisma().userAchievement.findMany({
       where: { userId, unlockedAt: { not: null } },
       include: { achievement: true },
       orderBy: { unlockedAt: 'desc' },
@@ -368,7 +369,7 @@ export async function getAchievementSummary(userId: string): Promise<Achievement
  * Returns newly unlocked achievements
  */
 export async function checkAndUpdateAchievements(userId: string, stats: UserStats): Promise<AchievementWithProgress[]> {
-  const achievements = await prisma.achievement.findMany({
+  const achievements = await getPrisma().achievement.findMany({
     include: {
       userAchievements: {
         where: { userId },
@@ -393,7 +394,7 @@ export async function checkAndUpdateAchievements(userId: string, stats: UserStat
 
     // Update or create user achievement record
     if (isUnlocked) {
-      const ua = await prisma.userAchievement.upsert({
+      const ua = await getPrisma().userAchievement.upsert({
         where: {
           userId_achievementId: {
             userId,
@@ -429,7 +430,7 @@ export async function checkAndUpdateAchievements(userId: string, stats: UserStat
       });
     } else if (progress > 0) {
       // Update progress if changed
-      await prisma.userAchievement.upsert({
+      await getPrisma().userAchievement.upsert({
         where: {
           userId_achievementId: {
             userId,
@@ -624,8 +625,8 @@ export async function getCategoriesWithCounts(userId: string): Promise<Array<{
   unlocked: number;
 }>> {
   const [achievements, userAchievements] = await Promise.all([
-    prisma.achievement.findMany(),
-    prisma.userAchievement.findMany({
+    getPrisma().achievement.findMany(),
+    getPrisma().userAchievement.findMany({
       where: { userId, unlockedAt: { not: null } },
     }),
   ]);

@@ -4,7 +4,6 @@
  * Handles user authentication, session management, and password hashing.
  */
 
-import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { getAvatarPath, getAvatarsDir } from './app-paths.service.js';
@@ -14,8 +13,10 @@ import {
   mergePermissions,
   UserPermissions,
 } from '../types/permissions.js';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // =============================================================================
 // Types
@@ -111,7 +112,7 @@ export async function createUser(input: CreateUserInput): Promise<UserInfo> {
   }
 
   // Check if username exists
-  const existing = await prisma.user.findFirst({
+  const existing = await getPrisma().user.findFirst({
     where: {
       OR: [
         { username: username.toLowerCase() },
@@ -131,7 +132,7 @@ export async function createUser(input: CreateUserInput): Promise<UserInfo> {
 
   const passwordHash = hashPassword(password);
 
-  const user = await prisma.user.create({
+  const user = await getPrisma().user.create({
     data: {
       username: username.toLowerCase(),
       email: email?.toLowerCase(),
@@ -146,7 +147,7 @@ export async function createUser(input: CreateUserInput): Promise<UserInfo> {
 }
 
 export async function getUserById(userId: string): Promise<UserInfo | null> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { id: userId },
   });
 
@@ -154,7 +155,7 @@ export async function getUserById(userId: string): Promise<UserInfo | null> {
 }
 
 export async function getUserByUsername(username: string): Promise<UserInfo | null> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { username: username.toLowerCase() },
   });
 
@@ -162,7 +163,7 @@ export async function getUserByUsername(username: string): Promise<UserInfo | nu
 }
 
 export async function listUsers(): Promise<UserInfo[]> {
-  const users = await prisma.user.findMany({
+  const users = await getPrisma().user.findMany({
     orderBy: { createdAt: 'asc' },
   });
 
@@ -179,7 +180,7 @@ export async function updateUser(
     hideReadingStats: boolean;
   }>
 ): Promise<UserInfo> {
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: updates,
   });
@@ -193,7 +194,7 @@ export async function updatePassword(
   newPassword: string,
   currentToken?: string
 ): Promise<void> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { id: userId },
   });
 
@@ -211,7 +212,7 @@ export async function updatePassword(
 
   const passwordHash = hashPassword(newPassword);
 
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: userId },
     data: { passwordHash },
   });
@@ -219,7 +220,7 @@ export async function updatePassword(
   // SECURITY: Revoke all sessions except the current one after password change
   // This forces re-authentication on all other devices
   if (currentToken) {
-    await prisma.userSession.deleteMany({
+    await getPrisma().userSession.deleteMany({
       where: {
         userId,
         token: { not: currentToken },
@@ -227,7 +228,7 @@ export async function updatePassword(
     });
   } else {
     // If no current token provided, revoke all sessions
-    await prisma.userSession.deleteMany({
+    await getPrisma().userSession.deleteMany({
       where: { userId },
     });
   }
@@ -237,7 +238,7 @@ export async function updatePassword(
  * Mark setup wizard as complete for a user
  */
 export async function completeUserSetup(userId: string): Promise<UserInfo> {
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: { setupComplete: true },
   });
@@ -246,13 +247,13 @@ export async function completeUserSetup(userId: string): Promise<UserInfo> {
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  await prisma.user.delete({
+  await getPrisma().user.delete({
     where: { id: userId },
   });
 }
 
 export async function setUserRole(userId: string, role: 'admin' | 'user' | 'guest'): Promise<UserInfo> {
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: { role },
   });
@@ -261,7 +262,7 @@ export async function setUserRole(userId: string, role: 'admin' | 'user' | 'gues
 }
 
 export async function setUserActive(userId: string, isActive: boolean): Promise<UserInfo> {
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: { isActive },
   });
@@ -279,7 +280,7 @@ export async function login(
   userAgent?: string,
   ipAddress?: string
 ): Promise<LoginResult> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { username: username.toLowerCase() },
   });
 
@@ -299,7 +300,7 @@ export async function login(
   const token = generateToken();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-  await prisma.userSession.create({
+  await getPrisma().userSession.create({
     data: {
       userId: user.id,
       token,
@@ -310,7 +311,7 @@ export async function login(
   });
 
   // Update last login
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: user.id },
     data: { lastLoginAt: new Date() },
   });
@@ -324,7 +325,7 @@ export async function login(
 }
 
 export async function validateToken(token: string): Promise<UserInfo | null> {
-  const session = await prisma.userSession.findUnique({
+  const session = await getPrisma().userSession.findUnique({
     where: { token },
     include: { user: true },
   });
@@ -334,7 +335,7 @@ export async function validateToken(token: string): Promise<UserInfo | null> {
   }
 
   if (session.expiresAt < new Date()) {
-    await prisma.userSession.delete({ where: { id: session.id } });
+    await getPrisma().userSession.delete({ where: { id: session.id } });
     return null;
   }
 
@@ -343,7 +344,7 @@ export async function validateToken(token: string): Promise<UserInfo | null> {
   }
 
   // Update last active
-  await prisma.userSession.update({
+  await getPrisma().userSession.update({
     where: { id: session.id },
     data: { lastActiveAt: new Date() },
   });
@@ -352,19 +353,19 @@ export async function validateToken(token: string): Promise<UserInfo | null> {
 }
 
 export async function logout(token: string): Promise<void> {
-  await prisma.userSession.deleteMany({
+  await getPrisma().userSession.deleteMany({
     where: { token },
   });
 }
 
 export async function logoutAllSessions(userId: string): Promise<void> {
-  await prisma.userSession.deleteMany({
+  await getPrisma().userSession.deleteMany({
     where: { userId },
   });
 }
 
 export async function getUserSessions(userId: string): Promise<SessionInfo[]> {
-  const sessions = await prisma.userSession.findMany({
+  const sessions = await getPrisma().userSession.findMany({
     where: { userId },
     orderBy: { lastActiveAt: 'desc' },
   });
@@ -381,7 +382,7 @@ export async function getUserSessions(userId: string): Promise<SessionInfo[]> {
 }
 
 export async function revokeSession(sessionId: string, userId: string): Promise<void> {
-  await prisma.userSession.deleteMany({
+  await getPrisma().userSession.deleteMany({
     where: { id: sessionId, userId },
   });
 }
@@ -391,7 +392,7 @@ export async function revokeSession(sessionId: string, userId: string): Promise<
 // =============================================================================
 
 export async function hasAnyUsers(): Promise<boolean> {
-  const count = await prisma.user.count();
+  const count = await getPrisma().user.count();
   return count > 0;
 }
 
@@ -451,7 +452,7 @@ function mapUserToInfo(user: {
 // =============================================================================
 
 export async function cleanupExpiredSessions(): Promise<number> {
-  const result = await prisma.userSession.deleteMany({
+  const result = await getPrisma().userSession.deleteMany({
     where: {
       expiresAt: { lt: new Date() },
     },
@@ -469,7 +470,7 @@ export interface AppSettings {
 }
 
 export async function getAppSettings(): Promise<AppSettings> {
-  const settings = await prisma.appSettings.findUnique({
+  const settings = await getPrisma().appSettings.findUnique({
     where: { id: 'default' },
   });
 
@@ -479,7 +480,7 @@ export async function getAppSettings(): Promise<AppSettings> {
 }
 
 export async function updateAppSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
-  const settings = await prisma.appSettings.upsert({
+  const settings = await getPrisma().appSettings.upsert({
     where: { id: 'default' },
     create: {
       id: 'default',
@@ -508,12 +509,12 @@ export interface LibraryAccessInfo {
 
 export async function getUserLibraryAccess(userId: string): Promise<LibraryAccessInfo[]> {
   // Get all libraries
-  const libraries = await prisma.library.findMany({
+  const libraries = await getPrisma().library.findMany({
     orderBy: { name: 'asc' },
   });
 
   // Get user's access records
-  const accessRecords = await prisma.userLibraryAccess.findMany({
+  const accessRecords = await getPrisma().userLibraryAccess.findMany({
     where: { userId },
   });
 
@@ -535,7 +536,7 @@ export async function setUserLibraryAccess(
 ): Promise<void> {
   if (hasAccess) {
     // Grant access
-    await prisma.userLibraryAccess.upsert({
+    await getPrisma().userLibraryAccess.upsert({
       where: {
         userId_libraryId: { userId, libraryId },
       },
@@ -550,7 +551,7 @@ export async function setUserLibraryAccess(
     });
   } else {
     // Revoke access
-    await prisma.userLibraryAccess.deleteMany({
+    await getPrisma().userLibraryAccess.deleteMany({
       where: { userId, libraryId },
     });
   }
@@ -562,13 +563,13 @@ export async function setUserLibraryAccess(
 
 export async function freezeUser(userId: string): Promise<UserInfo> {
   // Disable user
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: { isActive: false },
   });
 
   // Revoke all sessions
-  await prisma.userSession.deleteMany({
+  await getPrisma().userSession.deleteMany({
     where: { userId },
   });
 
@@ -576,7 +577,7 @@ export async function freezeUser(userId: string): Promise<UserInfo> {
 }
 
 export async function unfreezeUser(userId: string): Promise<UserInfo> {
-  const user = await prisma.user.update({
+  const user = await getPrisma().user.update({
     where: { id: userId },
     data: { isActive: true },
   });
@@ -623,7 +624,7 @@ export async function uploadAvatar(userId: string, imageBuffer: Buffer): Promise
   const avatarUrl = `/api/auth/avatars/${userId}`;
 
   // Update user record
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: userId },
     data: { avatarUrl },
   });
@@ -640,7 +641,7 @@ export async function removeAvatar(userId: string): Promise<void> {
   }
 
   // Clear avatarUrl in database
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: userId },
     data: { avatarUrl: null },
   });
@@ -665,7 +666,7 @@ export async function updateUserPermissions(
   userId: string,
   permissions: Partial<Record<string, boolean>>
 ): Promise<UserInfo> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { id: userId },
   });
 
@@ -677,7 +678,7 @@ export async function updateUserPermissions(
   const existingPerms = parsePermissions(user.permissions);
   const mergedPerms = mergePermissions(existingPerms, permissions);
 
-  const updatedUser = await prisma.user.update({
+  const updatedUser = await getPrisma().user.update({
     where: { id: userId },
     data: { permissions: JSON.stringify(mergedPerms) },
   });
@@ -691,7 +692,7 @@ export async function updateUserPermissions(
  * @param newPassword - New password to set
  */
 export async function resetUserPassword(userId: string, newPassword: string): Promise<void> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { id: userId },
   });
 
@@ -705,13 +706,13 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
 
   const passwordHash = hashPassword(newPassword);
 
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: userId },
     data: { passwordHash },
   });
 
   // Revoke all existing sessions (force re-login with new password)
-  await prisma.userSession.deleteMany({
+  await getPrisma().userSession.deleteMany({
     where: { userId },
   });
 }
@@ -721,7 +722,7 @@ export async function resetUserPassword(userId: string, newPassword: string): Pr
  * Uses a throttle of 60 seconds to avoid excessive database writes.
  */
 export async function updateLastActiveAt(userId: string): Promise<void> {
-  await prisma.user.update({
+  await getPrisma().user.update({
     where: { id: userId },
     data: { lastActiveAt: new Date() },
   });
@@ -732,7 +733,7 @@ export async function updateLastActiveAt(userId: string): Promise<void> {
 // =============================================================================
 
 export async function deleteOwnAccount(userId: string, password: string): Promise<void> {
-  const user = await prisma.user.findUnique({
+  const user = await getPrisma().user.findUnique({
     where: { id: userId },
   });
 
@@ -747,7 +748,7 @@ export async function deleteOwnAccount(userId: string, password: string): Promis
 
   // Prevent last admin from deleting themselves
   if (user.role === 'admin') {
-    const adminCount = await prisma.user.count({
+    const adminCount = await getPrisma().user.count({
       where: { role: 'admin' },
     });
 
@@ -763,7 +764,7 @@ export async function deleteOwnAccount(userId: string, password: string): Promis
   }
 
   // Delete user (cascades to sessions, progress, collections, etc.)
-  await prisma.user.delete({
+  await getPrisma().user.delete({
     where: { id: userId },
   });
 }

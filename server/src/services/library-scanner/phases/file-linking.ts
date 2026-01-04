@@ -89,7 +89,8 @@ export async function linkFilesToSeries(
   });
 
   // Process in batches with parallelism
-  const concurrency = Math.min(getOptimalConcurrency('io'), 8);
+  // Use 'db' concurrency since each task does database writes
+  const concurrency = getOptimalConcurrency('db');
   let processed = 0;
 
   while (true) {
