@@ -140,14 +140,27 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
         const result = await getScanJobStatus(libraryId, jobId);
         const job = result.job;
 
-        setState((prev) => ({
-          ...prev,
-          activeScans: {
-            ...prev.activeScans,
-            [libraryId]: job,
-          },
-          error: null,
-        }));
+        setState((prev) => {
+          const existingJob = prev.activeScans[libraryId];
+          return {
+            ...prev,
+            activeScans: {
+              ...prev.activeScans,
+              [libraryId]: {
+                ...job,
+                // Preserve SSE-provided transient fields if not in polled response
+                // (these are not stored in database, only sent via SSE)
+                foldersTotal: job.foldersTotal ?? existingJob?.foldersTotal,
+                foldersComplete: job.foldersComplete ?? existingJob?.foldersComplete,
+                currentFolder: job.currentFolder ?? existingJob?.currentFolder,
+                // Prefer SSE-provided cover count (accumulated from cover-progress events)
+                // over polled value which may be stale
+                coversExtracted: existingJob?.coversExtracted ?? job.coversExtracted ?? 0,
+              },
+            },
+            error: null,
+          };
+        });
 
         // Continue polling if not in terminal state
         const terminalStates: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
@@ -407,7 +420,9 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
               linkedFiles: data.filesCreated + data.filesUpdated,
               orphanedFiles: data.filesOrphaned,
               seriesCreated: data.seriesCreated,
-              coversExtracted: data.coverJobsComplete,
+              // Preserve coversExtracted from cover-progress events
+              // (coverJobsComplete is job count, not actual cover count)
+              coversExtracted: existingJob.coversExtracted || 0,
               foldersTotal: data.foldersTotal,
               foldersComplete: data.foldersComplete,
               currentFolder: data.currentFolder,
@@ -430,6 +445,54 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
           });
         } catch (error) {
           console.debug('Failed to parse scan progress event:', error);
+        }
+      });
+
+      // Handle cover extraction progress events
+      eventSource.addEventListener('cover-progress', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const libraryId = data.libraryId;
+
+          if (!libraryId) {
+            console.debug('SSE cover-progress event missing libraryId');
+            return;
+          }
+
+          // Update cover count for the library's active scan
+          setState((prev) => {
+            const existingJob = prev.activeScans[libraryId];
+
+            // If we don't have an existing job, ignore the cover progress
+            if (!existingJob) {
+              return prev;
+            }
+
+            // Only update coversExtracted when a cover job completes
+            if (data.status === 'complete') {
+              const newCovers = data.coversExtracted || 0;
+              const existingCovers = existingJob.coversExtracted || 0;
+
+              // Use additive approach - each cover job adds its extracted covers
+              // to the running total
+              const updatedJob = {
+                ...existingJob,
+                coversExtracted: existingCovers + newCovers,
+              };
+
+              return {
+                ...prev,
+                activeScans: {
+                  ...prev.activeScans,
+                  [libraryId]: updatedJob,
+                },
+              };
+            }
+
+            return prev;
+          });
+        } catch (error) {
+          console.debug('Failed to parse cover progress event:', error);
         }
       });
 

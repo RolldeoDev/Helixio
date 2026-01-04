@@ -15,7 +15,7 @@
 
 import { getDatabase } from './database.service.js';
 import { batchExtractCovers } from './cover.service.js';
-import { broadcastToChannel } from './sse.service.js';
+import { sendCoverProgress } from './sse.service.js';
 import { scannerLogger, jobQueueLogger } from './logger.service.js';
 
 // =============================================================================
@@ -473,12 +473,16 @@ async function processJob(job: {
 // =============================================================================
 
 /**
- * Emit cover progress event via SSE.
+ * Emit cover progress event via SSE to scan clients.
  */
 function emitCoverProgress(progress: CoverJobProgress): void {
-  broadcastToChannel('scan-progress', {
-    type: 'cover-progress',
-    data: progress,
+  sendCoverProgress(progress.libraryId, {
+    jobId: progress.jobId,
+    folderPath: progress.folderPath,
+    status: progress.status,
+    coversExtracted: progress.coversExtracted,
+    totalFiles: progress.totalFiles,
+    retryCount: progress.retryCount,
   });
 }
 

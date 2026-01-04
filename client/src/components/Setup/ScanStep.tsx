@@ -5,9 +5,41 @@
  * Scan runs in background - user can skip at any time.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLibraryScan } from '../../contexts/LibraryScanContext';
+import type { LibraryScanJob } from '../../services/api.service';
 import './SetupWizard.css';
+
+/**
+ * Truncate a folder path for display, showing first and last segments.
+ * Ensures the result never exceeds maxLength.
+ */
+function truncatePath(path: string, maxLength: number = 50): string {
+  if (!path || path.length <= maxLength) return path;
+  const parts = path.split('/').filter(Boolean);
+
+  // For paths with 2 or fewer segments, use ellipsis truncation
+  if (parts.length <= 2) {
+    return path.substring(0, maxLength - 3) + '...';
+  }
+
+  const firstPart = parts[0] ?? '';
+  const lastPart = parts[parts.length - 1] ?? '';
+
+  // Build "first/.../last" format
+  const truncated = `${firstPart}/.../${lastPart}`;
+
+  // If still too long, truncate the last segment
+  if (truncated.length > maxLength) {
+    const maxLastPartLength = maxLength - firstPart.length - 7; // Account for "/.../"
+    if (maxLastPartLength > 3) {
+      return `${firstPart}/.../${lastPart.substring(0, maxLastPartLength - 3)}...`;
+    }
+    return truncated.substring(0, maxLength - 3) + '...';
+  }
+
+  return truncated;
+}
 
 interface ScanStepProps {
   libraryId: string;
@@ -25,32 +57,72 @@ export function ScanStep({ libraryId, onNext, onSkip }: ScanStepProps) {
     error: contextError,
   } = useLibraryScan();
 
+  // Track whether we've already initiated a scan for this library
+  // This prevents re-starting after the scan completes and gets cleared from activeScans
+  const scanInitiatedRef = useRef<string | null>(null);
+
+  // Store the final scan result when complete, so we keep showing it
+  // even after the scan is cleared from activeScans (after 5 second timeout)
+  const [completedScan, setCompletedScan] = useState<LibraryScanJob | null>(null);
+
   const activeScan = getActiveScan(libraryId);
-  const progress = activeScan ? getScanProgress(activeScan) : 0;
-  const stageLabel = activeScan ? getScanStageLabel(activeScan.status) : 'Preparing...';
-  const isComplete = activeScan?.status === 'complete';
-  const hasError = activeScan?.status === 'error' || (!activeScan && contextError);
+
+  // Use completed scan data if we have it and active scan was cleared
+  const displayScan = activeScan || completedScan;
+  const progress = displayScan ? getScanProgress(displayScan) : 0;
+  const stageLabel = displayScan ? getScanStageLabel(displayScan.status) : 'Preparing...';
+  const isComplete = displayScan?.status === 'complete';
+  const hasError = displayScan?.status === 'error' || (!displayScan && contextError);
+
+  // Capture the completed scan state before it gets cleared from context
+  useEffect(() => {
+    if (activeScan?.status === 'complete' && !completedScan) {
+      setCompletedScan(activeScan);
+    }
+  }, [activeScan, completedScan]);
 
   // Start scan on mount if not already running
+  // Only starts once per libraryId to prevent re-triggering after completion
   useEffect(() => {
-    if (!hasActiveScan(libraryId)) {
-      startScan(libraryId);
+    // Skip if we've already initiated a scan for this library
+    if (scanInitiatedRef.current === libraryId) {
+      return;
     }
-  }, [libraryId, hasActiveScan, startScan]);
+
+    // Skip if we already have a completed scan recorded
+    if (completedScan) {
+      scanInitiatedRef.current = libraryId;
+      return;
+    }
+
+    // Skip if there's already an active scan
+    if (hasActiveScan(libraryId)) {
+      scanInitiatedRef.current = libraryId;
+      return;
+    }
+
+    // Mark as initiated and start the scan
+    scanInitiatedRef.current = libraryId;
+    startScan(libraryId);
+  }, [libraryId, hasActiveScan, startScan, completedScan]);
 
   const getStatusMessage = () => {
     // Handle context-level error (e.g., startScan failed)
-    if (!activeScan && contextError) {
+    if (!displayScan && contextError) {
       return contextError;
     }
-    if (!activeScan) return 'Starting scan...';
+    if (!displayScan) return 'Starting scan...';
     // Display actual error message from scan job
     if (hasError) {
-      return activeScan.error || 'Scan encountered an error';
+      return displayScan.error || 'Scan encountered an error';
     }
     if (isComplete) {
-      const { discoveredFiles, seriesCreated } = activeScan;
+      const { discoveredFiles, seriesCreated } = displayScan;
       return `Found ${discoveredFiles} comic${discoveredFiles !== 1 ? 's' : ''} in ${seriesCreated} series`;
+    }
+    // Show folder progress during active scan
+    if (displayScan.foldersTotal && displayScan.foldersTotal > 0) {
+      return `${stageLabel} • Folder ${displayScan.foldersComplete || 0} of ${displayScan.foldersTotal}`;
     }
     return stageLabel;
   };
@@ -92,25 +164,41 @@ export function ScanStep({ libraryId, onNext, onSkip }: ScanStepProps) {
         </div>
 
         <div className="scan-stats">
-          {activeScan && !hasError && (
+          {displayScan && !hasError && (
             <>
               <div className="scan-stat">
-                <span className="scan-stat-value">{activeScan.discoveredFiles || 0}</span>
-                <span className="scan-stat-label">Files Found</span>
+                <span className="scan-stat-value">{displayScan.indexedFiles || 0}</span>
+                <span className="scan-stat-label">Files Processed</span>
               </div>
-              <div className="scan-stat">
-                <span className="scan-stat-value">{activeScan.seriesCreated || 0}</span>
-                <span className="scan-stat-label">Series</span>
-              </div>
-              {activeScan.coversExtracted > 0 && (
+              {(displayScan.foldersTotal ?? 0) > 0 && (
                 <div className="scan-stat">
-                  <span className="scan-stat-value">{activeScan.coversExtracted}</span>
-                  <span className="scan-stat-label">Covers</span>
+                  <span className="scan-stat-value">
+                    {displayScan.foldersComplete || 0}/{displayScan.foldersTotal}
+                  </span>
+                  <span className="scan-stat-label">Folders</span>
                 </div>
               )}
+              <div className="scan-stat">
+                <span className="scan-stat-value">{displayScan.coversExtracted || 0}</span>
+                <span className="scan-stat-label">Covers</span>
+              </div>
+              <div className="scan-stat">
+                <span className="scan-stat-value">{displayScan.seriesCreated || 0}</span>
+                <span className="scan-stat-label">Series</span>
+              </div>
             </>
           )}
         </div>
+
+        {/* Current folder being processed */}
+        {displayScan && displayScan.currentFolder && !hasError && !isComplete && (
+          <div className="scan-current-folder">
+            <span className="scan-current-folder-label">Scanning:</span>
+            <span className="scan-current-folder-path">
+              {truncatePath(displayScan.currentFolder)}
+            </span>
+          </div>
+        )}
 
         <p className="scan-hint">
           The scan will continue in the background even if you proceed to the next step.

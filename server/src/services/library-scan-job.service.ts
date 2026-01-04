@@ -348,7 +348,28 @@ export async function listScanJobsForLibrary(
 }
 
 /**
+ * Status progression order - used to prevent regression
+ * Higher index = later in workflow
+ */
+const STATUS_ORDER: Record<ScanJobStatus, number> = {
+  queued: 0,
+  discovering: 1,
+  cleaning: 2,
+  indexing: 3,
+  linking: 4,
+  covers: 5,
+  complete: 6,
+  error: 6,      // Terminal states share highest priority
+  cancelled: 6,
+};
+
+/**
  * Update scan job status
+ *
+ * IMPORTANT: This function prevents status regression to handle race conditions
+ * where multiple async callbacks may try to update status out of order.
+ * For example, if a 'complete' update finishes before an 'indexing' update,
+ * the 'indexing' update will be ignored to prevent reverting to an earlier state.
  */
 export async function updateScanJobStatus(
   jobId: string,
@@ -357,6 +378,24 @@ export async function updateScanJobStatus(
 ): Promise<void> {
   const prisma = getDatabase();
 
+  // First, check current status to prevent regression
+  const currentJob = await prisma.libraryScanJob.findUnique({
+    where: { id: jobId },
+    select: { status: true, startedAt: true },
+  });
+
+  if (!currentJob) {
+    return; // Job not found, nothing to update
+  }
+
+  const currentOrder = STATUS_ORDER[currentJob.status as ScanJobStatus] ?? 0;
+  const newOrder = STATUS_ORDER[status] ?? 0;
+
+  // Prevent status regression (don't go backwards in the workflow)
+  if (newOrder < currentOrder) {
+    return; // Skip this update - would regress status
+  }
+
   const data: Record<string, unknown> = { status };
 
   if (stage) {
@@ -364,12 +403,9 @@ export async function updateScanJobStatus(
   }
 
   if (status !== 'queued' && status !== 'complete' && status !== 'error' && status !== 'cancelled') {
-    // Starting a new stage
-    if (!data.startedAt) {
-      const job = await prisma.libraryScanJob.findUnique({ where: { id: jobId } });
-      if (job && !job.startedAt) {
-        data.startedAt = new Date();
-      }
+    // Starting a new stage - set startedAt if not already set
+    if (!currentJob.startedAt) {
+      data.startedAt = new Date();
     }
   }
 

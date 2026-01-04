@@ -586,12 +586,18 @@ export async function orchestrateScan(
 
   const emitProgress = async (awaitCallback = false) => {
     progress.elapsedMs = Date.now() - startTime;
+    // IMPORTANT: Create a snapshot of progress to avoid race conditions.
+    // The onProgress callback is async but not always awaited, so multiple
+    // callbacks can be in flight simultaneously. Without a snapshot, they
+    // would all reference the same progress object which mutates during
+    // async operations, causing mismatched stage/message values.
+    const snapshot = { ...progress };
     if (awaitCallback && options.onProgress) {
-      await options.onProgress(progress);
+      await options.onProgress(snapshot);
     } else {
-      options.onProgress?.(progress);
+      options.onProgress?.(snapshot);
     }
-    emitScanProgress(libraryId, progress);
+    emitScanProgress(libraryId, snapshot);
   };
 
   try {
