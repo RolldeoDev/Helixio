@@ -31,7 +31,10 @@ import {
 } from './metadata-approval.service.js';
 import type { MetadataSource } from './metadata-providers/types.js';
 import { LRUCache } from './lru-cache.service.js';
-import { logError, logInfo } from './logger.service.js';
+import { logError, logInfo, createServiceLogger } from './logger.service.js';
+import { sendJobError } from './sse.service.js';
+
+const logger = createServiceLogger('metadata-job');
 
 // =============================================================================
 // Types
@@ -483,6 +486,10 @@ export async function startJob(
       },
     });
     await addJobLog(jobId, 'initializing', 'Session creation failed', errorMessage, 'error');
+
+    // Broadcast error to connected clients via SSE
+    sendJobError(jobId, errorMessage);
+
     throw error;
   }
 }
@@ -987,6 +994,10 @@ export async function jobApplyChanges(
       },
     });
     await addJobLog(jobId, 'applying', 'Apply failed', errorMessage, 'error');
+
+    // Broadcast error to connected clients via SSE
+    sendJobError(jobId, errorMessage);
+
     throw error;
   }
 }
@@ -1001,8 +1012,9 @@ export async function cancelJob(jobId: string): Promise<void> {
   if (job?.session) {
     try {
       deleteSession(job.session.id);
-    } catch {
-      // Ignore errors on cancel
+    } catch (error) {
+      // Non-critical: session cleanup during cancellation
+      logger.debug({ jobId, sessionId: job.session.id, error }, 'Session deletion failed during job cancellation');
     }
   }
 
@@ -1031,8 +1043,9 @@ export async function abandonJob(jobId: string): Promise<{ success: boolean; mes
   if (job.session) {
     try {
       deleteSession(job.session.id);
-    } catch {
-      // Continue cleanup even if session deletion fails
+    } catch (error) {
+      // Non-critical: continue cleanup even if session deletion fails
+      logger.debug({ jobId, sessionId: job.session.id, error }, 'Session deletion failed during job abandonment');
     }
   }
 
@@ -1062,8 +1075,9 @@ export async function deleteJob(jobId: string): Promise<void> {
   if (job?.session) {
     try {
       deleteSession(job.session.id);
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      // Non-critical: session cleanup during deletion
+      logger.debug({ jobId, sessionId: job.session.id, error }, 'Session deletion failed during job deletion');
     }
   }
 

@@ -34,10 +34,14 @@ const router = Router();
  * POST /api/libraries/:id/scan/full
  * Start a full library scan job.
  * Returns the job ID for progress tracking.
+ *
+ * Body params:
+ * - forceFullScan: boolean (optional) - If true, skip delta detection and reprocess all files
  */
 router.post('/:id/scan/full', async (req: Request, res: Response) => {
   try {
     const libraryId = req.params.id!;
+    const forceFullScan = req.body.forceFullScan === true;
 
     // Verify library exists
     const prisma = getDatabase();
@@ -64,8 +68,8 @@ router.post('/:id/scan/full', async (req: Request, res: Response) => {
       return;
     }
 
-    // Create and enqueue the scan job
-    const jobId = await createScanJob(libraryId);
+    // Create and enqueue the scan job with options
+    const jobId = await createScanJob(libraryId, { forceFullScan });
     enqueueScanJob(jobId);
 
     // Get the job data

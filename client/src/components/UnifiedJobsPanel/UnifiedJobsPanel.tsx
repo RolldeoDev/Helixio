@@ -39,6 +39,18 @@ export function UnifiedJobsPanel() {
     localStorage.setItem('helixio:jobFilters', JSON.stringify([...visibleCategories]));
   }, [visibleCategories]);
 
+  // Listen for external events to open job details (e.g., from toast notifications)
+  useEffect(() => {
+    const handleOpenJobDetails = (event: CustomEvent<{ type: UnifiedJobType; id: string }>) => {
+      setSelectedJob({ type: event.detail.type, id: event.detail.id });
+    };
+
+    window.addEventListener('open-job-details', handleOpenJobDetails as EventListener);
+    return () => {
+      window.removeEventListener('open-job-details', handleOpenJobDetails as EventListener);
+    };
+  }, []);
+
   // Map job types to filter categories
   const getJobCategory = useCallback((type: string): FilterCategory | null => {
     switch (type) {

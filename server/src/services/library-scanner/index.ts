@@ -49,11 +49,12 @@ export async function scanLibrary(
 
     logger.info({ libraryId, rootPath: library.rootPath }, 'Starting library scan');
 
-    // Phase 1: Discovery
+    // Phase 1: Discovery (with delta scanning unless forceFullScan is true)
     result.phases.discovery = await discoverFiles(libraryId, library.rootPath, {
       onProgress,
       shouldCancel: options.shouldCancel,
       batchSize: options.batchSize,
+      forceFullScan: options.forceFullScan,
     });
 
     if (options.shouldCancel?.()) {

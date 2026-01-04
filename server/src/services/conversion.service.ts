@@ -538,10 +538,10 @@ export async function findConvertibleFiles(libraryId: string): Promise<{
     },
   });
 
-  const totalSize = cbrFiles.reduce((sum, f) => sum + f.size, 0);
+  const totalSize = cbrFiles.reduce((sum, f) => sum + Number(f.size), 0);
 
   return {
-    files: cbrFiles,
+    files: cbrFiles.map((f) => ({ ...f, size: Number(f.size) })),
     total: cbrFiles.length,
     totalSize,
   };

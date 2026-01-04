@@ -58,6 +58,7 @@ import {
   bulkMarkSeriesUnread,
   findEmptySeries,
   cleanupEmptySeries,
+  purgeDeletedSeries,
   SeriesListOptions,
   type UnifiedGridOptions,
   type DuplicateConfidence,
@@ -1869,6 +1870,21 @@ router.post('/admin/cleanup-empty', asyncHandler(async (_req: Request, res: Resp
 router.get('/admin/deleted', asyncHandler(async (_req: Request, res: Response) => {
   const deleted = await getDeletedSeries();
   sendSuccess(res, { series: deleted, count: deleted.length });
+}));
+
+/**
+ * POST /api/series/admin/purge-deleted
+ * Permanently delete all soft-deleted series.
+ * This hard deletes series and cleans up related data (CollectionItem, SeriesSimilarity).
+ */
+router.post('/admin/purge-deleted', asyncHandler(async (_req: Request, res: Response) => {
+  logger.info('Starting purge of soft-deleted series');
+  const result = await purgeDeletedSeries();
+  logger.info(
+    { deletedCount: result.deletedCount, collectionItems: result.cleanedCollectionItems, similarities: result.cleanedSimilarities },
+    'Soft-deleted series purge complete'
+  );
+  sendSuccess(res, result);
 }));
 
 /**

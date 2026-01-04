@@ -74,7 +74,7 @@ export async function generateRenamePreview(fileIds: string[]): Promise<BatchPre
   for (const file of files) {
     const folderPath = dirname(file.path);
     affectedFolders.add(folderPath);
-    totalSize += file.size;
+    totalSize += Number(file.size);
 
     const warnings: string[] = [];
 
@@ -206,7 +206,7 @@ export async function generateMovePreview(
   for (const file of files) {
     const sourceFolder = dirname(file.path);
     sourceFolders.add(sourceFolder);
-    totalSize += file.size;
+    totalSize += Number(file.size);
 
     const warnings: string[] = [];
     if (destWarning) {
@@ -296,7 +296,7 @@ export async function generateMetadataUpdatePreview(
 
   for (const file of files) {
     affectedFolders.add(dirname(file.path));
-    totalSize += file.size;
+    totalSize += Number(file.size);
 
     try {
       // Read current metadata
@@ -404,7 +404,7 @@ export async function generateDeletePreview(fileIds: string[]): Promise<BatchPre
 
     // Check if file exists
     const exists = existsSync(file.path);
-    let fileSize = file.size;
+    let fileSize = Number(file.size);
 
     if (exists) {
       try {
@@ -491,7 +491,7 @@ export async function generateConversionPreview(libraryId: string): Promise<Batc
 
   for (const file of files) {
     affectedFolders.add(dirname(file.path));
-    totalSize += file.size;
+    totalSize += Number(file.size);
 
     const newFilename = file.filename.replace(/\.cbr$/i, '.cbz');
     const newPath = join(dirname(file.path), newFilename);

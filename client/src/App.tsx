@@ -23,6 +23,7 @@ import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { ToastProvider } from './contexts/ToastContext';
 import { Toast } from './components/Toast';
+import { JobFailureNotifier } from './components/JobFailureNotifier';
 import { ConfirmModalProvider } from './components/ConfirmModal';
 import { DownloadProvider } from './contexts/DownloadContext';
 import { BreadcrumbProvider } from './contexts/BreadcrumbContext';
@@ -458,6 +459,8 @@ function App() {
                                 <AppContent />
                                 {/* Toast notifications */}
                                 <Toast />
+                                {/* Job failure notifications */}
+                                <JobFailureNotifier />
                                 {/* Achievement notifications */}
                                 <AchievementToast />
                                 {/* Download notifications */}

@@ -23,7 +23,7 @@ const concurrencyCache = new Map<'io' | 'cpu', number>();
  *               'cpu' for CPU-bound operations (Sharp image processing)
  * @returns Optimal concurrency value
  *
- * For I/O-bound operations: Higher concurrency (2x CPU cores, max 8)
+ * For I/O-bound operations: Higher concurrency (2x CPU cores, max 16)
  * For CPU-bound operations: Match CPU cores minus 1 (leave headroom)
  */
 export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
@@ -37,7 +37,8 @@ export function getOptimalConcurrency(type: 'io' | 'cpu' = 'io'): number {
   if (type === 'io') {
     // I/O-bound operations can handle higher concurrency
     // because they spend most time waiting for disk/network
-    concurrency = Math.min(cpuCount * 2, 8);
+    // Modern SSDs benefit from higher parallelism (cap at 16)
+    concurrency = Math.min(cpuCount * 2, 16);
   } else {
     // CPU-bound operations should not exceed available cores
     // Leave 1 core free for OS and other processes

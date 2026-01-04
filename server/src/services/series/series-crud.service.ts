@@ -1195,6 +1195,75 @@ export async function cleanupEmptySeries(): Promise<{
   };
 }
 
+/**
+ * Permanently delete (hard delete) all soft-deleted series.
+ * This also cleans up:
+ * - CollectionItem records referencing these series
+ * - SeriesSimilarity records referencing these series
+ * Returns the count of series that were permanently deleted.
+ */
+export async function purgeDeletedSeries(): Promise<{
+  deletedCount: number;
+  seriesNames: string[];
+  cleanedCollectionItems: number;
+  cleanedSimilarities: number;
+}> {
+  const db = getDatabase();
+
+  // Find all soft-deleted series
+  const deletedSeries = await db.series.findMany({
+    where: { deletedAt: { not: null } },
+    select: { id: true, name: true },
+  });
+
+  if (deletedSeries.length === 0) {
+    return {
+      deletedCount: 0,
+      seriesNames: [],
+      cleanedCollectionItems: 0,
+      cleanedSimilarities: 0,
+    };
+  }
+
+  const seriesIds = deletedSeries.map((s) => s.id);
+  const seriesNames = deletedSeries.map((s) => s.name);
+
+  // Use a transaction to ensure consistency
+  const result = await db.$transaction(async (tx) => {
+    // 1. Delete CollectionItem records referencing these series
+    const collectionItemResult = await tx.collectionItem.deleteMany({
+      where: { seriesId: { in: seriesIds } },
+    });
+
+    // 2. Delete SeriesSimilarity records referencing these series
+    const similarityResult = await tx.seriesSimilarity.deleteMany({
+      where: {
+        OR: [
+          { sourceSeriesId: { in: seriesIds } },
+          { targetSeriesId: { in: seriesIds } },
+        ],
+      },
+    });
+
+    // 3. Hard delete all soft-deleted series (cascades to related records)
+    await tx.series.deleteMany({
+      where: { id: { in: seriesIds } },
+    });
+
+    return {
+      cleanedCollectionItems: collectionItemResult.count,
+      cleanedSimilarities: similarityResult.count,
+    };
+  });
+
+  return {
+    deletedCount: deletedSeries.length,
+    seriesNames,
+    cleanedCollectionItems: result.cleanedCollectionItems,
+    cleanedSimilarities: result.cleanedSimilarities,
+  };
+}
+
 // =============================================================================
 // Series Visibility (Hidden Flag)
 // =============================================================================

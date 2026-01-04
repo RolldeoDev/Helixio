@@ -42,6 +42,7 @@ import {
   RenameFolderSchema,
 } from '../schemas/library.schemas.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
+import { deleteLibraryWithCleanup } from '../services/library/library-cleanup.service.js';
 
 const router = Router();
 
@@ -417,32 +418,57 @@ router.patch('/:id',
 
 /**
  * DELETE /api/libraries/:id
- * Delete a library (files remain on disk, only DB records removed)
+ * Delete a library with comprehensive cleanup.
+ *
+ * Cleanup includes:
+ * - File system caches (covers, thumbnails)
+ * - Batch operations, user access records
+ * - API key scopes, smart collection flags
+ * - Orphaned series (soft delete)
+ * - Series similarity records
+ *
+ * Files on disk are NOT removed.
  */
 router.delete('/:id', requireAdmin, asyncHandler(async (req: Request, res: Response) => {
-  const db = getDatabase();
+  const libraryId = req.params.id;
 
-  // Check library exists
-  const existing = await db.library.findUnique({
-    where: { id: req.params.id },
-  });
-
-  if (!existing) {
-    sendNotFound(res, 'Library not found');
+  if (!libraryId) {
+    sendBadRequest(res, 'Library ID is required');
     return;
   }
 
-  // Delete library (cascades to ComicFile records via Prisma)
-  await db.library.delete({
-    where: { id: req.params.id },
-  });
+  try {
+    const result = await deleteLibraryWithCleanup({ libraryId });
 
-  logger.info({ libraryId: req.params.id }, 'Deleted library');
-  sendSuccess(res, {
-    message: 'Library deleted',
-    id: req.params.id,
-    note: 'Files on disk were not removed',
-  });
+    logger.info({ libraryId, stats: result.summary }, 'Deleted library with cleanup');
+
+    // Use 207 Multi-Status if there were errors but deletion succeeded
+    const statusCode = result.success ? 200 : 207;
+
+    sendSuccess(
+      res,
+      {
+        message: result.success ? 'Library deleted successfully' : 'Library deleted with some errors',
+        id: result.libraryId,
+        libraryName: result.libraryName,
+        note: 'Files on disk were not removed',
+        cleanup: {
+          durationMs: result.totalDurationMs,
+          steps: result.steps,
+          summary: result.summary,
+        },
+      },
+      undefined, // meta
+      statusCode
+    );
+  } catch (error) {
+    // Handle "Library not found" specifically
+    if (error instanceof Error && error.message.includes('not found')) {
+      sendNotFound(res, 'Library not found');
+      return;
+    }
+    throw error;
+  }
 }));
 
 // =============================================================================

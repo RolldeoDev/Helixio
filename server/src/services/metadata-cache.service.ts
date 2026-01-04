@@ -244,6 +244,127 @@ export async function refreshMetadataCache(fileId: string): Promise<boolean> {
 }
 
 /**
+ * Batch upsert metadata for multiple files in a single transaction.
+ * More efficient than individual upserts during library scans.
+ *
+ * Performance optimization: Reuses cached page counts from previous scans
+ * to avoid expensive archive extraction when page count hasn't changed.
+ *
+ * @param items Array of files with their extracted metadata
+ * @returns Result with success status and count of processed items
+ */
+export async function batchUpsertFileMetadata(
+  items: Array<{
+    fileId: string;
+    comicInfo: ComicInfo;
+    filename: string;
+    archivePath: string;
+  }>
+): Promise<{ success: boolean; count: number; error?: string }> {
+  if (items.length === 0) {
+    return { success: true, count: 0 };
+  }
+
+  try {
+    const prisma = getDatabase();
+
+    // Fetch existing metadata to reuse cached page counts (avoids archive extraction)
+    const fileIds = items.map((item) => item.fileId);
+    const existingMetadata = await prisma.fileMetadata.findMany({
+      where: { comicId: { in: fileIds } },
+      select: { comicId: true, pageCount: true },
+    });
+    const cachedPageCounts = new Map(
+      existingMetadata.map((m) => [m.comicId, m.pageCount])
+    );
+
+    // First, prepare all metadata (this may involve async page count extraction)
+    const preparedItems = await Promise.all(
+      items.map(async ({ fileId, comicInfo, filename, archivePath }) => {
+        // Determine page count - check ComicInfo, then cached DB value, then extract from archive
+        let pageCount = comicInfo.PageCount || null;
+        if (!pageCount) {
+          // Check if we have a cached page count from previous scan
+          const cached = cachedPageCounts.get(fileId);
+          if (cached != null) {
+            pageCount = cached;
+          } else {
+            // No cached value - extract from archive
+            pageCount = await getPageCountFromArchive(archivePath);
+          }
+        }
+
+        // Determine format
+        const format = classifyAndGetFormatLabel(filename, pageCount, comicInfo.Format);
+
+        // Prepare metadata data
+        const issueNumber = comicInfo.Number || null;
+        const metadataData = {
+          series: comicInfo.Series || null,
+          number: issueNumber,
+          issueNumberSort: computeIssueNumberSort(issueNumber),
+          title: comicInfo.Title || null,
+          volume: comicInfo.Volume || null,
+          publisher: comicInfo.Publisher || null,
+          imprint: comicInfo.Imprint || null,
+          year: comicInfo.Year || null,
+          month: comicInfo.Month || null,
+          day: comicInfo.Day || null,
+          writer: comicInfo.Writer || null,
+          penciller: comicInfo.Penciller || null,
+          inker: comicInfo.Inker || null,
+          colorist: comicInfo.Colorist || null,
+          letterer: comicInfo.Letterer || null,
+          coverArtist: comicInfo.CoverArtist || null,
+          editor: comicInfo.Editor || null,
+          summary: comicInfo.Summary || null,
+          genre: comicInfo.Genre || null,
+          tags: comicInfo.Tags || null,
+          characters: comicInfo.Characters || null,
+          teams: comicInfo.Teams || null,
+          locations: comicInfo.Locations || null,
+          count: comicInfo.Count || null,
+          storyArc: comicInfo.StoryArc || null,
+          seriesGroup: comicInfo.SeriesGroup || null,
+          pageCount: pageCount,
+          languageISO: comicInfo.LanguageISO || null,
+          format: format,
+          ageRating: comicInfo.AgeRating || null,
+          lastScanned: new Date(),
+        };
+
+        return { fileId, metadataData };
+      })
+    );
+
+    // Execute all upserts in a single transaction
+    await prisma.$transaction(
+      preparedItems.map(({ fileId, metadataData }) =>
+        prisma.fileMetadata.upsert({
+          where: { comicId: fileId },
+          update: metadataData,
+          create: {
+            comicId: fileId,
+            ...metadataData,
+          },
+        })
+      )
+    );
+
+    return {
+      success: true,
+      count: items.length,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      count: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/**
  * Delete cached metadata for a file.
  */
 export async function deleteCachedMetadata(fileId: string): Promise<boolean> {

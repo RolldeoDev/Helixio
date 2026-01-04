@@ -1119,7 +1119,7 @@ export async function getEnhancedLibraryOverview(libraryId?: string): Promise<En
     totalSeries: seriesCount,
     totalVolumes: volumeCount,
     totalFiles: fileStats._count.id,
-    totalSizeBytes: fileStats._sum.size ?? 0,
+    totalSizeBytes: Number(fileStats._sum.size ?? 0),
     totalGenres: uniqueGenres.size,
     totalTags: uniqueTags.size,
     totalPeople: creatorCount,

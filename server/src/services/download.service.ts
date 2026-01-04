@@ -155,7 +155,7 @@ export async function estimateDownloadSize(fileIds: string[]): Promise<DownloadE
       return {
         id: file.id,
         filename: file.filename,
-        size: file.size,
+        size: Number(file.size),
         exists,
       };
     })
@@ -522,7 +522,7 @@ export async function streamSingleFile(
   // Set headers
   const contentType = getContentType(file.filename);
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Length', file.size);
+  res.setHeader('Content-Length', Number(file.size));
   res.setHeader(
     'Content-Disposition',
     `attachment; filename="${encodeURIComponent(file.filename)}"`
@@ -608,7 +608,7 @@ export async function createDownloadZip(
   };
 
   // Estimate total parts for naming
-  const totalEstimatedSize = files.reduce((sum, f) => sum + f.size, 0);
+  const totalEstimatedSize = files.reduce((sum, f) => sum + Number(f.size), 0);
   const estimatedParts = splitEnabled ? Math.ceil(totalEstimatedSize / splitSize) : 1;
 
   // Start first archive
@@ -653,7 +653,7 @@ export async function createDownloadZip(
     }
 
     // Check if we need to start a new part
-    if (splitEnabled && currentPartSize + file.size > splitSize && currentPartSize > 0) {
+    if (splitEnabled && currentPartSize + Number(file.size) > splitSize && currentPartSize > 0) {
       // Finalize current archive
       await archive.finalize();
       await new Promise<void>((resolve) => output.on('close', resolve));
@@ -683,7 +683,7 @@ export async function createDownloadZip(
     // Add file to archive
     try {
       archive.file(file.path, { name: file.filename });
-      currentPartSize += file.size;
+      currentPartSize += Number(file.size);
       filesAdded++;
       partEndFileNum = filesAdded;
       onProgress?.(i + 1, files.length, `Adding: ${file.filename}`);

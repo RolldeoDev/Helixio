@@ -620,7 +620,7 @@ interface ComicWithMetadata {
   filename: string;
   path: string;
   extension: string;
-  size: number;
+  size: bigint;
   createdAt: Date;
   updatedAt: Date;
   metadata?: {

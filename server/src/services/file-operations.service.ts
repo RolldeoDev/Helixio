@@ -919,7 +919,7 @@ export async function verifyFile(fileId: string): Promise<{
   try {
     const stats = await stat(file.path);
     const exists = true;
-    const sizeMatch = stats.size === file.size;
+    const sizeMatch = stats.size === Number(file.size);
 
     let hashMatch: boolean | null = null;
     if (file.hash) {
