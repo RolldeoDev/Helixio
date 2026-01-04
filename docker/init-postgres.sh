@@ -148,17 +148,37 @@ wait_ready() {
 setup_database() {
     echo "Setting up Helixio database..."
 
+    # Use -U postgres to override any PGUSER environment variable
+    # This ensures we connect as the postgres superuser for admin tasks
+
+    # Create helixio role if it doesn't exist
+    # This role is used by the application to connect to the database
+    # Connect to 'postgres' database for admin operations before app database exists
+    if gosu "$POSTGRES_USER" psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='helixio'" | grep -q 1; then
+        echo "PostgreSQL role 'helixio' already exists"
+    else
+        echo "Creating PostgreSQL role 'helixio'..."
+        gosu "$POSTGRES_USER" psql -U postgres -d postgres -c "CREATE ROLE helixio WITH LOGIN CREATEDB;"
+    fi
+
     # Check if database exists using safe query
-    if gosu "$POSTGRES_USER" psql -d "$PGDATABASE" -c '\q' 2>/dev/null; then
+    if gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c '\q' 2>/dev/null; then
         echo "Database '$PGDATABASE' already exists"
     else
         echo "Creating database '$PGDATABASE'..."
-        gosu "$POSTGRES_USER" createdb "$PGDATABASE"
+        gosu "$POSTGRES_USER" createdb -U postgres -O helixio "$PGDATABASE"
     fi
 
     # Enable CITEXT extension for case-insensitive text
     echo "Enabling CITEXT extension..."
-    gosu "$POSTGRES_USER" psql -d "$PGDATABASE" -c "CREATE EXTENSION IF NOT EXISTS citext;"
+    gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c "CREATE EXTENSION IF NOT EXISTS citext;"
+
+    # Ensure helixio role has necessary privileges
+    echo "Granting privileges to 'helixio' role..."
+    gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c "GRANT ALL PRIVILEGES ON DATABASE $PGDATABASE TO helixio;"
+    gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c "GRANT ALL PRIVILEGES ON SCHEMA public TO helixio;"
+    gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO helixio;"
+    gosu "$POSTGRES_USER" psql -U postgres -d "$PGDATABASE" -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO helixio;"
 
     echo "Database setup complete"
 }
