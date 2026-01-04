@@ -185,45 +185,63 @@ describe('Series Service', () => {
   });
 
   describe('getSeriesByIdentity', () => {
-    it('should find series by name and publisher (case-insensitive)', async () => {
-      // New implementation uses findMany and filters in JS for case-insensitive matching
-      mockDb.series.findMany.mockResolvedValue([
+    it('should find series by name and publisher', async () => {
+      // Implementation uses findFirst with direct query (CITEXT handles case-insensitivity)
+      mockDb.series.findFirst.mockResolvedValue(
         createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      ]);
+      );
 
       const series = await getSeriesByIdentity('Batman', 2011, 'DC Comics');
 
       expect(series).not.toBeNull();
       expect(series?.name).toBe('Batman');
-      expect(mockDb.series.findMany).toHaveBeenCalled();
+      expect(mockDb.series.findFirst).toHaveBeenCalledWith({
+        where: {
+          name: 'Batman',
+          publisher: 'DC Comics',
+          deletedAt: null,
+        },
+      });
     });
 
     it('should ignore year parameter (identity is name + publisher only)', async () => {
-      // New implementation uses findMany and filters in JS for case-insensitive matching
-      mockDb.series.findMany.mockResolvedValue([
+      // Year is passed but not used in the query
+      mockDb.series.findFirst.mockResolvedValue(
         createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      ]);
+      );
 
       const series = await getSeriesByIdentity('Batman', 2020, 'DC Comics');
 
       expect(series).not.toBeNull();
-      expect(mockDb.series.findMany).toHaveBeenCalled();
+      // Verify year is not included in the where clause
+      expect(mockDb.series.findFirst).toHaveBeenCalledWith({
+        where: {
+          name: 'Batman',
+          publisher: 'DC Comics',
+          deletedAt: null,
+        },
+      });
     });
 
-    it('should match case-insensitively', async () => {
-      // New implementation does case-insensitive matching in JS
-      mockDb.series.findMany.mockResolvedValue([
-        createMockSeriesRecord({ name: 'BATMAN', publisher: 'DC COMICS' })
-      ]);
+    it('should handle null publisher', async () => {
+      mockDb.series.findFirst.mockResolvedValue(
+        createMockSeriesRecord({ name: 'Batman', publisher: null })
+      );
 
-      const series = await getSeriesByIdentity('batman', 2011, 'dc comics');
+      const series = await getSeriesByIdentity('Batman', 2011, null);
 
       expect(series).not.toBeNull();
-      expect(series?.name).toBe('BATMAN');
+      expect(mockDb.series.findFirst).toHaveBeenCalledWith({
+        where: {
+          name: 'Batman',
+          publisher: null,
+          deletedAt: null,
+        },
+      });
     });
 
     it('should return null when no match found', async () => {
-      mockDb.series.findMany.mockResolvedValue([]);
+      mockDb.series.findFirst.mockResolvedValue(null);
 
       const series = await getSeriesByIdentity('NonExistent', null, null);
 

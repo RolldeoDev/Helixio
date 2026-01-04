@@ -1,10 +1,26 @@
 #!/bin/bash
 set -e
 
+#
+# Helixio Docker Entrypoint
+#
+# This script initializes and manages the Helixio application with embedded PostgreSQL.
+# It handles:
+# - User/group permissions for volume access
+# - PostgreSQL initialization and startup
+# - Prisma migrations
+# - Application startup
+# - Graceful shutdown of both PostgreSQL and Node.js
+#
+
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
 echo "Starting Helixio with UID:${PUID} GID:${PGID}"
+
+# =============================================================================
+# User/Group ID Configuration
+# =============================================================================
 
 # Update user/group IDs if different from default
 if [ "$PUID" != "1000" ] || [ "$PGID" != "1000" ]; then
@@ -12,18 +28,25 @@ if [ "$PUID" != "1000" ] || [ "$PGID" != "1000" ]; then
     usermod -o -u "$PUID" helixio 2>/dev/null || true
 fi
 
-# Initialize directory structure
+# =============================================================================
+# Directory Structure Initialization
+# =============================================================================
+
 HELIXIO_DIR="/config/.helixio"
 mkdir -p "$HELIXIO_DIR"/{logs,cache/covers,cache/series/comicvine,cache/series/metron,cache/series-covers,cache/thumbnails}
 
-# Set ownership
+# PostgreSQL data directory
+export PGDATA="/config/pgdata"
+export PGUSER="helixio"
+export PGDATABASE="helixio"
+mkdir -p "$PGDATA"
+
+# Set ownership (helixio owns app data, postgres owns pgdata)
 chown -R helixio:helixio /config /app
+chown -R postgres:postgres "$PGDATA" /var/run/postgresql
 
 # =============================================================================
 # Cookie Security handling
-# =============================================================================
-# Default COOKIE_SECURE to false for Docker deployments accessed via HTTP.
-# Users with HTTPS reverse proxy can set COOKIE_SECURE=true.
 # =============================================================================
 
 if [ -z "$COOKIE_SECURE" ]; then
@@ -34,23 +57,14 @@ fi
 # =============================================================================
 # API_KEY_SECRET handling
 # =============================================================================
-# API_KEY_SECRET is required for secure API key authentication.
-# Priority:
-#   1. Environment variable (if set by user)
-#   2. Persisted secret file (auto-generated on first run)
-#
-# This ensures API keys remain valid across container restarts.
-# =============================================================================
 
 SECRET_FILE="${HELIXIO_DIR}/.api_key_secret"
 
 if [ -z "$API_KEY_SECRET" ]; then
-    # No environment variable set, check for persisted secret
     if [ -f "$SECRET_FILE" ]; then
         echo "Loading API_KEY_SECRET from persisted file"
         export API_KEY_SECRET=$(cat "$SECRET_FILE")
     else
-        # Generate a new secret and persist it
         echo "Generating new API_KEY_SECRET (first run)"
         NEW_SECRET=$(openssl rand -hex 32)
         echo -n "$NEW_SECRET" > "$SECRET_FILE"
@@ -60,7 +74,6 @@ if [ -z "$API_KEY_SECRET" ]; then
     fi
 else
     echo "Using API_KEY_SECRET from environment variable"
-    # Optionally persist the env var secret so it survives if the env var is removed
     if [ ! -f "$SECRET_FILE" ]; then
         echo -n "$API_KEY_SECRET" > "$SECRET_FILE"
         chmod 600 "$SECRET_FILE"
@@ -69,22 +82,99 @@ else
 fi
 
 # =============================================================================
-# Database setup
+# PostgreSQL Setup
 # =============================================================================
 
-export DATABASE_URL="file:${HELIXIO_DIR}/helixio.db"
+export HELIXIO_DIR  # Pass to init-postgres.sh for log path
+
+echo "Initializing PostgreSQL..."
+/docker/init-postgres.sh init
+
+echo "Starting PostgreSQL..."
+/docker/init-postgres.sh start
+
+echo "Waiting for PostgreSQL to be ready..."
+if ! /docker/init-postgres.sh wait 30; then
+    echo "ERROR: PostgreSQL failed to become ready"
+    /docker/init-postgres.sh stop
+    exit 1
+fi
+
+echo "Setting up database..."
+/docker/init-postgres.sh setup
+
+# =============================================================================
+# Database URL Configuration
+# =============================================================================
+
+export DATABASE_URL="postgresql://${PGUSER}@localhost:5432/${PGDATABASE}"
+echo "DATABASE_URL configured for PostgreSQL"
+
+# =============================================================================
+# Prisma Migrations
+# =============================================================================
+
 cd /app/server
 
-# Run database migrations
-gosu helixio npx prisma migrate deploy 2>/dev/null || \
-    gosu helixio npx prisma db push --skip-generate 2>/dev/null || true
+echo "Running Prisma migrations..."
+if ! gosu helixio npx prisma migrate deploy 2>/dev/null; then
+    echo "WARN: Prisma migrate deploy failed, attempting db push..."
+    if ! gosu helixio npx prisma db push --skip-generate 2>/dev/null; then
+        echo "ERROR: Database schema sync failed"
+        /docker/init-postgres.sh stop
+        exit 1
+    fi
+fi
 
-# Generate Prisma client (required because npm ci may overwrite the pre-built client)
 echo "Generating Prisma client..."
 gosu helixio npx prisma generate
 
-# Start application
-# Export HOME explicitly to ensure app uses /config for data storage
-# (gosu normally resets HOME based on user's passwd entry)
+# =============================================================================
+# Signal Handling for Graceful Shutdown
+# =============================================================================
+
+NODE_PID=""
+
+shutdown() {
+    echo ""
+    echo "Received shutdown signal, cleaning up..."
+
+    # Stop Node.js application
+    if [ -n "$NODE_PID" ] && kill -0 "$NODE_PID" 2>/dev/null; then
+        echo "Stopping Node.js application..."
+        kill -TERM "$NODE_PID" 2>/dev/null || true
+        wait "$NODE_PID" 2>/dev/null || true
+    fi
+
+    # Stop PostgreSQL
+    echo "Stopping PostgreSQL..."
+    /docker/init-postgres.sh stop
+
+    echo "Shutdown complete"
+    exit 0
+}
+
+trap shutdown TERM INT
+
+# =============================================================================
+# Start Application
+# =============================================================================
+
 cd /app
-exec gosu helixio env HOME=/config "$@"
+echo "Starting Helixio application..."
+
+# Start Node.js in background to allow signal handling
+gosu helixio env HOME=/config "$@" &
+NODE_PID=$!
+
+# Wait for the application to exit
+wait $NODE_PID
+EXIT_CODE=$?
+
+# If we get here, the app exited on its own (not from signal)
+echo "Application exited with code $EXIT_CODE"
+
+# Clean up PostgreSQL
+/docker/init-postgres.sh stop
+
+exit $EXIT_CODE

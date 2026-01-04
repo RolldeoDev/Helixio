@@ -3,6 +3,9 @@
  *
  * Manages the ~/.helixio/ application data directory structure.
  * All application state (database, config, cache) is stored here.
+ *
+ * In Docker, PostgreSQL data is stored at /config/pgdata and the
+ * DATABASE_URL is set by the entrypoint script.
  */
 
 import { existsSync, mkdirSync } from 'fs';
@@ -22,17 +25,33 @@ export function getAppDataDir(): string {
 }
 
 /**
- * Get the path to the SQLite database
+ * Get the path to the PostgreSQL data directory (Docker only)
+ * Returns null for non-Docker environments
  */
-export function getDatabasePath(): string {
-  return join(getAppDataDir(), 'helixio.db');
+export function getPostgresDataDir(): string | null {
+  // In Docker, HOME=/config, so pgdata is at /config/pgdata
+  if (process.env.HOME === '/config') {
+    return '/config/pgdata';
+  }
+  return null;
 }
 
 /**
- * Get the database URL for Prisma (file: protocol)
+ * Get the database URL for Prisma
+ *
+ * Priority:
+ * 1. DATABASE_URL environment variable (Docker sets this)
+ * 2. Default PostgreSQL connection for local development
  */
 export function getDatabaseUrl(): string {
-  return `file:${getDatabasePath()}`;
+  // Docker entrypoint sets DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    return process.env.DATABASE_URL;
+  }
+
+  // Local development: use default PostgreSQL connection
+  // Developers should have PostgreSQL running locally or use Docker
+  return 'postgresql://helixio:helixio@localhost:5432/helixio';
 }
 
 /**
@@ -191,10 +210,11 @@ export function appDataExists(): boolean {
 /**
  * Get all application paths for debugging/logging
  */
-export function getAllPaths(): Record<string, string> {
+export function getAllPaths(): Record<string, string | null> {
   return {
     appDataDir: getAppDataDir(),
-    database: getDatabasePath(),
+    databaseUrl: getDatabaseUrl(),
+    postgresDataDir: getPostgresDataDir(),
     config: getConfigPath(),
     logs: getLogsDir(),
     cache: getCacheDir(),
@@ -209,11 +229,11 @@ export const paths = {
   get appData() {
     return getAppDataDir();
   },
-  get database() {
-    return getDatabasePath();
-  },
   get databaseUrl() {
     return getDatabaseUrl();
+  },
+  get postgresDataDir() {
+    return getPostgresDataDir();
   },
   get config() {
     return getConfigPath();

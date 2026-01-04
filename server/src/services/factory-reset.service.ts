@@ -22,7 +22,7 @@ import {
   getThumbnailsDir,
   getAvatarsDir,
   getLogsDir,
-  getDatabasePath,
+  getPostgresDataDir,
   getConfigPath,
 } from './app-paths.service.js';
 import {
@@ -106,7 +106,7 @@ const LEVEL_2_TABLES = [
   'UserStat',
 ];
 
-// Level 3 deletes the entire database file
+// Level 3 resets the entire database (clears all tables)
 
 // =============================================================================
 // Helper Functions
@@ -343,14 +343,17 @@ async function clearKeychain(): Promise<boolean> {
 }
 
 /**
- * Delete all database files (main DB + WAL + SHM)
+ * Delete PostgreSQL data directory
+ *
+ * NOTE: This will completely destroy the PostgreSQL database.
+ * In Docker, this deletes /config/pgdata which will be re-initialized on restart.
+ * In development, this returns null (PostgreSQL is managed externally).
  */
-async function deleteDatabaseFiles(): Promise<{ deleted: string[]; freedBytes: number }> {
+async function deletePostgresData(): Promise<{ deleted: string[]; freedBytes: number }> {
   const deleted: string[] = [];
   let freedBytes = 0;
 
-  const dbPath = getDatabasePath();
-  const dbFiles = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`];
+  const pgDataDir = getPostgresDataDir();
 
   // Disconnect from database first
   try {
@@ -362,16 +365,19 @@ async function deleteDatabaseFiles(): Promise<{ deleted: string[]; freedBytes: n
     configLogger.warn({ error }, 'Error disconnecting from database');
   }
 
-  for (const file of dbFiles) {
+  // Only delete PostgreSQL data directory in Docker environment
+  if (pgDataDir && existsSync(pgDataDir)) {
     try {
-      const result = await deleteFile(file, `Database: ${file.split('/').pop()}`);
+      const result = await deleteDirectory(pgDataDir, 'PostgreSQL data directory');
       if (result.deleted) {
-        deleted.push(file.split('/').pop() || file);
+        deleted.push('PostgreSQL data directory');
         freedBytes += result.freedBytes;
       }
     } catch (error) {
-      configLogger.warn({ error, file }, 'Failed to delete database file');
+      configLogger.warn({ error }, 'Failed to delete PostgreSQL data directory');
     }
+  } else {
+    configLogger.info('PostgreSQL is managed externally, not deleting data');
   }
 
   return { deleted, freedBytes };
@@ -435,17 +441,19 @@ export async function getResetPreview(level: ResetLevel): Promise<ResetPreview> 
 
   // Level 3: Additional files
   if (level >= 3) {
-    // Database
-    const dbPath = getDatabasePath();
-    const dbExists = existsSync(dbPath);
-    const dbSize = dbExists ? (await stat(dbPath)).size : 0;
-    directories.push({
-      path: dbPath,
-      displayPath: formatPathForDisplay(dbPath),
-      sizeBytes: dbSize,
-      exists: dbExists,
-    });
-    estimatedSizeBytes += dbSize;
+    // PostgreSQL data directory (only in Docker)
+    const pgDataDir = getPostgresDataDir();
+    if (pgDataDir) {
+      const pgExists = existsSync(pgDataDir);
+      const pgSize = pgExists ? await getDirectorySize(pgDataDir) : 0;
+      directories.push({
+        path: pgDataDir,
+        displayPath: formatPathForDisplay(pgDataDir),
+        sizeBytes: pgSize,
+        exists: pgExists,
+      });
+      estimatedSizeBytes += pgSize;
+    }
 
     // Config
     const configPath = getConfigPath();
@@ -568,8 +576,8 @@ export async function performReset(options: ResetOptions): Promise<ResetResult> 
       }
 
       // Delete database (this must be last!)
-      const dbResult = await deleteDatabaseFiles();
-      deletedItems.push(...dbResult.deleted.map((f) => `Database file: ${f}`));
+      const dbResult = await deletePostgresData();
+      deletedItems.push(...dbResult.deleted);
       freedBytes += dbResult.freedBytes;
       clearedTables.push('ALL TABLES');
     }

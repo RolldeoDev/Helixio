@@ -38,7 +38,7 @@ export async function searchSeries(
 /**
  * Get a Series by its unique identity (name + publisher only).
  * Year is not part of the identity to avoid splitting multi-year runs.
- * Uses case-insensitive comparison for both name and publisher.
+ * Uses case-insensitive comparison for both name and publisher (via PostgreSQL CITEXT).
  * Excludes soft-deleted series by default.
  */
 export async function getSeriesByIdentity(
@@ -49,24 +49,14 @@ export async function getSeriesByIdentity(
 ): Promise<Series | null> {
   const db = getDatabase();
 
-  // Use case-insensitive search with mode: 'insensitive' for SQLite compatibility
-  // For SQLite, we use a raw query approach with LOWER() function
-  const results = await db.series.findMany({
+  // CITEXT columns in PostgreSQL handle case-insensitive comparison natively
+  return db.series.findFirst({
     where: {
+      name,
+      publisher: publisher ?? null,
       deletedAt: includeDeleted ? undefined : null,
     },
   });
-
-  // Filter in JS using case-insensitive comparison
-  const normalizedName = name.toLowerCase();
-  const normalizedPublisher = publisher?.toLowerCase() ?? null;
-
-  return results.find((s) => {
-    const seriesNameMatch = s.name.toLowerCase() === normalizedName;
-    const seriesPublisherMatch =
-      (s.publisher?.toLowerCase() ?? null) === normalizedPublisher;
-    return seriesNameMatch && seriesPublisherMatch;
-  }) ?? null;
 }
 
 // =============================================================================
