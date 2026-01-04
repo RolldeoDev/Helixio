@@ -77,7 +77,8 @@ async function ensureDatabaseSchema(): Promise<void> {
     // Run prisma db push to create/sync schema
     // --skip-generate: The client is already generated at build time
     // --accept-data-loss: Required for fresh DBs, safe since there's no data
-    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    // --schema: Specify schema path explicitly for running from different directories
+    execSync('npx prisma db push --skip-generate --accept-data-loss --schema server/prisma/schema.prisma', {
       cwd: process.cwd(),
       env: { ...process.env },
       stdio: 'pipe',

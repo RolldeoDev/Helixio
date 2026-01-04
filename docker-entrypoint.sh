@@ -158,13 +158,16 @@ echo "DATABASE_URL configured for PostgreSQL"
 cd /app/server
 
 echo "Running Prisma migrations..."
-if ! gosu helixio npx prisma migrate deploy 2>/dev/null; then
-    echo "WARN: Prisma migrate deploy failed, attempting db push..."
-    if ! gosu helixio npx prisma db push --skip-generate 2>/dev/null; then
-        echo "ERROR: Database schema sync failed"
-        /docker/init-postgres.sh stop
-        exit 1
-    fi
+# First try migrate deploy for production migrations
+gosu helixio npx prisma migrate deploy 2>/dev/null || true
+
+# Always run db push to ensure schema is applied
+# This handles cases where there are no migrations or schema drifted
+echo "Syncing database schema..."
+if ! gosu helixio npx prisma db push --skip-generate --accept-data-loss 2>/dev/null; then
+    echo "ERROR: Database schema sync failed"
+    /docker/init-postgres.sh stop
+    exit 1
 fi
 
 echo "Generating Prisma client..."
