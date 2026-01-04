@@ -554,3 +554,67 @@
   color: var(--color-text);
   font-weight: 500;
 }
+
+/* =============================================================================
+   Library Scan Section
+   ============================================================================= */
+
+.panel-scan-section {
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-scan-stats {
+  display: flex;
+  justify-content: space-around;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.panel-scan-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-scan-stat-value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.panel-scan-stat-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-subtle);
+}
+
+.panel-current-folder {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.panel-current-folder-label {
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+.panel-current-folder-path {
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

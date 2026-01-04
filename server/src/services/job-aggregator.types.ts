@@ -48,6 +48,8 @@ export interface UnifiedJob {
     failed: number;
     pending: number;
   };
+  // Library-scan specific fields (for SSE enrichment on client)
+  libraryId?: string;
 }
 
 // =============================================================================

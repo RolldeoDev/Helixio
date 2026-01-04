@@ -337,3 +337,66 @@
   background: rgba(224, 122, 122, 0.2);
   border-radius: 50%;
 }
+
+/* =============================================================================
+   Library Scan Stats
+   ============================================================================= */
+
+.job-card-scan-stats {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+}
+
+.job-scan-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.job-scan-stat-value {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.job-scan-stat-label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* =============================================================================
+   Current Folder
+   ============================================================================= */
+
+.job-card-current-folder {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-secondary);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.job-current-folder-label {
+  color: var(--color-text-subtle);
+  flex-shrink: 0;
+}
+
+.job-current-folder-path {
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

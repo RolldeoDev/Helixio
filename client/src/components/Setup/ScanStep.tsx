@@ -8,38 +8,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLibraryScan } from '../../contexts/LibraryScanContext';
 import type { LibraryScanJob } from '../../services/api.service';
+import { truncatePath } from '../../utils/format';
 import './SetupWizard.css';
-
-/**
- * Truncate a folder path for display, showing first and last segments.
- * Ensures the result never exceeds maxLength.
- */
-function truncatePath(path: string, maxLength: number = 50): string {
-  if (!path || path.length <= maxLength) return path;
-  const parts = path.split('/').filter(Boolean);
-
-  // For paths with 2 or fewer segments, use ellipsis truncation
-  if (parts.length <= 2) {
-    return path.substring(0, maxLength - 3) + '...';
-  }
-
-  const firstPart = parts[0] ?? '';
-  const lastPart = parts[parts.length - 1] ?? '';
-
-  // Build "first/.../last" format
-  const truncated = `${firstPart}/.../${lastPart}`;
-
-  // If still too long, truncate the last segment
-  if (truncated.length > maxLength) {
-    const maxLastPartLength = maxLength - firstPart.length - 7; // Account for "/.../"
-    if (maxLastPartLength > 3) {
-      return `${firstPart}/.../${lastPart.substring(0, maxLastPartLength - 3)}...`;
-    }
-    return truncated.substring(0, maxLength - 3) + '...';
-  }
-
-  return truncated;
-}
 
 interface ScanStepProps {
   libraryId: string;

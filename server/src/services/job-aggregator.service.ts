@@ -218,6 +218,7 @@ function convertScanJob(job: LibraryScanJobData, libraryName?: string): UnifiedJ
     error: job.error || undefined,
     canCancel: status === 'queued' || status === 'running',
     canRetry: false,
+    libraryId: job.libraryId,
     _raw: job,
   };
 }
