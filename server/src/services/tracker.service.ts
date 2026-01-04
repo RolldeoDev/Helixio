@@ -5,10 +5,11 @@
  * Allows syncing reading progress and status with external platforms.
  */
 
-import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // =============================================================================
 // Types
@@ -650,7 +651,7 @@ export async function saveTrackerToken(
   service: TrackerService,
   token: TrackerToken
 ): Promise<void> {
-  await prisma.trackerToken.upsert({
+  await getPrisma().trackerToken.upsert({
     where: { userId_service: { userId, service } },
     create: {
       userId,
@@ -671,7 +672,7 @@ export async function getTrackerToken(
   userId: string,
   service: TrackerService
 ): Promise<TrackerToken | null> {
-  const token = await prisma.trackerToken.findUnique({
+  const token = await getPrisma().trackerToken.findUnique({
     where: { userId_service: { userId, service } },
   });
 
@@ -687,7 +688,7 @@ export async function getTrackerToken(
 }
 
 export async function deleteTrackerToken(userId: string, service: TrackerService): Promise<void> {
-  await prisma.trackerToken.deleteMany({
+  await getPrisma().trackerToken.deleteMany({
     where: { userId, service },
   });
 }
@@ -696,7 +697,7 @@ export async function getTrackerMapping(
   series: string,
   service: TrackerService
 ): Promise<{ externalId: string; externalTitle: string | null } | null> {
-  const mapping = await prisma.trackerMapping.findUnique({
+  const mapping = await getPrisma().trackerMapping.findUnique({
     where: { series_service: { series, service } },
   });
 
@@ -716,7 +717,7 @@ export async function setTrackerMapping(
   externalId: string,
   externalTitle?: string
 ): Promise<void> {
-  await prisma.trackerMapping.upsert({
+  await getPrisma().trackerMapping.upsert({
     where: { series_service: { series, service } },
     create: {
       series,
@@ -732,7 +733,7 @@ export async function setTrackerMapping(
 }
 
 export async function deleteTrackerMapping(series: string, service: TrackerService): Promise<void> {
-  await prisma.trackerMapping.deleteMany({
+  await getPrisma().trackerMapping.deleteMany({
     where: { series, service },
   });
 }

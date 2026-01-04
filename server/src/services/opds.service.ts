@@ -5,10 +5,11 @@
  * Supports OPDS 1.2 catalog format with streaming acquisition links.
  */
 
-import { PrismaClient } from '@prisma/client';
 import * as path from 'path';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // =============================================================================
 // Types
@@ -170,7 +171,7 @@ export function generateFeedXml(feed: OPDSFeed): string {
 // =============================================================================
 
 export async function generateRootFeed(baseUrl: string): Promise<string> {
-  const libraries = await prisma.library.findMany({
+  const libraries = await getPrisma().library.findMany({
     orderBy: { name: 'asc' },
   });
 
@@ -249,7 +250,7 @@ export async function generateAllComicsFeed(
   const skip = (page - 1) * pageSize;
 
   const [comics, total] = await Promise.all([
-    prisma.comicFile.findMany({
+    getPrisma().comicFile.findMany({
       where: { status: 'indexed' },
       include: { metadata: true },
       orderBy: [
@@ -260,7 +261,7 @@ export async function generateAllComicsFeed(
       skip,
       take: pageSize,
     }),
-    prisma.comicFile.count({ where: { status: 'indexed' } }),
+    getPrisma().comicFile.count({ where: { status: 'indexed' } }),
   ]);
 
   const entries = comics.map((comic) => createComicEntry(comic, baseUrl));
@@ -299,7 +300,7 @@ export async function generateAllComicsFeed(
 }
 
 export async function generateRecentFeed(baseUrl: string, limit: number = 50): Promise<string> {
-  const comics = await prisma.comicFile.findMany({
+  const comics = await getPrisma().comicFile.findMany({
     where: { status: 'indexed' },
     include: { metadata: true },
     orderBy: { createdAt: 'desc' },
@@ -323,7 +324,7 @@ export async function generateRecentFeed(baseUrl: string, limit: number = 50): P
 }
 
 export async function generateSeriesListFeed(baseUrl: string): Promise<string> {
-  const seriesData = await prisma.fileMetadata.groupBy({
+  const seriesData = await getPrisma().fileMetadata.groupBy({
     by: ['series'],
     where: { series: { not: null } },
     _count: { series: true },
@@ -361,7 +362,7 @@ export async function generateSeriesListFeed(baseUrl: string): Promise<string> {
 }
 
 export async function generateSeriesFeed(baseUrl: string, series: string): Promise<string> {
-  const comics = await prisma.comicFile.findMany({
+  const comics = await getPrisma().comicFile.findMany({
     where: {
       status: 'indexed',
       metadata: { series },
@@ -391,7 +392,7 @@ export async function generateSeriesFeed(baseUrl: string, series: string): Promi
 }
 
 export async function generatePublisherListFeed(baseUrl: string): Promise<string> {
-  const publisherData = await prisma.fileMetadata.groupBy({
+  const publisherData = await getPrisma().fileMetadata.groupBy({
     by: ['publisher'],
     where: { publisher: { not: null } },
     _count: { publisher: true },
@@ -429,7 +430,7 @@ export async function generatePublisherListFeed(baseUrl: string): Promise<string
 }
 
 export async function generatePublisherFeed(baseUrl: string, publisher: string): Promise<string> {
-  const comics = await prisma.comicFile.findMany({
+  const comics = await getPrisma().comicFile.findMany({
     where: {
       status: 'indexed',
       metadata: { publisher },
@@ -464,7 +465,7 @@ export async function generateLibraryFeed(
   page: number = 1,
   pageSize: number = 50
 ): Promise<string> {
-  const library = await prisma.library.findUnique({
+  const library = await getPrisma().library.findUnique({
     where: { id: libraryId },
   });
 
@@ -475,7 +476,7 @@ export async function generateLibraryFeed(
   const skip = (page - 1) * pageSize;
 
   const [comics, total] = await Promise.all([
-    prisma.comicFile.findMany({
+    getPrisma().comicFile.findMany({
       where: { libraryId, status: 'indexed' },
       include: { metadata: true },
       orderBy: [
@@ -486,7 +487,7 @@ export async function generateLibraryFeed(
       skip,
       take: pageSize,
     }),
-    prisma.comicFile.count({ where: { libraryId, status: 'indexed' } }),
+    getPrisma().comicFile.count({ where: { libraryId, status: 'indexed' } }),
   ]);
 
   const entries = comics.map((comic) => createComicEntry(comic, baseUrl));
@@ -535,7 +536,7 @@ export async function generateSearchFeed(
   const searchTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
 
   const [comics, total] = await Promise.all([
-    prisma.comicFile.findMany({
+    getPrisma().comicFile.findMany({
       where: {
         status: 'indexed',
         OR: [
@@ -551,7 +552,7 @@ export async function generateSearchFeed(
       skip,
       take: pageSize,
     }),
-    prisma.comicFile.count({
+    getPrisma().comicFile.count({
       where: {
         status: 'indexed',
         OR: [

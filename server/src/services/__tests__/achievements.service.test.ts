@@ -102,7 +102,7 @@ const mockUserAchievements = [
 ];
 
 // Use vi.hoisted to create mock in hoisted context (before module imports)
-const { mockPrisma, MockPrismaClient } = vi.hoisted(() => {
+const { mockPrisma } = vi.hoisted(() => {
   const mockPrisma = {
     achievement: {
       count: vi.fn(),
@@ -116,17 +116,12 @@ const { mockPrisma, MockPrismaClient } = vi.hoisted(() => {
     },
   };
 
-  // Create a mock class that returns mockPrisma when instantiated
-  const MockPrismaClient = class {
-    achievement = mockPrisma.achievement;
-    userAchievement = mockPrisma.userAchievement;
-  };
-
-  return { mockPrisma, MockPrismaClient };
+  return { mockPrisma };
 });
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: MockPrismaClient,
+// Mock the database service to return our mock Prisma client
+vi.mock('../database.service.js', () => ({
+  getDatabase: () => mockPrisma,
 }));
 
 // =============================================================================

@@ -5,10 +5,11 @@
  * across multiple devices.
  */
 
-import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // =============================================================================
 // Types
@@ -54,7 +55,7 @@ export async function registerDevice(
   deviceId: string,
   deviceName?: string
 ): Promise<DeviceInfo> {
-  const device = await prisma.syncToken.upsert({
+  const device = await getPrisma().syncToken.upsert({
     where: { userId_deviceId: { userId, deviceId } },
     create: {
       userId,
@@ -77,7 +78,7 @@ export async function registerDevice(
 }
 
 export async function getDevices(userId: string): Promise<DeviceInfo[]> {
-  const devices = await prisma.syncToken.findMany({
+  const devices = await getPrisma().syncToken.findMany({
     where: { userId },
     orderBy: { lastSyncAt: 'desc' },
   });
@@ -91,7 +92,7 @@ export async function getDevices(userId: string): Promise<DeviceInfo[]> {
 }
 
 export async function removeDevice(userId: string, deviceId: string): Promise<void> {
-  await prisma.syncToken.deleteMany({
+  await getPrisma().syncToken.deleteMany({
     where: { userId, deviceId },
   });
 }
@@ -107,7 +108,7 @@ export async function pullChanges(
   limit: number = 100
 ): Promise<SyncPullResult> {
   // Get current max version
-  const latestChange = await prisma.syncChange.findFirst({
+  const latestChange = await getPrisma().syncChange.findFirst({
     where: { userId },
     orderBy: { version: 'desc' },
   });
@@ -115,7 +116,7 @@ export async function pullChanges(
   const currentVersion = latestChange?.version || 0;
 
   // Get changes since the given version
-  const changes = await prisma.syncChange.findMany({
+  const changes = await getPrisma().syncChange.findMany({
     where: {
       userId,
       version: { gt: sinceVersion },
@@ -128,7 +129,7 @@ export async function pullChanges(
   const resultChanges = hasMore ? changes.slice(0, limit) : changes;
 
   // Update device's last sync
-  await prisma.syncToken.update({
+  await getPrisma().syncToken.update({
     where: { userId_deviceId: { userId, deviceId } },
     data: {
       lastSyncAt: new Date(),
@@ -163,7 +164,7 @@ export async function pushChanges(
   expectedVersion: number
 ): Promise<SyncPushResult> {
   // Get current version
-  const latestChange = await prisma.syncChange.findFirst({
+  const latestChange = await getPrisma().syncChange.findFirst({
     where: { userId },
     orderBy: { version: 'desc' },
   });
@@ -173,7 +174,7 @@ export async function pushChanges(
   // Check for conflicts (if someone else pushed changes after our expected version)
   if (currentVersion > expectedVersion) {
     // Get conflicting changes
-    const conflicts = await prisma.syncChange.findMany({
+    const conflicts = await getPrisma().syncChange.findMany({
       where: {
         userId,
         version: { gt: expectedVersion },
@@ -202,7 +203,7 @@ export async function pushChanges(
   for (const change of changes) {
     newVersion++;
 
-    await prisma.syncChange.create({
+    await getPrisma().syncChange.create({
       data: {
         entityType: change.entityType,
         entityId: change.entityId,
@@ -218,7 +219,7 @@ export async function pushChanges(
   }
 
   // Update device's sync version
-  await prisma.syncToken.update({
+  await getPrisma().syncToken.update({
     where: { userId_deviceId: { userId, deviceId } },
     data: {
       lastSyncAt: new Date(),
@@ -270,7 +271,7 @@ async function applyProgressChange(
   switch (change.changeType) {
     case 'create':
     case 'update':
-      await prisma.userReadingProgress.upsert({
+      await getPrisma().userReadingProgress.upsert({
         where: { userId_fileId: { userId, fileId } },
         create: {
           userId,
@@ -290,7 +291,7 @@ async function applyProgressChange(
       break;
 
     case 'delete':
-      await prisma.userReadingProgress.deleteMany({
+      await getPrisma().userReadingProgress.deleteMany({
         where: { userId, fileId },
       });
       break;
@@ -313,10 +314,10 @@ export async function getFullState(userId: string): Promise<{
   version: number;
 }> {
   const [progress, latestChange] = await Promise.all([
-    prisma.userReadingProgress.findMany({
+    getPrisma().userReadingProgress.findMany({
       where: { userId },
     }),
-    prisma.syncChange.findFirst({
+    getPrisma().syncChange.findFirst({
       where: { userId },
       orderBy: { version: 'desc' },
     }),
@@ -351,14 +352,14 @@ export async function cleanupOldChanges(maxAge: number = 30 * 24 * 60 * 60 * 100
   const cutoff = new Date(Date.now() - maxAge);
 
   // Get minimum version still needed by any device
-  const oldestDevice = await prisma.syncToken.findFirst({
+  const oldestDevice = await getPrisma().syncToken.findFirst({
     orderBy: { syncVersion: 'asc' },
   });
 
   const minVersion = oldestDevice?.syncVersion || 0;
 
   // Delete changes older than maxAge AND with version less than what any device needs
-  const result = await prisma.syncChange.deleteMany({
+  const result = await getPrisma().syncChange.deleteMany({
     where: {
       AND: [
         { timestamp: { lt: cutoff } },

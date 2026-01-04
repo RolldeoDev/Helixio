@@ -91,6 +91,32 @@ async function ensureDatabaseSchema(): Promise<void> {
 }
 
 /**
+ * Default connection pool size.
+ * PostgreSQL default max_connections is 100.
+ * We limit Prisma's pool to leave headroom for:
+ * - pg maintenance connections (superuser reserved)
+ * - Direct pg client connections (factory reset, etc.)
+ * - Other potential connections
+ *
+ * Can be overridden via DATABASE_CONNECTION_LIMIT env var.
+ */
+const DEFAULT_CONNECTION_LIMIT = 30;
+
+/**
+ * Get the configured connection limit for the database pool.
+ */
+export function getConnectionLimit(): number {
+  const envLimit = process.env.DATABASE_CONNECTION_LIMIT;
+  if (envLimit) {
+    const parsed = parseInt(envLimit, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_CONNECTION_LIMIT;
+}
+
+/**
  * Initialize the database connection
  * Must be called before any database operations
  */
@@ -102,11 +128,20 @@ export async function initializeDatabase(): Promise<PrismaClient> {
   // Ensure app directories exist
   ensureAppDirectories();
 
-  // Set DATABASE_URL for Prisma
-  const databaseUrl = getDatabaseUrl();
+  // Set DATABASE_URL for Prisma (with connection limit)
+  let databaseUrl = getDatabaseUrl();
+  const connectionLimit = getConnectionLimit();
+
+  // Add connection_limit to the URL if not already present
+  const url = new URL(databaseUrl);
+  if (!url.searchParams.has('connection_limit')) {
+    url.searchParams.set('connection_limit', connectionLimit.toString());
+    databaseUrl = url.toString();
+  }
+
   process.env.DATABASE_URL = databaseUrl;
 
-  logger.info({ url: databaseUrl }, 'Initializing database');
+  logger.info({ url: databaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), connectionLimit }, 'Initializing database');
 
   // Create Prisma client
   prisma = new PrismaClient({

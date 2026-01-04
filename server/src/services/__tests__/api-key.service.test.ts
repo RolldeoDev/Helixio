@@ -33,17 +33,10 @@ process.env.API_KEY_SECRET = 'test-secret-key-for-unit-tests-32chars!';
 
 const mockPrisma = createMockPrismaClient();
 
-// Mock the PrismaClient constructor
-vi.mock('@prisma/client', () => {
-  return {
-    PrismaClient: class MockPrismaClient {
-      apiKey = mockPrisma.apiKey;
-      apiKeyUsageLog = mockPrisma.apiKeyUsageLog;
-      user = mockPrisma.user;
-      library = mockPrisma.library;
-    },
-  };
-});
+// Mock the database service to return our mock Prisma client
+vi.mock('../database.service.js', () => ({
+  getDatabase: () => mockPrisma,
+}));
 
 // Import after mocking
 const {

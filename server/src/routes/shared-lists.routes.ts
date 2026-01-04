@@ -5,13 +5,15 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, optionalAuth } from '../middleware/auth.middleware.js';
 import * as crypto from 'crypto';
 import { logError } from '../services/logger.service.js';
+import { getDatabase } from '../services/database.service.js';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // =============================================================================
 // Types
@@ -49,7 +51,7 @@ function parseItems(itemsJson: string): ListItem[] {
  */
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
-    const lists = await prisma.sharedReadingList.findMany({
+    const lists = await getPrisma().sharedReadingList.findMany({
       where: { ownerId: req.user!.id },
       orderBy: { updatedAt: 'desc' },
     });
@@ -85,7 +87,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const list = await prisma.sharedReadingList.create({
+    const list = await getPrisma().sharedReadingList.create({
       data: {
         ownerId: req.user!.id,
         name: name.trim(),
@@ -120,7 +122,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
  */
 router.get('/:listId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const list = await prisma.sharedReadingList.findFirst({
+    const list = await getPrisma().sharedReadingList.findFirst({
       where: {
         id: req.params.listId,
         ownerId: req.user!.id,
@@ -159,7 +161,7 @@ router.patch('/:listId', requireAuth, async (req: Request, res: Response) => {
     const { name, description, isPublic, items } = req.body;
 
     // Verify ownership
-    const existing = await prisma.sharedReadingList.findFirst({
+    const existing = await getPrisma().sharedReadingList.findFirst({
       where: {
         id: req.params.listId,
         ownerId: req.user!.id,
@@ -190,7 +192,7 @@ router.patch('/:listId', requireAuth, async (req: Request, res: Response) => {
       updateData.items = JSON.stringify(items);
     }
 
-    const list = await prisma.sharedReadingList.update({
+    const list = await getPrisma().sharedReadingList.update({
       where: { id: req.params.listId },
       data: updateData,
     });
@@ -220,7 +222,7 @@ router.patch('/:listId', requireAuth, async (req: Request, res: Response) => {
 router.delete('/:listId', requireAuth, async (req: Request, res: Response) => {
   try {
     // Verify ownership
-    const existing = await prisma.sharedReadingList.findFirst({
+    const existing = await getPrisma().sharedReadingList.findFirst({
       where: {
         id: req.params.listId,
         ownerId: req.user!.id,
@@ -232,7 +234,7 @@ router.delete('/:listId', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    await prisma.sharedReadingList.delete({
+    await getPrisma().sharedReadingList.delete({
       where: { id: req.params.listId },
     });
 
@@ -250,7 +252,7 @@ router.delete('/:listId', requireAuth, async (req: Request, res: Response) => {
 router.post('/:listId/regenerate-code', requireAuth, async (req: Request, res: Response) => {
   try {
     // Verify ownership
-    const existing = await prisma.sharedReadingList.findFirst({
+    const existing = await getPrisma().sharedReadingList.findFirst({
       where: {
         id: req.params.listId,
         ownerId: req.user!.id,
@@ -262,7 +264,7 @@ router.post('/:listId/regenerate-code', requireAuth, async (req: Request, res: R
       return;
     }
 
-    const list = await prisma.sharedReadingList.update({
+    const list = await getPrisma().sharedReadingList.update({
       where: { id: req.params.listId },
       data: { shareCode: generateShareCode() },
     });
@@ -284,7 +286,7 @@ router.post('/:listId/regenerate-code', requireAuth, async (req: Request, res: R
  */
 router.get('/shared/:shareCode', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const list = await prisma.sharedReadingList.findFirst({
+    const list = await getPrisma().sharedReadingList.findFirst({
       where: {
         shareCode: req.params.shareCode,
       },
@@ -344,7 +346,7 @@ router.get('/browse/public', optionalAuth, async (req: Request, res: Response) =
     const skip = (page - 1) * pageSize;
 
     const [lists, total] = await Promise.all([
-      prisma.sharedReadingList.findMany({
+      getPrisma().sharedReadingList.findMany({
         where: { isPublic: true },
         include: {
           owner: {
@@ -360,7 +362,7 @@ router.get('/browse/public', optionalAuth, async (req: Request, res: Response) =
         skip,
         take: pageSize,
       }),
-      prisma.sharedReadingList.count({ where: { isPublic: true } }),
+      getPrisma().sharedReadingList.count({ where: { isPublic: true } }),
     ]);
 
     res.json({

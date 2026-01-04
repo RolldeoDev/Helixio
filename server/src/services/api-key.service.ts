@@ -5,7 +5,6 @@
  * Keys are hashed with HMAC-SHA256 before storage - the raw key is only shown once at creation.
  */
 
-import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import {
   ApiScope,
@@ -14,8 +13,10 @@ import {
   isAdminScope,
 } from './api-key-scopes.js';
 import { UserInfo } from './auth.service.js';
+import { getDatabase } from './database.service.js';
 
-const prisma = new PrismaClient();
+// Use the centralized Prisma client to avoid connection pool fragmentation
+const getPrisma = () => getDatabase();
 
 // HMAC secret for key hashing - MUST be set via environment variable
 // SECURITY: This secret is critical - without it, API keys cannot be validated
@@ -224,7 +225,7 @@ export async function createApiKey(
 
   // Validate library IDs exist if provided
   if (libraryIds && libraryIds.length > 0) {
-    const libraries = await prisma.library.findMany({
+    const libraries = await getPrisma().library.findMany({
       where: { id: { in: libraryIds } },
       select: { id: true },
     });
@@ -239,7 +240,7 @@ export async function createApiKey(
   const keyPrefix = getKeyPrefix(rawKey);
 
   // Create the key record
-  const apiKey = await prisma.apiKey.create({
+  const apiKey = await getPrisma().apiKey.create({
     data: {
       userId,
       name: name.trim(),
@@ -273,7 +274,7 @@ export async function validateApiKey(
 
   const keyHash = hashApiKey(rawKey);
 
-  const apiKey = await prisma.apiKey.findFirst({
+  const apiKey = await getPrisma().apiKey.findFirst({
     where: { keyHash },
     include: {
       user: true,
@@ -341,7 +342,7 @@ export async function updateApiKeyUsage(
   keyId: string,
   ipAddress: string
 ): Promise<void> {
-  await prisma.apiKey.update({
+  await getPrisma().apiKey.update({
     where: { id: keyId },
     data: {
       lastUsedAt: new Date(),
@@ -363,7 +364,7 @@ export async function logApiKeyRequest(
   userAgent: string | null,
   durationMs?: number
 ): Promise<void> {
-  await prisma.apiKeyUsageLog.create({
+  await getPrisma().apiKeyUsageLog.create({
     data: {
       apiKeyId: keyId,
       endpoint,
@@ -380,7 +381,7 @@ export async function logApiKeyRequest(
  * List API keys for a user
  */
 export async function listUserApiKeys(userId: string): Promise<ApiKeyInfo[]> {
-  const keys = await prisma.apiKey.findMany({
+  const keys = await getPrisma().apiKey.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
   });
@@ -395,7 +396,7 @@ export async function getApiKey(
   keyId: string,
   userId: string
 ): Promise<ApiKeyInfo | null> {
-  const key = await prisma.apiKey.findFirst({
+  const key = await getPrisma().apiKey.findFirst({
     where: { id: keyId, userId },
   });
 
@@ -419,7 +420,7 @@ export async function updateApiKey(
   }
 ): Promise<ApiKeyInfo> {
   // Verify ownership
-  const existing = await prisma.apiKey.findFirst({
+  const existing = await getPrisma().apiKey.findFirst({
     where: { id: keyId, userId },
   });
 
@@ -471,7 +472,7 @@ export async function updateApiKey(
 
   if (updates.libraryIds !== undefined) {
     if (updates.libraryIds.length > 0) {
-      const libraries = await prisma.library.findMany({
+      const libraries = await getPrisma().library.findMany({
         where: { id: { in: updates.libraryIds } },
         select: { id: true },
       });
@@ -488,7 +489,7 @@ export async function updateApiKey(
     data.isActive = updates.isActive;
   }
 
-  const updated = await prisma.apiKey.update({
+  const updated = await getPrisma().apiKey.update({
     where: { id: keyId },
     data,
   });
@@ -504,7 +505,7 @@ export async function revokeApiKey(
   userId: string,
   reason?: string
 ): Promise<void> {
-  const existing = await prisma.apiKey.findFirst({
+  const existing = await getPrisma().apiKey.findFirst({
     where: { id: keyId, userId },
   });
 
@@ -512,7 +513,7 @@ export async function revokeApiKey(
     throw new Error('API key not found');
   }
 
-  await prisma.apiKey.update({
+  await getPrisma().apiKey.update({
     where: { id: keyId },
     data: {
       isActive: false,
@@ -530,7 +531,7 @@ export async function rotateApiKey(
   userId: string,
   userRole: 'admin' | 'user' | 'guest'
 ): Promise<{ key: string; info: ApiKeyInfo }> {
-  const existing = await prisma.apiKey.findFirst({
+  const existing = await getPrisma().apiKey.findFirst({
     where: { id: keyId, userId },
   });
 
@@ -539,7 +540,7 @@ export async function rotateApiKey(
   }
 
   // Revoke the old key
-  await prisma.apiKey.update({
+  await getPrisma().apiKey.update({
     where: { id: keyId },
     data: {
       isActive: false,
@@ -586,20 +587,20 @@ export async function getApiKeyUsage(
 
   // Get total and recent counts
   const [totalRequests, requests24h, requests7d, requests30d] = await Promise.all([
-    prisma.apiKeyUsageLog.count({ where: { apiKeyId: keyId } }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({ where: { apiKeyId: keyId } }),
+    getPrisma().apiKeyUsageLog.count({
       where: { apiKeyId: keyId, timestamp: { gte: cutoff24h } },
     }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({
       where: { apiKeyId: keyId, timestamp: { gte: cutoff7d } },
     }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({
       where: { apiKeyId: keyId, timestamp: { gte: cutoff } },
     }),
   ]);
 
   // Get top endpoints
-  const logs = await prisma.apiKeyUsageLog.findMany({
+  const logs = await getPrisma().apiKeyUsageLog.findMany({
     where: { apiKeyId: keyId, timestamp: { gte: cutoff } },
     select: { endpoint: true },
   });
@@ -615,7 +616,7 @@ export async function getApiKeyUsage(
     .slice(0, 10);
 
   // Get recent requests
-  const recentLogs = await prisma.apiKeyUsageLog.findMany({
+  const recentLogs = await getPrisma().apiKeyUsageLog.findMany({
     where: { apiKeyId: keyId },
     orderBy: { timestamp: 'desc' },
     take: 20,
@@ -646,7 +647,7 @@ export async function getApiKeyUsage(
  * List all API keys (admin only)
  */
 export async function listAllApiKeys(): Promise<ApiKeyWithUser[]> {
-  const keys = await prisma.apiKey.findMany({
+  const keys = await getPrisma().apiKey.findMany({
     include: {
       user: {
         select: {
@@ -673,7 +674,7 @@ export async function adminRevokeApiKey(
   keyId: string,
   reason?: string
 ): Promise<void> {
-  const existing = await prisma.apiKey.findUnique({
+  const existing = await getPrisma().apiKey.findUnique({
     where: { id: keyId },
   });
 
@@ -681,7 +682,7 @@ export async function adminRevokeApiKey(
     throw new Error('API key not found');
   }
 
-  await prisma.apiKey.update({
+  await getPrisma().apiKey.update({
     where: { id: keyId },
     data: {
       isActive: false,
@@ -709,29 +710,29 @@ export async function getSystemApiKeyStats(): Promise<SystemApiKeyStats> {
     requests7d,
     requests30d,
   ] = await Promise.all([
-    prisma.apiKey.count(),
-    prisma.apiKey.count({
+    getPrisma().apiKey.count(),
+    getPrisma().apiKey.count({
       where: {
         isActive: true,
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
     }),
-    prisma.apiKey.count({
+    getPrisma().apiKey.count({
       where: {
         isActive: true,
         expiresAt: { lte: now },
       },
     }),
-    prisma.apiKey.count({
+    getPrisma().apiKey.count({
       where: { isActive: false },
     }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({
       where: { timestamp: { gte: cutoff24h } },
     }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({
       where: { timestamp: { gte: cutoff7d } },
     }),
-    prisma.apiKeyUsageLog.count({
+    getPrisma().apiKeyUsageLog.count({
       where: { timestamp: { gte: cutoff30d } },
     }),
   ]);
@@ -763,7 +764,7 @@ export async function cleanupExpiredKeys(
   const logCutoff = new Date(now.getTime() - logRetentionDays * 24 * 60 * 60 * 1000);
 
   // Delete expired keys that have been expired for more than retention period
-  const keysResult = await prisma.apiKey.deleteMany({
+  const keysResult = await getPrisma().apiKey.deleteMany({
     where: {
       isActive: false,
       OR: [
@@ -774,7 +775,7 @@ export async function cleanupExpiredKeys(
   });
 
   // Delete old usage logs
-  const logsResult = await prisma.apiKeyUsageLog.deleteMany({
+  const logsResult = await getPrisma().apiKeyUsageLog.deleteMany({
     where: {
       timestamp: { lte: logCutoff },
     },
