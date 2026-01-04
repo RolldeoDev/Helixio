@@ -640,6 +640,39 @@ export function sendScanProgress(
 }
 
 /**
+ * Broadcast cover extraction progress to all connected scan SSE clients.
+ * Called by cover-job-queue.service when cover jobs complete.
+ */
+export function sendCoverProgress(
+  libraryId: string,
+  progress: {
+    jobId: string;
+    folderPath: string;
+    status: string;
+    coversExtracted: number;
+    totalFiles: number;
+    retryCount: number;
+  }
+): number {
+  let sentCount = 0;
+
+  for (const client of scanClients.values()) {
+    if (sendScanEvent(client, {
+      type: 'cover-progress',
+      data: {
+        libraryId,
+        ...progress,
+        timestamp: Date.now(),
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  return sentCount;
+}
+
+/**
  * Get count of scan SSE clients
  */
 export function getScanClientCount(): number {

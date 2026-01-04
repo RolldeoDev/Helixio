@@ -339,6 +339,9 @@ async function executeFullScan(
       }
     }, 500);
 
+    // Track last logged phase to avoid excessive logging
+    let lastLoggedPhase: string | null = null;
+
     try {
       // Run the scan with the folder-first scanner
       const result = await orchestrateScan(libraryId, {
@@ -356,6 +359,7 @@ async function executeFullScan(
 
           const stage = stageMap[progress.phase] ?? progress.phase;
 
+          // Always update job status and progress (needed for SSE real-time updates)
           await updateScanJobStatus(jobId, stage as ScanJobStatus, stage);
           await updateScanJobProgress(jobId, {
             discoveredFiles: progress.foldersTotal,
@@ -367,17 +371,24 @@ async function executeFullScan(
             totalFiles: progress.filesCreated + progress.filesUpdated + progress.filesOrphaned,
           });
 
-          const detail = progress.currentFolder
-            ? `Folder: ${progress.currentFolder} (${progress.foldersComplete}/${progress.foldersTotal})`
-            : undefined;
+          // Only log on phase transitions to avoid excessive log entries
+          // The SSE updates provide real-time progress; logs are for history/debugging
+          if (progress.phase !== lastLoggedPhase) {
+            lastLoggedPhase = progress.phase;
 
-          await addScanJobLog(
-            jobId,
-            stage,
-            `${progress.phase}: ${progress.foldersComplete}/${progress.foldersTotal} folders`,
-            detail,
-            'info'
-          );
+            const phaseLabels: Record<string, string> = {
+              enumerating: 'Discovering folders',
+              processing: 'Processing files',
+              covers: 'Extracting covers',
+              complete: 'Scan complete',
+              error: 'Scan error',
+            };
+
+            const message = phaseLabels[progress.phase] ?? progress.phase;
+            const detail = `${progress.foldersTotal} folders found`;
+
+            await addScanJobLog(jobId, stage, message, detail, 'info');
+          }
         },
       });
 
