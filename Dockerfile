@@ -38,6 +38,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/run/postgresql \
     && chown -R postgres:postgres /var/run/postgresql
+
+# Add PostgreSQL 15 binaries to PATH (Debian installs them to /usr/lib/postgresql/15/bin/)
+ENV PATH="/usr/lib/postgresql/15/bin:$PATH"
 WORKDIR /app
 COPY package*.json ./
 COPY server/package*.json ./server/

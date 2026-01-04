@@ -31,7 +31,7 @@ import {
   API_KEY_METRON,
   API_KEY_ANTHROPIC,
 } from './secure-storage.service.js';
-import { getDatabase, closeDatabase } from './database.service.js';
+import { getDatabase, closeDatabase, dropAndRecreateDatabase } from './database.service.js';
 import { configLogger } from './logger.service.js';
 
 // =============================================================================
@@ -365,7 +365,7 @@ async function deletePostgresData(): Promise<{ deleted: string[]; freedBytes: nu
     configLogger.warn({ error }, 'Error disconnecting from database');
   }
 
-  // Only delete PostgreSQL data directory in Docker environment
+  // Docker environment: Delete PostgreSQL data directory
   if (pgDataDir && existsSync(pgDataDir)) {
     try {
       const result = await deleteDirectory(pgDataDir, 'PostgreSQL data directory');
@@ -377,7 +377,16 @@ async function deletePostgresData(): Promise<{ deleted: string[]; freedBytes: nu
       configLogger.warn({ error }, 'Failed to delete PostgreSQL data directory');
     }
   } else {
-    configLogger.info('PostgreSQL is managed externally, not deleting data');
+    // Development environment: Drop and recreate database via SQL
+    configLogger.info('PostgreSQL is managed externally, dropping and recreating database...');
+    try {
+      await dropAndRecreateDatabase();
+      deleted.push('PostgreSQL database (dropped and recreated)');
+      configLogger.info('Database dropped and recreated successfully');
+    } catch (error) {
+      configLogger.error({ error }, 'Failed to drop and recreate database');
+      throw error;
+    }
   }
 
   return { deleted, freedBytes };
@@ -441,9 +450,10 @@ export async function getResetPreview(level: ResetLevel): Promise<ResetPreview> 
 
   // Level 3: Additional files
   if (level >= 3) {
-    // PostgreSQL data directory (only in Docker)
+    // PostgreSQL data
     const pgDataDir = getPostgresDataDir();
     if (pgDataDir) {
+      // Docker: show data directory
       const pgExists = existsSync(pgDataDir);
       const pgSize = pgExists ? await getDirectorySize(pgDataDir) : 0;
       directories.push({
@@ -453,6 +463,14 @@ export async function getResetPreview(level: ResetLevel): Promise<ResetPreview> 
         exists: pgExists,
       });
       estimatedSizeBytes += pgSize;
+    } else {
+      // Development: indicate SQL-based reset
+      directories.push({
+        path: 'PostgreSQL Database',
+        displayPath: 'External PostgreSQL (DROP/CREATE)',
+        sizeBytes: 0,
+        exists: true,
+      });
     }
 
     // Config

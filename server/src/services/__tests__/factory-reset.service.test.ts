@@ -38,11 +38,14 @@ vi.mock('../app-paths.service.js', () => ({
   getConfigPath: vi.fn(() => '/mock/.helixio/config.json'),
 }));
 
-// Mock database service
-const mockDeleteMany = vi.fn().mockResolvedValue({ count: 0 });
-const mockTransaction = vi.fn().mockImplementation(async (ops: Promise<unknown>[]) => {
-  return Promise.all(ops);
-});
+// Mock database service - using hoisted mocks
+const mockDeleteMany = vi.hoisted(() => vi.fn().mockResolvedValue({ count: 0 }));
+const mockTransaction = vi.hoisted(() =>
+  vi.fn().mockImplementation(async (ops: Promise<unknown>[]) => {
+    return Promise.all(ops);
+  })
+);
+const mockDropAndRecreateDatabase = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 
 vi.mock('../database.service.js', () => ({
   getDatabase: vi.fn(() => ({
@@ -65,6 +68,7 @@ vi.mock('../database.service.js', () => ({
     userStat: { deleteMany: mockDeleteMany },
   })),
   closeDatabase: vi.fn().mockResolvedValue(undefined),
+  dropAndRecreateDatabase: mockDropAndRecreateDatabase,
 }));
 
 // Mock secure storage service
@@ -297,6 +301,75 @@ describe('Factory Reset Service', () => {
       await performReset({ level: 3, clearKeychain: false });
 
       expect(SecureStorage.deleteApiKey).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // Level 3 Tests - Development Environment (External PostgreSQL)
+  // =========================================================================
+
+  describe('Level 3 - Development Environment (External PostgreSQL)', () => {
+    beforeEach(async () => {
+      // Mock getPostgresDataDir to return null (development mode)
+      const { getPostgresDataDir } = await import('../app-paths.service.js');
+      vi.mocked(getPostgresDataDir).mockReturnValue(null);
+      vi.clearAllMocks();
+      (existsSync as Mock).mockReturnValue(true);
+      (stat as Mock).mockResolvedValue({ size: 1024, isDirectory: () => false });
+      (readdir as Mock).mockResolvedValue([]);
+      (rm as Mock).mockResolvedValue(undefined);
+    });
+
+    afterEach(async () => {
+      // Restore getPostgresDataDir to Docker mode for subsequent tests
+      const { getPostgresDataDir } = await import('../app-paths.service.js');
+      vi.mocked(getPostgresDataDir).mockReturnValue('/mock/pgdata');
+    });
+
+    it('should call dropAndRecreateDatabase when pgDataDir is null', async () => {
+      const result = await performReset({ level: 3 });
+
+      expect(result.success).toBe(true);
+      expect(mockDropAndRecreateDatabase).toHaveBeenCalled();
+    });
+
+    it('should report database was dropped and recreated', async () => {
+      const result = await performReset({ level: 3 });
+
+      expect(result.deletedItems).toContain('PostgreSQL database (dropped and recreated)');
+    });
+
+    it('should NOT attempt to delete pgdata directory in dev mode', async () => {
+      await performReset({ level: 3 });
+
+      const rmCalls = (rm as Mock).mock.calls.map((c) => c[0]);
+      expect(rmCalls).not.toContain('/mock/pgdata');
+    });
+
+    it('should still delete config, logs, and avatars in dev mode', async () => {
+      await performReset({ level: 3 });
+
+      const rmCalls = (rm as Mock).mock.calls.map((c) => c[0]);
+      expect(rmCalls).toContain('/mock/.helixio/config.json');
+      expect(rmCalls).toContain('/mock/.helixio/logs');
+      expect(rmCalls).toContain('/mock/.helixio/avatars');
+    });
+
+    it('should fail if dropAndRecreateDatabase fails', async () => {
+      mockDropAndRecreateDatabase.mockRejectedValueOnce(new Error('Connection refused'));
+
+      const result = await performReset({ level: 3 });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Connection refused');
+    });
+
+    it('should show external PostgreSQL in preview for dev mode', async () => {
+      const preview = await getResetPreview(3);
+
+      const dbEntry = preview.directories.find((d) => d.path === 'PostgreSQL Database');
+      expect(dbEntry).toBeDefined();
+      expect(dbEntry?.displayPath).toBe('External PostgreSQL (DROP/CREATE)');
     });
   });
 
