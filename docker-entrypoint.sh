@@ -66,5 +66,7 @@ gosu helixio npx prisma migrate deploy 2>/dev/null || \
     gosu helixio npx prisma db push --skip-generate 2>/dev/null || true
 
 # Start application
+# Export HOME explicitly to ensure app uses /config for data storage
+# (gosu normally resets HOME based on user's passwd entry)
 cd /app
-exec gosu helixio "$@"
+exec gosu helixio env HOME=/config "$@"

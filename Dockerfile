@@ -15,13 +15,7 @@ WORKDIR /app
 COPY . .
 # Generate Prisma client and build server
 WORKDIR /app/server
-RUN npx prisma generate
-# Prisma client is generated in root node_modules due to workspace hoisting
-# Copy it to server/node_modules so production stage can find it
-RUN mkdir -p ./node_modules/.prisma ./node_modules/@prisma && \
-    cp -r /app/node_modules/.prisma/client ./node_modules/.prisma/ && \
-    cp -r /app/node_modules/@prisma/client ./node_modules/@prisma/
-RUN npm run build
+RUN npx prisma generate && npm run build
 WORKDIR /app/client
 RUN npm run build
 
@@ -37,15 +31,15 @@ LABEL org.opencontainers.image.title="Helixio" \
       org.opencontainers.image.licenses="MIT" \
       maintainer="RolldeoDev"
 RUN apt-get update && apt-get install -y \
-    libvips42 p7zip-full gosu openssl \
+    libvips42 p7zip-full gosu openssl libsecret-1-0 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./
 COPY server/package*.json ./server/
 RUN npm ci --workspace=server --omit=dev
 COPY --from=builder /app/server/prisma ./server/prisma
-COPY --from=builder /app/server/node_modules/.prisma ./server/node_modules/.prisma
-COPY --from=builder /app/server/node_modules/@prisma ./server/node_modules/@prisma
+# Copy pre-generated Prisma client from builder (to avoid generating in production)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/server/dist ./server/dist
 COPY --from=builder /app/client/dist ./client/dist
 COPY docker-entrypoint.sh /docker-entrypoint.sh
