@@ -7,21 +7,51 @@ services:
     ports:
       - "8483:8483"
     environment:
-      - PUID=99       # UNRAID nobody user
-      - PGID=100      # UNRAID users group
+      # =========================================================================
+      # Container User/Group (required for UNRAID/proper file permissions)
+      # =========================================================================
+      - PUID=99       # UNRAID: 99 (nobody), Linux: 1000
+      - PGID=100      # UNRAID: 100 (users), Linux: 1000
       - TZ=America/New_York
-      # API Keys (optional - can also be configured via UI)
-      # Environment variables take priority over config file settings
-      # Keys set via environment variables cannot be changed in the UI
+
+      # =========================================================================
+      # Security (optional - auto-generated if not provided)
+      # =========================================================================
+      # API_KEY_SECRET is used for secure API key hashing. If not provided,
+      # a secret is auto-generated on first run and persisted to /config.
+      # IMPORTANT: If you set this manually, use the same value across all
+      # container recreations or existing API keys will become invalid.
+      # Generate with: openssl rand -hex 32
+      # - API_KEY_SECRET=your-64-char-hex-secret
+
+      # =========================================================================
+      # External API Keys (optional - can also be configured via Settings UI)
+      # =========================================================================
+      # Environment variables take priority over config file settings.
+      # Keys set via environment variables are read-only in the UI.
+      #
+      # ComicVine - Primary metadata source (get key at https://comicvine.gamespot.com/api/)
       # - HELIXIO_COMICVINE_API_KEY=your-comicvine-key
+      #
+      # Anthropic - AI-powered filename parsing (optional, get key at https://console.anthropic.com/)
       # - HELIXIO_ANTHROPIC_API_KEY=your-anthropic-key
+      #
+      # Metron - Secondary metadata source (register at https://metron.cloud/)
       # - HELIXIO_METRON_USERNAME=your-metron-username
       # - HELIXIO_METRON_PASSWORD=your-metron-password
+      #
+      # Grand Comics Database - Additional metadata source (register at https://www.comics.org/)
       # - HELIXIO_GCD_EMAIL=your-gcd-email
       # - HELIXIO_GCD_PASSWORD=your-gcd-password
+
     volumes:
-      # For UNRAID, change these paths:
-      # - /mnt/user/appdata/helixio:/config
-      # - /mnt/user/media/Comics:/comics:rw
+      # =========================================================================
+      # Volume Mappings
+      # =========================================================================
+      # /config - Application data (database, config, cache, covers)
+      #           For UNRAID: /mnt/user/appdata/helixio:/config
+      # /comics - Your comic library (read-write for metadata writing)
+      #           For UNRAID: /mnt/user/media/Comics:/comics:rw
+      # =========================================================================
       - ./test-config:/config
       - ./test-comics:/comics:rw
