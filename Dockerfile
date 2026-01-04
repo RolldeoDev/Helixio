@@ -44,7 +44,8 @@ ENV PATH="/usr/lib/postgresql/15/bin:$PATH"
 WORKDIR /app
 COPY package*.json ./
 COPY server/package*.json ./server/
-RUN npm ci --workspace=server --omit=dev
+RUN npm ci --workspace=server --omit=dev && \
+    chmod +x /app/node_modules/7zip-bin/linux/x64/7za
 COPY --from=builder /app/server/prisma ./server/prisma
 # Copy pre-generated Prisma client from builder (to avoid generating in production)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma

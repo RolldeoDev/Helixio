@@ -11,6 +11,7 @@ import {
   startLibraryScan,
   getScanJobStatus,
   cancelScanJob as apiCancelScanJob,
+  getAllActiveScans,
   type LibraryScanJob,
   type ScanJobStatus,
 } from '../services/api.service';
@@ -548,6 +549,51 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
     // connectSSE is stable (only depends on handleScanComplete which has empty deps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // Load active scans on mount to initialize state for SSE tracking
+  // This ensures that if a user reloads the page or opens a new tab while a scan is running,
+  // the SSE events will be properly processed and real-time data will be displayed
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const loadActiveScans = async () => {
+      try {
+        const { jobs } = await getAllActiveScans();
+        if (jobs.length > 0) {
+          setState((prev) => {
+            const newActiveScans: Record<string, LibraryScanJob> = {};
+            for (const job of jobs) {
+              // Only add non-terminal scans
+              const terminalStates: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
+              if (!terminalStates.includes(job.status)) {
+                newActiveScans[job.libraryId] = job;
+              }
+            }
+
+            // Merge with existing scans (don't overwrite scans started in this session)
+            const mergedScans = { ...newActiveScans, ...prev.activeScans };
+
+            return {
+              ...prev,
+              activeScans: mergedScans,
+            };
+          });
+
+          // Start polling for each active scan as backup
+          for (const job of jobs) {
+            const terminalStates: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
+            if (!terminalStates.includes(job.status)) {
+              pollScanStatus(job.libraryId, job.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.debug('Failed to load active scans:', err);
+      }
+    };
+
+    loadActiveScans();
+  }, [isAuthenticated, pollScanStatus]);
 
   const value: LibraryScanContextValue = {
     ...state,
