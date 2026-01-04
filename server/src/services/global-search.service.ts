@@ -111,7 +111,6 @@ async function searchSeries(
   const db = getDatabase();
   const queryLower = query.toLowerCase();
 
-  // Build where clause - SQLite LIKE is case-insensitive for ASCII
   const whereClause: Record<string, unknown> = {
     deletedAt: null,
     OR: [
@@ -188,7 +187,6 @@ async function searchIssues(
   const db = getDatabase();
   const queryLower = query.toLowerCase();
 
-  // Build where clause - SQLite LIKE is case-insensitive for ASCII
   const whereClause: Record<string, unknown> = {
     OR: [
       { filename: { contains: query } },

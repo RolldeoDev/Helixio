@@ -34,7 +34,7 @@ vi.mock('../app-paths.service.js', () => ({
   getThumbnailsDir: vi.fn(() => '/mock/.helixio/cache/thumbnails'),
   getAvatarsDir: vi.fn(() => '/mock/.helixio/avatars'),
   getLogsDir: vi.fn(() => '/mock/.helixio/logs'),
-  getDatabasePath: vi.fn(() => '/mock/.helixio/helixio.db'),
+  getPostgresDataDir: vi.fn(() => '/mock/pgdata'),  // PostgreSQL data directory (Docker only)
   getConfigPath: vi.fn(() => '/mock/.helixio/config.json'),
 }));
 
@@ -112,14 +112,16 @@ describe('Factory Reset Service', () => {
   // =========================================================================
 
   describe('Path Safety - Comic Files Protected', () => {
-    it('should only target paths under ~/.helixio', async () => {
+    it('should only target paths under app data directory or PostgreSQL data', async () => {
       const result = await performReset({ level: 3 });
 
-      // Verify rm was only called for paths under /mock/.helixio
+      // Verify rm was only called for paths under /mock/.helixio or /mock/pgdata
       const rmCalls = (rm as Mock).mock.calls;
       for (const call of rmCalls) {
         const path = call[0] as string;
-        expect(path.startsWith('/mock/.helixio')).toBe(true);
+        const isHelixioPath = path.startsWith('/mock/.helixio');
+        const isPostgresPath = path.startsWith('/mock/pgdata');
+        expect(isHelixioPath || isPostgresPath).toBe(true);
       }
     });
 
@@ -172,7 +174,7 @@ describe('Factory Reset Service', () => {
       await performReset({ level: 1 });
 
       const rmCalls = (rm as Mock).mock.calls.map((c) => c[0]);
-      expect(rmCalls).not.toContain('/mock/.helixio/helixio.db');
+      expect(rmCalls).not.toContain('/mock/pgdata');
       expect(rmCalls).not.toContain('/mock/.helixio/config.json');
     });
 
@@ -219,11 +221,11 @@ describe('Factory Reset Service', () => {
       expect(result.clearedTables).toContain('CollectionItem');
     });
 
-    it('should NOT delete database file at Level 2', async () => {
+    it('should NOT delete database at Level 2', async () => {
       await performReset({ level: 2 });
 
       const rmCalls = (rm as Mock).mock.calls.map((c) => c[0]);
-      expect(rmCalls).not.toContain('/mock/.helixio/helixio.db');
+      expect(rmCalls).not.toContain('/mock/pgdata');
     });
 
     it('should NOT require server restart at Level 2', async () => {
@@ -238,13 +240,13 @@ describe('Factory Reset Service', () => {
   // =========================================================================
 
   describe('Level 3 - Full Factory Reset', () => {
-    it('should delete database files', async () => {
+    it('should delete PostgreSQL data directory', async () => {
       const result = await performReset({ level: 3 });
 
       expect(result.success).toBe(true);
 
       const rmCalls = (rm as Mock).mock.calls.map((c) => c[0]);
-      expect(rmCalls).toContain('/mock/.helixio/helixio.db');
+      expect(rmCalls).toContain('/mock/pgdata');
     });
 
     it('should delete config file', async () => {
@@ -327,7 +329,7 @@ describe('Factory Reset Service', () => {
       const preview = await getResetPreview(3);
 
       const paths = preview.directories.map((d) => d.path);
-      expect(paths).toContain('/mock/.helixio/helixio.db');
+      expect(paths).toContain('/mock/pgdata');
       expect(paths).toContain('/mock/.helixio/config.json');
       expect(paths).toContain('/mock/.helixio/logs');
       expect(paths).toContain('/mock/.helixio/avatars');

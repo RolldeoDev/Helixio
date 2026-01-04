@@ -370,7 +370,7 @@ export async function getSeriesBrowseList(
     };
   }
 
-  // Search filter (contains on name - SQLite LIKE is case-insensitive by default)
+  // Search filter
   if (search && search.trim()) {
     baseWhere.name = {
       contains: search.trim(),
@@ -388,7 +388,6 @@ export async function getSeriesBrowseList(
   }
 
   // Genre filter (OR logic - match if any genre in the list)
-  // SQLite LIKE is case-insensitive by default
   if (genres && genres.length > 0) {
     baseWhere.OR = genres.map(genre => ({
       genres: {

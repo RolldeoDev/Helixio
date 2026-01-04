@@ -53,8 +53,13 @@ services:
       # =========================================================================
       # Volume Mappings
       # =========================================================================
-      # /config - Application data (database, config, cache, covers)
+      # /config - Application data (PostgreSQL database, config, cache, covers)
       #           For UNRAID: /mnt/user/appdata/helixio:/config
+      #
+      #           Contains:
+      #           - /config/pgdata           - PostgreSQL database files
+      #           - /config/.helixio/        - App config, logs, and cache
+      #
       # /comics - Your comic library (read-write for metadata writing)
       #           For UNRAID: /mnt/user/media/Comics:/comics:rw
       # =========================================================================

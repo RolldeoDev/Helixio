@@ -43,7 +43,7 @@ Helixio runs as a local Node.js server accessed through your web browser.
         │              │              │              │
         ▼              ▼              ▼              ▼
 ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐
-│  SQLite DB │ │ File System│ │ Metadata   │ │  External    │
+│ PostgreSQL │ │ File System│ │ Metadata   │ │  External    │
 │  (Prisma)  │ │ (Archives) │ │ APIs       │ │  Trackers    │
 │  70+ models│ │ CBR/CBZ/PDF│ │ CV/Metron  │ │ AniList/MAL  │
 └────────────┘ └────────────┘ └────────────┘ └──────────────┘
@@ -55,7 +55,7 @@ Helixio runs as a local Node.js server accessed through your web browser.
 |-------|------------|
 | Frontend | React + TypeScript + Vite |
 | Backend | Node.js + Express + TypeScript |
-| Database | SQLite via Prisma (70+ models) |
+| Database | PostgreSQL via Prisma (70+ models) |
 | Real-time | Server-Sent Events (SSE) |
 | Archive Operations | 7zip-bin |
 
@@ -194,21 +194,24 @@ This starts both the backend server (port 3001) and frontend dev server (port 51
 
 ### Configuration
 
-Helixio stores data in `~/.helixio/`:
+Helixio stores configuration and cache in `~/.helixio/`:
 
 ```
 ~/.helixio/
 ├── config.json        # App settings + API keys
-├── helixio.db         # SQLite database
 ├── logs/              # Application logs
 ├── themes/            # Custom themes
 └── cache/
     └── covers/        # Cached cover images
 ```
 
+**Database**: Helixio uses PostgreSQL. For local development, you'll need a running PostgreSQL instance. Set the `DATABASE_URL` environment variable to connect.
+
 API keys for ComicVine and Anthropic (Claude) can be configured through Settings.
 
 ## Docker Installation
+
+The Docker image includes an embedded PostgreSQL database, so no external database setup is required.
 
 ### Using Docker Compose
 
@@ -225,9 +228,13 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /path/to/config:/config
+      - /path/to/config:/config    # Database + config stored here
       - /path/to/comics:/comics:rw
 ```
+
+**Volume contents:**
+- `/config/pgdata/` - PostgreSQL database files
+- `/config/.helixio/` - App config, logs, themes, and cover cache
 
 ### Environment Variables
 

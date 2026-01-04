@@ -215,9 +215,7 @@ export async function discoverFiles(
 
     if (validFiles.length > 0) {
       try {
-        // Bulk insert all valid files in a single operation
-        // Note: SQLite doesn't support skipDuplicates, but we've already filtered
-        // out existing files earlier in the process (existingPathMap check)
+        // Bulk insert all valid files (existing files already filtered via existingPathMap)
         const result = await db.comicFile.createMany({
           data: validFiles,
         });

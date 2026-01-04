@@ -38,4 +38,5 @@
   <Config Name="Metron Password" Target="HELIXIO_METRON_PASSWORD" Default="" Mode="" Description="Metron account password" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
   <Config Name="GCD Email" Target="HELIXIO_GCD_EMAIL" Default="" Mode="" Description="Grand Comics Database email for metadata lookup" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="GCD Password" Target="HELIXIO_GCD_PASSWORD" Default="" Mode="" Description="Grand Comics Database password" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Cookie Secure" Target="COOKIE_SECURE" Default="false" Mode="" Description="Set to true if using HTTPS reverse proxy. Defaults to false for HTTP access on local networks." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
 </Container>

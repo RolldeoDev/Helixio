@@ -1,13 +1,16 @@
 // Helixio Database Schema
-// SQLite database stored at ~/.helixio/helixio.db
+// PostgreSQL database (embedded in Docker container)
+// Data stored at /config/pgdata
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [citext]
 }
 
 // =============================================================================
@@ -16,7 +19,7 @@ datasource db {
 
 model Library {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @db.Citext
   rootPath  String   @unique
   type      String   @default("western") // "western" | "manga"
   createdAt DateTime @default(now())
@@ -46,9 +49,9 @@ model Series {
   id            String   @id @default(cuid())
 
   // Identity (unique constraint: name + publisher only - year not included to avoid splitting multi-year series)
-  name          String                    // Series name (e.g., "Batman")
+  name          String   @db.Citext       // Series name (e.g., "Batman") - case-insensitive
   startYear     Int?                      // Publication start year (for display, not identity)
-  publisher     String?                   // Publisher name (shows primary/latest for multi-publisher)
+  publisher     String?  @db.Citext       // Publisher name (shows primary/latest for multi-publisher) - case-insensitive
 
   // Metadata
   summary       String?                   // Series description/summary
@@ -112,7 +115,7 @@ model Series {
   userNotes     String?
 
   // Aliases for fuzzy matching (comma-separated, e.g., "ASM,Amazing Spidey")
-  aliases       String?
+  aliases       String?  @db.Citext       // case-insensitive for fuzzy matching
 
   // Custom reading order (JSON array of issue numbers/fileIds, null = default order)
   customReadingOrder String?
@@ -409,14 +412,14 @@ model FileMetadata {
   comicId   String @unique
 
   // Core identification
-  series      String?
+  series      String?  @db.Citext
   number      String? // Issue/volume number (string to handle "1.5", "Annual 1", etc.)
   issueNumberSort Float?  // Numeric sort key for proper ordering (null for non-numeric)
-  title       String?
+  title       String?  @db.Citext
   volume      Int? // Volume number for multi-volume series
 
   // Publication info
-  publisher   String?
+  publisher   String?  @db.Citext
   imprint     String?
   year        Int?
   month       Int?
@@ -543,26 +546,6 @@ model BatchOperation {
   @@index([status])
   @@index([libraryId])
   @@index([createdAt])
-}
-
-// =============================================================================
-// Duplicate Detection
-// =============================================================================
-
-model DuplicateGroup {
-  id        String   @id @default(cuid())
-  series    String?
-  number    String?
-  reason    String // "same_hash" | "same_metadata" | "similar_filename"
-  status    String   @default("pending") // "pending" | "resolved" | "dismissed"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Store file IDs as comma-separated string (SQLite doesn't have arrays)
-  fileIds String // Comma-separated list of ComicFile IDs
-
-  @@index([status])
-  @@index([series])
 }
 
 // =============================================================================
@@ -1016,8 +999,8 @@ model ReadingStats {
 
 model User {
   id            String   @id @default(cuid())
-  username      String   @unique
-  email         String?  @unique
+  username      String   @unique @db.Citext
+  email         String?  @unique @db.Citext
   passwordHash  String
   displayName   String?
   avatarUrl     String?
@@ -1441,8 +1424,8 @@ model Collection {
   id          String   @id @default(cuid())
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
+  name        String   @db.Citext
+  description String?  @db.Citext
   deck        String?  // Short tagline/subtitle for the collection
 
   // System collection flag (Favorites, Want to Read)

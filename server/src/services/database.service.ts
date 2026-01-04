@@ -3,6 +3,9 @@
  *
  * Manages Prisma client lifecycle and database operations.
  * Handles initialization, connection, and shutdown.
+ *
+ * PostgreSQL is embedded in the Docker container with data stored at /config/pgdata.
+ * The database uses CITEXT extension for case-insensitive text columns.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -33,7 +36,7 @@ export function getDatabase(): PrismaClient {
 
 /**
  * Check if the database schema has been applied
- * Uses SQLite's sqlite_master table to check for existence of core tables
+ * Uses PostgreSQL's information_schema to check for existence of core tables
  */
 async function isDatabaseSchemaApplied(): Promise<boolean> {
   if (!prisma) {
@@ -42,11 +45,14 @@ async function isDatabaseSchemaApplied(): Promise<boolean> {
 
   try {
     // Check if the Library table exists (a core table that should always exist)
-    const result = await prisma.$queryRaw<Array<{ name: string }>>`
-      SELECT name FROM sqlite_master
-      WHERE type='table' AND name='Library'
+    const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'Library'
+      ) as exists
     `;
-    return result.length > 0;
+    return result[0]?.exists ?? false;
   } catch {
     return false;
   }
@@ -149,7 +155,11 @@ export function isDatabaseInitialized(): boolean {
 // =============================================================================
 
 /**
- * Execute a transaction with automatic retry on lock errors
+ * Execute a transaction with automatic retry on deadlock errors
+ *
+ * PostgreSQL uses MVCC (Multi-Version Concurrency Control) which provides
+ * excellent concurrent access. However, deadlocks can still occur
+ * in rare cases with concurrent transactions, so we keep a simple retry.
  */
 export async function withTransaction<T>(
   fn: (tx: Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>) => Promise<T>,
@@ -164,13 +174,10 @@ export async function withTransaction<T>(
     } catch (error) {
       lastError = error;
 
-      // Check if it's a SQLite lock error
-      if (
-        error instanceof Error &&
-        error.message.includes('database is locked') &&
-        attempt < maxRetries
-      ) {
-        logger.warn({ attempt, maxRetries }, 'Database locked, retrying');
+      // Check if it's a PostgreSQL deadlock error (error code 40P01)
+      const prismaError = error as { code?: string };
+      if (prismaError.code === '40P01' && attempt < maxRetries) {
+        logger.warn({ attempt, maxRetries }, 'Deadlock detected, retrying');
         await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
         continue;
       }
@@ -272,7 +279,6 @@ export type {
   FileMetadata,
   OperationLog,
   BatchOperation,
-  DuplicateGroup,
   Series,
   SeriesProgress,
   SeriesReaderSettingsNew,
