@@ -96,6 +96,18 @@ start_postgres() {
         exit 1
     fi
 
+    # Ensure log file exists and is writable by postgres user
+    # Handles cases where file exists with wrong ownership after container restart
+    # Use postgres:helixio ownership so helixio user can read logs for debugging
+    if [ -f "$PGLOG" ]; then
+        chown postgres:helixio "$PGLOG" 2>/dev/null || true
+        chmod 640 "$PGLOG" 2>/dev/null || true
+    else
+        touch "$PGLOG"
+        chown postgres:helixio "$PGLOG"
+        chmod 640 "$PGLOG"
+    fi
+
     # Start PostgreSQL in background
     gosu "$POSTGRES_USER" pg_ctl -D "$PGDATA" -l "$PGLOG" start -w -t 30
 

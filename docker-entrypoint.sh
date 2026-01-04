@@ -16,6 +16,22 @@ set -e
 PUID=${PUID:-1000}
 PGID=${PGID:-1000}
 
+# =============================================================================
+# Validate PUID/PGID
+# =============================================================================
+
+# Validate PUID is numeric
+if ! echo "$PUID" | grep -qE '^[0-9]+$'; then
+    echo "ERROR: PUID must be a numeric value, got: $PUID"
+    exit 1
+fi
+
+# Validate PGID is numeric
+if ! echo "$PGID" | grep -qE '^[0-9]+$'; then
+    echo "ERROR: PGID must be a numeric value, got: $PGID"
+    exit 1
+fi
+
 echo "Starting Helixio with UID:${PUID} GID:${PGID}"
 
 # =============================================================================
@@ -24,8 +40,13 @@ echo "Starting Helixio with UID:${PUID} GID:${PGID}"
 
 # Update user/group IDs if different from default
 if [ "$PUID" != "1000" ] || [ "$PGID" != "1000" ]; then
-    groupmod -o -g "$PGID" helixio 2>/dev/null || true
-    usermod -o -u "$PUID" helixio 2>/dev/null || true
+    echo "Updating helixio user to UID:${PUID} GID:${PGID}..."
+    if ! groupmod -o -g "$PGID" helixio 2>&1; then
+        echo "WARN: Failed to update helixio group to GID $PGID"
+    fi
+    if ! usermod -o -u "$PUID" helixio 2>&1; then
+        echo "WARN: Failed to update helixio user to UID $PUID"
+    fi
 fi
 
 # =============================================================================
@@ -44,6 +65,13 @@ mkdir -p "$PGDATA"
 # Set ownership (helixio owns app data, postgres owns pgdata)
 chown -R helixio:helixio /config /app
 chown -R postgres:postgres "$PGDATA" /var/run/postgresql
+
+# Pre-create postgres log file with correct ownership
+# This allows pg_ctl (running as postgres) to write logs
+# Make it group-readable so helixio user can also read logs for debugging
+touch "$HELIXIO_DIR/logs/postgres.log"
+chown postgres:helixio "$HELIXIO_DIR/logs/postgres.log"
+chmod 640 "$HELIXIO_DIR/logs/postgres.log"
 
 # =============================================================================
 # Cookie Security handling
@@ -88,14 +116,27 @@ fi
 export HELIXIO_DIR  # Pass to init-postgres.sh for log path
 
 echo "Initializing PostgreSQL..."
-/docker/init-postgres.sh init
+if ! /docker/init-postgres.sh init; then
+    echo "ERROR: PostgreSQL initialization failed"
+    echo "Check permissions on /config/pgdata directory"
+    exit 1
+fi
 
 echo "Starting PostgreSQL..."
-/docker/init-postgres.sh start
+if ! /docker/init-postgres.sh start; then
+    echo "ERROR: PostgreSQL failed to start"
+    echo "=== PostgreSQL Log (last 50 lines) ==="
+    tail -n 50 "$HELIXIO_DIR/logs/postgres.log" 2>/dev/null || echo "(no log available)"
+    echo "======================================="
+    exit 1
+fi
 
 echo "Waiting for PostgreSQL to be ready..."
 if ! /docker/init-postgres.sh wait 30; then
-    echo "ERROR: PostgreSQL failed to become ready"
+    echo "ERROR: PostgreSQL failed to become ready within 30 seconds"
+    echo "=== PostgreSQL Log (last 50 lines) ==="
+    tail -n 50 "$HELIXIO_DIR/logs/postgres.log" 2>/dev/null || echo "(no log available)"
+    echo "======================================="
     /docker/init-postgres.sh stop
     exit 1
 fi
