@@ -58,7 +58,8 @@ function computeCoverUrl(data: CardCoverData): string | null {
       return getApiCoverUrl(coverHash);
     }
     if ((resolvedCoverSource === 'firstIssue' || resolvedCoverSource === 'user') && coverFileId) {
-      return getCoverUrl(coverFileId);
+      // Pass coverHash as version for cache-busting
+      return getCoverUrl(coverFileId, coverHash);
     }
     if (resolvedCoverSource === 'none') {
       return null;

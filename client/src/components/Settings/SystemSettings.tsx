@@ -4,7 +4,7 @@
  * Consolidates API Keys, Cache, Rate Limiting, Database Maintenance, and Factory Reset.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   getSeriesCacheStats,
   cleanSeriesCache,
@@ -151,6 +151,20 @@ export function SystemSettings() {
   const [loadingSitemapStatus, setLoadingSitemapStatus] = useState(false);
   const [refreshingSitemap, setRefreshingSitemap] = useState(false);
 
+  // Cover cache regeneration state
+  type CacheJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  const [libraries, setLibraries] = useState<Array<{ id: string; name: string }>>([]);
+  const [regenerateLibraryId, setRegenerateLibraryId] = useState<string>('');
+  const [regeneratingCovers, setRegeneratingCovers] = useState(false);
+  const [coverRegenerateJob, setCoverRegenerateJob] = useState<{
+    jobId: string;
+    status: CacheJobStatus;
+    totalFiles: number;
+    processedFiles: number;
+    failedFiles: number;
+    currentFile?: string;
+  } | null>(null);
+
   const { addToast } = useApiToast();
   const confirm = useConfirmModal();
 
@@ -212,6 +226,16 @@ export function SystemSettings() {
       if (renamingRes.ok) {
         const renamingData = await renamingRes.json();
         setFileRenamingEnabled(renamingData.enabled ?? false);
+      }
+
+      // Load libraries for cover regeneration dropdown
+      const librariesRes = await fetch(`${API_BASE}/libraries`);
+      if (librariesRes.ok) {
+        const librariesData = await librariesRes.json();
+        setLibraries(librariesData.map((lib: { id: string; name: string }) => ({
+          id: lib.id,
+          name: lib.name,
+        })));
       }
     } catch (err) {
       console.error('Failed to load system settings:', err);
@@ -551,6 +575,146 @@ export function SystemSettings() {
       addToast('error', err instanceof Error ? err.message : 'Failed to refresh sitemap');
     } finally {
       setRefreshingSitemap(false);
+    }
+  };
+
+  // Cover cache regeneration handlers
+  const pollIntervalRef = useRef<number | null>(null);
+
+  const pollCoverRegenerateJob = useCallback(async (jobId: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/cache/jobs/${jobId}`);
+      if (!response.ok) {
+        throw new Error('Failed to get job status');
+      }
+
+      const data = await response.json();
+      const job = data.job;
+
+      setCoverRegenerateJob({
+        jobId: job.id,
+        status: job.status,
+        totalFiles: job.totalFiles,
+        processedFiles: job.processedFiles,
+        failedFiles: job.failedFiles,
+        currentFile: job.currentFile,
+      });
+
+      // Stop polling if job is complete or failed
+      if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setRegeneratingCovers(false);
+
+        if (job.status === 'completed') {
+          addToast('success', `Regenerated ${job.processedFiles} cover(s)${job.failedFiles > 0 ? `, ${job.failedFiles} failed` : ''}`);
+        } else if (job.status === 'cancelled') {
+          addToast('info', 'Cover regeneration cancelled');
+        } else {
+          addToast('error', 'Cover regeneration failed');
+        }
+
+        // Clear job state after a short delay
+        setTimeout(() => setCoverRegenerateJob(null), 3000);
+      }
+    } catch (err) {
+      console.error('Failed to poll cover regenerate job:', err);
+      addToast('error', 'Lost connection to regeneration job. Please check the page.');
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      setRegeneratingCovers(false);
+      setCoverRegenerateJob(null);
+    }
+  }, [addToast]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const handleRegenerateCoverCache = async () => {
+    const libraryName = regenerateLibraryId
+      ? libraries.find(lib => lib.id === regenerateLibraryId)?.name || 'selected library'
+      : 'all libraries';
+
+    const confirmed = await confirm({
+      title: 'Re-generate Cover Cache',
+      message: `This will delete and re-generate all cover images for ${libraryName}. This may take several minutes for large libraries. Continue?`,
+      confirmText: 'Re-generate',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    setRegeneratingCovers(true);
+    setCoverRegenerateJob(null);
+
+    try {
+      const response = await fetch(`${API_BASE}/cache/rebuild-library`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          libraryId: regenerateLibraryId || undefined,
+          type: 'cover',
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to start cover regeneration');
+
+      const result = await response.json();
+
+      if (result.fileCount === 0) {
+        addToast('info', 'No files to regenerate');
+        setRegeneratingCovers(false);
+        return;
+      }
+
+      // Initialize job state
+      setCoverRegenerateJob({
+        jobId: result.jobId,
+        status: 'queued',
+        totalFiles: result.fileCount,
+        processedFiles: 0,
+        failedFiles: 0,
+      });
+
+      // Start polling for progress
+      pollIntervalRef.current = window.setInterval(() => {
+        pollCoverRegenerateJob(result.jobId);
+      }, 1000);
+
+    } catch (err) {
+      // Clear any potentially started polling interval
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      addToast('error', err instanceof Error ? err.message : 'Failed to start cover regeneration');
+      setRegeneratingCovers(false);
+      setCoverRegenerateJob(null);
+    }
+  };
+
+  const handleCancelCoverRegenerate = async () => {
+    if (!coverRegenerateJob?.jobId) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/cache/jobs/${coverRegenerateJob.jobId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) throw new Error('Failed to cancel job');
+
+      addToast('info', 'Cancelling cover regeneration...');
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to cancel job');
     }
   };
 
@@ -1240,6 +1404,85 @@ export function SystemSettings() {
           >
             {clearingDownloadCache ? 'Clearing...' : 'Clear Download Cache'}
           </button>
+        </div>
+
+        {/* Re-generate Cover Cache */}
+        <div className="cache-subsection">
+          <h4>Re-generate Cover Cache</h4>
+          <p className="setting-description">
+            Delete and regenerate all cover images with the latest optimization settings.
+            Useful if covers appear corrupted or after updates that improve cover quality.
+          </p>
+
+          <div className="setting-group">
+            <label htmlFor="regenerate-library">Library</label>
+            <select
+              id="regenerate-library"
+              value={regenerateLibraryId}
+              onChange={(e) => setRegenerateLibraryId(e.target.value)}
+              disabled={regeneratingCovers}
+            >
+              <option value="">All Libraries</option>
+              {libraries.map((lib) => (
+                <option key={lib.id} value={lib.id}>{lib.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {coverRegenerateJob && (
+            <div className="cache-stats">
+              <div className="stat-grid">
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {coverRegenerateJob.processedFiles} / {coverRegenerateJob.totalFiles}
+                  </span>
+                  <span className="stat-label">Files Processed</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">{coverRegenerateJob.failedFiles}</span>
+                  <span className="stat-label">Failed</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value capitalize">{coverRegenerateJob.status}</span>
+                  <span className="stat-label">Status</span>
+                </div>
+              </div>
+              {coverRegenerateJob.currentFile && coverRegenerateJob.status === 'processing' && (
+                <div className="current-file">
+                  <small>Processing: {coverRegenerateJob.currentFile}</small>
+                </div>
+              )}
+              {/* Progress bar */}
+              {coverRegenerateJob.totalFiles > 0 && (
+                <div className="progress-bar-container">
+                  <div
+                    className="progress-bar"
+                    style={{
+                      width: `${(coverRegenerateJob.processedFiles / coverRegenerateJob.totalFiles) * 100}%`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="button-group">
+            <button
+              className="btn-secondary"
+              onClick={handleRegenerateCoverCache}
+              disabled={regeneratingCovers}
+            >
+              {regeneratingCovers ? 'Regenerating...' : 'Re-generate Covers'}
+            </button>
+            {regeneratingCovers && (
+              <button
+                className="btn-ghost danger"
+                onClick={handleCancelCoverRegenerate}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       </SectionCard>
 

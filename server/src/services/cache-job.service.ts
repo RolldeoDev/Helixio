@@ -386,3 +386,61 @@ export function triggerCacheGenerationForNewFiles(fileIds: string[]): void {
   // Enqueue thumbnail generation (slower, background task)
   enqueueCacheJob('thumbnails', fileIds);
 }
+
+/**
+ * Delete and regenerate covers for an entire library or all libraries.
+ * This is used for rebuilding the cover cache from System Settings.
+ */
+export async function rebuildCacheForLibrary(
+  libraryId: string | null,
+  type: CacheJobType = 'cover'
+): Promise<CacheJob> {
+  const prisma = getDatabase();
+
+  // Get all files in the library (or all libraries if null)
+  const files = await prisma.comicFile.findMany({
+    where: libraryId
+      ? { libraryId, status: { not: 'quarantined' } }
+      : { status: { not: 'quarantined' } },
+    select: { id: true, hash: true, libraryId: true },
+  });
+
+  const fileIds = files.map((f) => f.id);
+
+  if (fileIds.length === 0) {
+    // Return an empty completed job
+    const job: CacheJob = {
+      id: `cache_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+      type,
+      fileIds: [],
+      status: 'completed',
+      totalFiles: 0,
+      processedFiles: 0,
+      failedFiles: 0,
+      queuedAt: new Date(),
+      completedAt: new Date(),
+      errors: [],
+    };
+    return job;
+  }
+
+  logger.info(
+    { libraryId: libraryId || 'all', fileCount: fileIds.length, type },
+    'Starting library cache rebuild'
+  );
+
+  // Delete existing cache for these files
+  for (const file of files) {
+    if (file.hash) {
+      if (type === 'cover' || type === 'full') {
+        await deleteCachedCover(file.libraryId, file.hash);
+      }
+      if (type === 'thumbnails' || type === 'full') {
+        await deleteThumbnails(file.libraryId, file.hash);
+      }
+    }
+  }
+
+  // Enqueue rebuild job
+  return enqueueCacheJob(type, fileIds);
+}
