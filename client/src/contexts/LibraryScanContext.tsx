@@ -1,7 +1,8 @@
 /**
  * Library Scan Context
  *
- * Manages state for library scan jobs with polling for progress updates.
+ * Manages state for library scan jobs with SSE for real-time progress updates.
+ * Falls back to polling when SSE is unavailable.
  * Provides functions to start scans, track progress, and cancel jobs.
  */
 
@@ -14,6 +15,7 @@ import {
   type ScanJobStatus,
 } from '../services/api.service';
 import { invalidateAfterLibraryScan } from '../lib/cacheInvalidation';
+import { useAuth } from './AuthContext';
 
 // =============================================================================
 // Types
@@ -59,8 +61,13 @@ const LibraryScanContext = createContext<LibraryScanContextValue | null>(null);
 // Constants
 // =============================================================================
 
-const POLL_INTERVAL_ACTIVE = 1000; // 1 second during active processing
-const POLL_INTERVAL_IDLE = 5000; // 5 seconds when idle/queued
+// Fallback polling intervals (used when SSE is disconnected)
+const POLL_INTERVAL_ACTIVE = 2000; // 2 seconds during active processing (increased since SSE is primary)
+const POLL_INTERVAL_IDLE = 10000; // 10 seconds when idle/queued
+
+// SSE reconnection settings
+const SSE_RECONNECT_DELAY = 3000; // 3 seconds
+const SSE_MAX_RECONNECT_DELAY = 30000; // 30 seconds max
 
 const STAGE_LABELS: Record<ScanJobStatus, string> = {
   queued: 'Queued',
@@ -79,6 +86,7 @@ const STAGE_LABELS: Record<ScanJobStatus, string> = {
 // =============================================================================
 
 export function LibraryScanProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [state, setState] = useState<LibraryScanState>({
     activeScans: {},
     viewingScanId: null,
@@ -87,16 +95,45 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
     error: null,
   });
 
+  // SSE connection state
+  const [sseConnected, setSseConnected] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectDelayRef = useRef(SSE_RECONNECT_DELAY);
+
+  // Polling timers (runs alongside SSE as backup)
   const pollTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Clean up timers on unmount
+  // Clean up timers and SSE on unmount
   useEffect(() => {
     return () => {
       Object.values(pollTimers.current).forEach(clearTimeout);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
     };
   }, []);
 
-  // Poll for scan updates
+  // Handle scan completion (shared between SSE and polling)
+  const handleScanComplete = useCallback((libraryId: string, status: ScanJobStatus) => {
+    // Scan completed - invalidate React Query caches
+    if (status === 'complete') {
+      invalidateAfterLibraryScan(libraryId);
+    }
+
+    // Clear from active scans after a delay (show completion message)
+    setTimeout(() => {
+      setState((prev) => {
+        const { [libraryId]: _, ...rest } = prev.activeScans;
+        return { ...prev, activeScans: rest };
+      });
+    }, 5000);
+  }, []);
+
+  // Poll for scan updates (runs alongside SSE as backup)
   const pollScanStatus = useCallback(
     async (libraryId: string, jobId: string) => {
       try {
@@ -118,24 +155,16 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
           const isActive = ['discovering', 'cleaning', 'indexing', 'linking', 'covers'].includes(
             job.status
           );
-          const interval = isActive ? POLL_INTERVAL_ACTIVE : POLL_INTERVAL_IDLE;
+          // Use longer interval when SSE is connected (SSE provides faster updates)
+          const interval = sseConnected
+            ? (isActive ? POLL_INTERVAL_ACTIVE * 2 : POLL_INTERVAL_IDLE)
+            : (isActive ? POLL_INTERVAL_ACTIVE : POLL_INTERVAL_IDLE);
 
           pollTimers.current[libraryId] = setTimeout(() => {
             pollScanStatus(libraryId, jobId);
           }, interval);
         } else {
-          // Scan completed - invalidate React Query caches
-          if (job.status === 'complete') {
-            invalidateAfterLibraryScan(libraryId);
-          }
-
-          // Clear from active scans after a delay (show completion message)
-          setTimeout(() => {
-            setState((prev) => {
-              const { [libraryId]: _, ...rest } = prev.activeScans;
-              return { ...prev, activeScans: rest };
-            });
-          }, 5000);
+          handleScanComplete(libraryId, job.status);
         }
       } catch (err) {
         console.error('Failed to poll scan status:', err);
@@ -145,7 +174,7 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
         }));
       }
     },
-    []
+    [sseConnected, handleScanComplete]
   );
 
   // Start a new scan
@@ -170,7 +199,8 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
           starting: { ...prev.starting, [libraryId]: false },
         }));
 
-        // Start polling if not already complete
+        // Always start polling as a backup (SSE events might be missed during race conditions)
+        // Polling will stop automatically when job reaches terminal state
         const terminalStates: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
         if (!terminalStates.includes(job.status)) {
           pollScanStatus(libraryId, job.id);
@@ -308,11 +338,153 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
     return STAGE_LABELS[status] || status;
   }, []);
 
-  // Check for active scans on mount
+  // SSE connection for real-time scan progress
+  const connectSSE = useCallback(() => {
+    // Clean up existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    try {
+      const eventSource = new EventSource('/api/libraries/scans/stream', {
+        withCredentials: true,
+      });
+
+      eventSource.onopen = () => {
+        setSseConnected(true);
+        // Reset reconnect delay on successful connection
+        reconnectDelayRef.current = SSE_RECONNECT_DELAY;
+        console.debug('Scan SSE connected');
+      };
+
+      // Handle scan progress events
+      eventSource.addEventListener('scan-progress', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const libraryId = data.libraryId;
+
+          if (!libraryId) {
+            console.debug('SSE scan-progress event missing libraryId');
+            return;
+          }
+
+          // Map SSE progress data to LibraryScanJob format
+          setState((prev) => {
+            const existingJob = prev.activeScans[libraryId];
+
+            // If we don't have an existing job, we can't update it yet
+            // The job will be set when startScan completes
+            if (!existingJob) {
+              console.debug('SSE event received but no active scan in state for library:', libraryId);
+              return prev;
+            }
+
+            // Determine status from phase
+            let status: ScanJobStatus = existingJob.status;
+            if (data.phase === 'enumerating') {
+              status = 'discovering';
+            } else if (data.phase === 'processing') {
+              status = 'indexing';
+            } else if (data.phase === 'covers') {
+              status = 'covers';
+            } else if (data.phase === 'complete') {
+              status = 'complete';
+            } else if (data.phase === 'error') {
+              status = 'error';
+            }
+
+            const updatedJob: LibraryScanJob = {
+              ...existingJob,
+              status,
+              totalFiles: data.filesDiscovered || existingJob.totalFiles,
+              discoveredFiles: data.filesDiscovered || existingJob.discoveredFiles,
+              indexedFiles: data.filesCreated + data.filesUpdated,
+              // linkedFiles = files linked to series (all processed files are linked)
+              linkedFiles: data.filesCreated + data.filesUpdated,
+              orphanedFiles: data.filesOrphaned,
+              seriesCreated: data.seriesCreated,
+              coversExtracted: data.coverJobsComplete,
+              foldersTotal: data.foldersTotal,
+              foldersComplete: data.foldersComplete,
+              currentFolder: data.currentFolder,
+            };
+
+            // Check for terminal state
+            const terminalStates: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
+            if (terminalStates.includes(status)) {
+              // Handle completion
+              setTimeout(() => handleScanComplete(libraryId, status), 0);
+            }
+
+            return {
+              ...prev,
+              activeScans: {
+                ...prev.activeScans,
+                [libraryId]: updatedJob,
+              },
+            };
+          });
+        } catch (error) {
+          console.debug('Failed to parse scan progress event:', error);
+        }
+      });
+
+      eventSource.onerror = () => {
+        setSseConnected(false);
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        // Schedule reconnect with exponential backoff
+        const delay = reconnectDelayRef.current;
+        reconnectDelayRef.current = Math.min(delay * 2, SSE_MAX_RECONNECT_DELAY);
+
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.debug('Attempting scan SSE reconnect...');
+          connectSSE();
+        }, delay);
+      };
+
+      eventSourceRef.current = eventSource;
+    } catch (error) {
+      console.debug('Failed to create scan EventSource:', error);
+      setSseConnected(false);
+    }
+  }, [handleScanComplete]);
+
+  // Set up SSE connection when authenticated
   useEffect(() => {
-    // This could be enhanced to check all libraries for active scans
-    // For now, we rely on the scan being started from the UI
-  }, []);
+    if (!isAuthenticated) {
+      // Clean up connection when not authenticated
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      setSseConnected(false);
+      return;
+    }
+
+    // Connect to SSE
+    connectSSE();
+
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+    // connectSSE is stable (only depends on handleScanComplete which has empty deps)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const value: LibraryScanContextValue = {
     ...state,

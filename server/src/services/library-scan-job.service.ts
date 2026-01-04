@@ -7,7 +7,7 @@
 
 import { getDatabase } from './database.service.js';
 import { logInfo } from './logger.service.js';
-import { sendJobError } from './sse.service.js';
+import { sendJobError, sendJobStatusChange } from './sse.service.js';
 
 // =============================================================================
 // Types
@@ -477,6 +477,9 @@ export async function cancelScanJob(jobId: string): Promise<void> {
   });
 
   await addScanJobLog(jobId, job.currentStage, 'Scan cancelled by user', undefined, 'warning');
+
+  // Broadcast cancellation to connected clients via SSE
+  sendJobStatusChange(jobId, 'cancelled');
 }
 
 /**
@@ -536,9 +539,10 @@ export async function recoverInterruptedScanJobs(): Promise<string[]> {
   const prisma = getDatabase();
 
   // Find jobs that were in progress when server stopped
+  // Scanner phases: enumerating->discovering, processing->indexing, covers->covers
   const interruptedJobs = await prisma.libraryScanJob.findMany({
     where: {
-      status: { in: ['discovering', 'cleaning', 'indexing', 'linking', 'covers'] },
+      status: { in: ['discovering', 'indexing', 'covers'] },
     },
   });
 

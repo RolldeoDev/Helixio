@@ -117,12 +117,14 @@ export function DuplicateComparison({
   const differences = useMemo(() => {
     const diffs: Array<{ field: string; left: string; right: string; winner?: 'left' | 'right' | 'tie' }> = [];
 
-    // File size
+    // File size (convert string to number for comparison)
+    const leftSize = typeof leftFile.size === 'string' ? parseInt(leftFile.size, 10) : leftFile.size;
+    const rightSize = typeof rightFile.size === 'string' ? parseInt(rightFile.size, 10) : rightFile.size;
     diffs.push({
       field: 'File Size',
       left: formatFileSize(leftFile.size),
       right: formatFileSize(rightFile.size),
-      winner: leftFile.size > rightFile.size ? 'left' : leftFile.size < rightFile.size ? 'right' : 'tie',
+      winner: leftSize > rightSize ? 'left' : leftSize < rightSize ? 'right' : 'tie',
     });
 
     // Modified date

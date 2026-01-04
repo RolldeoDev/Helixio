@@ -67,7 +67,7 @@ export interface ComicFile {
   path: string;
   relativePath: string;
   filename: string;
-  size: number;
+  size: number | string; // BigInt serialized as string for files > 2GB
   hash: string | null;
   status: 'pending' | 'indexed' | 'orphaned' | 'quarantined';
   modifiedAt: string;
