@@ -968,6 +968,40 @@ export async function cleanupEmptySeries(): Promise<{
 }
 
 /**
+ * Deleted series with counts for display
+ */
+export interface DeletedSeries {
+  id: string;
+  name: string;
+  publisher?: string | null;
+  startYear?: number | null;
+  deletedAt: string;
+}
+
+/**
+ * Get all soft-deleted series.
+ */
+export async function getDeletedSeries(): Promise<{
+  count: number;
+  series: DeletedSeries[];
+}> {
+  return get('/series/admin/deleted');
+}
+
+/**
+ * Permanently delete all soft-deleted series.
+ * This performs a hard delete and cleans up related data.
+ */
+export async function purgeDeletedSeries(): Promise<{
+  deletedCount: number;
+  seriesNames: string[];
+  cleanedCollectionItems: number;
+  cleanedSimilarities: number;
+}> {
+  return post('/series/admin/purge-deleted');
+}
+
+/**
  * Sync a single file's metadata to match its linked series.
  * Use when the file is in the correct series but the metadata is wrong.
  */

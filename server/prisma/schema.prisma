@@ -292,7 +292,7 @@ model ComicFile {
   relativePath String // Path relative to library root
   filename     String // Just the filename
   extension    String // "cbz" | "cbr"
-  size         Int // File size in bytes
+  size         BigInt // File size in bytes (BigInt to support files > 2GB)
   modifiedAt   DateTime // File system modified date
   hash         String? // Partial hash for file matching (first/last N bytes)
   status       String   @default("pending") // "pending" | "indexed" | "orphaned" | "quarantined"
@@ -739,6 +739,9 @@ model LibraryScanJob {
   // Error tracking
   error              String?
   errorCount         Int      @default(0)
+
+  // Scan options (JSON: { forceFullScan?: boolean })
+  options            String?
 
   // Timing
   queuedAt           DateTime @default(now())

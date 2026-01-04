@@ -558,8 +558,8 @@ export function Reader({ onClose, onNavigateToFile, onNavigateToSeries }: Reader
           justifyContent: 'center',
           overflow: 'hidden',
         }}
-        onClick={handlePageClick}
-        {...touchHandlers}
+        onClick={!isTouchDevice ? handlePageClick : undefined}
+        {...(isTouchDevice ? touchHandlers : {})}
       >
         <ReaderPage />
 

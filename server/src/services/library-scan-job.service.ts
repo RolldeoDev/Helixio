@@ -7,6 +7,7 @@
 
 import { getDatabase } from './database.service.js';
 import { logInfo } from './logger.service.js';
+import { sendJobError } from './sse.service.js';
 
 // =============================================================================
 // Types
@@ -32,6 +33,11 @@ export interface ScanJobLogEntry {
   timestamp: Date;
 }
 
+export interface ScanJobOptions {
+  /** Force full rescan - skip delta detection */
+  forceFullScan?: boolean;
+}
+
 export interface LibraryScanJobData {
   id: string;
   libraryId: string;
@@ -52,6 +58,9 @@ export interface LibraryScanJobData {
   // Error tracking
   error: string | null;
   errorCount: number;
+
+  // Scan options
+  options: ScanJobOptions | null;
 
   // Timing
   queuedAt: Date;
@@ -106,6 +115,15 @@ function organizeLogs(
   return logsByStage;
 }
 
+function parseOptions(optionsJson: string | null): ScanJobOptions | null {
+  if (!optionsJson) return null;
+  try {
+    return JSON.parse(optionsJson) as ScanJobOptions;
+  } catch {
+    return null;
+  }
+}
+
 // =============================================================================
 // Job Management
 // =============================================================================
@@ -113,7 +131,10 @@ function organizeLogs(
 /**
  * Create a new library scan job
  */
-export async function createScanJob(libraryId: string): Promise<string> {
+export async function createScanJob(
+  libraryId: string,
+  options?: ScanJobOptions
+): Promise<string> {
   const prisma = getDatabase();
 
   // Check if there's already an active scan for this library
@@ -134,6 +155,7 @@ export async function createScanJob(libraryId: string): Promise<string> {
       libraryId,
       status: 'queued',
       currentStage: 'queued',
+      options: options ? JSON.stringify(options) : null,
     },
   });
 
@@ -173,6 +195,7 @@ export async function getScanJob(jobId: string): Promise<LibraryScanJobData | nu
     totalFiles: job.totalFiles,
     error: job.error,
     errorCount: job.errorCount,
+    options: parseOptions(job.options),
     queuedAt: job.queuedAt,
     startedAt: job.startedAt,
     completedAt: job.completedAt,
@@ -220,6 +243,7 @@ export async function getActiveScanJobForLibrary(
     totalFiles: job.totalFiles,
     error: job.error,
     errorCount: job.errorCount,
+    options: parseOptions(job.options),
     queuedAt: job.queuedAt,
     startedAt: job.startedAt,
     completedAt: job.completedAt,
@@ -266,6 +290,7 @@ export async function listActiveScanJobs(): Promise<LibraryScanJobData[]> {
     totalFiles: job.totalFiles,
     error: job.error,
     errorCount: job.errorCount,
+    options: parseOptions(job.options),
     queuedAt: job.queuedAt,
     startedAt: job.startedAt,
     completedAt: job.completedAt,
@@ -312,6 +337,7 @@ export async function listScanJobsForLibrary(
     totalFiles: job.totalFiles,
     error: job.error,
     errorCount: job.errorCount,
+    options: parseOptions(job.options),
     queuedAt: job.queuedAt,
     startedAt: job.startedAt,
     completedAt: job.completedAt,
@@ -423,6 +449,9 @@ export async function failScanJob(jobId: string, error: string): Promise<void> {
   });
 
   await addScanJobLog(jobId, job.currentStage, 'Scan failed', error, 'error');
+
+  // Broadcast error to connected clients via SSE
+  sendJobError(jobId, error);
 }
 
 /**

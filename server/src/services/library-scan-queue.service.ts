@@ -214,12 +214,14 @@ function handleScanComplete(item: ScanQueueItem): void {
 
 /**
  * Handle scan error
+ * Note: SSE error broadcast is handled by failScanJob() in library-scan-job.service.ts
  */
 function handleScanError(item: ScanQueueItem, error: unknown): void {
   item.status = 'failed';
   item.completedAt = new Date();
   item.error = error instanceof Error ? error.message : 'Unknown error';
   logger.error({ jobId: item.jobId, err: error }, 'Scan job failed');
+
   cleanupScan(item);
 }
 
@@ -320,13 +322,16 @@ async function executeFullScan(
   }
 
   const libraryId = job.libraryId;
+  const forceFullScan = job.options?.forceFullScan ?? false;
 
   try {
     // Import new scanner
     const { scanLibrary } = await import('./library-scanner/index.js');
 
     // Run the scan with the new 5-phase scanner
+    // Delta scanning is enabled by default; forceFullScan disables it
     const result = await scanLibrary(libraryId, {
+      forceFullScan,
       onProgress: async (progress) => {
         // Map phase to job stage
         const stageMap: Record<string, string> = {

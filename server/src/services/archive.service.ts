@@ -132,8 +132,8 @@ export interface ArchiveCreationResult {
  * Cache configuration for archive listings.
  * Uses file mtime + size as a quick change detection key.
  */
-const ARCHIVE_CACHE_MAX_SIZE = 500;
-const ARCHIVE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const ARCHIVE_CACHE_MAX_SIZE = 10000; // Increased for large libraries (10K-50K files)
+const ARCHIVE_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes - extended for long scans
 
 interface CachedArchiveInfo {
   info: ArchiveInfo;

@@ -31,6 +31,8 @@ export interface DiscoveryResult extends PhaseResult {
   newFiles: number;
   existingFiles: number;
   orphanedFiles: number;
+  /** Files that were modified since last scan (delta scanning) */
+  modifiedFiles: number;
 }
 
 export interface MetadataResult extends PhaseResult {
@@ -75,4 +77,9 @@ export interface ScanOptions {
   shouldCancel?: () => boolean;
   /** Batch size for DB operations (default: 100) */
   batchSize?: number;
+  /**
+   * Force full rescan - skip delta detection and reprocess all files.
+   * When false (default), only files with changed mtime are reprocessed.
+   */
+  forceFullScan?: boolean;
 }

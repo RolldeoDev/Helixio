@@ -14,10 +14,13 @@ import {
   batchSyncFileMetadataToSeries,
   getEmptySeries,
   cleanupEmptySeries,
+  getDeletedSeries,
+  purgeDeletedSeries,
   type SeriesCacheStats,
   type MismatchedFile,
   type RepairResult,
   type EmptySeries,
+  type DeletedSeries,
 } from '../../services/api.service';
 import { SectionCard } from '../SectionCard';
 import { FactoryResetModal, FactoryResetSection } from '../FactoryReset';
@@ -114,6 +117,12 @@ export function SystemSettings() {
   const [loadingEmptySeries, setLoadingEmptySeries] = useState(false);
   const [cleaningEmptySeries, setCleaningEmptySeries] = useState(false);
   const [showAllEmptySeries, setShowAllEmptySeries] = useState(false);
+
+  // Deleted series cleanup state
+  const [deletedSeries, setDeletedSeries] = useState<DeletedSeries[] | null>(null);
+  const [loadingDeletedSeries, setLoadingDeletedSeries] = useState(false);
+  const [purgingDeletedSeries, setPurgingDeletedSeries] = useState(false);
+  const [showAllDeletedSeries, setShowAllDeletedSeries] = useState(false);
 
   // Factory reset modal state
   const [showFactoryResetModal, setShowFactoryResetModal] = useState(false);
@@ -892,6 +901,48 @@ export function SystemSettings() {
       addToast('error', err instanceof Error ? err.message : 'Failed to clean up empty series');
     } finally {
       setCleaningEmptySeries(false);
+    }
+  };
+
+  // Deleted series cleanup handlers
+  const handleCheckDeletedSeries = async () => {
+    setLoadingDeletedSeries(true);
+    setShowAllDeletedSeries(false);
+    try {
+      const result = await getDeletedSeries();
+      setDeletedSeries(result.series);
+      if (result.count === 0) {
+        addToast('success', 'No soft-deleted series found');
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to check for deleted series');
+    } finally {
+      setLoadingDeletedSeries(false);
+    }
+  };
+
+  const handlePurgeDeletedSeries = async () => {
+    const confirmed = await confirm({
+      title: 'Permanently Delete Series',
+      message: `This will permanently delete ${deletedSeries?.length || 0} series from the database. This action cannot be undone. Continue?`,
+      confirmText: 'Delete Permanently',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    setPurgingDeletedSeries(true);
+    try {
+      const result = await purgeDeletedSeries();
+      setDeletedSeries(null);
+      if (result.deletedCount > 0) {
+        addToast('success', `Permanently deleted ${result.deletedCount} series`);
+      } else {
+        addToast('success', 'No deleted series found to purge');
+      }
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to purge deleted series');
+    } finally {
+      setPurgingDeletedSeries(false);
     }
   };
 
@@ -1732,6 +1783,70 @@ export function SystemSettings() {
             <div className="repair-result">
               <div className="result-details">
                 <div>No empty series found</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="setting-group">
+          <label>Soft-Deleted Series Cleanup</label>
+          <p className="setting-description">
+            Permanently remove series that have been soft-deleted. Soft-deleted series occur when
+            libraries are removed or when empty series are cleaned up. This action cannot be undone.
+          </p>
+
+          <div className="button-group">
+            <button
+              className="btn-secondary"
+              onClick={handleCheckDeletedSeries}
+              disabled={loadingDeletedSeries || purgingDeletedSeries}
+            >
+              {loadingDeletedSeries ? 'Checking...' : 'Check for Deleted Series'}
+            </button>
+
+            {deletedSeries !== null && deletedSeries.length > 0 && (
+              <button
+                className="btn-danger"
+                onClick={handlePurgeDeletedSeries}
+                disabled={purgingDeletedSeries}
+              >
+                {purgingDeletedSeries ? 'Deleting...' : `Delete ${deletedSeries.length} Series Permanently`}
+              </button>
+            )}
+          </div>
+
+          {/* Deleted series list */}
+          {deletedSeries !== null && deletedSeries.length > 0 && (
+            <div className="mismatched-files-list">
+              <h5>Soft-Deleted Series ({deletedSeries.length})</h5>
+              <div className="files-scroll-container">
+                {(showAllDeletedSeries ? deletedSeries : deletedSeries.slice(0, 10)).map((series) => (
+                  <div key={series.id} className="mismatched-file-item">
+                    <span className="file-name">{series.name}</span>
+                    <span className="file-meta">
+                      {series.publisher || 'Unknown Publisher'}
+                      {series.startYear ? ` (${series.startYear})` : ''}
+                      {' • Deleted '}
+                      {new Date(series.deletedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+                {!showAllDeletedSeries && deletedSeries.length > 10 && (
+                  <button
+                    className="show-more-btn"
+                    onClick={() => setShowAllDeletedSeries(true)}
+                  >
+                    ... and {deletedSeries.length - 10} more
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {deletedSeries !== null && deletedSeries.length === 0 && (
+            <div className="repair-result">
+              <div className="result-details">
+                <div>No soft-deleted series found</div>
               </div>
             </div>
           )}

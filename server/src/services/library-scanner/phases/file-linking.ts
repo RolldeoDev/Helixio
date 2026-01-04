@@ -61,12 +61,13 @@ export async function linkFilesToSeries(
     }
   }
 
-  // Count files to link
+  // Count files to link (excluding already-orphaned files)
   const totalCount = await db.comicFile.count({
     where: {
       libraryId,
       seriesId: null,
       seriesNameRaw: { not: null },
+      status: { not: 'orphaned' },
     },
   });
 
@@ -99,6 +100,7 @@ export async function linkFilesToSeries(
         libraryId,
         seriesId: null,
         seriesNameRaw: { not: null },
+        status: { not: 'orphaned' }, // Exclude files already marked as orphaned
       },
       select: {
         id: true,
@@ -130,6 +132,11 @@ export async function linkFilesToSeries(
 
           if (!seriesId) {
             logger.warn({ fileId: file.id, seriesNameRaw: file.seriesNameRaw }, 'No matching series found');
+            // Mark file as orphaned so it won't be re-queried in subsequent iterations
+            await db.comicFile.update({
+              where: { id: file.id },
+              data: { status: 'orphaned' },
+            });
             return { success: false };
           }
 

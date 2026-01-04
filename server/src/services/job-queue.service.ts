@@ -18,6 +18,7 @@ import {
   getJob,
 } from './metadata-job.service.js';
 import { jobQueueLogger as logger } from './logger.service.js';
+import { sendJobError } from './sse.service.js';
 
 // =============================================================================
 // Types
@@ -223,6 +224,9 @@ async function processQueue(): Promise<void> {
     currentItem.error = error instanceof Error ? error.message : 'Unknown error';
 
     logger.error({ jobId: currentItem.jobId, operation: currentItem.operation, err: error }, 'Job operation failed');
+
+    // Broadcast error to connected clients via SSE
+    sendJobError(currentItem.jobId, currentItem.error);
   } finally {
     // Remove from queue
     const index = queue.indexOf(currentItem);
