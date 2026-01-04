@@ -48,12 +48,13 @@ export interface IssueHeroProps {
 // Helper Functions
 // =============================================================================
 
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+function formatBytes(bytes: number | string): string {
+  const numBytes = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (!numBytes || numBytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  const i = Math.floor(Math.log(numBytes) / Math.log(k));
+  return `${(numBytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 function formatReadTime(remainingPages: number): string {
@@ -249,7 +250,7 @@ export function IssueHero({
               value={totalPages.toLocaleString()}
               label="Pages"
             />
-            {file.size > 0 && (
+            {(typeof file.size === 'string' ? parseInt(file.size, 10) : file.size) > 0 && (
               <StatItem
                 icon={
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

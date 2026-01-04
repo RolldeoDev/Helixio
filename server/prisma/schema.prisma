@@ -27,12 +27,13 @@ model Library {
   autoCompleteThreshold Int? @default(95)
 
   // Relations
-  files           ComicFile[]
-  batchOperations BatchOperation[]
-  readerSettings  LibraryReaderSettings?
-  entityStats     EntityStat[]
-  libraryStat     LibraryStat?
-  scanJobs        LibraryScanJob[]
+  files              ComicFile[]
+  batchOperations    BatchOperation[]
+  readerSettings     LibraryReaderSettings?
+  entityStats        EntityStat[]
+  libraryStat        LibraryStat?
+  scanJobs           LibraryScanJob[]
+  folderScanRecords  FolderScanRecord[]
 
   @@index([name])
 }
@@ -721,13 +722,13 @@ model LibraryScanJob {
   libraryId          String
   library            Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
 
-  // Job state: queued -> discovering -> cleaning -> indexing -> linking -> covers -> complete
-  status             String   @default("queued")  // queued|discovering|cleaning|indexing|linking|covers|complete|error|cancelled
+  // Job state: queued -> enumerating -> processing -> complete
+  status             String   @default("queued")  // queued|enumerating|processing|complete|error|cancelled
   currentStage       String   @default("queued")
   currentMessage     String?
   currentDetail      String?
 
-  // Progress counters
+  // Legacy progress counters (kept for backward compatibility)
   discoveredFiles    Int      @default(0)
   orphanedFiles      Int      @default(0)
   indexedFiles       Int      @default(0)
@@ -736,11 +737,25 @@ model LibraryScanJob {
   coversExtracted    Int      @default(0)
   totalFiles         Int      @default(0)
 
+  // NEW: Folder-based progress tracking
+  foldersTotal       Int      @default(0)
+  foldersComplete    Int      @default(0)
+  foldersSkipped     Int      @default(0)
+  foldersErrored     Int      @default(0)
+  currentFolder      String?
+
+  // NEW: Enumeration tracking
+  enumerationComplete Boolean @default(false)
+
+  // NEW: Cover job tracking
+  coverJobsCreated   Int      @default(0)
+  coverJobsComplete  Int      @default(0)
+
   // Error tracking
   error              String?
   errorCount         Int      @default(0)
 
-  // Scan options (JSON: { forceFullScan?: boolean })
+  // Scan options (JSON: { forceFullScan?: boolean, skipUnchanged?: boolean })
   options            String?
 
   // Timing
@@ -771,6 +786,75 @@ model LibraryScanJobLog {
 
   @@index([jobId])
   @@index([stage])
+}
+
+// =============================================================================
+// Folder Scan Records (Per-Folder Scan Tracking)
+// =============================================================================
+
+model FolderScanRecord {
+  id            String   @id @default(cuid())
+  libraryId     String
+  folderPath    String   // Absolute path to folder
+  depth         Int      @default(0) // Folder nesting level (0 = root)
+
+  // Processing status
+  status        String   @default("pending")  // pending|processing|complete|error|skipped
+  errorMessage  String?
+
+  // Timing and change detection
+  lastScanned   DateTime?
+  lastMtime     DateTime? // Most recent file mtime in folder
+  fileCount     Int       @default(0)
+
+  // Results
+  filesCreated  Int       @default(0)
+  filesUpdated  Int       @default(0)
+  seriesCreated Int       @default(0)
+  seriesMatched Int       @default(0)
+
+  // Relations
+  library       Library   @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  @@unique([libraryId, folderPath])
+  @@index([libraryId, status])
+  @@index([libraryId, depth])
+  @@index([lastScanned])
+}
+
+// =============================================================================
+// Cover Job Queue (DB-Persisted Cover Extraction Jobs)
+// =============================================================================
+
+model CoverJob {
+  id             String   @id @default(cuid())
+  libraryId      String
+  folderPath     String   // For grouping/display
+  fileIds        String   // JSON array of file IDs
+
+  // Job state
+  status         String   @default("pending")  // pending|processing|complete|failed|cancelled
+  priority       Int      @default(0)          // Lower = higher priority
+  retryCount     Int      @default(0)
+  maxRetries     Int      @default(5)
+
+  // Progress tracking
+  totalFiles     Int      @default(0)
+  processedFiles Int      @default(0)
+  failedFiles    Int      @default(0)
+
+  // Error tracking
+  errorMessage   String?
+  failedFileIds  String?  // JSON array of file IDs that failed
+
+  // Timing
+  createdAt      DateTime @default(now())
+  startedAt      DateTime?
+  completedAt    DateTime?
+
+  @@index([status, priority])
+  @@index([libraryId])
+  @@index([createdAt])
 }
 
 // =============================================================================

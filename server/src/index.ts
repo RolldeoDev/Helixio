@@ -120,6 +120,15 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+// Configure JSON serialization to handle BigInt values (e.g., file sizes > 2GB)
+app.set('json replacer', (_key: string, value: unknown) => {
+  if (typeof value === 'bigint') {
+    // Convert to string to preserve precision for values > Number.MAX_SAFE_INTEGER
+    return value.toString();
+  }
+  return value;
+});
+
 // =============================================================================
 // API Routes
 // =============================================================================

@@ -23,8 +23,13 @@ import {
 } from '../services/library-scan-queue.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
+import { initializeScanSSE } from '../services/sse.service.js';
+import { requireAuth } from '../middleware/auth.middleware.js';
 
 const router = Router();
+
+// All library-scan routes require authentication
+router.use(requireAuth);
 
 // =============================================================================
 // Start Full Scan
@@ -286,6 +291,19 @@ router.delete('/:id/scan/:jobId', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Failed to delete scan job',
     });
   }
+});
+
+// =============================================================================
+// SSE Stream Endpoint
+// =============================================================================
+
+/**
+ * GET /api/scans/stream
+ * SSE endpoint for real-time scan progress updates.
+ * Broadcasts progress for all active scans.
+ */
+router.get('/scans/stream', (req: Request, res: Response) => {
+  initializeScanSSE(res);
 });
 
 // =============================================================================

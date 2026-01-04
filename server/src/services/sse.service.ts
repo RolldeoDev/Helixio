@@ -18,6 +18,7 @@ export interface SSEClient {
   jobId: string;
   channels: Set<string>;
   connectedAt: Date;
+  pingInterval?: ReturnType<typeof setInterval>;
 }
 
 export interface SSEEvent {
@@ -37,9 +38,20 @@ export interface UserSSEClient {
   userId: string;
   res: Response;
   connectedAt: Date;
+  pingInterval?: ReturnType<typeof setInterval>;
 }
 
 const userClients: Map<string, UserSSEClient> = new Map();
+
+// Scan progress clients (global - all authenticated users can subscribe)
+export interface ScanSSEClient {
+  id: string;
+  res: Response;
+  connectedAt: Date;
+  pingInterval?: ReturnType<typeof setInterval>;
+}
+
+const scanClients: Map<string, ScanSSEClient> = new Map();
 
 // =============================================================================
 // SSE Setup
@@ -83,18 +95,18 @@ export function initializeSSE(res: Response, jobId: string): string {
     data: { clientId, jobId },
   });
 
-  // Set up ping interval to keep connection alive
-  const pingInterval = setInterval(() => {
+  // Set up ping interval to keep connection alive (stored in client for cleanup)
+  client.pingInterval = setInterval(() => {
     if (clients.has(clientId)) {
       sendEventToClient(client, { type: 'ping', data: { timestamp: Date.now() } });
     } else {
-      clearInterval(pingInterval);
+      if (client.pingInterval) clearInterval(client.pingInterval);
     }
   }, 30000);
 
   // Handle client disconnect
   res.on('close', () => {
-    clearInterval(pingInterval);
+    if (client.pingInterval) clearInterval(client.pingInterval);
     clients.delete(clientId);
     jobQueueLogger.debug({
       clientId,
@@ -419,18 +431,18 @@ export function initializeUserSSE(res: Response, userId: string): string {
     data: { clientId, userId },
   });
 
-  // Set up ping interval to keep connection alive
-  const pingInterval = setInterval(() => {
+  // Set up ping interval to keep connection alive (stored in client for cleanup)
+  client.pingInterval = setInterval(() => {
     if (userClients.has(clientId)) {
       sendUserEvent(client, { type: 'ping', data: { timestamp: Date.now() } });
     } else {
-      clearInterval(pingInterval);
+      if (client.pingInterval) clearInterval(client.pingInterval);
     }
   }, 30000);
 
   // Handle client disconnect
   res.on('close', () => {
-    clearInterval(pingInterval);
+    if (client.pingInterval) clearInterval(client.pingInterval);
     userClients.delete(clientId);
     jobQueueLogger.debug({
       clientId,
@@ -510,9 +522,134 @@ export function getUserClientCount(userId: string): number {
   return count;
 }
 
+// =============================================================================
+// Scan Progress SSE
+// =============================================================================
+
+/**
+ * Initialize an SSE connection for scan progress events
+ */
+export function initializeScanSSE(res: Response): string {
+  // Generate unique client ID
+  const clientId = `scan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Create client record
+  const client: ScanSSEClient = {
+    id: clientId,
+    res,
+    connectedAt: new Date(),
+  };
+
+  scanClients.set(clientId, client);
+
+  jobQueueLogger.debug({
+    clientId,
+    totalScanClients: scanClients.size,
+  }, 'Scan SSE client connected');
+
+  // Send initial connection event
+  sendScanEvent(client, {
+    type: 'connected',
+    data: { clientId },
+  });
+
+  // Set up ping interval to keep connection alive (stored in client for cleanup)
+  client.pingInterval = setInterval(() => {
+    if (scanClients.has(clientId)) {
+      sendScanEvent(client, { type: 'ping', data: { timestamp: Date.now() } });
+    } else {
+      if (client.pingInterval) clearInterval(client.pingInterval);
+    }
+  }, 30000);
+
+  // Handle client disconnect
+  res.on('close', () => {
+    if (client.pingInterval) clearInterval(client.pingInterval);
+    scanClients.delete(clientId);
+    jobQueueLogger.debug({
+      clientId,
+      totalScanClients: scanClients.size,
+    }, 'Scan SSE client disconnected');
+  });
+
+  return clientId;
+}
+
+/**
+ * Send an event to a specific scan client
+ */
+function sendScanEvent(client: ScanSSEClient, event: SSEEvent): boolean {
+  try {
+    const data = JSON.stringify(event.data);
+    client.res.write(`event: ${event.type}\n`);
+    client.res.write(`data: ${data}\n\n`);
+    return true;
+  } catch {
+    // Remove failed client
+    scanClients.delete(client.id);
+    return false;
+  }
+}
+
+/**
+ * Broadcast scan progress to all connected scan SSE clients
+ */
+export function sendScanProgress(
+  libraryId: string,
+  progress: {
+    phase: string;
+    foldersTotal: number;
+    foldersComplete: number;
+    foldersSkipped: number;
+    foldersErrored: number;
+    currentFolder: string | null;
+    filesDiscovered: number;
+    filesCreated: number;
+    filesUpdated: number;
+    filesOrphaned: number;
+    seriesCreated: number;
+    coverJobsCreated: number;
+    coverJobsComplete: number;
+    elapsedMs: number;
+  }
+): number {
+  let sentCount = 0;
+
+  for (const client of scanClients.values()) {
+    if (sendScanEvent(client, {
+      type: 'scan-progress',
+      data: {
+        libraryId,
+        ...progress,
+        timestamp: Date.now(),
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  return sentCount;
+}
+
+/**
+ * Get count of scan SSE clients
+ */
+export function getScanClientCount(): number {
+  return scanClients.size;
+}
+
 export const SSE = {
   initialize: initializeSSE,
   initializeUser: initializeUserSSE,
+  initializeScan: initializeScanSSE,
   broadcastToJob,
   broadcastToChannel,
   broadcastToAll,
@@ -525,9 +662,11 @@ export const SSE = {
   sendSeriesRefresh,
   sendFileRefresh,
   sendAchievementUnlock,
+  sendScanProgress,
   getClientCount: getClientCountForJob,
   getTotalClients: getTotalClientCount,
   getUserClientCount,
+  getScanClientCount,
   hasClients: hasClientsForJob,
   disconnectClients: disconnectJobClients,
 };

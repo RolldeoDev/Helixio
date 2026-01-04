@@ -22,6 +22,7 @@ import {
   recoverInterruptedScanJobs,
   type ScanJobStatus,
 } from './library-scan-job.service.js';
+import type { ScanProgress } from './scanner.service.js';
 
 // =============================================================================
 // Types
@@ -310,7 +311,7 @@ function scheduleNextProcess(): void {
 // =============================================================================
 
 /**
- * Execute the full library scan workflow using new 5-phase scanner.
+ * Execute the full library scan workflow using folder-first scanner.
  */
 async function executeFullScan(
   jobId: string,
@@ -325,56 +326,81 @@ async function executeFullScan(
   const forceFullScan = job.options?.forceFullScan ?? false;
 
   try {
-    // Import new scanner
-    const { scanLibrary } = await import('./library-scanner/index.js');
+    // Import folder-first scanner
+    const { orchestrateScan } = await import('./scanner.service.js');
 
-    // Run the scan with the new 5-phase scanner
-    // Delta scanning is enabled by default; forceFullScan disables it
-    const result = await scanLibrary(libraryId, {
-      forceFullScan,
-      onProgress: async (progress) => {
-        // Map phase to job stage
-        const stageMap: Record<string, string> = {
-          discovery: 'discovering',
-          metadata: 'indexing',
-          series: 'linking',
-          linking: 'linking',
-          covers: 'covers',
-          complete: 'complete',
-        };
+    // Create AbortController for cancellation
+    const abortController = new AbortController();
 
-        const stage = stageMap[progress.phase] ?? progress.phase;
+    // Check cancellation token periodically
+    const cancelCheckInterval = setInterval(() => {
+      if (cancellationToken.cancelled) {
+        abortController.abort();
+      }
+    }, 500);
 
-        await updateScanJobStatus(jobId, stage as ScanJobStatus, stage);
-        await updateScanJobProgress(jobId, {
-          discoveredFiles: progress.phase === 'discovery' ? progress.current : undefined,
-          indexedFiles: progress.phase === 'metadata' ? progress.current : undefined,
-          linkedFiles: progress.phase === 'linking' ? progress.current : undefined,
-          coversExtracted: progress.phase === 'covers' ? progress.current : undefined,
-          totalFiles: progress.total > 0 ? progress.total : undefined,
-        });
-        await addScanJobLog(jobId, stage, progress.message, progress.detail, 'info');
-      },
-      shouldCancel: () => cancellationToken.cancelled,
-    });
+    try {
+      // Run the scan with the folder-first scanner
+      const result = await orchestrateScan(libraryId, {
+        forceFullScan,
+        abortSignal: abortController.signal,
+        onProgress: async (progress: ScanProgress) => {
+          // Map folder-first phases to job stages
+          const stageMap: Record<string, string> = {
+            enumerating: 'discovering',
+            processing: 'indexing',
+            covers: 'covers',
+            complete: 'complete',
+            error: 'error',
+          };
 
-    if (!result.success) {
-      if (result.error === 'Scan cancelled') {
+          const stage = stageMap[progress.phase] ?? progress.phase;
+
+          await updateScanJobStatus(jobId, stage as ScanJobStatus, stage);
+          await updateScanJobProgress(jobId, {
+            discoveredFiles: progress.foldersTotal,
+            indexedFiles: progress.filesCreated + progress.filesUpdated,
+            // linkedFiles = files linked to series (all processed files are linked)
+            linkedFiles: progress.filesCreated + progress.filesUpdated,
+            seriesCreated: progress.seriesCreated,
+            coversExtracted: progress.coverJobsComplete,
+            totalFiles: progress.filesCreated + progress.filesUpdated + progress.filesOrphaned,
+          });
+
+          const detail = progress.currentFolder
+            ? `Folder: ${progress.currentFolder} (${progress.foldersComplete}/${progress.foldersTotal})`
+            : undefined;
+
+          await addScanJobLog(
+            jobId,
+            stage,
+            `${progress.phase}: ${progress.foldersComplete}/${progress.foldersTotal} folders`,
+            detail,
+            'info'
+          );
+        },
+      });
+
+      clearInterval(cancelCheckInterval);
+
+      await updateScanJobStatus(jobId, 'complete', 'complete');
+      await addScanJobLog(
+        jobId,
+        'complete',
+        'Library scan completed successfully',
+        `Duration: ${Math.round(result.elapsedMs / 1000)}s, Files: ${result.filesCreated} new, ${result.filesUpdated} updated, ${result.filesOrphaned} orphaned`,
+        'success'
+      );
+    } catch (error) {
+      clearInterval(cancelCheckInterval);
+
+      if (error instanceof Error && error.message === 'Scan aborted') {
         await updateScanJobStatus(jobId, 'cancelled');
         await addScanJobLog(jobId, 'cancelled', 'Scan cancelled by user', undefined, 'warning');
         return;
       }
-      throw new Error(result.error ?? 'Scan failed');
+      throw error;
     }
-
-    await updateScanJobStatus(jobId, 'complete', 'complete');
-    await addScanJobLog(
-      jobId,
-      'complete',
-      'Library scan completed successfully',
-      `Duration: ${Math.round(result.totalDuration / 1000)}s`,
-      'success'
-    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     await failScanJob(jobId, errorMessage);
@@ -393,15 +419,22 @@ export async function initializeScanQueue(): Promise<void> {
   logger.info('Initializing scan queue');
 
   try {
-    // Recover any interrupted jobs
+    // Recover any interrupted scan jobs
     const recoveredJobIds = await recoverInterruptedScanJobs();
 
-    // Re-enqueue recovered jobs
+    // Re-enqueue recovered scan jobs
     for (const jobId of recoveredJobIds) {
       enqueueScanJob(jobId);
     }
 
-    logger.info({ recoveredCount: recoveredJobIds.length }, 'Scan queue initialized');
+    // Recover interrupted cover jobs from the folder-first scanner
+    const { recoverCoverJobs } = await import('./cover-job-queue.service.js');
+    const recoveredCoverJobs = await recoverCoverJobs();
+
+    logger.info(
+      { recoveredScanJobs: recoveredJobIds.length, recoveredCoverJobs },
+      'Scan queue initialized'
+    );
   } catch (error) {
     logger.error({ err: error }, 'Failed to initialize scan queue');
   }

@@ -104,7 +104,8 @@ export function SeriesHero({
     for (const issue of issues) {
       const pageCount = issue.metadata?.pageCount || issue.readingProgress?.totalPages || 0;
       totalPages += pageCount;
-      totalSize += issue.size || 0;
+      const issueSize = typeof issue.size === 'string' ? parseInt(issue.size, 10) : (issue.size || 0);
+      totalSize += issueSize;
 
       if (issue.readingProgress) {
         if (issue.readingProgress.completed) {

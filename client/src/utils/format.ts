@@ -7,20 +7,22 @@
 /**
  * Format a file size in bytes to a human-readable string.
  *
- * @param bytes - The file size in bytes
+ * @param bytes - The file size in bytes (number or string for BigInt values)
  * @returns Formatted string (e.g., "1.5 MB", "256 KB")
  *
  * @example
  * formatFileSize(1536) // "1.5 KB"
  * formatFileSize(1048576) // "1 MB"
+ * formatFileSize("2147483648") // "2 GB" (BigInt as string)
  * formatFileSize(0) // "0 B"
  */
-export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
+export function formatFileSize(bytes: number | string): string {
+  const numBytes = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (!numBytes || numBytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  const i = Math.floor(Math.log(numBytes) / Math.log(k));
+  return `${parseFloat((numBytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 /**

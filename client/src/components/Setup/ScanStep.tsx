@@ -22,13 +22,14 @@ export function ScanStep({ libraryId, onNext, onSkip }: ScanStepProps) {
     getScanStageLabel,
     startScan,
     hasActiveScan,
+    error: contextError,
   } = useLibraryScan();
 
   const activeScan = getActiveScan(libraryId);
   const progress = activeScan ? getScanProgress(activeScan) : 0;
   const stageLabel = activeScan ? getScanStageLabel(activeScan.status) : 'Preparing...';
   const isComplete = activeScan?.status === 'complete';
-  const hasError = activeScan?.status === 'error';
+  const hasError = activeScan?.status === 'error' || (!activeScan && contextError);
 
   // Start scan on mount if not already running
   useEffect(() => {
@@ -38,8 +39,15 @@ export function ScanStep({ libraryId, onNext, onSkip }: ScanStepProps) {
   }, [libraryId, hasActiveScan, startScan]);
 
   const getStatusMessage = () => {
+    // Handle context-level error (e.g., startScan failed)
+    if (!activeScan && contextError) {
+      return contextError;
+    }
     if (!activeScan) return 'Starting scan...';
-    if (hasError) return 'Scan encountered an error';
+    // Display actual error message from scan job
+    if (hasError) {
+      return activeScan.error || 'Scan encountered an error';
+    }
     if (isComplete) {
       const { discoveredFiles, seriesCreated } = activeScan;
       return `Found ${discoveredFiles} comic${discoveredFiles !== 1 ? 's' : ''} in ${seriesCreated} series`;

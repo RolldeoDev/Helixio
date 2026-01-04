@@ -30,20 +30,18 @@ interface StageInfo {
 // Constants
 // =============================================================================
 
+// Scanner phases: enumerating->discovering, processing->indexing, covers->covers
+// Note: cleaning/linking stages removed as scanner doesn't emit them
 const STAGES: StageInfo[] = [
   { key: 'discovering', label: 'Discovering', icon: '🔍' },
-  { key: 'cleaning', label: 'Cleaning', icon: '🧹' },
   { key: 'indexing', label: 'Indexing', icon: '📄' },
-  { key: 'linking', label: 'Linking', icon: '🔗' },
   { key: 'covers', label: 'Covers', icon: '🖼️' },
 ];
 
 const STAGE_ORDER: ScanJobStatus[] = [
   'queued',
   'discovering',
-  'cleaning',
   'indexing',
-  'linking',
   'covers',
   'complete',
 ];

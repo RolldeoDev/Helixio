@@ -129,7 +129,7 @@ export interface FilterableFile {
   rating?: number | null;
   // File-level fields
   libraryId?: string | null;
-  size?: number | null;
+  size?: number | string | null; // BigInt serialized as string for files > 2GB
   createdAt?: string | null;
   // Reading progress fields (augmented from progress)
   readStatus?: 'unread' | 'reading' | 'completed' | null;
