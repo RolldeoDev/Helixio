@@ -252,6 +252,7 @@ export async function recoverCoverJobs(): Promise<number> {
 
 /**
  * Main worker loop that spawns concurrent job processors.
+ * Stops automatically when queue is empty and no workers are active.
  */
 async function processQueueLoop(): Promise<void> {
   while (workerRunning) {
@@ -262,11 +263,21 @@ async function processQueueLoop(): Promise<void> {
         if (job) {
           // Spawn worker for this job (don't await - run concurrently)
           processJobAsync(job);
+        } else if (activeWorkers === 0) {
+          // No job found and no workers active - check if truly empty before stopping
+          const db = getDatabase();
+          const pendingCount = await db.coverJob.count({ where: { status: 'pending' } });
+          if (pendingCount === 0) {
+            workerRunning = false;
+            jobQueueLogger.info('Cover job queue worker stopped (queue empty)');
+            return; // Exit loop
+          }
         }
       }
 
-      // Poll interval
-      await sleep(WORKER_POLL_INTERVAL_MS);
+      // Poll interval - use longer interval when at capacity
+      const pollDelay = activeWorkers >= MAX_CONCURRENT_WORKERS ? 2000 : WORKER_POLL_INTERVAL_MS;
+      await sleep(pollDelay);
     } catch (error) {
       jobQueueLogger.error({ error }, 'Error in cover queue worker loop');
       await sleep(1000); // Back off on error

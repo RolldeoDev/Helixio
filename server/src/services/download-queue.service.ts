@@ -307,6 +307,11 @@ async function processJob(item: QueueItem): Promise<void> {
     if (index !== -1) {
       queue.splice(index, 1);
     }
+
+    // Clean up empty user queue to prevent memory leak
+    if (queue.length === 0) {
+      userQueues.delete(userId);
+    }
   }
 }
 

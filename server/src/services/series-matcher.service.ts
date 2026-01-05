@@ -54,6 +54,15 @@ export interface LinkResult {
   suggestions?: SuggestionResult[];
   /** Non-fatal warnings about the operation (e.g., similar series existed). */
   warnings?: string[];
+  /** Series data when a new series was created (avoids extra DB lookup) */
+  createdSeries?: {
+    id: string;
+    name: string;
+    publisher: string | null;
+    startYear: number | null;
+    volume: number | null;
+    aliases: string | null;
+  };
 }
 
 /**
@@ -73,6 +82,12 @@ export interface AutoLinkOptions {
    * falling back to database-wide matching.
    */
   folderRegistry?: FolderSeriesRegistry;
+
+  /**
+   * Scan series cache for fast in-memory matching during library scans.
+   * When provided, uses cache.findMatch() instead of loading all series from DB.
+   */
+  scanCache?: import('./scan-series-cache.service.js').ScanSeriesCache;
 }
 
 // =============================================================================
@@ -152,13 +167,58 @@ function calculateSimilarity(a: string, b: string): number {
 
 /**
  * Find matching series for a file based on its metadata.
+ *
+ * @param name - Series name to match
+ * @param year - Optional start year
+ * @param publisher - Optional publisher
+ * @param scanCache - Optional scan cache for fast in-memory matching during scans
  */
 export async function findMatchingSeries(
   name: string,
   year?: number | null,
-  publisher?: string | null
+  publisher?: string | null,
+  scanCache?: import('./scan-series-cache.service.js').ScanSeriesCache
 ): Promise<MatchResult> {
   const db = getDatabase();
+
+  // If scan cache is provided, use it for fast in-memory matching
+  if (scanCache) {
+    const cacheResult = scanCache.findMatch({
+      seriesName: name,
+      publisher: publisher ?? undefined,
+      startYear: year ?? undefined,
+    });
+
+    if (cacheResult.match && cacheResult.confidence !== 'none') {
+      // Convert cache result to MatchResult
+      // We need to fetch the full series from DB for the return type
+      const series = await db.series.findUnique({
+        where: { id: cacheResult.match.id },
+      });
+
+      if (series) {
+        const confidenceScore = cacheResult.confidence === 'exact' ? 1.0 :
+                                cacheResult.confidence === 'high' ? 0.95 :
+                                cacheResult.confidence === 'medium' ? 0.85 :
+                                0.75;
+        return {
+          type: cacheResult.confidence === 'exact' ? 'exact' :
+                cacheResult.confidence === 'high' ? 'partial' : 'fuzzy',
+          series,
+          confidence: confidenceScore,
+        };
+      }
+    }
+
+    // Cache miss - no match found in cache
+    return {
+      type: 'none',
+      series: null,
+      confidence: 0,
+    };
+  }
+
+  // Original logic when no cache provided (for non-scan contexts)
 
   // 1. Try exact match
   const exactMatch = await getSeriesByIdentity(name, year, publisher);
@@ -592,7 +652,7 @@ export async function autoLinkFileToSeries(
   fileId: string,
   options: AutoLinkOptions = {}
 ): Promise<LinkResult> {
-  const { trustMetadata = false, folderRegistry } = options;
+  const { trustMetadata = false, folderRegistry, scanCache } = options;
   const db = getDatabase();
 
   const file = await db.comicFile.findUnique({
@@ -662,7 +722,8 @@ export async function autoLinkFileToSeries(
   const match = await findMatchingSeries(
     seriesName,
     file.metadata?.year,
-    file.metadata?.publisher
+    file.metadata?.publisher,
+    scanCache
   );
 
   // High confidence match - auto-link
@@ -751,11 +812,20 @@ export async function autoLinkFileToSeries(
       success: true,
       seriesId: newSeries.id,
       matchType: 'created',
+      createdSeries: {
+        id: newSeries.id,
+        name: newSeries.name,
+        publisher: newSeries.publisher,
+        startYear: newSeries.startYear,
+        volume: newSeries.volume,
+        aliases: newSeries.aliases,
+      },
     };
   } catch (error) {
     // Handle race condition: another process may have created the series concurrently
     if (error instanceof Error && error.message.includes('already exists')) {
       // Retry finding the series that was just created by another process
+      // Note: Don't use scanCache here - we need fresh data from DB
       const retryMatch = await findMatchingSeries(
         seriesName,
         file.metadata?.year,

@@ -60,11 +60,13 @@ router.get('/series/:seriesId', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Series ID is required' });
       return;
     }
-    const ratings = await getExternalRatings(seriesId);
 
-    // Also get the average
-    const communityAvg = await getSeriesAverageExternalRating(seriesId, 'community');
-    const criticAvg = await getSeriesAverageExternalRating(seriesId, 'critic');
+    // Fetch ratings and averages in parallel for better performance
+    const [ratings, communityAvg, criticAvg] = await Promise.all([
+      getExternalRatings(seriesId),
+      getSeriesAverageExternalRating(seriesId, 'community'),
+      getSeriesAverageExternalRating(seriesId, 'critic'),
+    ]);
 
     res.json({
       ratings,

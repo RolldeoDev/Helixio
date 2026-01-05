@@ -34,6 +34,13 @@ import {
 import { getDirtyFlagCount } from '../services/stats-dirty.service.js';
 import type { EntityType } from '../services/stats-dirty.service.js';
 import { logError, logInfo } from '../services/logger.service.js';
+import { LRUCache } from '../services/lru-cache.service.js';
+
+// LRU cache for expensive stats aggregations (15 minute TTL)
+const statsCache = new LRUCache<unknown>({
+  maxSize: 100,
+  defaultTTL: 15 * 60 * 1000, // 15 minutes
+});
 
 const router = Router();
 
@@ -60,10 +67,19 @@ router.get('/', cachePresets.shortTerm, async (req, res) => {
  * GET /api/stats/summary
  * Get summary with top entities for dashboard
  */
-router.get('/summary', cachePresets.shortTerm, async (req, res) => {
+router.get('/summary', cachePresets.shortTerm, async (req, res): Promise<void> => {
   try {
     const { libraryId } = req.query;
     const userId = req.user?.id;
+
+    // Check LRU cache first (keyed by library and user for personalization)
+    const cacheKey = `stats-summary:${libraryId || 'all'}:${userId || 'anon'}`;
+    const cached = statsCache.get(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
     const [
       stats,
       topEntities,
@@ -82,7 +98,7 @@ router.get('/summary', cachePresets.shortTerm, async (req, res) => {
       getDayOfWeekActivity(userId, 'all_time'),
     ]);
 
-    res.json({
+    const result = {
       ...stats,
       ...topEntities,
       ...extendedStats,
@@ -90,7 +106,12 @@ router.get('/summary', cachePresets.shortTerm, async (req, res) => {
       fileFormats,
       publicationStatus,
       dayOfWeekActivity,
-    });
+    };
+
+    // Cache the result
+    statsCache.set(cacheKey, result);
+
+    res.json(result);
   } catch (error) {
     logError('stats', error, { action: 'get-stats-summary' });
     res.status(500).json({ error: 'Failed to get stats summary' });

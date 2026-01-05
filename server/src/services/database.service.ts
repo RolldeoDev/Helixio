@@ -11,8 +11,16 @@
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
 import { Client } from 'pg';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import { getDatabaseUrl, ensureAppDirectories } from './app-paths.service.js';
 import { databaseLogger as logger } from './logger.service.js';
+
+// Get the absolute path to the prisma schema
+// Works from both src/ (dev) and dist/ (production) since prisma/ is at the same level
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PRISMA_SCHEMA_PATH = resolve(__dirname, '../../prisma/schema.prisma');
 
 // =============================================================================
 // Prisma Client Instance
@@ -77,9 +85,8 @@ async function ensureDatabaseSchema(): Promise<void> {
     // Run prisma db push to create/sync schema
     // --skip-generate: The client is already generated at build time
     // --accept-data-loss: Required for fresh DBs, safe since there's no data
-    // --schema: Specify schema path explicitly for running from different directories
-    execSync('npx prisma db push --skip-generate --accept-data-loss --schema server/prisma/schema.prisma', {
-      cwd: process.cwd(),
+    // --schema: Use absolute path to schema file for reliability
+    execSync(`npx prisma db push --skip-generate --accept-data-loss --schema "${PRISMA_SCHEMA_PATH}"`, {
       env: { ...process.env },
       stdio: 'pipe',
     });

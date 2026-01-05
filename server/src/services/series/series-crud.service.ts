@@ -54,20 +54,15 @@ export async function createSeries(input: CreateSeriesInput): Promise<Series> {
   const db = getDatabase();
 
   // Check for existing series with same identity (name + publisher, not year)
-  // Use case-insensitive comparison
-  const normalizedName = input.name.toLowerCase();
-  const normalizedPublisher = input.publisher?.toLowerCase() ?? null;
-
-  const allSeries = await db.series.findMany({
+  // Use findFirst with case-insensitive mode instead of loading all series into memory
+  const existing = await db.series.findFirst({
     where: {
-      // Get both active and soft-deleted series to handle both cases
+      name: { equals: input.name, mode: 'insensitive' },
+      // Handle null publisher case - match if both are null or both match case-insensitively
+      ...(input.publisher
+        ? { publisher: { equals: input.publisher, mode: 'insensitive' } }
+        : { publisher: null }),
     },
-  });
-
-  const existing = allSeries.find((s) => {
-    const nameMatch = s.name.toLowerCase() === normalizedName;
-    const publisherMatch = (s.publisher?.toLowerCase() ?? null) === normalizedPublisher;
-    return nameMatch && publisherMatch;
   });
 
   if (existing) {

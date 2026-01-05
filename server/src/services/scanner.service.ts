@@ -91,6 +91,8 @@ export interface FolderScanResult {
   seriesMatched: number;
   errors: Array<{ path: string; error: string }>;
   coverJobId?: string;
+  /** File paths discovered in this folder (for orphan detection without re-reading) */
+  discoveredPaths: string[];
 }
 
 export interface ScanProgress {
@@ -239,6 +241,15 @@ export async function processFolderTransaction(
     seriesCreated: 0,
     seriesMatched: 0,
     errors: [],
+    discoveredPaths: [],
+  };
+
+  // Timing metrics for performance profiling
+  const timings = {
+    hashGeneration: 0,
+    metadataExtraction: 0,
+    seriesLinking: 0,
+    dbOperations: 0,
   };
 
   const newFileIds: string[] = [];
@@ -289,6 +300,9 @@ export async function processFolderTransaction(
     for (const entry of comicFiles) {
       const filePath = join(folder.path, entry.name);
 
+      // Track discovered paths for orphan detection (before any continue statements)
+      result.discoveredPaths.push(filePath);
+
       try {
         const fileInfo = await getFileInfo(filePath, false);
         const relativePath = relative(libraryPath, filePath);
@@ -310,7 +324,9 @@ export async function processFolderTransaction(
         }
 
         // Check if file was moved (by hash)
+        const hashStart = performance.now();
         const hash = await generatePartialHash(filePath);
+        timings.hashGeneration += performance.now() - hashStart;
         const existingByHash = options?.existingFilesByHash?.get(hash);
 
         if (existingByHash) {
@@ -328,6 +344,7 @@ export async function processFolderTransaction(
         }
 
         // New file - create it
+        const dbStart = performance.now();
         const newFile = await db.comicFile.create({
           data: {
             libraryId,
@@ -341,34 +358,34 @@ export async function processFolderTransaction(
             status: 'pending',
           },
         });
+        timings.dbOperations += performance.now() - dbStart;
 
         newFileIds.push(newFile.id);
         result.filesCreated++;
 
         // Extract and cache metadata
+        const metadataStart = performance.now();
         const metadataSuccess = await refreshMetadataCache(newFile.id);
         if (metadataSuccess) {
           await refreshTagsFromFile(newFile.id);
         }
+        timings.metadataExtraction += performance.now() - metadataStart;
 
         // Link to series using cache-first matching
+        const linkStart = performance.now();
         const linkResult = await autoLinkFileToSeries(newFile.id, {
           folderRegistry: options?.folderRegistry,
+          scanCache: seriesCache,
         });
+        timings.seriesLinking += performance.now() - linkStart;
 
         if (linkResult.success) {
           if (linkResult.matchType === 'created') {
             result.seriesCreated++;
 
-            // Add newly created series to cache
-            if (linkResult.seriesId) {
-              const newSeries = await db.series.findUnique({
-                where: { id: linkResult.seriesId },
-                select: { id: true, name: true, publisher: true, startYear: true, volume: true, aliases: true },
-              });
-              if (newSeries) {
-                seriesCache.addSeries(newSeries);
-              }
+            // Add newly created series to cache (using data from linkResult, no extra DB lookup)
+            if (linkResult.createdSeries) {
+              seriesCache.addSeries(linkResult.createdSeries);
             }
           } else {
             result.seriesMatched++;
@@ -438,6 +455,24 @@ export async function processFolderTransaction(
         errorMessage: null,
       },
     });
+
+    // Log timing metrics for performance profiling
+    if (result.filesCreated > 0) {
+      scannerLogger.debug(
+        {
+          folder: folder.relativePath,
+          filesCreated: result.filesCreated,
+          timings: {
+            hashGeneration: Math.round(timings.hashGeneration),
+            metadataExtraction: Math.round(timings.metadataExtraction),
+            seriesLinking: Math.round(timings.seriesLinking),
+            dbOperations: Math.round(timings.dbOperations),
+            total: Math.round(timings.hashGeneration + timings.metadataExtraction + timings.seriesLinking + timings.dbOperations),
+          },
+        },
+        `Folder timing: ${result.filesCreated} files in ${Math.round(timings.hashGeneration + timings.metadataExtraction + timings.seriesLinking + timings.dbOperations)}ms`
+      );
+    }
 
   } catch (err) {
     // Mark folder as errored
@@ -707,12 +742,9 @@ export async function orchestrateScan(
           progress.foldersComplete++;
         }
 
-        // Track discovered files
-        const entries = await readdir(folder.path, { withFileTypes: true }).catch(() => []);
-        for (const entry of entries) {
-          if (entry.isFile() && isComicFile(entry.name)) {
-            discoveredPaths.add(join(folder.path, entry.name));
-          }
+        // Track discovered files (using result from processFolderTransaction, no re-read needed)
+        for (const path of result.discoveredPaths) {
+          discoveredPaths.add(path);
         }
       } catch (err) {
         progress.foldersErrored++;

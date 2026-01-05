@@ -207,44 +207,47 @@ router.get('/files',
 router.get('/folders', asyncHandler(async (_req: Request, res: Response) => {
   const db = getDatabase();
 
-  // Get all libraries with their files' folder paths
-  const libraries = await db.library.findMany({
-    orderBy: { name: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-    },
-  });
+  // Fetch libraries and ALL files in parallel (2 queries instead of N+1)
+  const [libraries, allFiles] = await Promise.all([
+    db.library.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+      },
+    }),
+    db.comicFile.findMany({
+      select: {
+        libraryId: true,
+        relativePath: true,
+      },
+    }),
+  ]);
 
-  // Get folders for each library
-  const librariesWithFolders = await Promise.all(
-    libraries.map(async (library) => {
-      const files = await db.comicFile.findMany({
-        where: { libraryId: library.id },
-        select: { relativePath: true },
-      });
+  // Group files by libraryId and extract folders in-memory
+  const foldersByLibrary = new Map<string, Set<string>>();
 
-      // Extract unique folders
-      const folders = new Set<string>();
-      for (const file of files) {
-        const parts = file.relativePath.split('/');
-        let folderPath = '';
-        for (let i = 0; i < parts.length - 1; i++) {
-          const part = parts[i]!;
-          folderPath = folderPath ? `${folderPath}/${part}` : part;
-          folders.add(folderPath);
-        }
-      }
+  for (const file of allFiles) {
+    if (!foldersByLibrary.has(file.libraryId)) {
+      foldersByLibrary.set(file.libraryId, new Set<string>());
+    }
+    const folders = foldersByLibrary.get(file.libraryId)!;
 
-      return {
-        id: library.id,
-        name: library.name,
-        type: library.type,
-        folders: Array.from(folders).sort(),
-      };
-    })
-  );
+    // Extract folder paths from relativePath
+    const parts = file.relativePath.split('/');
+    for (let i = 1; i < parts.length; i++) {
+      folders.add(parts.slice(0, i).join('/'));
+    }
+  }
+
+  // Build response with folders for each library
+  const librariesWithFolders = libraries.map((library) => ({
+    id: library.id,
+    name: library.name,
+    type: library.type,
+    folders: Array.from(foldersByLibrary.get(library.id) ?? []).sort(),
+  }));
 
   logger.info({ libraryCount: librariesWithFolders.length }, 'Listed folders from all libraries');
   sendSuccess(res, { libraries: librariesWithFolders });

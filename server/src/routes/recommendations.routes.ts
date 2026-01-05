@@ -32,6 +32,7 @@ import {
   getSimilaritySchedulerStatus,
 } from '../services/similarity/index.js';
 import { logError, logInfo } from '../services/logger.service.js';
+import { cachePresets } from '../middleware/cache.middleware.js';
 
 const router = Router();
 
@@ -47,7 +48,7 @@ const router = Router();
  * - libraryId (optional): Filter by library
  * - limit (optional): Max items per category (default: 8)
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', cachePresets.shortTerm, async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 8;
     const libraryId = req.query.libraryId as string | undefined;
@@ -77,7 +78,7 @@ router.get('/', async (req: Request, res: Response) => {
  * - userId (required): User ID for personalization
  * - noCache (optional): Skip cache if 'true'
  */
-router.get('/discover', async (req: Request, res: Response): Promise<void> => {
+router.get('/discover', cachePresets.shortTerm, async (req: Request, res: Response): Promise<void> => {
   try {
     const limit = parseInt(req.query.limit as string, 10) || 20;
     const libraryId = req.query.libraryId as string | undefined;
@@ -135,7 +136,7 @@ router.get('/discover', async (req: Request, res: Response): Promise<void> => {
  * - libraryId (optional): Filter by library
  * - limit (optional): Number of comics (default: 12)
  */
-router.get('/discover/legacy', async (req: Request, res: Response) => {
+router.get('/discover/legacy', cachePresets.shortTerm, async (req: Request, res: Response) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 12;
     const libraryId = req.query.libraryId as string | undefined;
@@ -306,7 +307,7 @@ router.get('/stats', async (req: Request, res: Response): Promise<void> => {
  * GET /api/recommendations/similarity-stats
  * Get similarity computation statistics
  */
-router.get('/similarity-stats', async (_req: Request, res: Response) => {
+router.get('/similarity-stats', cachePresets.shortTerm, async (_req: Request, res: Response) => {
   try {
     const stats = await getSimilarityStats();
     const schedulerStatus = getSimilaritySchedulerStatus();
