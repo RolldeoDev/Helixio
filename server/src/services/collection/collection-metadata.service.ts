@@ -240,6 +240,7 @@ export async function getPromotedCollections(
  * Get promoted collections for grid display with filtering support.
  * Filters are applied based on derived/override metadata.
  * Collections are returned with library IDs for library filtering.
+ * Uses batch queries for O(1) database calls instead of O(n) per collection.
  */
 export async function getPromotedCollectionsForGrid(
   userId: string,
@@ -262,23 +263,28 @@ export async function getPromotedCollectionsForGrid(
     },
   });
 
-  // Transform and filter collections
-  const result: PromotedCollectionForGrid[] = [];
+  // Early return if no collections
+  if (collections.length === 0) {
+    return [];
+  }
+
+  // 1. Collect ALL series IDs and file IDs across ALL collections
+  const allSeriesIds = new Set<string>();
+  const allFileIds = new Set<string>();
 
   for (const collection of collections) {
-    // Get series IDs and file IDs from collection items
-    const seriesIds = collection.items
-      .filter((item) => item.seriesId !== null)
-      .map((item) => item.seriesId!);
+    for (const item of collection.items) {
+      if (item.seriesId) allSeriesIds.add(item.seriesId);
+      if (item.fileId) allFileIds.add(item.fileId);
+    }
+  }
 
-    const fileIds = collection.items
-      .filter((item) => item.fileId !== null)
-      .map((item) => item.fileId!);
-
-    // Fetch series data
-    const seriesItems = seriesIds.length > 0
-      ? await db.series.findMany({
-          where: { id: { in: seriesIds } },
+  // 2. Batch fetch ALL data in parallel (4 queries instead of N*4)
+  const [allSeries, allFiles, allProgress, allReadFiles] = await Promise.all([
+    // Fetch all series
+    allSeriesIds.size > 0
+      ? db.series.findMany({
+          where: { id: { in: Array.from(allSeriesIds) } },
           select: {
             id: true,
             name: true,
@@ -291,7 +297,6 @@ export async function getPromotedCollectionsForGrid(
             coverFileId: true,
             updatedAt: true,
             _count: { select: { issues: true } },
-            // Include first issue for library filtering and cover fallback
             issues: {
               select: { id: true, libraryId: true, coverHash: true },
               take: 1,
@@ -302,12 +307,12 @@ export async function getPromotedCollectionsForGrid(
             },
           },
         })
-      : [];
+      : [],
 
-    // Fetch file data
-    const fileItems = fileIds.length > 0
-      ? await db.comicFile.findMany({
-          where: { id: { in: fileIds } },
+    // Fetch all files
+    allFileIds.size > 0
+      ? db.comicFile.findMany({
+          where: { id: { in: Array.from(allFileIds) } },
           select: {
             id: true,
             libraryId: true,
@@ -321,7 +326,52 @@ export async function getPromotedCollectionsForGrid(
             },
           },
         })
-      : [];
+      : [],
+
+    // Fetch all series progress for this user
+    allSeriesIds.size > 0
+      ? db.seriesProgress.findMany({
+          where: {
+            userId,
+            seriesId: { in: Array.from(allSeriesIds) },
+          },
+          select: { seriesId: true, totalRead: true },
+        })
+      : [],
+
+    // Fetch all read file IDs for this user
+    allFileIds.size > 0
+      ? db.userReadingProgress.findMany({
+          where: {
+            userId,
+            fileId: { in: Array.from(allFileIds) },
+            completed: true,
+          },
+          select: { fileId: true },
+        })
+      : [],
+  ]);
+
+  // 3. Build lookup maps for O(1) access
+  const seriesMap = new Map(allSeries.map(s => [s.id, s]));
+  const fileMap = new Map(allFiles.map(f => [f.id, f]));
+  const progressMap = new Map(allProgress.map(p => [p.seriesId, p.totalRead]));
+  const readFileSet = new Set(allReadFiles.map(r => r.fileId));
+
+  // Transform and filter collections
+  const result: PromotedCollectionForGrid[] = [];
+
+  for (const collection of collections) {
+    // Get series and file items for this collection from maps
+    const seriesItems = collection.items
+      .filter((item) => item.seriesId !== null)
+      .map((item) => seriesMap.get(item.seriesId!))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined);
+
+    const fileItems = collection.items
+      .filter((item) => item.fileId !== null)
+      .map((item) => fileMap.get(item.fileId!))
+      .filter((f): f is NonNullable<typeof f> => f !== undefined);
 
     // Calculate derived metadata from series
     const publishers = seriesItems
@@ -347,7 +397,6 @@ export async function getPromotedCollectionsForGrid(
     const uniqueGenres = [...new Set(allGenres)].slice(0, 5).join(', ');
 
     // Effective metadata (override takes precedence)
-    // Default publisher to "Collections" if not derived or overridden
     const effectivePublisher = collection.overridePublisher ?? mostCommonPublisher ?? 'Collections';
     const effectiveStartYear = collection.overrideStartYear ?? minYear;
     const effectiveEndYear = collection.overrideEndYear ?? maxYear;
@@ -357,34 +406,14 @@ export async function getPromotedCollectionsForGrid(
     const totalIssues = seriesItems.reduce(
       (sum, s) => sum + (s._count?.issues || 0),
       0
-    ) + fileItems.length; // Each file counts as 1 issue
+    ) + fileItems.length;
 
-    // Calculate read count for this user
-    let readIssues = 0;
-    const seriesIdsForProgress = seriesItems.map(s => s.id);
-    if (seriesIdsForProgress.length > 0) {
-      const progressRecords = await db.seriesProgress.findMany({
-        where: {
-          userId,
-          seriesId: { in: seriesIdsForProgress },
-        },
-        select: { totalRead: true },
-      });
-      readIssues = progressRecords.reduce((sum, p) => sum + p.totalRead, 0);
-    }
-
-    // Count read files
-    if (fileItems.length > 0) {
-      const readFileIds = fileItems.map(f => f.id);
-      const readFiles = await db.userReadingProgress.count({
-        where: {
-          userId,
-          fileId: { in: readFileIds },
-          completed: true,
-        },
-      });
-      readIssues += readFiles;
-    }
+    // Calculate read count from pre-fetched maps (O(1) lookups)
+    let readIssues = seriesItems.reduce(
+      (sum, s) => sum + (progressMap.get(s.id) ?? 0),
+      0
+    );
+    readIssues += fileItems.filter(f => readFileSet.has(f.id)).length;
 
     // Collect library IDs from series and files
     const libraryIds = new Set<string>();

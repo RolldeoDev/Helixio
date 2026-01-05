@@ -11,6 +11,7 @@ import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import { useConfirmModal } from '../ConfirmModal';
 import { useToast } from '../../contexts/ToastContext';
 import { usePageEditorState } from './usePageEditorState';
+import { convertFile } from '../../services/api/archives';
 import type { PageEditorModalProps, PageInfo } from './types';
 import './PageEditorModal.css';
 
@@ -41,6 +42,8 @@ export function PageEditorModal({
     reorderPages,
     saveChanges,
     resetChanges,
+    loadPages,
+    checkModifiability,
   } = usePageEditorState(fileId);
 
   // Drag-and-drop state
@@ -49,6 +52,9 @@ export function PageEditorModal({
 
   // Preview state
   const [previewPage, setPreviewPage] = useState<PageInfo | null>(null);
+
+  // Conversion state
+  const [isConverting, setIsConverting] = useState(false);
 
   // Filter out deleted pages for display
   const visiblePages = state.pages.filter(
@@ -205,9 +211,25 @@ export function PageEditorModal({
         });
         if (!confirmed) return;
 
-        // TODO: Implement conversion API call
-        addToast('error', 'Archive conversion not yet implemented');
-        return;
+        // Convert the archive from CBR to CBZ
+        setIsConverting(true);
+        try {
+          const result = await convertFile(fileId, { deleteOriginal: true });
+          if (!result.success) {
+            addToast('error', result.error || 'Conversion failed');
+            setIsConverting(false);
+            return;
+          }
+          addToast('success', 'Archive converted to CBZ');
+          // Reload pages and modifiability after conversion
+          await Promise.all([loadPages(), checkModifiability()]);
+          setIsConverting(false);
+          // Continue to save the pending changes
+        } catch (err) {
+          addToast('error', err instanceof Error ? err.message : 'Conversion failed');
+          setIsConverting(false);
+          return;
+        }
       } else {
         addToast('error', state.modifiability.reason || 'Archive cannot be modified');
         return;
@@ -223,7 +245,7 @@ export function PageEditorModal({
       onSave?.();
       onClose();
     }
-  }, [state.modifiability, confirm, saveChanges, pendingChanges.summary, addToast, onSave, onClose]);
+  }, [state.modifiability, confirm, saveChanges, pendingChanges.summary, addToast, onSave, onClose, fileId, loadPages, checkModifiability]);
 
   // Page click handler
   const handlePageClick = useCallback((page: PageInfo, e: React.MouseEvent) => {
@@ -431,9 +453,9 @@ export function PageEditorModal({
             <button
               className="btn-primary"
               onClick={handleSave}
-              disabled={!pendingChanges.hasChanges || state.isSaving}
+              disabled={!pendingChanges.hasChanges || state.isSaving || isConverting}
             >
-              {state.isSaving ? 'Saving...' : 'Save Changes'}
+              {isConverting ? 'Converting...' : state.isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>

@@ -163,35 +163,18 @@ function convertMetadataJob(job: {
 function convertScanJob(job: LibraryScanJobData, libraryName?: string): UnifiedJob {
   const status = mapScanStatus(job.status);
 
-  // Calculate progress
+  // Calculate progress using folder-based formula:
+  // Progress = (foldersComplete + foldersErrored*2 + coverJobsComplete) / ((foldersTotal - foldersSkipped) * 2)
+  // Note: These fields come from SSE real-time updates and may not be available here.
+  // The client will use SSE data for real-time progress; this provides a fallback.
   let progress: number | undefined;
-  if (status === 'running' && job.totalFiles > 0) {
-    const weights = { discovering: 5, cleaning: 5, indexing: 40, linking: 30, covers: 20 };
-    const stageOrder = ['discovering', 'cleaning', 'indexing', 'linking', 'covers'];
-    const currentIndex = stageOrder.indexOf(job.currentStage);
-
-    if (currentIndex >= 0) {
-      let completed = 0;
-      for (let i = 0; i < currentIndex; i++) {
-        completed += weights[stageOrder[i] as keyof typeof weights] || 0;
-      }
-
-      // Current stage progress
-      const currentWeight = weights[job.currentStage as keyof typeof weights] || 0;
-      let stageProgress = 0;
-      if (job.currentStage === 'indexing' && job.totalFiles > 0) {
-        stageProgress = job.indexedFiles / job.totalFiles;
-      } else if (job.currentStage === 'linking' && job.totalFiles > 0) {
-        stageProgress = job.linkedFiles / job.totalFiles;
-      } else if (job.currentStage === 'covers' && job.totalFiles > 0) {
-        stageProgress = job.coversExtracted / job.totalFiles;
-      }
-
-      progress = Math.round(completed + stageProgress * currentWeight);
-    }
-  } else if (status === 'completed') {
+  if (status === 'completed') {
     progress = 100;
+  } else if (status === 'queued') {
+    progress = 0;
   }
+  // Note: For running jobs, progress is calculated client-side using SSE data
+  // since foldersTotal, foldersSkipped, etc. are not stored in the database
 
   const stageLabels: Record<string, string> = {
     queued: 'Waiting...',
@@ -219,6 +202,14 @@ function convertScanJob(job: LibraryScanJobData, libraryName?: string): UnifiedJ
     canCancel: status === 'queued' || status === 'running',
     canRetry: false,
     libraryId: job.libraryId,
+    scanStats: {
+      indexedFiles: job.indexedFiles,
+      totalFiles: job.totalFiles,
+      coversExtracted: job.coversExtracted,
+      seriesCreated: job.seriesCreated,
+      // foldersComplete, foldersTotal, etc. come from SSE real-time updates,
+      // not stored in the database. Client uses SSE data for real-time display.
+    },
     _raw: job,
   };
 }

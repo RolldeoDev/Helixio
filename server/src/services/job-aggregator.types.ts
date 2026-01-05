@@ -50,6 +50,19 @@ export interface UnifiedJob {
   };
   // Library-scan specific fields (for SSE enrichment on client)
   libraryId?: string;
+  // Library-scan stats (included directly so they display even without SSE context)
+  scanStats?: {
+    indexedFiles: number;
+    totalFiles: number;
+    coversExtracted: number;
+    seriesCreated: number;
+    foldersComplete?: number;
+    foldersTotal?: number;
+    foldersSkipped?: number;
+    foldersErrored?: number;
+    coverJobsComplete?: number;
+    currentFolder?: string | null;
+  };
 }
 
 // =============================================================================

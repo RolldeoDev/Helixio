@@ -10,6 +10,7 @@ import type { UnifiedJob } from '../../services/api/jobs';
 import { useCancelJob } from '../../hooks/queries/useUnifiedJobs';
 import { useLibraryScan } from '../../contexts/LibraryScanContext';
 import { truncatePath } from '../../utils/format';
+import type { LibraryScanJob } from '../../services/api/series';
 import './UnifiedJobCard.css';
 
 function getJobIcon(job: UnifiedJob): string {
@@ -42,7 +43,7 @@ interface UnifiedJobCardProps {
 
 export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
   const cancelMutation = useCancelJob();
-  const { getActiveScan } = useLibraryScan();
+  const { getActiveScan, getScanProgress } = useLibraryScan();
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -54,9 +55,30 @@ export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
   const timeAgo = formatDistanceToNow(new Date(job.createdAt), { addSuffix: true });
 
   // For library-scan jobs, get real-time SSE data from LibraryScanContext
-  const scanData = job.type === 'library-scan' && job.libraryId
+  // Fall back to job.scanStats if context doesn't have the scan yet
+  const contextScanData = job.type === 'library-scan' && job.libraryId
     ? getActiveScan(job.libraryId)
     : null;
+
+  // Use context data if available, otherwise use the stats from the job itself
+  const scanData = contextScanData || (job.type === 'library-scan' && job.scanStats ? {
+    indexedFiles: job.scanStats.indexedFiles,
+    totalFiles: job.scanStats.totalFiles,
+    coversExtracted: job.scanStats.coversExtracted,
+    seriesCreated: job.scanStats.seriesCreated,
+    foldersComplete: job.scanStats.foldersComplete,
+    foldersTotal: job.scanStats.foldersTotal,
+    foldersSkipped: job.scanStats.foldersSkipped,
+    foldersErrored: job.scanStats.foldersErrored,
+    coverJobsComplete: job.scanStats.coverJobsComplete,
+    currentFolder: job.scanStats.currentFolder,
+  } as LibraryScanJob : null);
+
+  // Calculate progress for library-scan jobs using the folder-based formula
+  // Use context's progress calculation for real-time SSE data, fall back to job.progress otherwise
+  const displayProgress = (job.type === 'library-scan' && contextScanData)
+    ? getScanProgress(contextScanData)
+    : job.progress;
 
   // Build enriched subtitle for library-scan jobs
   const enrichedSubtitle = (() => {
@@ -92,15 +114,15 @@ export function UnifiedJobCard({ job, onClick }: UnifiedJobCardProps) {
           </div>
         </div>
 
-        {job.progress !== undefined && job.status === 'running' && (
+        {displayProgress !== undefined && job.status === 'running' && (
           <div className="job-card-progress">
             <div className="job-progress-bar">
               <div
                 className="job-progress-fill"
-                style={{ width: `${job.progress}%` }}
+                style={{ width: `${displayProgress}%` }}
               />
             </div>
-            <div className="job-progress-text">{job.progress}%</div>
+            <div className="job-progress-text">{displayProgress}%</div>
           </div>
         )}
 

@@ -74,8 +74,8 @@ describe('Series Service', () => {
 
   describe('createSeries', () => {
     it('should create a new series', async () => {
-      // New implementation uses findMany for case-insensitive check
-      mockDb.series.findMany.mockResolvedValue([]);
+      // findFirst returns null when no existing series
+      mockDb.series.findFirst.mockResolvedValue(null);
       mockDb.series.create.mockResolvedValue(
         createMockSeriesRecord({ id: 'new-series-id' })
       );
@@ -99,10 +99,10 @@ describe('Series Service', () => {
     });
 
     it('should throw error if series already exists', async () => {
-      // New implementation uses findMany for case-insensitive check
-      mockDb.series.findMany.mockResolvedValue([
-        createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics' })
-      ]);
+      // findFirst returns existing non-deleted series
+      mockDb.series.findFirst.mockResolvedValue(
+        createMockSeriesRecord({ name: 'Batman', publisher: 'DC Comics', deletedAt: null })
+      );
 
       await expect(
         createSeries({ name: 'Batman', publisher: 'DC Comics' })
@@ -110,8 +110,8 @@ describe('Series Service', () => {
     });
 
     it('should allow same name with different publisher', async () => {
-      // New implementation uses findMany for case-insensitive check
-      mockDb.series.findMany.mockResolvedValue([]);
+      // findFirst returns null when no matching series exists
+      mockDb.series.findFirst.mockResolvedValue(null);
       mockDb.series.create.mockResolvedValue(
         createMockSeriesRecord({ name: 'Batman', publisher: 'Marvel Comics' })
       );
@@ -122,8 +122,8 @@ describe('Series Service', () => {
     });
 
     it('should set default type to western', async () => {
-      // New implementation uses findMany for case-insensitive check
-      mockDb.series.findMany.mockResolvedValue([]);
+      // findFirst returns null when no existing series
+      mockDb.series.findFirst.mockResolvedValue(null);
       mockDb.series.create.mockResolvedValue(createMockSeriesRecord());
 
       await createSeries({ name: 'Batman' });
@@ -144,7 +144,8 @@ describe('Series Service', () => {
         publisher: 'DC Comics',
         deletedAt: new Date('2024-01-01'),
       });
-      mockDb.series.findMany.mockResolvedValue([softDeletedSeries]);
+      // findFirst returns the soft-deleted series
+      mockDb.series.findFirst.mockResolvedValue(softDeletedSeries);
       mockDb.series.update.mockResolvedValue({
         ...softDeletedSeries,
         deletedAt: null,

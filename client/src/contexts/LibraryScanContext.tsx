@@ -63,8 +63,9 @@ const LibraryScanContext = createContext<LibraryScanContextValue | null>(null);
 // =============================================================================
 
 // Fallback polling intervals (used when SSE is disconnected)
-const POLL_INTERVAL_ACTIVE = 2000; // 2 seconds during active processing (increased since SSE is primary)
-const POLL_INTERVAL_IDLE = 10000; // 10 seconds when idle/queued
+// These are intentionally longer since SSE is the primary update mechanism
+const POLL_INTERVAL_ACTIVE = 5000; // 5 seconds during active processing
+const POLL_INTERVAL_IDLE = 15000; // 15 seconds when idle/queued
 
 // SSE reconnection settings
 const SSE_RECONNECT_DELAY = 3000; // 3 seconds
@@ -301,49 +302,38 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
     [state.activeScans]
   );
 
-  // Calculate scan progress percentage
+  // Calculate scan progress percentage using folder-based formula:
+  // Progress = (foldersComplete + foldersErrored*2 + coverJobsComplete) / ((foldersTotal - foldersSkipped) * 2)
+  // Each folder with changes has 2 units of work: scanning + cover extraction
+  // Errored folders count as 2 (no cover job coming, so count both units as done)
   const getScanProgress = useCallback((job: LibraryScanJob): number => {
     if (job.status === 'complete') return 100;
     if (job.status === 'queued') return 0;
-    if (job.totalFiles === 0) return 0;
 
-    // Weight each stage
-    const weights = {
-      discovering: 0.05,
-      cleaning: 0.05,
-      indexing: 0.4,
-      linking: 0.3,
-      covers: 0.2,
-    };
+    const foldersTotal = job.foldersTotal ?? 0;
+    const foldersSkipped = job.foldersSkipped ?? 0;
+    const foldersComplete = job.foldersComplete ?? 0;
+    const foldersErrored = job.foldersErrored ?? 0;
+    const coverJobsComplete = job.coverJobsComplete ?? 0;
 
-    let progress = 0;
-
-    // Completed stages
-    if (['cleaning', 'indexing', 'linking', 'covers', 'complete'].includes(job.status)) {
-      progress += weights.discovering * 100;
-    }
-    if (['indexing', 'linking', 'covers', 'complete'].includes(job.status)) {
-      progress += weights.cleaning * 100;
-    }
-    if (['linking', 'covers', 'complete'].includes(job.status)) {
-      progress += weights.indexing * 100;
-    }
-    if (['covers', 'complete'].includes(job.status)) {
-      progress += weights.linking * 100;
+    // Only folders with changes count toward the total
+    const foldersWithChanges = foldersTotal - foldersSkipped;
+    if (foldersWithChanges <= 0) {
+      // No folders with changes yet, show 0% or estimate based on discovery
+      if (job.status === 'discovering') return 5;
+      return 0;
     }
 
-    // Current stage progress
-    if (job.status === 'discovering') {
-      // Discovery doesn't have a known total, estimate at 50%
-      progress += weights.discovering * 50;
-    } else if (job.status === 'indexing' && job.totalFiles > 0) {
-      progress += weights.indexing * (job.indexedFiles / job.totalFiles) * 100;
-    } else if (job.status === 'linking' && job.totalFiles > 0) {
-      progress += weights.linking * (job.linkedFiles / job.totalFiles) * 100;
-    } else if (job.status === 'covers' && job.totalFiles > 0) {
-      progress += weights.covers * (job.coversExtracted / job.totalFiles) * 100;
-    }
+    // Total units = folders with changes * 2 (folder processing + cover extraction)
+    const totalUnits = foldersWithChanges * 2;
 
+    // Completed units:
+    // - Each completed folder = 1 unit (waiting for cover job)
+    // - Each errored folder = 2 units (no cover job coming)
+    // - Each completed cover job = 1 unit
+    const completedUnits = foldersComplete + (foldersErrored * 2) + coverJobsComplete;
+
+    const progress = (completedUnits / totalUnits) * 100;
     return Math.min(100, Math.round(progress));
   }, []);
 
@@ -422,10 +412,13 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
               orphanedFiles: data.filesOrphaned,
               seriesCreated: data.seriesCreated,
               // Preserve coversExtracted from cover-progress events
-              // (coverJobsComplete is job count, not actual cover count)
               coversExtracted: existingJob.coversExtracted || 0,
+              // Preserve coverJobsComplete from cover-progress events
+              coverJobsComplete: existingJob.coverJobsComplete || 0,
               foldersTotal: data.foldersTotal,
               foldersComplete: data.foldersComplete,
+              foldersSkipped: data.foldersSkipped,
+              foldersErrored: data.foldersErrored,
               currentFolder: data.currentFolder,
             };
 
@@ -469,16 +462,18 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
               return prev;
             }
 
-            // Only update coversExtracted when a cover job completes
+            // Only update counts when a cover job completes
             if (data.status === 'complete') {
               const newCovers = data.coversExtracted || 0;
               const existingCovers = existingJob.coversExtracted || 0;
+              const existingJobsComplete = existingJob.coverJobsComplete || 0;
 
               // Use additive approach - each cover job adds its extracted covers
-              // to the running total
+              // to the running total, and increment the completed job count
               const updatedJob = {
                 ...existingJob,
                 coversExtracted: existingCovers + newCovers,
+                coverJobsComplete: existingJobsComplete + 1,
               };
 
               return {

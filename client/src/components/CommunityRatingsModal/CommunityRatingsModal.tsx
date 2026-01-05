@@ -204,9 +204,9 @@ export function CommunityRatingsModal({
   const saveMatchMutation = useSaveManualCbrMatch();
   const resetMatchMutation = useResetCbrMatch();
 
-  // Poll job status every 3 seconds when active
+  // Poll job status every 5 seconds when job is active (stops when issueJobId is cleared)
   const { data: jobStatus } = useSyncJobStatus(issueJobId || undefined, {
-    refetchInterval: issueJobId ? 3000 : undefined,
+    refetchInterval: issueJobId ? 5000 : undefined,
   });
 
   // Select the active query and mutation based on mode

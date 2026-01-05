@@ -195,6 +195,13 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
 
 /**
  * Get next unread issue for a series for a specific user (Continue Series feature).
+ * Reads the cached progress - does NOT recalculate.
+ * Progress is updated when:
+ * - User reads a page (reading-history.service)
+ * - User marks read/unread (bulkMarkSeriesRead/Unread)
+ * - Files are scanned/linked (scanner, file-linking, series-matcher)
+ * - Metadata changes (metadata-invalidation, series-merge)
+ *
  * @param userId - The user ID
  * @param seriesId - The series ID
  */
@@ -204,9 +211,7 @@ export async function getNextUnreadIssue(
 ): Promise<ComicFile | null> {
   const db = getDatabase();
 
-  // Update progress first for this user
-  await updateSeriesProgress(seriesId, userId);
-
+  // Read cached progress - no recalculation needed
   const progress = await db.seriesProgress.findUnique({
     where: { userId_seriesId: { userId, seriesId } },
   });
@@ -226,6 +231,7 @@ export async function getNextUnreadIssue(
 
 /**
  * Mark all issues in the specified series as read for a user.
+ * Uses batch operations for better performance (O(1) queries instead of O(n)).
  */
 export async function bulkMarkSeriesRead(
   seriesIds: string[],
@@ -233,62 +239,96 @@ export async function bulkMarkSeriesRead(
 ): Promise<BulkOperationResult> {
   const db = getDatabase();
   const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
-  let successful = 0;
-  let failed = 0;
 
-  for (const seriesId of seriesIds) {
-    try {
-      // Get all files in the series
-      const files = await db.comicFile.findMany({
-        where: { seriesId },
-        select: { id: true },
-      });
+  if (seriesIds.length === 0) {
+    return { total: 0, successful: 0, failed: 0, results: [] };
+  }
 
-      // Mark each file as completed
-      for (const file of files) {
-        await db.userReadingProgress.upsert({
-          where: {
-            userId_fileId: { userId, fileId: file.id },
-          },
-          create: {
+  try {
+    // 1. Fetch ALL files from ALL series in ONE query
+    const allFiles = await db.comicFile.findMany({
+      where: { seriesId: { in: seriesIds } },
+      select: { id: true, seriesId: true },
+    });
+
+    const allFileIds = allFiles.map(f => f.id);
+
+    // 2. Get existing progress records to know which to update vs create
+    const existingProgress = await db.userReadingProgress.findMany({
+      where: {
+        userId,
+        fileId: { in: allFileIds },
+      },
+      select: { fileId: true },
+    });
+
+    const existingFileIds = new Set(existingProgress.map(p => p.fileId));
+    const newFileIds = allFileIds.filter(id => !existingFileIds.has(id));
+
+    // 3. Batch update existing records + create new ones in a transaction
+    await db.$transaction([
+      // Update existing progress to completed
+      db.userReadingProgress.updateMany({
+        where: {
+          userId,
+          fileId: { in: allFileIds },
+        },
+        data: { completed: true },
+      }),
+      // Create new progress records for files without any progress
+      ...(newFileIds.length > 0 ? [
+        db.userReadingProgress.createMany({
+          data: newFileIds.map(fileId => ({
             userId,
-            fileId: file.id,
+            fileId,
             currentPage: 0,
             totalPages: 0,
             completed: true,
             bookmarks: '[]',
-          },
-          update: {
-            completed: true,
-          },
-        });
-      }
+          })),
+          skipDuplicates: true,
+        }),
+      ] : []),
+    ]);
 
-      // Update series progress
-      await updateSeriesProgress(seriesId, userId);
+    // 4. Update series progress in parallel
+    await Promise.all(
+      seriesIds.map(seriesId => updateSeriesProgress(seriesId, userId))
+    );
 
+    // All succeeded
+    for (const seriesId of seriesIds) {
       results.push({ seriesId, success: true });
-      successful++;
-    } catch (error) {
+    }
+
+    return {
+      total: seriesIds.length,
+      successful: seriesIds.length,
+      failed: 0,
+      results,
+    };
+  } catch (error) {
+    // If batch operation fails, all series are marked as failed
+    for (const seriesId of seriesIds) {
       results.push({
         seriesId,
         success: false,
         error: error instanceof Error ? error.message : String(error),
       });
-      failed++;
     }
-  }
 
-  return {
-    total: seriesIds.length,
-    successful,
-    failed,
-    results,
-  };
+    return {
+      total: seriesIds.length,
+      successful: 0,
+      failed: seriesIds.length,
+      results,
+    };
+  }
 }
 
 /**
  * Mark all issues in the specified series as unread for a user.
+ * Uses batch operations for better performance (O(1) queries instead of O(n)).
  */
 export async function bulkMarkSeriesUnread(
   seriesIds: string[],
@@ -296,48 +336,61 @@ export async function bulkMarkSeriesUnread(
 ): Promise<BulkOperationResult> {
   const db = getDatabase();
   const results: Array<{ seriesId: string; success: boolean; error?: string }> = [];
-  let successful = 0;
-  let failed = 0;
 
-  for (const seriesId of seriesIds) {
-    try {
-      // Get all files in the series
-      const files = await db.comicFile.findMany({
-        where: { seriesId },
-        select: { id: true },
-      });
+  if (seriesIds.length === 0) {
+    return { total: 0, successful: 0, failed: 0, results: [] };
+  }
 
-      // Delete reading progress for each file (or mark as incomplete)
-      for (const file of files) {
-        await db.userReadingProgress.deleteMany({
-          where: {
-            userId,
-            fileId: file.id,
-          },
-        });
-      }
+  try {
+    // 1. Fetch ALL files from ALL series in ONE query
+    const allFiles = await db.comicFile.findMany({
+      where: { seriesId: { in: seriesIds } },
+      select: { id: true },
+    });
 
-      // Update series progress
-      await updateSeriesProgress(seriesId, userId);
+    const allFileIds = allFiles.map(f => f.id);
 
+    // 2. Delete ALL reading progress in ONE query
+    await db.userReadingProgress.deleteMany({
+      where: {
+        userId,
+        fileId: { in: allFileIds },
+      },
+    });
+
+    // 3. Update series progress in parallel
+    await Promise.all(
+      seriesIds.map(seriesId => updateSeriesProgress(seriesId, userId))
+    );
+
+    // All succeeded
+    for (const seriesId of seriesIds) {
       results.push({ seriesId, success: true });
-      successful++;
-    } catch (error) {
+    }
+
+    return {
+      total: seriesIds.length,
+      successful: seriesIds.length,
+      failed: 0,
+      results,
+    };
+  } catch (error) {
+    // If batch operation fails, all series are marked as failed
+    for (const seriesId of seriesIds) {
       results.push({
         seriesId,
         success: false,
         error: error instanceof Error ? error.message : String(error),
       });
-      failed++;
     }
-  }
 
-  return {
-    total: seriesIds.length,
-    successful,
-    failed,
-    results,
-  };
+    return {
+      total: seriesIds.length,
+      successful: 0,
+      failed: seriesIds.length,
+      results,
+    };
+  }
 }
 
 // =============================================================================
@@ -416,6 +469,9 @@ function sortGridItems(
  * Get unified grid items (series + promoted collections) with filtering and sorting.
  * Collections are treated as "virtual series" for filtering purposes.
  *
+ * When promoted collections are NOT included, uses database-level pagination for efficiency.
+ * When promoted collections ARE included, fetches all for proper merging and client-side pagination.
+ *
  * @param options - List options including filters and sort settings
  * @returns Unified list of series and collections, sorted and optionally paginated
  */
@@ -427,12 +483,17 @@ export async function getUnifiedGridItems(
   // Import getSeriesList dynamically to avoid circular dependency
   const { getSeriesList } = await import('./series-crud.service.js');
 
+  // When NOT including collections, use database-level pagination for efficiency
+  // When INCLUDING collections, we need all series for proper merging/sorting
+  const useDbPagination = !includePromotedCollections || !userId;
+
   // 1. Get series using existing logic
   const seriesResult = await getSeriesList({
     ...seriesOptions,
     userId,
-    // Fetch all for client-side merging, then we'll paginate the combined result
-    limit: undefined,
+    // Use database pagination when not merging with collections
+    limit: useDbPagination ? seriesOptions.limit : undefined,
+    page: useDbPagination ? seriesOptions.page : undefined,
   });
 
   // 2. Convert series to GridItem format
@@ -459,22 +520,14 @@ export async function getUnifiedGridItems(
   });
 
   // 3. If not including collections or no userId, return series only
+  // We already used database-level pagination, so just return the results
   if (!includePromotedCollections || !userId) {
-    const sortedItems = sortGridItems(seriesItems, seriesOptions.sortBy, seriesOptions.sortOrder);
-
-    // Apply pagination if specified
-    const page = seriesOptions.page || 1;
-    const limit = seriesOptions.limit;
-    const paginatedItems = limit
-      ? sortedItems.slice((page - 1) * limit, page * limit)
-      : sortedItems;
-
     return {
-      items: paginatedItems,
-      total: sortedItems.length,
-      page: limit ? page : 1,
-      limit: limit || sortedItems.length,
-      totalPages: limit ? Math.ceil(sortedItems.length / limit) : 1,
+      items: seriesItems,
+      total: seriesResult.total,
+      page: seriesResult.page,
+      limit: seriesResult.limit,
+      totalPages: seriesResult.totalPages,
     };
   }
 

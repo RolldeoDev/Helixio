@@ -1195,6 +1195,9 @@ export interface LibraryScanJob {
   // Folder progress (from SSE real-time updates)
   foldersTotal?: number;
   foldersComplete?: number;
+  foldersSkipped?: number;
+  foldersErrored?: number;
+  coverJobsComplete?: number;
   currentFolder?: string | null;
 
   // Error tracking

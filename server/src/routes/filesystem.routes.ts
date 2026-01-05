@@ -93,18 +93,20 @@ router.get('/roots', async (_req: Request, res: Response) => {
   try {
     const locations = getStartingLocations();
 
-    // Filter to only include existing locations
-    const existingLocations: DirectoryEntry[] = [];
-    for (const loc of locations) {
-      try {
-        const stats = await stat(loc.path);
-        if (stats.isDirectory()) {
-          existingLocations.push(loc);
+    // Check all locations in parallel for better performance
+    const checks = await Promise.all(
+      locations.map(async (loc) => {
+        try {
+          const stats = await stat(loc.path);
+          return stats.isDirectory() ? loc : null;
+        } catch {
+          return null;
         }
-      } catch {
-        // Skip non-existent locations
-      }
-    }
+      })
+    );
+
+    // Filter out null entries (non-existent/non-directory locations)
+    const existingLocations = checks.filter((loc): loc is DirectoryEntry => loc !== null);
 
     res.json({ locations: existingLocations });
   } catch (error) {

@@ -12,6 +12,7 @@ import {
   getSearchCacheStats,
 } from '../services/global-search.service.js';
 import { logError } from '../services/logger.service.js';
+import { cachePresets } from '../middleware/cache.middleware.js';
 
 const router = Router();
 
@@ -29,7 +30,7 @@ const router = Router();
  * - types: comma-separated list of types to search (default: series,issue,creator,collection)
  * - libraryId: optional library ID to filter results
  */
-router.get('/global', async (req: Request, res: Response): Promise<void> => {
+router.get('/global', cachePresets.shortTerm, async (req: Request, res: Response): Promise<void> => {
   try {
     const query = req.query.q as string;
     const limit = Math.min(parseInt(req.query.limit as string) || 6, 20);

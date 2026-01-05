@@ -440,55 +440,100 @@ async function extractRarFiles(
 
 /**
  * Extract a single file from a RAR archive to memory.
+ * Uses file-based extraction to a temp directory to support large archives (>2GB).
  */
 async function extractRarFileToBuffer(
   archivePath: string,
   entryPath: string
 ): Promise<Buffer | null> {
   logger.debug({ entryPath }, 'Looking for RAR entry');
-  try {
-    // Read the archive file into memory for data-based extraction
-    const archiveData = await readFile(archivePath);
-    const { createExtractorFromData } = await import('node-unrar-js');
 
-    const extractor = await createExtractorFromData({
-      data: archiveData.buffer as ArrayBuffer,
+  // Normalize the entry path for comparison (handle both / and \ separators)
+  const normalizedEntryPath = entryPath.replace(/\\/g, '/');
+  const entryFilename = basename(entryPath);
+
+  // Create temp directory for extraction
+  const tempDir = await createTempDir('rar-extract-');
+
+  try {
+    // Use file-based extractor (doesn't load entire archive into memory)
+    const extractor = await createExtractorFromFile({
+      filepath: archivePath,
+      targetPath: tempDir,
     });
 
-    // Normalize the entry path for comparison (handle both / and \ separators)
-    const normalizedEntryPath = entryPath.replace(/\\/g, '/');
-    const entryFilename = basename(entryPath);
+    // Extract only the file we need using filename filter
+    // Try to filter by the exact filename to minimize extraction
+    const extracted = extractor.extract({ files: [entryFilename] });
 
-    // Extract all files and find the one we want (filter option may not work reliably)
-    const extracted = extractor.extract();
-
-    // Convert generator to array for iteration
+    // Convert generator to array - files are written to disk during iteration
     const extractedFiles = [...extracted.files];
-    logger.debug({ fileCount: extractedFiles.length }, 'Total files in RAR archive');
+    logger.debug({ fileCount: extractedFiles.length }, 'Extracted files from RAR archive');
+
+    // Find the extracted file in the temp directory
+    let foundFile: string | null = null;
 
     for (const file of extractedFiles) {
       const fileName = file.fileHeader.name;
       const normalizedFileName = fileName.replace(/\\/g, '/');
 
-      // Match by exact path (normalized) or by filename if paths don't match
+      // Match by exact path (normalized) or by filename
       const isExactMatch = normalizedFileName === normalizedEntryPath;
       const isFilenameMatch = basename(fileName) === entryFilename;
 
-      if ((isExactMatch || isFilenameMatch) && file.extraction) {
+      if (isExactMatch || isFilenameMatch) {
         logger.debug({ fileName }, 'Found matching RAR entry');
-        return Buffer.from(file.extraction);
+        // Build the path to the extracted file
+        foundFile = join(tempDir, fileName);
+        break;
       }
     }
 
-    logger.debug({ entryPath }, 'No match found for RAR entry');
-    // Log first few file names for debugging
-    const fileNames = extractedFiles.slice(0, 5).map(f => f.fileHeader.name);
-    logger.debug({ sampleFiles: fileNames }, 'Sample files in RAR archive');
+    // If filter didn't work, try extracting all and searching
+    if (!foundFile) {
+      logger.debug('File filter may not have worked, searching temp directory');
 
-    return null;
+      // Re-extract without filter (some RAR libs don't support file filtering reliably)
+      const fullExtractor = await createExtractorFromFile({
+        filepath: archivePath,
+        targetPath: tempDir,
+      });
+      const fullExtracted = fullExtractor.extract();
+      const allFiles = [...fullExtracted.files];
+
+      for (const file of allFiles) {
+        const fileName = file.fileHeader.name;
+        const normalizedFileName = fileName.replace(/\\/g, '/');
+        const isExactMatch = normalizedFileName === normalizedEntryPath;
+        const isFilenameMatch = basename(fileName) === entryFilename;
+
+        if (isExactMatch || isFilenameMatch) {
+          foundFile = join(tempDir, fileName);
+          break;
+        }
+      }
+    }
+
+    if (!foundFile) {
+      logger.debug({ entryPath }, 'No match found for RAR entry');
+      return null;
+    }
+
+    // Read the extracted file from temp directory
+    try {
+      const buffer = await readFile(foundFile);
+      logger.debug({ foundFile, size: buffer.length }, 'Successfully read extracted RAR file');
+      return buffer;
+    } catch (readErr) {
+      logger.error({ err: readErr, foundFile }, 'Failed to read extracted RAR file');
+      return null;
+    }
   } catch (err) {
     logger.error({ err, entryPath }, 'RAR file extraction error');
     return null;
+  } finally {
+    // Always clean up temp directory
+    await cleanupTempDir(tempDir);
   }
 }
 

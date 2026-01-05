@@ -8,6 +8,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useReader } from './ReaderContext';
 import { useNetworkAwarePreload } from './hooks/useNetworkAwarePreload';
+import { useImageCache } from './hooks/useImageCache';
 
 export function ReaderPage() {
   const {
@@ -32,6 +33,34 @@ export function ReaderPage() {
 
   // Network-aware preloading configuration
   const preloadConfig = useNetworkAwarePreload(state.preloadCount);
+
+  // Callbacks for image cache - memoized to prevent unnecessary re-renders
+  const handleCacheImageLoaded = useCallback((pageIndex: number) => {
+    // Sync with loadedImages state for CSS classes
+    setLoadedImages((prev) => new Set(prev).add(pageIndex));
+    setImageErrors((prev) => {
+      const next = new Set(prev);
+      next.delete(pageIndex);
+      return next;
+    });
+  }, []);
+
+  const handleCacheImageError = useCallback((pageIndex: number) => {
+    setImageErrors((prev) => new Set(prev).add(pageIndex));
+  }, []);
+
+  // Memoize cache options to prevent recreating on every render
+  const cacheOptions = useMemo(
+    () => ({
+      maxSize: 20,
+      onImageLoaded: handleCacheImageLoaded,
+      onImageError: handleCacheImageError,
+    }),
+    [handleCacheImageLoaded, handleCacheImageError]
+  );
+
+  // Persistent image cache for preloading (20 pages default)
+  const imageCache = useImageCache(state.pages, cacheOptions);
 
   // Drag state for scroll interaction
   const [isDragging, setIsDragging] = useState(false);
@@ -108,20 +137,23 @@ export function ReaderPage() {
     return toPreload;
   }, [state.currentPage, state.totalPages, displayPages, preloadConfig.preloadCount, preloadConfig.preloadBehind]);
 
-  // Preload images with network-aware delay
+  // Preload images using persistent cache
+  // Unlike the old approach, this doesn't destroy images on navigation
   useEffect(() => {
-    const images: HTMLImageElement[] = [];
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const startPreload = () => {
-      preloadPages.forEach((pageIndex) => {
-        const page = state.pages[pageIndex];
-        if (!page) return;
+      // Combine display pages and preload pages for cache
+      const allPagesToCache = [...new Set([...displayPages, ...preloadPages])];
 
-        const img = new Image();
-        img.src = page.url;
-        images.push(img);
-      });
+      // Filter to only pages not already loaded in cache
+      const pagesToPreload = allPagesToCache.filter(
+        (idx) => !imageCache.isLoaded(idx) && !imageCache.isLoading(idx)
+      );
+
+      if (pagesToPreload.length > 0) {
+        imageCache.preload(pagesToPreload);
+      }
     };
 
     // Apply network-aware delay before preloading
@@ -135,11 +167,17 @@ export function ReaderPage() {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      images.forEach((img) => {
-        img.src = '';
-      });
+      // NOTE: We intentionally do NOT clear the cache on cleanup!
+      // This is the key fix - images persist across navigation.
     };
-  }, [preloadPages, state.pages, preloadConfig.preloadDelay]);
+  }, [displayPages, preloadPages, preloadConfig.preloadDelay, imageCache]);
+
+  // Evict distant pages when navigating to keep memory bounded
+  useEffect(() => {
+    // Keep pages within preload range + some buffer
+    const protectedRange = Math.max(preloadConfig.preloadCount, preloadConfig.preloadBehind) + 5;
+    imageCache.evictDistant(state.currentPage, protectedRange);
+  }, [state.currentPage, preloadConfig.preloadCount, preloadConfig.preloadBehind, imageCache]);
 
   // Handle image load - capture dimensions for landscape detection
   const handleImageLoad = useCallback(

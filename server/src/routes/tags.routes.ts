@@ -14,6 +14,7 @@ import {
   type TagFieldType,
 } from '../services/tag-autocomplete.service.js';
 import { logError } from '../services/logger.service.js';
+import { cachePresets } from '../middleware/cache.middleware.js';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ const router = Router();
  * - limit: number (default 10, max 50)
  * - offset: number (default 0)
  */
-router.get('/autocomplete', async (req: Request, res: Response): Promise<void> => {
+router.get('/autocomplete', cachePresets.shortTerm, async (req: Request, res: Response): Promise<void> => {
   try {
     const field = req.query.field as string;
     const query = req.query.q as string;
