@@ -3,6 +3,7 @@ import './env.js';
 
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -39,6 +40,7 @@ import {
   getDatabaseStats,
   getDatabase,
 } from './services/database.service.js';
+import { initializeRedis, closeRedis, cacheService } from './services/cache/index.js';
 
 // Routes
 import libraryRoutes from './routes/library.routes.js';
@@ -90,14 +92,17 @@ import { markInterruptedBatches } from './services/batch.service.js';
 import { cleanupOldOperationLogs } from './services/rollback.service.js';
 import { recoverInterruptedJobs } from './services/job-queue.service.js';
 import { cleanupExpiredJobs } from './services/metadata-job.service.js';
-import { initializeScanQueue } from './services/library-scan-queue.service.js';
+import { initializeScanQueue, shutdownScanQueue } from './services/library-scan-queue.service.js';
 import { cleanupOldScanJobs } from './services/library-scan-job.service.js';
 import { startStatsScheduler, stopStatsScheduler } from './services/stats-scheduler.service.js';
 import { startSimilarityScheduler, stopSimilarityScheduler } from './services/similarity/index.js';
 import { startSmartCollectionProcessor, stopSmartCollectionProcessor } from './services/smart-collection-dirty.service.js';
 import { startRatingSyncScheduler, stopRatingSyncScheduler } from './services/rating-sync-scheduler.service.js';
+import { startPageCacheScheduler, stopPageCacheScheduler } from './services/page-cache-scheduler.service.js';
 import { ensureBundledPresets } from './services/reader-preset.service.js';
 import { runDownloadCleanup } from './services/download.service.js';
+import { startCoverWorker, stopCoverWorker, closeCoverQueue } from './services/queue/cover-worker.js';
+import { initializeBullBoard, getBullBoardRouter } from './routes/bullboard.routes.js';
 import { logger, logError } from './services/logger.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -117,6 +122,18 @@ app.use(
     credentials: true,
   })
 );
+
+// HTTP compression for JSON responses (60-70% bandwidth reduction)
+app.use(compression({
+  threshold: 1024, // Only compress responses > 1KB
+  level: 4, // Balanced speed vs compression (1-9)
+  filter: (req, res) => {
+    const type = res.getHeader('content-type') as string;
+    // Compress JSON, text, XML, JavaScript, and SVG
+    return /json|text|xml|javascript|svg/.test(type || '');
+  },
+}));
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -137,11 +154,17 @@ app.set('json replacer', (_key: string, value: unknown) => {
 app.get('/api/health', async (_req, res) => {
   try {
     const stats = await getDatabaseStats();
+    const cacheHealth = cacheService.getHealth();
+    const cacheStats = await cacheService.getStats();
     res.json({
       status: 'ok',
       version: '0.1.0',
       timestamp: new Date().toISOString(),
       database: stats,
+      cache: {
+        health: cacheHealth,
+        stats: cacheStats,
+      },
     });
   } catch {
     res.json({
@@ -617,6 +640,10 @@ app.use('/api/filter-presets', filterPresetsRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
 app.use('/api/jobs', jobsRoutes);
 
+// BullBoard dashboard (admin only)
+// Note: Initialized after queue workers start
+app.use('/api/admin/queues', requireAdmin, getBullBoardRouter());
+
 // OPDS routes (at root level, not under /api)
 app.use('/opds', opdsRoutes);
 
@@ -651,6 +678,11 @@ async function startServer(): Promise<void> {
     // Initialize database
     logger.info('Connecting to database...');
     await initializeDatabase();
+
+    // Initialize Redis cache (L2)
+    // This is non-blocking - if Redis fails, the app continues with L1 cache only
+    logger.info('Initializing Redis cache...');
+    await initializeRedis();
 
     // Ensure bundled reader presets exist (Western, Manga, Webtoon)
     logger.info('Initializing reader presets...');
@@ -703,9 +735,17 @@ async function startServer(): Promise<void> {
     // Recover interrupted metadata jobs
     await recoverInterruptedJobs();
 
+    // Start BullMQ workers
+    logger.info('Starting BullMQ workers...');
+    startCoverWorker();
+    // Scan worker is started by initializeScanQueue()
+
     // Initialize library scan queue and recover interrupted scans
     await initializeScanQueue();
     await cleanupOldScanJobs();
+
+    // Initialize BullBoard dashboard (after workers are started)
+    initializeBullBoard();
 
     // Clean up expired/stale download jobs
     const downloadCleanup = await runDownloadCleanup();
@@ -730,6 +770,9 @@ async function startServer(): Promise<void> {
 
     // Start rating sync scheduler for external ratings
     startRatingSyncScheduler();
+
+    // Start page cache scheduler for cleaning expired page caches
+    startPageCacheScheduler();
 
     // Start smart collection processor for auto-refreshing smart collections
     startSmartCollectionProcessor();
@@ -827,11 +870,22 @@ async function startServer(): Promise<void> {
       // Stop rating sync scheduler
       stopRatingSyncScheduler();
 
+      // Stop page cache scheduler
+      stopPageCacheScheduler();
+
       // Stop smart collection processor
       stopSmartCollectionProcessor();
 
+      // Stop BullMQ workers and queues
+      logger.info('Stopping BullMQ workers...');
+      await stopCoverWorker();
+      await closeCoverQueue();
+      await shutdownScanQueue();
+      logger.info('BullMQ workers stopped');
+
       server.close(async () => {
         logger.info('HTTP server closed');
+        await closeRedis();
         await closeDatabase();
         logger.info('Goodbye!');
         process.exit(0);

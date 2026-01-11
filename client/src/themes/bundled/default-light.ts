@@ -44,6 +44,7 @@ export const collectorsLightTheme: ThemeDefinition = {
     // Semantic colors - Adjusted for light background
     colorSuccess: '#2d8a4e',
     colorWarning: '#b8860b',
+    colorWarningText: '#ffffff',           // White text on dark goldenrod
     colorError: '#c53030',
     colorDanger: '#b91c1c',
     colorInfo: '#2563eb',

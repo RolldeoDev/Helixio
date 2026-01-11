@@ -44,6 +44,7 @@ export const collectorsDarkTheme: ThemeDefinition = {
     // Semantic colors
     colorSuccess: '#7dcea0',
     colorWarning: '#e5b567',
+    colorWarningText: '#1a1a1a',           // Dark text on mid-tone amber
     colorError: '#e07a7a',
     colorDanger: '#c75050',
     colorInfo: '#7eb8d8',

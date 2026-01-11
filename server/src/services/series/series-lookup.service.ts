@@ -176,27 +176,20 @@ export async function getAllPublishers(): Promise<string[]> {
 
 /**
  * Get all unique genres for filtering.
+ * Uses PostgreSQL unnest() for efficient aggregation instead of loading all series.
  * Excludes soft-deleted series.
  */
 export async function getAllGenres(): Promise<string[]> {
   const db = getDatabase();
 
-  const series = await db.series.findMany({
-    where: {
-      genres: { not: null },
-      deletedAt: null,
-    },
-    select: { genres: true },
-  });
+  // Use PostgreSQL unnest + string_to_array for efficient database-level aggregation
+  // This avoids loading 5000+ series into memory just to parse genres
+  const result = await db.$queryRaw<Array<{ genre: string }>>`
+    SELECT DISTINCT trim(unnest(string_to_array(genres, ','))) as genre
+    FROM "Series"
+    WHERE genres IS NOT NULL AND "deletedAt" IS NULL
+    ORDER BY genre
+  `;
 
-  const genreSet = new Set<string>();
-  for (const s of series) {
-    if (s.genres) {
-      for (const genre of s.genres.split(',')) {
-        genreSet.add(genre.trim());
-      }
-    }
-  }
-
-  return Array.from(genreSet).sort();
+  return result.map((r) => r.genre).filter((g) => g.length > 0);
 }

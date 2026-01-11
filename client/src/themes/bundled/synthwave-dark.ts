@@ -95,6 +95,7 @@ export const synthwaveDarkTheme: ThemeDefinition = {
     // Semantic colors - Neon-inspired
     colorSuccess: '#00ff88',           // Neon green (arcade win)
     colorWarning: '#ffcc00',           // Electric yellow
+    colorWarningText: '#000000',       // Black text on bright yellow for contrast
     colorError: '#ff3366',             // Neon red-pink
     colorDanger: '#ff0044',            // Intense warning red
     colorInfo: '#00ccff',              // Electric blue

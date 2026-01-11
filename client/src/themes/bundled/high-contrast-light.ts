@@ -57,6 +57,7 @@ export const highContrastLightTheme: ThemeDefinition = {
     // All tested against white background for AAA compliance
     colorSuccess: '#006B3C', // 7.1:1 contrast
     colorWarning: '#8B6914', // 7.0:1 contrast
+    colorWarningText: '#ffffff', // White text on dark gold for maximum contrast
     colorError: '#B80000',   // 7.8:1 contrast
     colorDanger: '#9B0000',  // 9.1:1 contrast
     colorInfo: '#0050A0',    // 7.3:1 contrast

@@ -11,6 +11,17 @@ vi.mock('../database.service.js', () => ({
   getDatabase: vi.fn(),
 }));
 
+// Mock the memory cache service to prevent caching during tests
+vi.mock('../memory-cache.service.js', () => ({
+  memoryCache: {
+    get: vi.fn().mockReturnValue(null), // Always return cache miss
+    set: vi.fn(),
+    isScanActive: vi.fn().mockReturnValue(false),
+    invalidate: vi.fn(),
+  },
+  CacheKeys: {},
+}));
+
 import { getDatabase } from '../database.service.js';
 import {
   getSeriesRecommendations,
@@ -412,11 +423,12 @@ describe('RecommendationsService', () => {
 
     it('should exclude read files', async () => {
       mockDb.readingProgress.findMany.mockResolvedValue([{ fileId: 'file-read' }]);
-      mockDb.comicFile.count.mockResolvedValue(5);
+      mockDb.comicFile.findMany.mockResolvedValue([createMockFile('file-1')]);
 
       await getRandomUnread();
 
-      expect(mockDb.comicFile.count).toHaveBeenCalledWith(
+      // New implementation uses findMany instead of count+loop
+      expect(mockDb.comicFile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             id: { notIn: ['file-read'] },
@@ -479,7 +491,6 @@ describe('RecommendationsService', () => {
   describe('getDiscoverComics', () => {
     it('should return discover result with comics array', async () => {
       mockDb.readingProgress.findMany.mockResolvedValue([]);
-      mockDb.comicFile.count.mockResolvedValue(10);
       mockDb.comicFile.findMany.mockResolvedValue([createMockFile('file-1')]);
 
       const result = await getDiscoverComics();
@@ -490,7 +501,7 @@ describe('RecommendationsService', () => {
 
     it('should return empty comics array when none available', async () => {
       mockDb.readingProgress.findMany.mockResolvedValue([]);
-      mockDb.comicFile.count.mockResolvedValue(0);
+      mockDb.comicFile.findMany.mockResolvedValue([]); // No unread comics
 
       const result = await getDiscoverComics();
 
@@ -499,23 +510,27 @@ describe('RecommendationsService', () => {
 
     it('should pass limit to getRandomUnread', async () => {
       mockDb.readingProgress.findMany.mockResolvedValue([]);
-      mockDb.comicFile.count.mockResolvedValue(50);
       mockDb.comicFile.findMany.mockResolvedValue([createMockFile('file-1')]);
 
       await getDiscoverComics(20);
 
-      // Should respect the limit
-      expect(mockDb.comicFile.count).toHaveBeenCalled();
+      // Should use findMany with a take parameter based on limit
+      // New implementation fetches batch (limit * 3) and samples in memory
+      expect(mockDb.comicFile.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: expect.any(Number),
+        })
+      );
     });
 
     it('should filter by libraryId', async () => {
       mockDb.readingProgress.findMany.mockResolvedValue([]);
-      mockDb.comicFile.count.mockResolvedValue(5);
       mockDb.comicFile.findMany.mockResolvedValue([]);
 
       await getDiscoverComics(12, 'lib-1');
 
-      expect(mockDb.comicFile.count).toHaveBeenCalledWith(
+      // New implementation uses findMany instead of count+loop
+      expect(mockDb.comicFile.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             libraryId: 'lib-1',

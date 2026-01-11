@@ -13,8 +13,11 @@
  */
 
 import { getDatabase } from '../database.service.js';
-import type { Series, SeriesProgress, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { Series, SeriesProgress } from '@prisma/client';
 import { refreshTagsFromSeries } from '../tag-autocomplete.service.js';
+import { getCachedOrCount } from '../cache/count-cache.service.js';
+import { getCachedOrFetchSeriesMetadata } from '../cache/query-result-cache.service.js';
 import {
   SeriesMetadata,
   SeriesDefinition,
@@ -151,24 +154,31 @@ export async function getSeries(
   // Build progress include - filter by userId if provided
   const progressInclude = userId ? { where: { userId } } : true;
 
-  const series = await db.series.findUnique({
-    where: { id: seriesId },
-    include: {
-      _count: {
-        select: { issues: true },
-      },
-      progress: progressInclude,
-      // Include first issue for cover fallback (with coverHash for cache-busting)
-      issues: {
-        take: 1,
-        orderBy: [
-          { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
-          { filename: 'asc' },
-        ],
-        select: { id: true, coverHash: true },
-      },
-    },
-  });
+  // Use metadata cache (with userId in cache key for user-specific progress)
+  const cacheKey = userId ? `${seriesId}:${userId}` : seriesId;
+  const series = await getCachedOrFetchSeriesMetadata<SeriesWithCounts | null>(
+    cacheKey,
+    async () => {
+      return await db.series.findUnique({
+        where: { id: seriesId },
+        include: {
+          _count: {
+            select: { issues: true },
+          },
+          progress: progressInclude,
+          // Include first issue for cover fallback (with coverHash for cache-busting)
+          issues: {
+            take: 1,
+            orderBy: [
+              { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+              { filename: 'asc' },
+            ],
+            select: { id: true, coverHash: true },
+          },
+        },
+      });
+    }
+  );
 
   // Filter out soft-deleted unless explicitly requested
   if (series && series.deletedAt && !includeDeleted) {
@@ -240,6 +250,31 @@ export async function getSeriesList(
     };
   }
 
+  // =========================================================================
+  // PERFORMANCE: Filter hasUnread at database level (not in-memory)
+  // Uses raw SQL subquery to avoid loading all series just to filter
+  // =========================================================================
+  if (hasUnread !== undefined && userId) {
+    // Get series IDs that match the hasUnread criteria using database-level filtering
+    const matchingSeriesIds = await db.$queryRaw<Array<{ id: string }>>`
+      SELECT s.id FROM "Series" s
+      LEFT JOIN "SeriesProgress" sp ON s.id = sp."seriesId" AND sp."userId" = ${userId}
+      LEFT JOIN (
+        SELECT "seriesId", COUNT(*) as issue_count
+        FROM "ComicFile"
+        GROUP BY "seriesId"
+      ) ic ON s.id = ic."seriesId"
+      WHERE s."deletedAt" IS NULL
+        AND ${hasUnread
+          ? Prisma.sql`(sp.id IS NULL OR sp."totalRead" < COALESCE(sp."totalOwned", ic.issue_count, 0))`
+          : Prisma.sql`(sp."totalRead" >= COALESCE(sp."totalOwned", ic.issue_count, 0) AND COALESCE(sp."totalOwned", ic.issue_count, 0) > 0)`
+        }
+    `;
+
+    // Add the ID filter to the where clause
+    where.id = { in: matchingSeriesIds.map((r) => r.id) };
+  }
+
   // Build orderBy
   const orderBy: Prisma.SeriesOrderByWithRelationInput = {};
   if (sortBy === 'issueCount') {
@@ -248,8 +283,12 @@ export async function getSeriesList(
     orderBy[sortBy] = sortOrder;
   }
 
-  // Get total count
-  const total = await db.series.count({ where });
+  // Get total count (with caching)
+  const total = await getCachedOrCount(
+    'series',
+    { where, libraryId },
+    async () => await db.series.count({ where })
+  );
 
   // Get series (all or paginated)
   // If userId provided, filter progress to just that user
@@ -275,27 +314,8 @@ export async function getSeriesList(
     },
   });
 
-  // Helper to get progress stats (handles array or single object)
-  const getProgressStats = (progress: SeriesProgress[] | SeriesProgress | null | undefined) => {
-    if (!progress) return { totalOwned: 0, totalRead: 0 };
-    if (Array.isArray(progress)) {
-      // Get first (should only be one when filtered by userId)
-      const p = progress[0];
-      return p ? { totalOwned: p.totalOwned, totalRead: p.totalRead } : { totalOwned: 0, totalRead: 0 };
-    }
-    return { totalOwned: progress.totalOwned, totalRead: progress.totalRead };
-  };
-
-  // Filter by hasUnread if specified
-  if (hasUnread !== undefined) {
-    seriesRecords = seriesRecords.filter((series) => {
-      const stats = getProgressStats(series.progress);
-      const owned = stats.totalOwned || series._count?.issues || 0;
-      const read = stats.totalRead || 0;
-      const hasUnreadIssues = read < owned;
-      return hasUnread ? hasUnreadIssues : !hasUnreadIssues;
-    });
-  }
+  // Note: hasUnread filtering is now done at database level (see above)
+  // This ensures accurate pagination and total counts
 
   const returnLimit = fetchAll ? total : effectiveLimit!;
   return {
@@ -597,7 +617,11 @@ export async function getSeriesBrowseList(
   // Get total count only on first page (no cursor) for display purposes
   let totalCount = -1;
   if (!cursor) {
-    totalCount = await db.series.count({ where: baseWhere });
+    totalCount = await getCachedOrCount(
+      'series',
+      { where: baseWhere, libraryId },
+      async () => await db.series.count({ where: baseWhere })
+    );
   }
 
   return {
@@ -688,10 +712,35 @@ export async function updateSeries(
 export async function deleteSeries(seriesId: string): Promise<void> {
   const db = getDatabase();
 
+  // Get series data before deletion for cache invalidation
+  const series = await db.series.findUnique({
+    where: { id: seriesId },
+    include: {
+      issues: {
+        select: { libraryId: true },
+        distinct: ['libraryId'],
+      },
+    },
+  });
+
+  if (!series) {
+    return; // Series doesn't exist
+  }
+
+  const libraryIds = series.issues.map((i) => i.libraryId);
+  const coverHash = series.coverHash;
+  const resolvedCoverHash = series.resolvedCoverHash;
+
   // Delete series (cascades to SeriesProgress and SeriesReaderSettingsNew)
   // ComicFile.seriesId becomes null due to onDelete: SetNull
   await db.series.delete({
     where: { id: seriesId },
+  });
+
+  // Invalidate caches after deletion (fire-and-forget)
+  const { invalidateSeriesDeleted } = await import('../cache/cache-invalidation.service.js');
+  invalidateSeriesDeleted(seriesId, libraryIds, coverHash, resolvedCoverHash).catch(() => {
+    // Errors are logged inside invalidateSeriesDeleted
   });
 }
 
@@ -1085,10 +1134,12 @@ export async function checkAndSoftDeleteEmptySeries(
 ): Promise<boolean> {
   const db = getDatabase();
 
-  // Count remaining issues
-  const issueCount = await db.comicFile.count({
-    where: { seriesId },
-  });
+  // Count remaining issues (with caching)
+  const issueCount = await getCachedOrCount(
+    'files',
+    { where: { seriesId } },
+    async () => await db.comicFile.count({ where: { seriesId } })
+  );
 
   if (issueCount === 0) {
     // Soft-delete the series
@@ -1250,6 +1301,12 @@ export async function purgeDeletedSeries(): Promise<{
     };
   });
 
+  // Invalidate caches for all purged series (fire-and-forget)
+  const { invalidateSeriesBulk } = await import('../cache/cache-invalidation.service.js');
+  invalidateSeriesBulk(seriesIds).catch(() => {
+    // Errors are logged inside invalidateSeriesBulk
+  });
+
   return {
     deletedCount: deletedSeries.length,
     seriesNames,
@@ -1277,10 +1334,18 @@ export async function toggleSeriesHidden(seriesId: string): Promise<Series> {
     throw new Error(`Series ${seriesId} not found`);
   }
 
-  return db.series.update({
+  const updated = await db.series.update({
     where: { id: seriesId },
     data: { isHidden: !series.isHidden },
   });
+
+  // Invalidate caches (hidden series should be removed from browse lists)
+  const { invalidateSeries } = await import('../cache/cache-invalidation.service.js');
+  invalidateSeries(seriesId).catch(() => {
+    // Errors are logged inside invalidateSeries
+  });
+
+  return updated;
 }
 
 /**
@@ -1300,10 +1365,18 @@ export async function setSeriesHidden(
     throw new Error(`Series ${seriesId} not found`);
   }
 
-  return db.series.update({
+  const updated = await db.series.update({
     where: { id: seriesId },
     data: { isHidden: hidden },
   });
+
+  // Invalidate caches (hidden series should be removed from browse lists)
+  const { invalidateSeries } = await import('../cache/cache-invalidation.service.js');
+  invalidateSeries(seriesId).catch(() => {
+    // Errors are logged inside invalidateSeries
+  });
+
+  return updated;
 }
 
 /**

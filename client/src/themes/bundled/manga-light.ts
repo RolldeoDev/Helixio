@@ -53,6 +53,7 @@ export const mangaLightTheme: ThemeDefinition = {
     // Semantic colors - Soft, pastel versions
     colorSuccess: '#7ec88b',
     colorWarning: '#e5b567',
+    colorWarningText: '#1a1a1a',       // Dark text on mid-tone amber
     colorError: '#e07a7a',
     colorDanger: '#d05858',
     colorInfo: '#6aaccc',

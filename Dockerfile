@@ -31,13 +31,15 @@ LABEL org.opencontainers.image.title="Helixio" \
       org.opencontainers.image.licenses="MIT" \
       maintainer="RolldeoDev"
 
-# Install runtime dependencies including PostgreSQL 15
+# Install runtime dependencies including PostgreSQL 15 and Redis
 RUN apt-get update && apt-get install -y \
     libvips42 p7zip-full gosu openssl libsecret-1-0 \
     postgresql-15 postgresql-contrib-15 \
+    redis-server \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/run/postgresql \
-    && chown -R postgres:postgres /var/run/postgresql
+    && mkdir -p /var/run/postgresql /var/run/redis \
+    && chown -R postgres:postgres /var/run/postgresql \
+    && chown -R redis:redis /var/run/redis
 
 # Add PostgreSQL 15 binaries to PATH (Debian installs them to /usr/lib/postgresql/15/bin/)
 ENV PATH="/usr/lib/postgresql/15/bin:$PATH"
@@ -55,11 +57,13 @@ COPY --from=builder /app/client/dist ./client/dist
 # Copy Docker scripts and configuration
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY docker/init-postgres.sh /docker/init-postgres.sh
+COPY docker/init-redis.sh /docker/init-redis.sh
 COPY docker/postgres.conf /docker/postgres.conf
-RUN chmod +x /docker-entrypoint.sh /docker/init-postgres.sh && \
+COPY docker/redis.conf /docker/redis.conf
+RUN chmod +x /docker-entrypoint.sh /docker/init-postgres.sh /docker/init-redis.sh && \
     usermod -l helixio -d /home/helixio -m node && \
     groupmod -n helixio node && \
-    usermod -a -G postgres helixio
+    usermod -a -G postgres,redis helixio
 
 ENV NODE_ENV=production PORT=8483 HOME=/config NO_OPEN=true
 VOLUME ["/config", "/comics"]

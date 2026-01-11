@@ -94,6 +94,7 @@ export const retroDarkTheme: ThemeDefinition = {
     // Semantic colors - Saturated game UI style
     colorSuccess: '#00e436',           // Power-up green
     colorWarning: '#ffcc00',           // Coin gold
+    colorWarningText: '#000000',       // Black text on bright yellow for contrast
     colorError: '#e63946',             // Damage red
     colorDanger: '#be1c31',            // Critical red
     colorInfo: '#29adff',              // Item blue

@@ -58,13 +58,18 @@ mkdir -p "$HELIXIO_DIR"/{logs,cache/covers,cache/series/comicvine,cache/series/m
 
 # PostgreSQL data directory
 export PGDATA="/config/pgdata"
+
+# Redis data directory
+export REDIS_DIR="/config/redis"
+mkdir -p "$REDIS_DIR"
 export PGUSER="helixio"
 export PGDATABASE="helixio"
 mkdir -p "$PGDATA"
 
-# Set ownership (helixio owns app data, postgres owns pgdata)
+# Set ownership (helixio owns app data, postgres owns pgdata, redis owns redis dir)
 chown -R helixio:helixio /config /app
 chown -R postgres:postgres "$PGDATA" /var/run/postgresql
+chown -R redis:redis "$REDIS_DIR" /var/run/redis
 
 # Pre-create postgres log file with correct ownership
 # This allows pg_ctl (running as postgres) to write logs
@@ -152,6 +157,22 @@ export DATABASE_URL="postgresql://${PGUSER}@localhost:5432/${PGDATABASE}"
 echo "DATABASE_URL configured for PostgreSQL"
 
 # =============================================================================
+# Redis Setup (Optional - graceful fallback if fails)
+# =============================================================================
+
+echo "Starting Redis..."
+export HELIXIO_DIR  # Pass to init-redis.sh for log path
+if /docker/init-redis.sh start; then
+    echo "Redis started successfully"
+    export REDIS_ENABLED=true
+    export REDIS_HOST=127.0.0.1
+    export REDIS_PORT=6379
+else
+    echo "WARN: Redis failed to start, continuing without L2 cache (will use memory cache only)"
+    export REDIS_ENABLED=false
+fi
+
+# =============================================================================
 # Prisma Migrations
 # =============================================================================
 
@@ -188,6 +209,12 @@ shutdown() {
         echo "Stopping Node.js application..."
         kill -TERM "$NODE_PID" 2>/dev/null || true
         wait "$NODE_PID" 2>/dev/null || true
+    fi
+
+    # Stop Redis (if running)
+    if [ "$REDIS_ENABLED" = "true" ]; then
+        echo "Stopping Redis..."
+        /docker/init-redis.sh stop || true
     fi
 
     # Stop PostgreSQL

@@ -101,6 +101,7 @@ export const pulpDarkTheme: ThemeDefinition = {
     // Semantic colors - Muted, period-appropriate
     colorSuccess: '#5a7247',               // Old money green
     colorWarning: '#c9a227',               // Brass warning
+    colorWarningText: '#000000',           // Black text on brass for contrast
     colorError: '#8b2500',                 // Blood red
     colorDanger: '#6b1a00',                // Dark crimson
     colorInfo: '#5c6b78',                  // Steel blue

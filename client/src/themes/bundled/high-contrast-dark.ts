@@ -57,6 +57,7 @@ export const highContrastDarkTheme: ThemeDefinition = {
     // All tested against black background for AAA compliance
     colorSuccess: '#00E676', // 11.3:1 contrast
     colorWarning: '#FFD600', // 15.1:1 contrast
+    colorWarningText: '#000000', // Black text on bright yellow for maximum contrast
     colorError: '#FF5252',   // 5.9:1 contrast (large text AAA, use with care)
     colorDanger: '#FF1744',  // 5.2:1 contrast (large text AAA)
     colorInfo: '#40C4FF',    // 10.9:1 contrast

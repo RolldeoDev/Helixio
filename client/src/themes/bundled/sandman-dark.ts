@@ -78,6 +78,7 @@ export const sandmanDarkTheme: ThemeDefinition = {
     // Semantic colors - Harmonized with the palette
     colorSuccess: '#5a9e7a',               // Muted emerald
     colorWarning: '#d4a574',               // Amber (matches primary)
+    colorWarningText: '#1a1a1a',           // Dark text on mid-tone amber
     colorError: '#b86a6a',                 // Muted crimson
     colorDanger: '#944a4a',                // Deep blood red
     colorInfo: '#5a9aaa',                  // Light teal

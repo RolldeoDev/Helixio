@@ -1,10 +1,10 @@
 /**
  * Library Scan Queue Service
  *
- * Provides an in-memory job queue for background processing of library scans.
+ * BullMQ-powered job queue for background processing of library scans.
  * Scans are processed independently of HTTP request lifecycle.
  *
- * The queue processes jobs sequentially, executing the full scan workflow:
+ * The queue processes jobs sequentially using BullMQ workers:
  * 1. Discovering - Find all comic files
  * 2. Cleaning - Remove orphaned database records
  * 3. Indexing - Create file records and extract ComicInfo.xml
@@ -14,15 +14,18 @@
 
 import { scanQueueLogger as logger } from './logger.service.js';
 import {
-  getScanJob,
-  updateScanJobStatus,
-  updateScanJobProgress,
-  addScanJobLog,
-  failScanJob,
+  enqueueScan,
+  getScanQueueStats,
+  getScanQueue,
+  closeScanQueue,
+} from './queue/scan-queue.js';
+import {
+  startScanWorker,
+  stopScanWorker,
+} from './queue/scan-worker.js';
+import {
   recoverInterruptedScanJobs,
-  type ScanJobStatus,
 } from './library-scan-job.service.js';
-import type { ScanProgress } from './scanner.service.js';
 
 // =============================================================================
 // Types
@@ -43,27 +46,11 @@ export interface ScanQueueItem {
 // Queue Configuration
 // =============================================================================
 
-/** Maximum number of scan jobs allowed in the queue */
+/** Maximum number of scan jobs allowed in the queue (for backward compatibility) */
 const MAX_QUEUE_SIZE = 20;
 
 /** Maximum number of concurrent library scans (1 = sequential to eliminate race conditions) */
 const MAX_CONCURRENT_SCANS = 1;
-
-// =============================================================================
-// Queue State
-// =============================================================================
-
-/** In-memory queue of pending scan jobs */
-const queue: ScanQueueItem[] = [];
-
-/** Currently processing items (multiple allowed for multi-library parallelism) */
-const activeScans = new Map<string, ScanQueueItem>();
-
-/** Whether the worker loop is running */
-let isWorkerRunning = false;
-
-/** Cancellation tokens for active scans */
-const cancellationTokens = new Map<string, { cancelled: boolean }>();
 
 // =============================================================================
 // Queue Management
@@ -82,8 +69,9 @@ export class ScanQueueFullError extends Error {
 /**
  * Get the current queue length
  */
-export function getQueueLength(): number {
-  return queue.length;
+export async function getQueueLength(): Promise<number> {
+  const stats = await getScanQueueStats();
+  return stats.waiting + stats.active;
 }
 
 /**
@@ -96,8 +84,9 @@ export function getMaxQueueSize(): number {
 /**
  * Get the number of currently active scans.
  */
-export function getActiveScansCount(): number {
-  return activeScans.size;
+export async function getActiveScansCount(): Promise<number> {
+  const stats = await getScanQueueStats();
+  return stats.active;
 }
 
 /**
@@ -109,318 +98,48 @@ export function getMaxConcurrentScans(): number {
 
 /**
  * Enqueue a scan job for background processing.
- * Returns immediately - the job will be processed asynchronously.
- * @throws {ScanQueueFullError} When the queue is at maximum capacity
+ * Returns immediately - the job will be processed asynchronously by BullMQ worker.
  */
-export function enqueueScanJob(jobId: string): ScanQueueItem {
-  // Check if this job is already queued or processing
-  const existing = queue.find((item) => item.jobId === jobId && item.status === 'queued');
-  if (existing) {
-    return existing;
-  }
-
-  // Check if already processing
-  const activeItem = activeScans.get(jobId);
-  if (activeItem) {
-    return activeItem;
-  }
-
-  // Check queue capacity before adding new items
-  if (queue.length >= MAX_QUEUE_SIZE) {
-    throw new ScanQueueFullError(`Scan queue is full (max: ${MAX_QUEUE_SIZE} items). Please try again later.`);
-  }
-
-  const item: ScanQueueItem = {
-    jobId,
-    status: 'queued',
-    queuedAt: new Date(),
-  };
-
-  queue.push(item);
+export async function enqueueScanJob(jobId: string): Promise<void> {
+  await enqueueScan(jobId);
   logger.info({ jobId }, 'Scan job enqueued');
-
-  // Ensure worker is running
-  startWorker();
-
-  return item;
 }
 
 /**
- * Get the status of a scan job in the queue
+ * Get the status of scan jobs in the queue
  */
-export function getScanQueueStatus(jobId: string): ScanQueueItem | null {
-  // Check if currently processing
-  const activeItem = activeScans.get(jobId);
-  if (activeItem) {
-    return activeItem;
-  }
-
-  // Check queue
-  return queue.find((item) => item.jobId === jobId) || null;
-}
-
-/**
- * Check if a scan job is in the queue
- */
-export function isScanJobInQueue(jobId: string): boolean {
-  if (activeScans.has(jobId)) {
-    return true;
-  }
-  return queue.some((item) => item.jobId === jobId && item.status === 'queued');
+export async function getScanQueueStatus() {
+  return await getScanQueueStats();
 }
 
 /**
  * Request cancellation of a scan job
+ * Note: BullMQ handles job cancellation via job.remove()
  */
-export function requestCancellation(jobId: string): boolean {
-  const token = cancellationTokens.get(jobId);
-  if (token) {
-    token.cancelled = true;
-    return true;
-  }
-
-  // Also remove from queue if not yet started
-  const index = queue.findIndex((item) => item.jobId === jobId && item.status === 'queued');
-  if (index !== -1) {
-    queue.splice(index, 1);
-    return true;
-  }
-
-  return false;
-}
-
-// =============================================================================
-// Worker Loop
-// =============================================================================
-
-/**
- * Start the worker loop if not already running
- */
-function startWorker(): void {
-  if (isWorkerRunning) return;
-
-  isWorkerRunning = true;
-  processQueue();
-}
-
-/**
- * Handle successful scan completion
- */
-function handleScanComplete(item: ScanQueueItem): void {
-  item.status = 'completed';
-  item.completedAt = new Date();
-  logger.info({ jobId: item.jobId }, 'Scan job completed');
-  cleanupScan(item);
-}
-
-/**
- * Handle scan error
- * Note: SSE error broadcast is handled by failScanJob() in library-scan-job.service.ts
- */
-function handleScanError(item: ScanQueueItem, error: unknown): void {
-  item.status = 'failed';
-  item.completedAt = new Date();
-  item.error = error instanceof Error ? error.message : 'Unknown error';
-  logger.error({ jobId: item.jobId, err: error }, 'Scan job failed');
-
-  cleanupScan(item);
-}
-
-/**
- * Clean up after a scan completes or fails
- */
-function cleanupScan(item: ScanQueueItem): void {
-  // Cleanup cancellation token
-  cancellationTokens.delete(item.jobId);
-
-  // Remove from active scans
-  activeScans.delete(item.jobId);
-
-  // Remove from queue
-  const index = queue.indexOf(item);
-  if (index !== -1) {
-    queue.splice(index, 1);
-  }
-
-  // Check for more items to process
-  scheduleNextProcess();
-}
-
-/**
- * Process the queue - supports multiple concurrent scans
- */
-async function processQueue(): Promise<void> {
-  // Check how many slots are available
-  const availableSlots = MAX_CONCURRENT_SCANS - activeScans.size;
-  if (availableSlots <= 0) {
-    // All slots full, wait for a scan to complete
-    return;
-  }
-
-  // Get queued items that can be started
-  const queuedItems = queue.filter((item) => item.status === 'queued');
-  if (queuedItems.length === 0) {
-    // No more items to process
-    if (activeScans.size === 0) {
-      isWorkerRunning = false;
-    }
-    return;
-  }
-
-  // Start up to availableSlots scans
-  const itemsToStart = queuedItems.slice(0, availableSlots);
-
-  for (const item of itemsToStart) {
-    // Mark as processing
-    item.status = 'processing';
-    item.startedAt = new Date();
-
-    // Add to active scans
-    activeScans.set(item.jobId, item);
-
-    // Create cancellation token
-    const cancellationToken = { cancelled: false };
-    cancellationTokens.set(item.jobId, cancellationToken);
-
-    logger.info({
-      jobId: item.jobId,
-      activeScans: activeScans.size,
-      maxConcurrent: MAX_CONCURRENT_SCANS,
-    }, 'Starting scan job (parallel mode)');
-
-    // Start scan without awaiting - fire and forget with callbacks
-    executeFullScan(item.jobId, cancellationToken)
-      .then(() => handleScanComplete(item))
-      .catch((err) => handleScanError(item, err));
-  }
-}
-
-/**
- * Schedule the next queue processing
- */
-function scheduleNextProcess(): void {
-  setImmediate(() => {
-    processQueue().catch((err) => {
-      logger.error({ err }, 'Queue processing error');
-    });
-  });
-}
-
-// =============================================================================
-// Scan Execution
-// =============================================================================
-
-/**
- * Execute the full library scan workflow using folder-first scanner.
- */
-async function executeFullScan(
-  jobId: string,
-  cancellationToken: { cancelled: boolean }
-): Promise<void> {
-  const job = await getScanJob(jobId);
-  if (!job) {
-    throw new Error('Scan job not found');
-  }
-
-  const libraryId = job.libraryId;
-  const forceFullScan = job.options?.forceFullScan ?? false;
-
+export async function requestCancellation(jobId: string): Promise<boolean> {
   try {
-    // Import folder-first scanner
-    const { orchestrateScan } = await import('./scanner.service.js');
+    const queue = getScanQueue();
+    const jobs = await queue.getJobs(['waiting', 'active', 'delayed']);
 
-    // Create AbortController for cancellation
-    const abortController = new AbortController();
-
-    // Check cancellation token periodically
-    const cancelCheckInterval = setInterval(() => {
-      if (cancellationToken.cancelled) {
-        abortController.abort();
+    for (const job of jobs) {
+      if (job.data.scanJobId === jobId) {
+        await job.remove();
+        logger.info({ jobId }, 'Scan job cancelled');
+        return true;
       }
-    }, 500);
-
-    // Track last logged phase to avoid excessive logging
-    let lastLoggedPhase: string | null = null;
-
-    try {
-      // Run the scan with the folder-first scanner
-      const result = await orchestrateScan(libraryId, {
-        forceFullScan,
-        abortSignal: abortController.signal,
-        onProgress: async (progress: ScanProgress) => {
-          // Map folder-first phases to job stages
-          const stageMap: Record<string, string> = {
-            enumerating: 'discovering',
-            processing: 'indexing',
-            covers: 'covers',
-            complete: 'complete',
-            error: 'error',
-          };
-
-          const stage = stageMap[progress.phase] ?? progress.phase;
-
-          // Always update job status and progress (needed for SSE real-time updates)
-          await updateScanJobStatus(jobId, stage as ScanJobStatus, stage);
-          await updateScanJobProgress(jobId, {
-            discoveredFiles: progress.foldersTotal,
-            indexedFiles: progress.filesCreated + progress.filesUpdated,
-            // linkedFiles = files linked to series (all processed files are linked)
-            linkedFiles: progress.filesCreated + progress.filesUpdated,
-            seriesCreated: progress.seriesCreated,
-            coversExtracted: progress.coverJobsComplete,
-            totalFiles: progress.filesCreated + progress.filesUpdated + progress.filesOrphaned,
-          });
-
-          // Only log on phase transitions to avoid excessive log entries
-          // The SSE updates provide real-time progress; logs are for history/debugging
-          if (progress.phase !== lastLoggedPhase) {
-            lastLoggedPhase = progress.phase;
-
-            const phaseLabels: Record<string, string> = {
-              enumerating: 'Discovering folders',
-              processing: 'Processing files',
-              covers: 'Extracting covers',
-              complete: 'Scan complete',
-              error: 'Scan error',
-            };
-
-            const message = phaseLabels[progress.phase] ?? progress.phase;
-            const detail = `${progress.foldersTotal} folders found`;
-
-            await addScanJobLog(jobId, stage, message, detail, 'info');
-          }
-        },
-      });
-
-      clearInterval(cancelCheckInterval);
-
-      await updateScanJobStatus(jobId, 'complete', 'complete');
-      await addScanJobLog(
-        jobId,
-        'complete',
-        'Library scan completed successfully',
-        `Duration: ${Math.round(result.elapsedMs / 1000)}s, Files: ${result.filesCreated} new, ${result.filesUpdated} updated, ${result.filesOrphaned} orphaned`,
-        'success'
-      );
-    } catch (error) {
-      clearInterval(cancelCheckInterval);
-
-      if (error instanceof Error && error.message === 'Scan aborted') {
-        await updateScanJobStatus(jobId, 'cancelled');
-        await addScanJobLog(jobId, 'cancelled', 'Scan cancelled by user', undefined, 'warning');
-        return;
-      }
-      throw error;
     }
+
+    return false;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    await failScanJob(jobId, errorMessage);
-    throw error;
+    logger.error({ jobId, error }, 'Failed to cancel scan job');
+    return false;
   }
 }
 
+// Note: Worker loop removed - BullMQ handles job processing via scan-worker.ts
+
 // =============================================================================
-// Startup Recovery
+// Startup & Recovery
 // =============================================================================
 
 /**
@@ -430,12 +149,15 @@ export async function initializeScanQueue(): Promise<void> {
   logger.info('Initializing scan queue');
 
   try {
+    // Start BullMQ worker
+    startScanWorker();
+
     // Recover any interrupted scan jobs
     const recoveredJobIds = await recoverInterruptedScanJobs();
 
     // Re-enqueue recovered scan jobs
     for (const jobId of recoveredJobIds) {
-      enqueueScanJob(jobId);
+      await enqueueScanJob(jobId);
     }
 
     // Recover interrupted cover jobs from the folder-first scanner
@@ -451,6 +173,21 @@ export async function initializeScanQueue(): Promise<void> {
   }
 }
 
+/**
+ * Shutdown the scan queue
+ */
+export async function shutdownScanQueue(): Promise<void> {
+  logger.info('Shutting down scan queue');
+
+  try {
+    await stopScanWorker();
+    await closeScanQueue();
+    logger.info('Scan queue shut down');
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to shutdown scan queue');
+  }
+}
+
 // =============================================================================
 // Export
 // =============================================================================
@@ -458,13 +195,13 @@ export async function initializeScanQueue(): Promise<void> {
 export const ScanQueue = {
   enqueueScanJob,
   getScanQueueStatus,
-  isScanJobInQueue,
   requestCancellation,
   getQueueLength,
   getMaxQueueSize,
   getActiveScansCount,
   getMaxConcurrentScans,
   initializeScanQueue,
+  shutdownScanQueue,
   ScanQueueFullError,
 };
 

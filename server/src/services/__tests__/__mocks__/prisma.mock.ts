@@ -437,6 +437,8 @@ export function createMockPrismaClient() {
     },
     $connect: vi.fn().mockResolvedValue(undefined),
     $disconnect: vi.fn().mockResolvedValue(undefined),
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    $executeRaw: vi.fn().mockResolvedValue(0),
     $transaction: vi.fn().mockImplementation((arg) => {
       // Handle both callback-style and array-style transactions
       if (typeof arg === 'function') {

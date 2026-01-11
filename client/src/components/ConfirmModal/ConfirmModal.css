@@ -139,7 +139,7 @@
 
 .confirm-modal-btn-warning {
   background: var(--color-warning, #e5b567);
-  color: #1a1a1a;
+  color: var(--color-warning-text, #1a1a1a);
 }
 
 .confirm-modal-btn-warning:hover {

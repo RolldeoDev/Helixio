@@ -9,8 +9,11 @@ import { Router, type Request, type Response } from 'express';
 import {
   createScanJob,
   getScanJob,
+  getScanJobStatus,
   getActiveScanJobForLibrary,
+  getActiveScanJobStatusForLibrary,
   listActiveScanJobs,
+  listActiveScanJobsLight,
   listScanJobsForLibrary,
   cancelScanJob,
   deleteScanJob,
@@ -108,8 +111,41 @@ router.post('/:id/scan/full', async (req: Request, res: Response) => {
 // =============================================================================
 
 /**
+ * GET /api/libraries/:id/scan/:jobId/status
+ * Get lightweight status of a specific scan job (no logs).
+ * Optimized for frequent polling - returns only counters and status.
+ */
+router.get('/:id/scan/:jobId/status', async (req: Request, res: Response) => {
+  try {
+    const jobId = req.params.jobId!;
+
+    const job = await getScanJobStatus(jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Scan job not found' });
+      return;
+    }
+
+    // Verify job belongs to the library
+    if (job.libraryId !== req.params.id) {
+      res.status(404).json({ error: 'Scan job not found for this library' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: { job },
+    });
+  } catch (error) {
+    logError('library-scan', error, { action: 'get-scan-job-status' });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get scan job status',
+    });
+  }
+});
+
+/**
  * GET /api/libraries/:id/scan/:jobId
- * Get the status of a specific scan job.
+ * Get the status of a specific scan job (includes logs, limited to last 50).
  */
 router.get('/:id/scan/:jobId', async (req: Request, res: Response) => {
   try {
@@ -127,20 +163,10 @@ router.get('/:id/scan/:jobId', async (req: Request, res: Response) => {
       return;
     }
 
-    // Include queue position if queued
-    const queueStatus = getScanQueueStatus(jobId);
-
     res.json({
       success: true,
       data: {
         job,
-        queueStatus: queueStatus
-          ? {
-              status: queueStatus.status,
-              queuedAt: queueStatus.queuedAt,
-              startedAt: queueStatus.startedAt,
-            }
-          : null,
       },
     });
   } catch (error) {
@@ -152,8 +178,35 @@ router.get('/:id/scan/:jobId', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/libraries/:id/scan/active/status
+ * Get lightweight status of active scan for a library (no logs).
+ * Optimized for frequent polling.
+ */
+router.get('/:id/scan/active/status', async (req: Request, res: Response) => {
+  try {
+    const libraryId = req.params.id!;
+
+    const job = await getActiveScanJobStatusForLibrary(libraryId);
+
+    res.json({
+      success: true,
+      data: {
+        job, // null if no active scan
+        hasActiveScan: !!job,
+      },
+    });
+  } catch (error) {
+    logError('library-scan', error, { action: 'get-active-scan-status' });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to get active scan status',
+    });
+  }
+});
+
+/**
  * GET /api/libraries/:id/scan/active
  * Get the active scan job for a library (if any).
+ * Includes logs (limited to last 50).
  */
 router.get('/:id/scan/active', async (req: Request, res: Response) => {
   try {
@@ -311,8 +364,30 @@ router.get('/scans/stream', (req: Request, res: Response) => {
 // =============================================================================
 
 /**
+ * GET /api/scans/active/status
+ * Get lightweight status of all active scan jobs (no logs).
+ * Optimized for frequent polling from UI components.
+ */
+router.get('/scans/active/status', async (_req: Request, res: Response) => {
+  try {
+    const jobs = await listActiveScanJobsLight();
+
+    res.json({
+      success: true,
+      data: { jobs },
+    });
+  } catch (error) {
+    logError('library-scan', error, { action: 'list-active-scans-status' });
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Failed to list active scan statuses',
+    });
+  }
+});
+
+/**
  * GET /api/scans/active
  * Get all active scan jobs across all libraries.
+ * Includes logs (limited to last 50 per job).
  */
 router.get('/scans/active', async (_req: Request, res: Response) => {
   try {

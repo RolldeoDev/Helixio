@@ -333,6 +333,9 @@ model ComicFile {
   @@index([status])
   @@index([filename])
   @@index([seriesId])
+  @@index([libraryId, status])  // Composite index for getAllLibraryStats() groupBy query
+  @@index([createdAt])          // Index for "recently added" queries (recommendations)
+  @@index([libraryId, createdAt]) // Composite for library-scoped "recently added"
 }
 
 // =============================================================================
@@ -767,7 +770,7 @@ model LibraryScanJobLog {
   type      String   @default("info")  // info|success|warning|error
   timestamp DateTime @default(now())
 
-  @@index([jobId])
+  @@index([jobId, timestamp])  // Composite index for log queries ordered by timestamp
   @@index([stage])
 }
 
@@ -1105,6 +1108,9 @@ model UserReadingProgress {
   @@index([lastReadAt])
   @@index([completed])
   @@index([rating])
+  // Composite indexes for continue reading queries (getContinueReading)
+  @@index([userId, completed, currentPage, lastReadAt]) // In-progress items query
+  @@index([userId, completed, lastReadAt])              // Completed items sorted by recency
 }
 
 // =============================================================================

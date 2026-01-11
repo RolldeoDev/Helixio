@@ -2,6 +2,13 @@
  * useLibraryScan Hook
  *
  * React Query hooks for library scan jobs with adaptive polling.
+ *
+ * Polling Strategy:
+ * - Active scans: 3s intervals (balances responsiveness with DB load)
+ * - Queued/waiting: 5s intervals
+ * - Terminal states: no polling
+ *
+ * SSE provides real-time updates for immediate feedback; polling is backup.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +31,12 @@ import type { LibraryScanJob, ScanJobStatus } from '../../services/api/series';
 const TERMINAL_STATES: ScanJobStatus[] = ['complete', 'error', 'cancelled'];
 const ACTIVE_STATES: ScanJobStatus[] = ['discovering', 'cleaning', 'indexing', 'linking', 'covers'];
 
+/** Polling interval during active scan stages (ms) */
+const ACTIVE_POLL_INTERVAL = 3000;
+
+/** Polling interval during waiting/queued states (ms) */
+const IDLE_POLL_INTERVAL = 5000;
+
 // =============================================================================
 // Query Hooks
 // =============================================================================
@@ -31,8 +44,9 @@ const ACTIVE_STATES: ScanJobStatus[] = ['discovering', 'cleaning', 'indexing', '
 /**
  * Fetch scan job status with adaptive polling
  *
- * Polls faster (1s) during active stages, slower (5s) during waiting stages.
+ * Polls at 3s during active stages, 5s during waiting stages.
  * Stops polling when job reaches a terminal state.
+ * SSE provides real-time updates; polling is backup for reliability.
  */
 export function useScanJob(libraryId: string, jobId: string | null) {
   return useQuery({
@@ -47,11 +61,11 @@ export function useScanJob(libraryId: string, jobId: string | null) {
       // Stop polling for terminal states
       if (TERMINAL_STATES.includes(job.status)) return false;
 
-      // Fast polling during active work
-      if (ACTIVE_STATES.includes(job.status)) return 1000;
+      // Active stages: 3s polling (SSE handles real-time, this is backup)
+      if (ACTIVE_STATES.includes(job.status)) return ACTIVE_POLL_INTERVAL;
 
-      // Slower polling during other states
-      return 5000;
+      // Waiting/queued states: 5s polling
+      return IDLE_POLL_INTERVAL;
     },
     staleTime: 0, // Always fetch fresh during active scan
   });
@@ -66,9 +80,9 @@ export function useActiveScan(libraryId: string | null | undefined) {
     queryFn: () => getActiveScanForLibrary(libraryId!),
     enabled: !!libraryId,
     refetchInterval: (query) => {
-      // Poll while there's an active scan
+      // Poll while there's an active scan (3s to reduce DB load)
       if (query.state.data?.hasActiveScan) {
-        return 2000;
+        return ACTIVE_POLL_INTERVAL;
       }
       return false;
     },
@@ -86,9 +100,9 @@ export function useAllActiveScans() {
       return response.jobs;
     },
     refetchInterval: (query) => {
-      // Poll if there are any active scans
+      // Poll if there are any active scans (3s to reduce DB load)
       if ((query.state.data?.length ?? 0) > 0) {
-        return 2000;
+        return ACTIVE_POLL_INTERVAL;
       }
       return false;
     },

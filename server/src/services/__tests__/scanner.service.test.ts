@@ -17,6 +17,7 @@ import type { VirtualFS } from './__mocks__/fs.mock.js';
 const mockDb = createMockPrismaClient();
 vi.mock('../database.service.js', () => ({
   getDatabase: vi.fn(() => mockDb),
+  getWriteDatabase: vi.fn(() => mockDb),
 }));
 
 // Create virtual filesystem
@@ -66,6 +67,21 @@ vi.mock('../metadata-cache.service.js', () => ({
 
 vi.mock('../stats-dirty.service.js', () => ({
   markDirtyForFileChange: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock memory cache service to prevent caching in tests
+vi.mock('../memory-cache.service.js', () => ({
+  memoryCache: {
+    get: vi.fn(() => null), // Always return cache miss
+    set: vi.fn(),
+    invalidate: vi.fn(),
+    getStatsTTL: vi.fn(() => 30000),
+    setScanActive: vi.fn(),
+  },
+  CacheKeys: {
+    LIBRARY_STATS_ALL: 'library-stats:all',
+    libraryStats: (libraryId: string) => `library-stats:${libraryId}`,
+  },
 }));
 
 // =============================================================================

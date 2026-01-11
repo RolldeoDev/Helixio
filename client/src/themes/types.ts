@@ -52,6 +52,7 @@ export interface ThemeTokens {
   // Semantic colors
   colorSuccess: string;
   colorWarning: string;
+  colorWarningText: string; // Text color for use on warning-colored backgrounds
   colorError: string;
   colorDanger: string;
   colorInfo: string;
@@ -270,6 +271,7 @@ export const VARIABLE_GROUPS: VariableGroup[] = [
     variables: [
       { key: 'colorSuccess', label: '--color-success', type: 'color' },
       { key: 'colorWarning', label: '--color-warning', type: 'color' },
+      { key: 'colorWarningText', label: '--color-warning-text', type: 'color' },
       { key: 'colorError', label: '--color-error', type: 'color' },
       { key: 'colorDanger', label: '--color-danger', type: 'color' },
       { key: 'colorInfo', label: '--color-info', type: 'color' },

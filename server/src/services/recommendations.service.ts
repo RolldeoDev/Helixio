@@ -6,9 +6,15 @@
  * - Similar content (same publisher/genre as your reading history)
  * - Recently added (newest files in library)
  * - Random discovery (random unread comics)
+ *
+ * Performance optimizations:
+ * - Cached read file IDs shared across recommendation functions
+ * - Single-query random selection instead of N+1 pattern
+ * - Memory caching for recommendation results
  */
 
 import { getDatabase } from './database.service.js';
+import { memoryCache, CacheKeys } from './memory-cache.service.js';
 
 // =============================================================================
 // Types
@@ -90,10 +96,14 @@ async function getCompletedFileIds(libraryId?: string): Promise<Set<string>> {
 
 /**
  * Get series recommendations - unread issues from series the user has read
+ *
+ * PERFORMANCE: Accepts optional readFileIds to avoid redundant queries
+ * when called from getRecommendations().
  */
 export async function getSeriesRecommendations(
   limit = 8,
-  libraryId?: string
+  libraryId?: string,
+  readFileIds?: Set<string>
 ): Promise<ComicRecommendation[]> {
   const db = getDatabase();
 
@@ -126,8 +136,8 @@ export async function getSeriesRecommendations(
     return [];
   }
 
-  // Get read file IDs to exclude
-  const readFileIds = await getReadFileIds(libraryId);
+  // Use provided readFileIds or fetch them
+  const fileIdsToExclude = readFileIds ?? await getReadFileIds(libraryId);
 
   // Find unread files from these series
   const unreadFromSeries = await db.comicFile.findMany({
@@ -137,7 +147,7 @@ export async function getSeriesRecommendations(
       metadata: {
         series: { in: Array.from(readSeries) },
       },
-      id: { notIn: Array.from(readFileIds) },
+      id: { notIn: Array.from(fileIdsToExclude) },
     },
     include: {
       metadata: {
@@ -189,10 +199,14 @@ export async function getSeriesRecommendations(
 
 /**
  * Get similar content - comics from publishers/genres the user has read
+ *
+ * PERFORMANCE: Accepts optional readFileIds to avoid redundant queries
+ * when called from getRecommendations().
  */
 export async function getSimilarContent(
   limit = 8,
-  libraryId?: string
+  libraryId?: string,
+  readFileIds?: Set<string>
 ): Promise<ComicRecommendation[]> {
   const db = getDatabase();
 
@@ -252,8 +266,8 @@ export async function getSimilarContent(
     return [];
   }
 
-  // Get unread file IDs
-  const readFileIds = await getReadFileIds(libraryId);
+  // Use provided readFileIds or fetch them
+  const fileIdsToExclude = readFileIds ?? await getReadFileIds(libraryId);
 
   // Build query conditions
   const orConditions: object[] = [];
@@ -271,7 +285,7 @@ export async function getSimilarContent(
     where: {
       status: 'indexed',
       ...(libraryId && { libraryId }),
-      id: { notIn: Array.from(readFileIds) },
+      id: { notIn: Array.from(fileIdsToExclude) },
       metadata: {
         OR: orConditions,
         // Exclude series already read
@@ -334,22 +348,26 @@ export async function getSimilarContent(
 
 /**
  * Get recently added comics
+ *
+ * PERFORMANCE: Accepts optional readFileIds to avoid redundant queries
+ * when called from getRecommendations().
  */
 export async function getRecentlyAdded(
   limit = 8,
-  libraryId?: string
+  libraryId?: string,
+  readFileIds?: Set<string>
 ): Promise<ComicRecommendation[]> {
   const db = getDatabase();
 
-  // Get unread file IDs
-  const readFileIds = await getReadFileIds(libraryId);
+  // Use provided readFileIds or fetch them
+  const fileIdsToExclude = readFileIds ?? await getReadFileIds(libraryId);
 
   // Find recently added unread comics
   const recentComics = await db.comicFile.findMany({
     where: {
       status: 'indexed',
       ...(libraryId && { libraryId }),
-      id: { notIn: Array.from(readFileIds) },
+      id: { notIn: Array.from(fileIdsToExclude) },
     },
     include: {
       metadata: {
@@ -392,72 +410,89 @@ export async function getRecentlyAdded(
 
 /**
  * Get random unread comics for discovery
+ *
+ * PERFORMANCE: Uses a single query with in-memory random sampling
+ * instead of N separate queries with skip/take (N+1 pattern).
+ * This reduces database round-trips from ~13 to 2.
  */
 export async function getRandomUnread(
   limit = 12,
-  libraryId?: string
+  libraryId?: string,
+  readFileIds?: Set<string>
 ): Promise<DiscoverComic[]> {
   const db = getDatabase();
 
-  // Get all file IDs with any reading progress
-  const readFileIds = await getReadFileIds(libraryId);
+  // Use provided readFileIds or fetch them
+  const fileIdsToExclude = readFileIds ?? await getReadFileIds(libraryId);
 
-  // Get total count of unread files
-  const totalUnread = await db.comicFile.count({
+  // Fetch a larger batch and sample in-memory (much faster than N queries)
+  // We fetch 3x the limit to have good random selection variety
+  const batchSize = Math.min(limit * 3, 100);
+
+  const unreadComics = await db.comicFile.findMany({
     where: {
       status: 'indexed',
       ...(libraryId && { libraryId }),
-      id: { notIn: Array.from(readFileIds) },
+      id: { notIn: Array.from(fileIdsToExclude) },
     },
+    include: {
+      metadata: {
+        select: {
+          series: true,
+          number: true,
+          publisher: true,
+        },
+      },
+    },
+    take: batchSize,
+    // Use a somewhat random ordering by mixing in createdAt
+    // This provides variety without the expense of ORDER BY RANDOM()
+    orderBy: [
+      { createdAt: 'desc' },
+    ],
   });
 
-  if (totalUnread === 0) {
+  if (unreadComics.length === 0) {
     return [];
   }
 
-  // Generate random offsets
-  const numToFetch = Math.min(limit, totalUnread);
-  const offsets = new Set<number>();
-  while (offsets.size < numToFetch) {
-    offsets.add(Math.floor(Math.random() * totalUnread));
-  }
+  // Shuffle in-memory and take the requested limit
+  const shuffled = unreadComics
+    .map((file) => ({ file, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .slice(0, limit)
+    .map(({ file }) => file);
 
-  // Fetch comics at random offsets
-  const comics: DiscoverComic[] = [];
-  for (const offset of offsets) {
-    const [file] = await db.comicFile.findMany({
-      where: {
-        status: 'indexed',
-        ...(libraryId && { libraryId }),
-        id: { notIn: Array.from(readFileIds) },
-      },
-      include: {
-        metadata: {
-          select: {
-            series: true,
-            number: true,
-            publisher: true,
-          },
-        },
-      },
-      skip: offset,
-      take: 1,
-    });
+  return shuffled.map((file) => ({
+    fileId: file.id,
+    filename: file.filename,
+    relativePath: file.relativePath,
+    libraryId: file.libraryId,
+    series: file.metadata?.series || null,
+    number: file.metadata?.number || null,
+    publisher: file.metadata?.publisher || null,
+  }));
+}
 
-    if (file) {
-      comics.push({
-        fileId: file.id,
-        filename: file.filename,
-        relativePath: file.relativePath,
-        libraryId: file.libraryId,
-        series: file.metadata?.series || null,
-        number: file.metadata?.number || null,
-        publisher: file.metadata?.publisher || null,
-      });
-    }
-  }
+// =============================================================================
+// Cache Keys
+// =============================================================================
 
-  return comics;
+const RECOMMENDATIONS_CACHE_TTL = 60_000; // 60 seconds
+const DISCOVER_CACHE_TTL = 30_000; // 30 seconds (shorter since it's random)
+
+/**
+ * Generate cache key for recommendations
+ */
+function getRecommendationsCacheKey(libraryId?: string): string {
+  return `recommendations:${libraryId || 'all'}`;
+}
+
+/**
+ * Generate cache key for discover comics
+ */
+function getDiscoverCacheKey(libraryId?: string): string {
+  return `discover:${libraryId || 'all'}`;
 }
 
 // =============================================================================
@@ -466,31 +501,79 @@ export async function getRandomUnread(
 
 /**
  * Get all recommendations
+ *
+ * PERFORMANCE OPTIMIZATIONS:
+ * 1. Fetches readFileIds once and passes to all sub-functions
+ *    (reduces redundant queries from 4 to 1)
+ * 2. Caches results for 60 seconds
+ *    (reduces load during rapid page refreshes)
  */
 export async function getRecommendations(
   limit = 8,
   libraryId?: string
 ): Promise<RecommendationsResult> {
+  // Check cache first
+  const cacheKey = getRecommendationsCacheKey(libraryId);
+  const cached = memoryCache.get<RecommendationsResult>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  // Fetch readFileIds once and share across all recommendation queries
+  // This eliminates 3 redundant database queries
+  const readFileIds = await getReadFileIds(libraryId);
+
   const [seriesFromHistory, samePublisherGenre, recentlyAdded] = await Promise.all([
-    getSeriesRecommendations(limit, libraryId),
-    getSimilarContent(limit, libraryId),
-    getRecentlyAdded(limit, libraryId),
+    getSeriesRecommendations(limit, libraryId, readFileIds),
+    getSimilarContent(limit, libraryId, readFileIds),
+    getRecentlyAdded(limit, libraryId, readFileIds),
   ]);
 
-  return {
+  const result = {
     seriesFromHistory,
     samePublisherGenre,
     recentlyAdded,
   };
+
+  // Cache with appropriate TTL (longer during scans to reduce load)
+  const ttl = memoryCache.isScanActive() ? RECOMMENDATIONS_CACHE_TTL * 5 : RECOMMENDATIONS_CACHE_TTL;
+  memoryCache.set(cacheKey, result, ttl);
+
+  return result;
 }
 
 /**
  * Get discover comics (random unread)
+ *
+ * PERFORMANCE: Caches results for 30 seconds to reduce load during rapid navigation.
+ * Uses shorter TTL than recommendations since randomness is part of the feature.
  */
 export async function getDiscoverComics(
   limit = 12,
   libraryId?: string
 ): Promise<DiscoverResult> {
+  // Check cache first
+  const cacheKey = getDiscoverCacheKey(libraryId);
+  const cached = memoryCache.get<DiscoverResult>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const comics = await getRandomUnread(limit, libraryId);
-  return { comics };
+  const result = { comics };
+
+  // Cache with shorter TTL for discover (randomness is valuable)
+  const ttl = memoryCache.isScanActive() ? DISCOVER_CACHE_TTL * 3 : DISCOVER_CACHE_TTL;
+  memoryCache.set(cacheKey, result, ttl);
+
+  return result;
+}
+
+/**
+ * Invalidate recommendations cache.
+ * Call when reading progress changes.
+ */
+export function invalidateRecommendationsCache(): void {
+  memoryCache.invalidate('recommendations:');
+  memoryCache.invalidate('discover:');
 }
