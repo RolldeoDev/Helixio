@@ -38,15 +38,15 @@ Helixio runs as a local Node.js server accessed through your web browser.
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Node.js Backend API                       │
-│  (31 route groups, background jobs, real-time updates)      │
+│  (41 route groups, background jobs, real-time updates)      │
 └─────────────────────────────────────────────────────────────┘
-        │              │              │              │
-        ▼              ▼              ▼              ▼
-┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐
-│ PostgreSQL │ │ File System│ │ Metadata   │ │  External    │
-│  (Prisma)  │ │ (Archives) │ │ APIs       │ │  Trackers    │
-│  70+ models│ │ CBR/CBZ/PDF│ │ CV/Metron  │ │ AniList/MAL  │
-└────────────┘ └────────────┘ └────────────┘ └──────────────┘
+        │              │              │              │              │
+        ▼              ▼              ▼              ▼              ▼
+┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐ ┌──────────┐
+│ PostgreSQL │ │ File System│ │ Metadata   │ │  External    │ │  Redis   │
+│  (Prisma)  │ │ (Archives) │ │ APIs       │ │  Trackers    │ │ (BullMQ) │
+│  70+ models│ │ CBR/CBZ/PDF│ │ CV/Metron  │ │ AniList/MAL  │ │ Jobs+L2  │
+└────────────┘ └────────────┘ └────────────┘ └──────────────┘ └──────────┘
 ```
 
 ### Tech Stack
@@ -57,6 +57,8 @@ Helixio runs as a local Node.js server accessed through your web browser.
 | Backend | Node.js + Express + TypeScript |
 | Database | PostgreSQL via Prisma (70+ models) |
 | Real-time | Server-Sent Events (SSE) |
+| Job Queues | BullMQ + Redis (persistent, with recovery) |
+| Caching | Two-tier (L1 in-memory + L2 Redis with fallback) |
 | Archive Operations | 7zip-bin |
 
 ## Features
@@ -164,6 +166,17 @@ Custom themes can be installed in `~/.helixio/themes/`.
 - **Rollback**: Undo changes with operation history
 - **Recovery**: Resume interrupted operations after restart
 
+### Background Job Processing
+
+Helixio uses Redis-backed BullMQ job queues for reliable background processing:
+
+- **Persistent job queues**: Jobs survive server restarts and are automatically recovered
+- **Cover extraction queue**: 8 concurrent workers with rate limiting (8 jobs/second max)
+- **Library scan queue**: Sequential processing with folder batching for consistent results
+- **Real-time progress**: Server-Sent Events (SSE) provide live updates on job status
+- **Automatic retry**: Failed jobs retry up to 5 times with exponential backoff
+- **Admin dashboard**: BullBoard monitoring interface at `/api/admin/queues` for queue inspection
+
 ## Getting Started
 
 ### Prerequisites
@@ -207,6 +220,14 @@ Helixio stores configuration and cache in `~/.helixio/`:
 
 **Database**: Helixio uses PostgreSQL. For local development, you'll need a running PostgreSQL instance. Set the `DATABASE_URL` environment variable to connect.
 
+**Redis** (optional for local development): Helixio uses Redis for job queue persistence and L2 caching. Without Redis, the application falls back to in-memory L1 caching and non-persistent job queues. Redis configuration:
+
+- **Location**: `~/.helixio/redis/` for local development
+- **Docker**: Embedded at `/config/redis/` with 1GB memory limit
+- **Cache policy**: LRU eviction, cache-only (no persistence to disk)
+- **Environment variables**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`
+- **Graceful degradation**: If Redis is unavailable, caching automatically falls back to in-memory L1 only
+
 API keys for ComicVine and Anthropic (Claude) can be configured through Settings.
 
 ## Docker Installation
@@ -243,6 +264,10 @@ services:
 | `PUID` | User ID for file permissions (default: 1000) |
 | `PGID` | Group ID for file permissions (default: 1000) |
 | `TZ` | Timezone (e.g., `America/New_York`) |
+| `REDIS_HOST` | Redis hostname (default: 127.0.0.1) |
+| `REDIS_PORT` | Redis port (default: 6379) |
+| `REDIS_PASSWORD` | Optional Redis password |
+| `REDIS_DB` | Redis database number (default: 0) |
 
 ### API Key Configuration
 

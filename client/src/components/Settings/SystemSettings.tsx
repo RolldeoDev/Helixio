@@ -16,6 +16,7 @@ import {
   cleanupEmptySeries,
   getDeletedSeries,
   purgeDeletedSeries,
+  getHealth,
   type SeriesCacheStats,
   type MismatchedFile,
   type RepairResult,
@@ -171,6 +172,17 @@ export function SystemSettings() {
   const [loadingSitemapStatus, setLoadingSitemapStatus] = useState(false);
   const [refreshingSitemap, setRefreshingSitemap] = useState(false);
 
+  // Redis health state
+  const [redisHealth, setRedisHealth] = useState<{
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    l2Available: boolean;
+    message?: string;
+    memoryUsedMB?: number;
+    memoryMaxMB?: number;
+    hitRate?: number;
+  } | null>(null);
+  const [loadingRedisHealth, setLoadingRedisHealth] = useState(false);
+
   // Cover cache regeneration state
   type CacheJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
   const [libraries, setLibraries] = useState<Array<{ id: string; name: string }>>([]);
@@ -241,6 +253,7 @@ export function SystemSettings() {
       loadSeriesCacheStats();
       loadDownloadCacheStats();
       loadPageCacheStats();
+      loadRedisHealth();
 
       // Load file renaming setting
       const renamingRes = await fetch(`${API_BASE}/config/file-renaming`);
@@ -511,6 +524,28 @@ export function SystemSettings() {
       addToast('error', 'Failed to load reading cache statistics');
     } finally {
       setLoadingPageCache(false);
+    }
+  };
+
+  const loadRedisHealth = async () => {
+    setLoadingRedisHealth(true);
+    try {
+      const healthData = await getHealth();
+      if (healthData.cache) {
+        const { health, stats } = healthData.cache;
+        setRedisHealth({
+          status: health.status,
+          l2Available: health.l2Available,
+          message: health.message,
+          memoryUsedMB: stats.l2.memoryUsedBytes ? stats.l2.memoryUsedBytes / (1024 * 1024) : undefined,
+          memoryMaxMB: stats.l2.memoryMaxBytes ? stats.l2.memoryMaxBytes / (1024 * 1024) : undefined,
+          hitRate: stats.combined.hitRate * 100,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load Redis health:', err);
+    } finally {
+      setLoadingRedisHealth(false);
     }
   };
 
@@ -1382,6 +1417,78 @@ export function SystemSettings() {
         title="Cache Management"
         description="Manage cached data to optimize performance and disk usage."
       >
+        {/* Redis Status */}
+        <div className="cache-subsection">
+          <h4>Redis Cache Status</h4>
+          <p className="setting-description">
+            Redis provides L2 caching for improved performance and powers BullMQ job queues.
+          </p>
+
+          {loadingRedisHealth ? (
+            <div className="cache-loading">
+              <div className="spinner-small" />
+              <span>Loading...</span>
+            </div>
+          ) : redisHealth ? (
+            <div className="cache-stats">
+              <div className="stat-grid">
+                <div className="stat-item">
+                  <span className="stat-value" style={{
+                    color: redisHealth.l2Available ? '#22c55e' : '#ef4444'
+                  }}>
+                    {redisHealth.l2Available ? '● Connected' : '● Disconnected'}
+                  </span>
+                  <span className="stat-label">L2 Cache (Redis)</span>
+                </div>
+
+                {redisHealth.l2Available && redisHealth.memoryUsedMB !== undefined && (
+                  <div className="stat-item">
+                    <span className="stat-value">
+                      {redisHealth.memoryUsedMB.toFixed(1)} MB
+                      {redisHealth.memoryMaxMB && (
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginLeft: '0.25rem' }}>
+                          / {redisHealth.memoryMaxMB.toFixed(0)} MB
+                        </span>
+                      )}
+                    </span>
+                    <span className="stat-label">Memory Usage</span>
+                  </div>
+                )}
+
+                {redisHealth.hitRate !== undefined && (
+                  <div className="stat-item">
+                    <span className="stat-value">{redisHealth.hitRate.toFixed(1)}%</span>
+                    <span className="stat-label">Cache Hit Rate</span>
+                  </div>
+                )}
+              </div>
+
+              {redisHealth.message && (
+                <div style={{
+                  marginTop: '0.75rem',
+                  padding: '0.5rem 0.75rem',
+                  background: 'var(--bg-tertiary)',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  color: 'var(--text-secondary)'
+                }}>
+                  {redisHealth.message}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="button-group">
+            <button
+              className="btn-secondary"
+              onClick={loadRedisHealth}
+              disabled={loadingRedisHealth}
+            >
+              {loadingRedisHealth ? 'Refreshing...' : 'Refresh Status'}
+            </button>
+          </div>
+        </div>
+
         {/* Cover Cache */}
         <div className="cache-subsection">
           <h4>Cover Cache</h4>
