@@ -5,6 +5,7 @@
  */
 
 import { getDatabase } from '../database.service.js';
+import type { PrismaClient } from '@prisma/client';
 import type { ComicFile, SeriesProgress } from '@prisma/client';
 import type {
   SeriesListOptions,
@@ -67,9 +68,14 @@ export async function getSeriesProgress(
  *
  * @param seriesId - The series ID
  * @param userId - Optional user ID. If not provided, updates all users with progress.
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function updateSeriesProgress(seriesId: string, userId?: string): Promise<void> {
-  const db = getDatabase();
+export async function updateSeriesProgress(
+  seriesId: string,
+  userId?: string,
+  database?: PrismaClient
+): Promise<void> {
+  const db = database ?? getDatabase();
 
   // =========================================================================
   // BATCH ALL QUERIES UPFRONT (fixes N+1 pattern)

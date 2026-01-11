@@ -13,7 +13,7 @@
  */
 
 import { getDatabase } from '../database.service.js';
-import { Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import type { Series, SeriesProgress } from '@prisma/client';
 import { refreshTagsFromSeries } from '../tag-autocomplete.service.js';
 import { getCachedOrCount } from '../cache/count-cache.service.js';
@@ -52,9 +52,15 @@ import { markSmartCollectionsDirty } from '../smart-collection-dirty.service.js'
  * Identity is based on name + publisher only (year excluded to avoid splitting multi-year runs).
  * Uses case-insensitive comparison for duplicate detection.
  * If a soft-deleted series with the same identity exists, it will be restored instead of creating a new one.
+ *
+ * @param input - The series data to create
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function createSeries(input: CreateSeriesInput): Promise<Series> {
-  const db = getDatabase();
+export async function createSeries(
+  input: CreateSeriesInput,
+  database?: PrismaClient
+): Promise<Series> {
+  const db = database ?? getDatabase();
 
   // Check for existing series with same identity (name + publisher, not year)
   // Use findFirst with case-insensitive mode instead of loading all series into memory
@@ -635,13 +641,19 @@ export async function getSeriesBrowseList(
 /**
  * Update a Series record.
  * Respects locked fields - will not update fields that are locked.
+ *
+ * @param seriesId - The series ID to update
+ * @param input - The fields to update
+ * @param respectLocks - Whether to respect locked fields (default: true)
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function updateSeries(
   seriesId: string,
   input: UpdateSeriesInput,
-  respectLocks = true
+  respectLocks = true,
+  database?: PrismaClient
 ): Promise<Series> {
-  const db = getDatabase();
+  const db = database ?? getDatabase();
 
   // Get current series to check locked fields
   const current = await db.series.findUnique({
@@ -1101,9 +1113,15 @@ export async function softDeleteSeries(seriesId: string): Promise<Series> {
 /**
  * Restore a soft-deleted series (clear deletedAt timestamp).
  * Also restores collection items referencing this series.
+ *
+ * @param seriesId - The series ID to restore
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function restoreSeries(seriesId: string): Promise<Series> {
-  const db = getDatabase();
+export async function restoreSeries(
+  seriesId: string,
+  database?: PrismaClient
+): Promise<Series> {
+  const db = database ?? getDatabase();
 
   const series = await db.series.findUnique({
     where: { id: seriesId },
@@ -1148,11 +1166,15 @@ export async function getDeletedSeries(): Promise<Series[]> {
 /**
  * Check if a series has no remaining issues and soft-delete it if empty.
  * Returns true if the series was soft-deleted.
+ *
+ * @param seriesId - The series ID to check
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function checkAndSoftDeleteEmptySeries(
-  seriesId: string
+  seriesId: string,
+  database?: PrismaClient
 ): Promise<boolean> {
-  const db = getDatabase();
+  const db = database ?? getDatabase();
 
   // Count remaining issues (with caching)
   const issueCount = await getCachedOrCount(
@@ -1581,11 +1603,15 @@ export async function syncSeriesToSeriesJson(seriesId: string): Promise<void> {
  * Uses the correct identity lookup (name + publisher only, not startYear).
  *
  * For multi-series format, creates/updates all series and returns the first one.
+ *
+ * @param folderPath - The folder path containing series.json
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function syncSeriesFromSeriesJson(
-  folderPath: string
+  folderPath: string,
+  database?: PrismaClient
 ): Promise<Series | null> {
-  const db = getDatabase();
+  const db = database ?? getDatabase();
   const result = await readSeriesJson(folderPath);
 
   if (!result.success || !result.metadata) {
@@ -1672,7 +1698,7 @@ async function syncSeriesDefinitionToDb(
       });
     }
     // Update existing series, respecting locked fields
-    series = await updateSeries(series.id, seriesData, true);
+    series = await updateSeries(series.id, seriesData, true, db);
   } else {
     // Create new series
     series = await db.series.create({

@@ -6,6 +6,7 @@
  */
 
 import { getDatabase } from './database.service.js';
+import type { PrismaClient } from '@prisma/client';
 import { ComicInfo, readComicInfo } from './comicinfo.service.js';
 import { listArchiveContents } from './archive.service.js';
 import {
@@ -84,14 +85,20 @@ function classifyAndGetFormatLabel(
 /**
  * Cache ComicInfo metadata for a file to the database.
  * Optionally applies format classification based on page count.
+ *
+ * @param fileId - The file ID to cache metadata for
+ * @param comicInfo - The ComicInfo data to cache
+ * @param options - Optional filename and archivePath for format classification
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function cacheFileMetadata(
   fileId: string,
   comicInfo: ComicInfo,
-  options?: { filename?: string; archivePath?: string }
+  options?: { filename?: string; archivePath?: string },
+  database?: PrismaClient
 ): Promise<MetadataCacheResult> {
   try {
-    const prisma = getDatabase();
+    const prisma = database ?? getDatabase();
 
     // Check if file exists
     const file = await prisma.comicFile.findUnique({
@@ -188,10 +195,16 @@ export async function getCachedMetadata(fileId: string) {
 /**
  * Refresh metadata cache from archive for a file.
  * Also applies format classification based on page count.
+ *
+ * @param fileId - The file ID to refresh metadata for
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function refreshMetadataCache(fileId: string): Promise<boolean> {
+export async function refreshMetadataCache(
+  fileId: string,
+  database?: PrismaClient
+): Promise<boolean> {
   try {
-    const prisma = getDatabase();
+    const prisma = database ?? getDatabase();
 
     // Get file path and filename
     const file = await prisma.comicFile.findUnique({
@@ -236,7 +249,7 @@ export async function refreshMetadataCache(fileId: string): Promise<boolean> {
     const cacheResult = await cacheFileMetadata(fileId, result.comicInfo, {
       filename: file.filename,
       archivePath: file.path,
-    });
+    }, database);
     return cacheResult.success;
   } catch {
     return false;

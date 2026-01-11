@@ -654,6 +654,9 @@ export async function listArchiveContents(archivePath: string): Promise<ArchiveI
     result = await listArchiveContentsWithSevenZip(archivePath);
   }
 
+  // Yield to event loop after expensive archive operation
+  await new Promise((resolve) => setImmediate(resolve));
+
   // Cache the result for future use
   await cacheArchiveListing(archivePath, result);
 
@@ -736,13 +739,16 @@ export async function extractFiles(
   // Use node-unrar-js for RAR/CBR files (detect by magic bytes, not just extension)
   if (await isRarArchive(archivePath)) {
     logger.debug('Using RAR extractor');
-    return extractRarFiles(archivePath, outputDir, files);
+    const result = await extractRarFiles(archivePath, outputDir, files);
+    // Yield to event loop after expensive extraction operation
+    await new Promise((resolve) => setImmediate(resolve));
+    return result;
   }
 
   logger.debug({ pathTo7zip }, 'Using 7zip extractor');
 
   // Use 7-zip for other formats
-  return new Promise((resolve, reject) => {
+  const result = await new Promise<ExtractionResult>((resolve, reject) => {
     // Ensure output directory exists
     mkdir(outputDir, { recursive: true })
       .then(() => {
@@ -803,6 +809,11 @@ export async function extractFiles(
         reject(err);
       });
   });
+
+  // Yield to event loop after expensive 7zip extraction operation
+  await new Promise((resolve) => setImmediate(resolve));
+
+  return result;
 }
 
 /**

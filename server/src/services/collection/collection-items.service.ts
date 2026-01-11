@@ -6,6 +6,7 @@
  */
 
 import { getDatabase } from '../database.service.js';
+import type { PrismaClient } from '@prisma/client';
 import { logError } from '../logger.service.js';
 import { checkAndScheduleMosaicRegeneration, scheduleMosaicRegeneration } from './collection-mosaic.service.js';
 import { recalculateCollectionMetadata } from './collection-metadata.service.js';
@@ -511,9 +512,15 @@ export async function removeUnavailableItems(userId: string): Promise<number> {
 /**
  * Mark collection items as unavailable when their referenced file is deleted.
  * This affects all users who have this file in their collections.
+ *
+ * @param fileId - The file ID whose collection items should be marked unavailable
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function markFileItemsUnavailable(fileId: string): Promise<number> {
-  const db = getDatabase();
+export async function markFileItemsUnavailable(
+  fileId: string,
+  database?: PrismaClient
+): Promise<number> {
+  const db = database ?? getDatabase();
 
   const result = await db.collectionItem.updateMany({
     where: { fileId },

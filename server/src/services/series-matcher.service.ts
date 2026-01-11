@@ -14,6 +14,7 @@
  */
 
 import { getDatabase } from './database.service.js';
+import type { PrismaClient } from '@prisma/client';
 import type { Series, ComicFile, FileMetadata } from '@prisma/client';
 import {
   createSeries,
@@ -88,6 +89,13 @@ export interface AutoLinkOptions {
    * When provided, uses cache.findMatch() instead of loading all series from DB.
    */
   scanCache?: import('./scan-series-cache.service.js').ScanSeriesCache;
+
+  /**
+   * Optional database client for connection pool routing.
+   * When provided, uses this client instead of calling getDatabase().
+   * Pass getWriteDatabase() during scans to use the write pool.
+   */
+  db?: PrismaClient;
 }
 
 // =============================================================================
@@ -326,10 +334,15 @@ export async function findMatchingSeries(
 /**
  * Find or create a series from a SeriesDefinition (from series.json).
  * Used for folder-scoped matching where we have pre-defined series metadata.
+ *
+ * @param definition - The series definition from series.json
+ * @param folderPath - The folder path containing the series
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 async function findOrCreateSeriesFromDefinition(
   definition: SeriesDefinition,
-  folderPath: string
+  folderPath: string,
+  database?: PrismaClient
 ): Promise<Series> {
   // Check if series already exists by identity (name + publisher)
   const existing = await getSeriesByIdentity(
@@ -342,12 +355,12 @@ async function findOrCreateSeriesFromDefinition(
   if (existing) {
     // Restore if soft-deleted
     if (existing.deletedAt) {
-      await restoreSeries(existing.id);
+      await restoreSeries(existing.id, database);
       await restoreSeriesItems(existing.id);
     }
 
     // Merge metadata from definition into existing series (respecting locks)
-    await mergeDefinitionIntoSeries(existing.id, definition);
+    await mergeDefinitionIntoSeries(existing.id, definition, database);
 
     return existing;
   }
@@ -378,7 +391,7 @@ async function findOrCreateSeriesFromDefinition(
     locations: definition.locations?.join(',') ?? null,
     aliases: definition.aliases?.join(',') ?? null,
     primaryFolder: folderPath,
-  });
+  }, database);
 
   logInfo('series-matcher', `Created series from folder definition`, {
     seriesId: newSeries.id,
@@ -392,12 +405,17 @@ async function findOrCreateSeriesFromDefinition(
 /**
  * Merge a SeriesDefinition into an existing series, respecting locked fields.
  * Only updates fields that are currently empty in the database.
+ *
+ * @param seriesId - The series ID to merge into
+ * @param definition - The series definition with new values
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 async function mergeDefinitionIntoSeries(
   seriesId: string,
-  definition: SeriesDefinition
+  definition: SeriesDefinition,
+  database?: PrismaClient
 ): Promise<void> {
-  const db = getDatabase();
+  const db = database ?? getDatabase();
 
   const series = await db.series.findUnique({
     where: { id: seriesId },
@@ -569,12 +587,17 @@ function getFolderNameFromPath(relativePath: string): string | null {
 
 /**
  * Link a file to a series.
+ *
+ * @param fileId - The file ID to link
+ * @param seriesId - The series ID to link to
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function linkFileToSeries(
   fileId: string,
-  seriesId: string
+  seriesId: string,
+  database?: PrismaClient
 ): Promise<void> {
-  const db = getDatabase();
+  const db = database ?? getDatabase();
 
   // Check if the series is soft-deleted and restore it
   const series = await db.series.findUnique({
@@ -583,7 +606,7 @@ export async function linkFileToSeries(
   });
 
   if (series?.deletedAt) {
-    await restoreSeries(seriesId);
+    await restoreSeries(seriesId, database);
     await restoreSeriesItems(seriesId);
     logInfo('series-matcher', `Restored soft-deleted series: ${seriesId}`);
   }
@@ -594,7 +617,7 @@ export async function linkFileToSeries(
   });
 
   // Update series progress
-  await updateSeriesProgress(seriesId);
+  await updateSeriesProgress(seriesId, undefined, database);
 
   // Recalculate series cover (first issue may have changed)
   try {
@@ -647,13 +670,14 @@ export async function unlinkFileFromSeries(fileId: string): Promise<void> {
  * @param fileId - The file to link
  * @param options - Options controlling linking behavior
  * @param options.trustMetadata - When true, create new series on fuzzy match instead of asking for confirmation
+ * @param options.db - Optional database client for connection pool routing
  */
 export async function autoLinkFileToSeries(
   fileId: string,
   options: AutoLinkOptions = {}
 ): Promise<LinkResult> {
-  const { trustMetadata = false, folderRegistry, scanCache } = options;
-  const db = getDatabase();
+  const { trustMetadata = false, folderRegistry, scanCache, db: database } = options;
+  const db = database ?? getDatabase();
 
   const file = await db.comicFile.findUnique({
     where: { id: fileId },
@@ -680,10 +704,11 @@ export async function autoLinkFileToSeries(
       // Found a match in the folder's series.json - use it
       const series = await findOrCreateSeriesFromDefinition(
         folderMatch.entry.definition,
-        folderPath
+        folderPath,
+        database
       );
 
-      await linkFileToSeries(fileId, series.id);
+      await linkFileToSeries(fileId, series.id, database);
 
       logDebug('series-matcher', `Folder-scoped match`, {
         file: file.filename,
@@ -707,10 +732,11 @@ export async function autoLinkFileToSeries(
     const createResult = await createSeriesWithExactName(
       seriesName,
       file.metadata,
-      file.relativePath
+      file.relativePath,
+      database
     );
 
-    await linkFileToSeries(fileId, createResult.series.id);
+    await linkFileToSeries(fileId, createResult.series.id, database);
 
     return {
       success: true,
@@ -728,7 +754,7 @@ export async function autoLinkFileToSeries(
 
   // High confidence match - auto-link
   if (match.series && match.confidence >= 0.9) {
-    await linkFileToSeries(fileId, match.series.id);
+    await linkFileToSeries(fileId, match.series.id, database);
 
     return {
       success: true,
@@ -758,12 +784,13 @@ export async function autoLinkFileToSeries(
       const createResult = await createSeriesWithExactName(
         seriesName,
         file.metadata,
-        file.relativePath
+        file.relativePath,
+        database
       );
 
       if (createResult.alreadyExisted) {
         // Exact match was found (case-insensitive), link to existing
-        await linkFileToSeries(fileId, createResult.series.id);
+        await linkFileToSeries(fileId, createResult.series.id, database);
         return {
           success: true,
           seriesId: createResult.series.id,
@@ -771,7 +798,7 @@ export async function autoLinkFileToSeries(
         };
       }
 
-      await linkFileToSeries(fileId, createResult.series.id);
+      await linkFileToSeries(fileId, createResult.series.id, database);
 
       return {
         success: true,
@@ -804,9 +831,9 @@ export async function autoLinkFileToSeries(
       comicVineId: file.metadata?.comicVineId ?? null,
       metronId: file.metadata?.metronId ?? null,
       primaryFolder: getFolderPathFromRelativePath(file.relativePath),
-    });
+    }, database);
 
-    await linkFileToSeries(fileId, newSeries.id);
+    await linkFileToSeries(fileId, newSeries.id, database);
 
     return {
       success: true,
@@ -833,7 +860,7 @@ export async function autoLinkFileToSeries(
       );
 
       if (retryMatch.series) {
-        await linkFileToSeries(fileId, retryMatch.series.id);
+        await linkFileToSeries(fileId, retryMatch.series.id, database);
         return {
           success: true,
           seriesId: retryMatch.series.id,
@@ -873,11 +900,13 @@ interface CreateSeriesResult {
  * @param seriesName - The exact series name from metadata
  * @param metadata - File metadata for additional series fields
  * @param relativePath - File path for primary folder extraction
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 async function createSeriesWithExactName(
   seriesName: string,
   metadata: FileMetadata | null,
-  relativePath: string
+  relativePath: string,
+  database?: PrismaClient
 ): Promise<CreateSeriesResult> {
   // First check for case-insensitive exact match to prevent duplicates
   // getSeriesByIdentity already does case-insensitive comparison
@@ -901,7 +930,7 @@ async function createSeriesWithExactName(
       comicVineId: metadata?.comicVineId ?? null,
       metronId: metadata?.metronId ?? null,
       primaryFolder: getFolderPathFromRelativePath(relativePath),
-    });
+    }, database);
 
     return { series: newSeries, alreadyExisted: false };
   } catch (error) {

@@ -271,7 +271,7 @@ export async function processFolderTransaction(
       const definitions = getSeriesDefinitions(folder.seriesJsonMetadata);
       if (definitions.length > 0) {
         try {
-          const series = await syncSeriesFromSeriesJson(folder.path);
+          const series = await syncSeriesFromSeriesJson(folder.path, db);
           if (series) {
             await mergeSeriesJsonToDb(series.id, folder.path);
 
@@ -446,9 +446,9 @@ export async function processFolderTransaction(
         try {
           // Extract and cache metadata
           const metadataStart = performance.now();
-          const metadataSuccess = await refreshMetadataCache(file.id);
+          const metadataSuccess = await refreshMetadataCache(file.id, db);
           if (metadataSuccess) {
-            await refreshTagsFromFile(file.id);
+            await refreshTagsFromFile(file.id, db);
           }
           timings.metadataExtraction += performance.now() - metadataStart;
 
@@ -457,6 +457,7 @@ export async function processFolderTransaction(
           const linkResult = await autoLinkFileToSeries(file.id, {
             folderRegistry: options?.folderRegistry,
             scanCache: seriesCache,
+            db, // Pass write pool for proper connection isolation
           });
           timings.seriesLinking += performance.now() - linkStart;
 
@@ -484,6 +485,10 @@ export async function processFolderTransaction(
             error: err instanceof Error ? err.message : String(err),
           });
         }
+
+        // Throttle between files to prevent database connection exhaustion
+        // This allows API requests to complete during large library scans
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
 
       // ==========================================================================
@@ -635,7 +640,7 @@ async function processOrphanedFiles(
   // Batch process orphaned files
   if (orphanedFileIds.length > 0) {
     // Mark collection items as unavailable (in parallel for speed)
-    await Promise.all(orphanedFileIds.map((id) => markFileItemsUnavailable(id)));
+    await Promise.all(orphanedFileIds.map((id) => markFileItemsUnavailable(id, db)));
 
     // Batch delete orphaned files
     await db.comicFile.deleteMany({
@@ -648,7 +653,7 @@ async function processOrphanedFiles(
   // Check affected series for soft-delete
   for (const seriesId of affectedSeriesIds) {
     try {
-      const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId);
+      const wasDeleted = await checkAndSoftDeleteEmptySeries(seriesId, db);
       if (!wasDeleted) {
         // Recalculate cover if series still has issues
         const { recalculateSeriesCover } = await import('./cover.service.js');
@@ -1252,13 +1257,13 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
       select: { seriesId: true },
     });
 
-    await markFileItemsUnavailable(orphan.fileId);
+    await markFileItemsUnavailable(orphan.fileId, db);
     await db.comicFile.delete({ where: { id: orphan.fileId } });
     orphaned++;
 
     // Check if series is now empty
     if (file?.seriesId) {
-      await checkAndSoftDeleteEmptySeries(file.seriesId).catch(() => {});
+      await checkAndSoftDeleteEmptySeries(file.seriesId, db).catch(() => {});
     }
   }
 

@@ -269,7 +269,7 @@ describe('Series Matcher Service', () => {
         where: { id: 'file-1' },
         data: { seriesId: 'series-1' },
       });
-      expect(mockUpdateSeriesProgress).toHaveBeenCalledWith('series-1');
+      expect(mockUpdateSeriesProgress).toHaveBeenCalledWith('series-1', undefined, undefined);
     });
 
     it('should restore soft-deleted series before linking', async () => {
@@ -282,7 +282,7 @@ describe('Series Matcher Service', () => {
 
       await linkFileToSeries('file-1', 'series-1');
 
-      expect(mockRestoreSeries).toHaveBeenCalledWith('series-1');
+      expect(mockRestoreSeries).toHaveBeenCalledWith('series-1', undefined);
     });
   });
 
