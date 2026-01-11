@@ -53,6 +53,16 @@ export interface ScanSSEClient {
 
 const scanClients: Map<string, ScanSSEClient> = new Map();
 
+// Unified jobs clients (global - all authenticated users can subscribe)
+export interface UnifiedJobsSSEClient {
+  id: string;
+  res: Response;
+  connectedAt: Date;
+  pingInterval?: ReturnType<typeof setInterval>;
+}
+
+const unifiedJobsClients: Map<string, UnifiedJobsSSEClient> = new Map();
+
 // =============================================================================
 // SSE Throttling for Scan Progress
 // =============================================================================
@@ -95,6 +105,21 @@ interface ScanProgressData {
 }
 
 const pendingScanProgress: Map<string, PendingProgress> = new Map();
+
+// =============================================================================
+// SSE Throttling for Unified Jobs
+// =============================================================================
+
+/**
+ * Throttle interval for unified jobs state updates (1000ms)
+ * This prevents flooding clients with updates during rapid job changes
+ */
+const UNIFIED_JOBS_THROTTLE_MS = 1000;
+
+/**
+ * Track last state update time for throttling
+ */
+const lastUnifiedJobsStateTime = { value: 0 };
 
 // =============================================================================
 // SSE Setup
@@ -772,16 +797,189 @@ export function sendCoverProgress(
 }
 
 /**
+ * Send a scan log entry to all scan SSE clients
+ */
+export function sendScanLog(
+  libraryId: string,
+  log: {
+    id: string;
+    stage: string;
+    message: string;
+    detail?: string;
+    type: 'info' | 'success' | 'warning' | 'error';
+    timestamp: Date;
+  }
+): number {
+  let sentCount = 0;
+
+  for (const client of scanClients.values()) {
+    if (sendScanEvent(client, {
+      type: 'scan-log',
+      data: {
+        libraryId,
+        id: log.id,
+        stage: log.stage,
+        message: log.message,
+        detail: log.detail,
+        type: log.type,
+        timestamp: log.timestamp.getTime(),
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  return sentCount;
+}
+
+/**
  * Get count of scan SSE clients
  */
 export function getScanClientCount(): number {
   return scanClients.size;
 }
 
+// =============================================================================
+// Unified Jobs SSE
+// =============================================================================
+
+/**
+ * Initialize an SSE connection for unified jobs progress events
+ */
+export function initializeUnifiedJobsSSE(res: Response): string {
+  // Generate unique client ID
+  const clientId = `jobs_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+
+  // Create client record
+  const client: UnifiedJobsSSEClient = {
+    id: clientId,
+    res,
+    connectedAt: new Date(),
+  };
+
+  unifiedJobsClients.set(clientId, client);
+
+  jobQueueLogger.debug({
+    clientId,
+    totalUnifiedJobsClients: unifiedJobsClients.size,
+  }, 'Unified jobs SSE client connected');
+
+  // Send initial connection event
+  sendUnifiedJobsEvent(client, {
+    type: 'connected',
+    data: { clientId },
+  });
+
+  // Set up ping interval to keep connection alive (stored in client for cleanup)
+  client.pingInterval = setInterval(() => {
+    if (unifiedJobsClients.has(clientId)) {
+      sendUnifiedJobsEvent(client, { type: 'ping', data: { timestamp: Date.now() } });
+    } else {
+      if (client.pingInterval) clearInterval(client.pingInterval);
+    }
+  }, 30000);
+
+  // Handle client disconnect
+  res.on('close', () => {
+    if (client.pingInterval) clearInterval(client.pingInterval);
+    unifiedJobsClients.delete(clientId);
+    jobQueueLogger.debug({
+      clientId,
+      totalUnifiedJobsClients: unifiedJobsClients.size,
+    }, 'Unified jobs SSE client disconnected');
+  });
+
+  return clientId;
+}
+
+/**
+ * Send an event to a specific unified jobs client
+ */
+function sendUnifiedJobsEvent(client: UnifiedJobsSSEClient, event: SSEEvent): boolean {
+  try {
+    const data = JSON.stringify(event.data);
+    client.res.write(`event: ${event.type}\n`);
+    client.res.write(`data: ${data}\n\n`);
+    return true;
+  } catch {
+    // Remove failed client
+    unifiedJobsClients.delete(client.id);
+    return false;
+  }
+}
+
+/**
+ * Broadcast unified jobs state to all connected clients.
+ * Uses throttling (max 1 update per second) to prevent flooding clients.
+ */
+export function sendUnifiedJobsState(state: Record<string, unknown>): number {
+  const now = Date.now();
+  const timeSinceLastUpdate = now - lastUnifiedJobsStateTime.value;
+
+  // Throttle to 1/second
+  if (timeSinceLastUpdate < UNIFIED_JOBS_THROTTLE_MS) {
+    return 0; // Skip if throttled
+  }
+
+  let sentCount = 0;
+
+  for (const client of unifiedJobsClients.values()) {
+    if (sendUnifiedJobsEvent(client, {
+      type: 'jobs-state',
+      data: {
+        ...state,
+        timestamp: now,
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  lastUnifiedJobsStateTime.value = now;
+  return sentCount;
+}
+
+/**
+ * Broadcast active job count to all connected clients.
+ */
+export function sendUnifiedJobCount(count: number): number {
+  let sentCount = 0;
+
+  for (const client of unifiedJobsClients.values()) {
+    if (sendUnifiedJobsEvent(client, {
+      type: 'job-count',
+      data: {
+        count,
+        timestamp: Date.now(),
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  return sentCount;
+}
+
+/**
+ * Get count of unified jobs SSE clients
+ */
+export function getUnifiedJobsClientCount(): number {
+  return unifiedJobsClients.size;
+}
+
 export const SSE = {
   initialize: initializeSSE,
   initializeUser: initializeUserSSE,
   initializeScan: initializeScanSSE,
+  initializeUnifiedJobs: initializeUnifiedJobsSSE,
   broadcastToJob,
   broadcastToChannel,
   broadcastToAll,
@@ -795,10 +993,13 @@ export const SSE = {
   sendFileRefresh,
   sendAchievementUnlock,
   sendScanProgress,
+  sendUnifiedJobsState,
+  sendUnifiedJobCount,
   getClientCount: getClientCountForJob,
   getTotalClients: getTotalClientCount,
   getUserClientCount,
   getScanClientCount,
+  getUnifiedJobsClientCount,
   hasClients: hasClientsForJob,
   disconnectClients: disconnectJobClients,
 };

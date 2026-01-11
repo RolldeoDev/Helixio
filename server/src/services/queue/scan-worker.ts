@@ -121,6 +121,7 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
     // Run scan orchestrator (existing logic)
     const result = await orchestrateScan(libraryId, {
       forceFullScan,
+      jobId: scanJobId,
       abortSignal: abortController.signal,
       onProgress: async (progress) => {
         // Update BullMQ job progress

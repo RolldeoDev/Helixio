@@ -13,6 +13,7 @@ import {
   type GetJobsOptions,
   type UnifiedJobType,
 } from '../../services/api/jobs';
+import { useUnifiedJobsSSE } from '../../contexts/UnifiedJobsSSEContext';
 
 // =============================================================================
 // Query Keys
@@ -31,33 +32,46 @@ export const unifiedJobsKeys = {
 // =============================================================================
 
 /**
- * Fetch aggregated jobs with adaptive polling
+ * Fetch aggregated jobs with adaptive polling.
+ * Uses SSE for real-time updates when connected, falls back to polling when disconnected.
  */
 export function useUnifiedJobs(options: GetJobsOptions = {}) {
+  // Connect to SSE for real-time updates (shared connection)
+  const { connected } = useUnifiedJobsSSE();
+
   return useQuery({
     queryKey: unifiedJobsKeys.list(options),
     queryFn: () => getJobs(options),
     refetchInterval: (query) => {
-      // Poll every 2s if there are active jobs
+      // If SSE connected, poll slowly as fallback (60s)
+      if (connected) {
+        return 60000;
+      }
+
+      // If SSE disconnected, use aggressive polling
       const data = query.state.data;
       if (data && data.counts.active > 0) {
-        return 2000;
+        return 2000; // 2s when active jobs
       }
-      // Otherwise poll every 30s to check for new jobs
-      return 30000;
+      return 30000; // 30s when idle
     },
     staleTime: 1000,
   });
 }
 
 /**
- * Get active job count (for sidebar badge)
+ * Get active job count (for sidebar badge).
+ * Uses SSE for real-time updates when connected.
  */
 export function useActiveJobCount() {
+  // Use shared SSE connection
+  const { connected } = useUnifiedJobsSSE();
+
   return useQuery({
     queryKey: unifiedJobsKeys.count(),
     queryFn: getActiveJobCount,
-    refetchInterval: 5000, // Poll every 5s
+    // Reduce polling when SSE connected
+    refetchInterval: connected ? 60000 : 5000,
     staleTime: 2000,
   });
 }

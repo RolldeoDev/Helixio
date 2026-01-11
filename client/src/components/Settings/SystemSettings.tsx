@@ -253,7 +253,8 @@ export function SystemSettings() {
       const librariesRes = await fetch(`${API_BASE}/libraries`);
       if (librariesRes.ok) {
         const librariesData = await librariesRes.json();
-        setLibraries(librariesData.map((lib: { id: string; name: string }) => ({
+        const libraries = librariesData.data?.libraries || [];
+        setLibraries(libraries.map((lib: { id: string; name: string }) => ({
           id: lib.id,
           name: lib.name,
         })));

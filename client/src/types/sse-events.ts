@@ -197,6 +197,52 @@ export interface ReviewSyncCompleteEvent extends JobCompleteEvent {
 }
 
 // =============================================================================
+// Unified Jobs Specific Events
+// =============================================================================
+
+/**
+ * Unified jobs state event
+ * Broadcasts complete jobs state (active, history, counts)
+ */
+export interface UnifiedJobsStateEvent {
+  active: unknown[]; // UnifiedJob[] - using unknown to avoid circular dependency
+  history: unknown[]; // UnifiedJob[]
+  counts: {
+    active: number;
+    queued: number;
+    running: number;
+  };
+  timestamp: number;
+}
+
+/**
+ * Unified job count event
+ * Broadcasts active job count (for sidebar badge)
+ */
+export interface UnifiedJobCountEvent {
+  count: number;
+  timestamp: number;
+}
+
+// =============================================================================
+// Library Scan Specific Events
+// =============================================================================
+
+/**
+ * Scan log entry event
+ * Emitted for folder-level scan logging
+ */
+export interface ScanLogEvent {
+  libraryId: string;
+  id: string;
+  stage: string;
+  message: string;
+  detail?: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: number;
+}
+
+// =============================================================================
 // Event Type Guards
 // =============================================================================
 

@@ -13,6 +13,7 @@
 import Seven from 'node-7z';
 import sevenBin from '7zip-bin';
 import { createExtractorFromFile } from 'node-unrar-js';
+import JSZip from 'jszip';
 import { mkdir, rm, readdir, stat, readFile, writeFile, open, unlink, rename } from 'fs/promises';
 import { join, basename, extname, dirname } from 'path';
 import { tmpdir } from 'os';
@@ -537,6 +538,94 @@ async function extractRarFileToBuffer(
   }
 }
 
+/**
+ * Extract a single file from a ZIP/CBZ archive to a buffer using jszip.
+ * This avoids the special character issues that 7zip's filter has.
+ *
+ * @param archivePath - Path to the ZIP/CBZ file
+ * @param entryPath - Path of the file within the archive
+ * @returns Buffer containing file data, or null if not found
+ */
+async function extractZipFileToBuffer(
+  archivePath: string,
+  entryPath: string
+): Promise<Buffer | null> {
+  logger.debug({ entryPath }, 'Extracting file from ZIP archive');
+
+  try {
+    // Read the entire archive file into memory
+    const archiveData = await readFile(archivePath);
+
+    // Load with jszip
+    const zip = await JSZip.loadAsync(archiveData);
+
+    // Normalize entry path (ZIP uses forward slashes)
+    const normalizedEntryPath = entryPath.replace(/\\/g, '/');
+
+    // Try to find the file by exact path first
+    let zipFile = zip.file(normalizedEntryPath);
+
+    // If not found by path, try finding by filename (case-insensitive)
+    if (!zipFile) {
+      const entryFilename = basename(entryPath).toLowerCase();
+
+      // Search all files for matching filename
+      const allFiles = Object.keys(zip.files);
+      for (const filePath of allFiles) {
+        const file = zip.files[filePath];
+        if (file && !file.dir && basename(filePath).toLowerCase() === entryFilename) {
+          zipFile = file;
+          logger.debug({ foundPath: filePath }, 'Found ZIP entry by filename');
+          break;
+        }
+      }
+    }
+
+    if (!zipFile || zipFile.dir) {
+      logger.debug({ entryPath }, 'No match found for ZIP entry');
+      return null;
+    }
+
+    // Extract to buffer
+    const buffer = await zipFile.async('nodebuffer');
+    logger.debug({ entryPath, size: buffer.length }, 'Successfully extracted ZIP file');
+    return buffer;
+  } catch (err) {
+    logger.error({ err, entryPath }, 'ZIP file extraction error');
+    return null;
+  }
+}
+
+/**
+ * Extract a single page from any archive format to a buffer.
+ * Routes to the appropriate extraction method based on format.
+ *
+ * @param archivePath - Path to the archive file
+ * @param format - Archive format ('zip', 'rar', '7z')
+ * @param entryPath - Path of the file within the archive
+ * @returns Buffer containing file data, or null if not found
+ */
+export async function extractSinglePageToBuffer(
+  archivePath: string,
+  format: string,
+  entryPath: string
+): Promise<Buffer | null> {
+  switch (format) {
+    case 'zip':
+      return extractZipFileToBuffer(archivePath, entryPath);
+    case 'rar':
+      return extractRarFileToBuffer(archivePath, entryPath);
+    case '7z':
+      // For 7z, we still need to use temp directory approach due to library limitations
+      // This could be optimized in the future with a better 7z library
+      logger.warn('7z partial extraction not yet optimized, falling back to temp directory method');
+      return null; // Will be handled by caller falling back to extractSingleFile
+    default:
+      logger.error({ format }, 'Unsupported archive format');
+      return null;
+  }
+}
+
 // =============================================================================
 // Archive Operations
 // =============================================================================
@@ -763,7 +852,26 @@ export async function extractSingleFile(
     }
   }
 
-  // For other formats, use 7zip
+  // For ZIP/CBZ files, use jszip for direct buffer extraction (avoids special character issues)
+  const format = await detectArchiveFormatByMagic(archivePath);
+  if (format === 'zip') {
+    logger.debug('Using ZIP buffer extraction');
+    try {
+      const buffer = await extractZipFileToBuffer(archivePath, entryPath);
+      if (buffer) {
+        await mkdir(dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, buffer);
+        logger.debug('Successfully extracted ZIP file');
+        return { success: true };
+      }
+      return { success: false, error: `File not found in ZIP archive: ${entryPath}` };
+    } catch (err) {
+      logger.error({ err, entryPath }, 'ZIP extraction error');
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  // For 7z and other formats, use 7zip with full extraction fallback
   // Note: We extract the entire archive because 7zip's include filter doesn't work
   // reliably with paths containing special characters (parentheses, spaces, etc.)
   const tempDir = await createTempDir('extract-');

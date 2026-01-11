@@ -7,7 +7,7 @@
 
 import { getDatabase } from './database.service.js';
 import { logInfo } from './logger.service.js';
-import { sendJobError, sendJobStatusChange } from './sse.service.js';
+import { sendJobError, sendJobStatusChange, sendScanLog } from './sse.service.js';
 
 // =============================================================================
 // Types
@@ -124,6 +124,68 @@ function parseOptions(optionsJson: string | null): ScanJobOptions | null {
   }
 }
 
+/**
+ * Map Prisma job result to LibraryScanJobData
+ */
+function mapJobToData(
+  job: {
+    id: string;
+    libraryId: string;
+    status: string;
+    currentStage: string;
+    currentMessage: string | null;
+    currentDetail: string | null;
+    discoveredFiles: number;
+    orphanedFiles: number;
+    indexedFiles: number;
+    linkedFiles: number;
+    seriesCreated: number;
+    coversExtracted: number;
+    totalFiles: number;
+    error: string | null;
+    errorCount: number;
+    options: string | null;
+    queuedAt: Date;
+    startedAt: Date | null;
+    completedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  },
+  logs: Array<{
+    id: string;
+    stage: string;
+    message: string;
+    detail: string | null;
+    type: string;
+    timestamp: Date;
+  }> = []
+): LibraryScanJobData {
+  return {
+    id: job.id,
+    libraryId: job.libraryId,
+    status: job.status as ScanJobStatus,
+    currentStage: job.currentStage,
+    currentMessage: job.currentMessage,
+    currentDetail: job.currentDetail,
+    discoveredFiles: job.discoveredFiles,
+    orphanedFiles: job.orphanedFiles,
+    indexedFiles: job.indexedFiles,
+    linkedFiles: job.linkedFiles,
+    seriesCreated: job.seriesCreated,
+    coversExtracted: job.coversExtracted,
+    totalFiles: job.totalFiles,
+    error: job.error,
+    errorCount: job.errorCount,
+    options: parseOptions(job.options),
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt,
+    logs: organizeLogs(logs),
+  };
+}
+
 // =============================================================================
 // Job Management
 // =============================================================================
@@ -190,30 +252,7 @@ export async function getScanJob(jobId: string, includeLogs = true): Promise<Lib
   const jobWithLogs = job as typeof job & { logs?: Array<{ id: string; stage: string; message: string; detail: string | null; type: string; timestamp: Date }> };
   const logs = includeLogs && jobWithLogs.logs ? [...jobWithLogs.logs].reverse() : [];
 
-  return {
-    id: job.id,
-    libraryId: job.libraryId,
-    status: job.status as ScanJobStatus,
-    currentStage: job.currentStage,
-    currentMessage: job.currentMessage,
-    currentDetail: job.currentDetail,
-    discoveredFiles: job.discoveredFiles,
-    orphanedFiles: job.orphanedFiles,
-    indexedFiles: job.indexedFiles,
-    linkedFiles: job.linkedFiles,
-    seriesCreated: job.seriesCreated,
-    coversExtracted: job.coversExtracted,
-    totalFiles: job.totalFiles,
-    error: job.error,
-    errorCount: job.errorCount,
-    options: parseOptions(job.options),
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    logs: organizeLogs(logs),
-  };
+  return mapJobToData(job, logs);
 }
 
 /**
@@ -247,30 +286,7 @@ export async function getActiveScanJobForLibrary(
   const jobWithLogs = job as typeof job & { logs?: Array<{ id: string; stage: string; message: string; detail: string | null; type: string; timestamp: Date }> };
   const logs = includeLogs && jobWithLogs.logs ? [...jobWithLogs.logs].reverse() : [];
 
-  return {
-    id: job.id,
-    libraryId: job.libraryId,
-    status: job.status as ScanJobStatus,
-    currentStage: job.currentStage,
-    currentMessage: job.currentMessage,
-    currentDetail: job.currentDetail,
-    discoveredFiles: job.discoveredFiles,
-    orphanedFiles: job.orphanedFiles,
-    indexedFiles: job.indexedFiles,
-    linkedFiles: job.linkedFiles,
-    seriesCreated: job.seriesCreated,
-    coversExtracted: job.coversExtracted,
-    totalFiles: job.totalFiles,
-    error: job.error,
-    errorCount: job.errorCount,
-    options: parseOptions(job.options),
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    logs: organizeLogs(logs),
-  };
+  return mapJobToData(job, logs);
 }
 
 /**
@@ -301,31 +317,7 @@ export async function listActiveScanJobs(includeLogs = true): Promise<LibrarySca
   return jobs.map((job) => {
     // Reverse logs back to ascending order after limiting
     const logs = includeLogs && job.logs ? [...job.logs].reverse() : [];
-
-    return {
-      id: job.id,
-      libraryId: job.libraryId,
-      status: job.status as ScanJobStatus,
-      currentStage: job.currentStage,
-      currentMessage: job.currentMessage,
-      currentDetail: job.currentDetail,
-      discoveredFiles: job.discoveredFiles,
-      orphanedFiles: job.orphanedFiles,
-      indexedFiles: job.indexedFiles,
-      linkedFiles: job.linkedFiles,
-      seriesCreated: job.seriesCreated,
-      coversExtracted: job.coversExtracted,
-      totalFiles: job.totalFiles,
-      error: job.error,
-      errorCount: job.errorCount,
-      options: parseOptions(job.options),
-      queuedAt: job.queuedAt,
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
-      createdAt: job.createdAt,
-      updatedAt: job.updatedAt,
-      logs: organizeLogs(logs),
-    };
+    return mapJobToData(job, logs);
   });
 }
 
@@ -350,30 +342,7 @@ export async function listScanJobsForLibrary(
     take: limit,
   });
 
-  return jobs.map((job) => ({
-    id: job.id,
-    libraryId: job.libraryId,
-    status: job.status as ScanJobStatus,
-    currentStage: job.currentStage,
-    currentMessage: job.currentMessage,
-    currentDetail: job.currentDetail,
-    discoveredFiles: job.discoveredFiles,
-    orphanedFiles: job.orphanedFiles,
-    indexedFiles: job.indexedFiles,
-    linkedFiles: job.linkedFiles,
-    seriesCreated: job.seriesCreated,
-    coversExtracted: job.coversExtracted,
-    totalFiles: job.totalFiles,
-    error: job.error,
-    errorCount: job.errorCount,
-    options: parseOptions(job.options),
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    logs: organizeLogs(job.logs),
-  }));
+  return jobs.map((job) => mapJobToData(job, job.logs));
 }
 
 /**
@@ -639,6 +608,83 @@ export async function recoverInterruptedScanJobs(): Promise<string[]> {
   }
 
   return jobIds;
+}
+
+/**
+ * Create a scan log entry and broadcast via SSE
+ */
+export async function createScanLog(
+  jobId: string,
+  libraryId: string,
+  stage: string,
+  message: string,
+  detail?: string,
+  type: 'info' | 'success' | 'warning' | 'error' = 'info'
+): Promise<void> {
+  const prisma = getDatabase();
+
+  try {
+    // Create log entry
+    const log = await prisma.libraryScanJobLog.create({
+      data: {
+        jobId,
+        stage,
+        message,
+        detail,
+        type,
+      },
+    });
+
+    // Update job's current message/detail
+    await prisma.libraryScanJob.update({
+      where: { id: jobId },
+      data: {
+        currentMessage: message,
+        currentDetail: detail,
+      },
+    });
+
+    // Broadcast log via SSE (no database query needed - libraryId provided)
+    sendScanLog(libraryId, {
+      id: log.id,
+      stage,
+      message,
+      detail: detail || undefined,
+      type,
+      timestamp: log.timestamp,
+    });
+
+    // Trim logs to keep last 50
+    await trimScanLogs(jobId, MAX_LOGS_PER_JOB);
+  } catch (err) {
+    // Non-critical: log creation failures should not halt scanner
+    console.error('Failed to create scan log:', err);
+  }
+}
+
+/**
+ * Trim scan logs to keep only the most recent entries
+ */
+async function trimScanLogs(jobId: string, limit: number): Promise<void> {
+  const prisma = getDatabase();
+
+  try {
+    const logs = await prisma.libraryScanJobLog.findMany({
+      where: { jobId },
+      orderBy: { timestamp: 'desc' },
+      select: { id: true },
+    });
+
+    if (logs.length > limit) {
+      const toDelete = logs.slice(limit).map((l) => l.id);
+      await prisma.libraryScanJobLog.deleteMany({
+        where: { id: { in: toDelete } },
+      });
+    }
+  } catch (err) {
+    // Non-critical: trim failures should not halt scanner
+    console.error('Failed to trim scan logs:', err);
+  }
 }
 
 // =============================================================================

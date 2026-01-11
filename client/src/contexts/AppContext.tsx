@@ -163,10 +163,21 @@ export function AppProvider({ children }: AppProviderProps) {
   // Library selection
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(() => {
     const stored = localStorage.getItem(LAST_LIBRARY_KEY);
+    // Default to "All Libraries" mode (null) if no value stored
+    if (!stored) {
+      localStorage.setItem(LAST_LIBRARY_KEY, 'all');
+      return null;
+    }
     return stored === 'all' ? null : stored;
   });
   const [isAllLibraries, setIsAllLibraries] = useState<boolean>(() => {
-    return localStorage.getItem(LAST_LIBRARY_KEY) === 'all';
+    const stored = localStorage.getItem(LAST_LIBRARY_KEY);
+    // Default to "All Libraries" mode (true) if no value stored
+    if (!stored) {
+      localStorage.setItem(LAST_LIBRARY_KEY, 'all');
+      return true;
+    }
+    return stored === 'all';
   });
 
   // Folder selection
@@ -228,9 +239,10 @@ export function AppProvider({ children }: AppProviderProps) {
   // Auto-select library from localStorage on initial load
   useEffect(() => {
     if (libraries.length > 0 && selectedLibraryId && !selectedLibrary && !isAllLibraries) {
-      // Stored library no longer exists, clear it
-      localStorage.removeItem(LAST_LIBRARY_KEY);
+      // Stored library no longer exists, reset to "All Libraries" default
+      setIsAllLibraries(true);
       setSelectedLibraryId(null);
+      localStorage.setItem(LAST_LIBRARY_KEY, 'all');
     }
   }, [libraries, selectedLibraryId, selectedLibrary, isAllLibraries]);
 

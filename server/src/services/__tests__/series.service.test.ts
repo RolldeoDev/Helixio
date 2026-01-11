@@ -31,6 +31,14 @@ vi.mock('../cover.service.js', () => ({
   }),
 }));
 
+// Mock cache invalidation service
+vi.mock('../cache/cache-invalidation.service.js', () => ({
+  invalidateSeriesDeleted: vi.fn().mockResolvedValue(undefined),
+  invalidateSeries: vi.fn().mockResolvedValue(undefined),
+  invalidateSeriesMerge: vi.fn().mockResolvedValue(undefined),
+  invalidateSeriesBulk: vi.fn().mockResolvedValue(undefined),
+}));
+
 // =============================================================================
 // Import after mocks
 // =============================================================================
@@ -304,10 +312,55 @@ describe('Series Service', () => {
 
   describe('deleteSeries', () => {
     it('should delete series', async () => {
+      // Mock findUnique to return series data (needed for cache invalidation)
+      mockDb.series.findUnique.mockResolvedValue({
+        ...createMockSeriesRecord({ id: 'series-1' }),
+        issues: [],
+      });
       mockDb.series.delete.mockResolvedValue({});
 
       await deleteSeries('series-1');
 
+      expect(mockDb.series.delete).toHaveBeenCalledWith({
+        where: { id: 'series-1' },
+      });
+    });
+
+    it('should delete SeriesSimilarity and RecommendationFeedback records', async () => {
+      const mockSeries = createMockSeriesRecord({ id: 'series-1' });
+
+      mockDb.series.findUnique.mockResolvedValue({
+        ...mockSeries,
+        issues: [],
+      });
+
+      mockDb.seriesSimilarity.deleteMany.mockResolvedValue({ count: 5 });
+      mockDb.recommendationFeedback.deleteMany.mockResolvedValue({ count: 3 });
+      mockDb.series.delete.mockResolvedValue(mockSeries);
+
+      await deleteSeries('series-1');
+
+      // Verify SeriesSimilarity cleanup
+      expect(mockDb.seriesSimilarity.deleteMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { sourceSeriesId: 'series-1' },
+            { targetSeriesId: 'series-1' },
+          ],
+        },
+      });
+
+      // Verify RecommendationFeedback cleanup
+      expect(mockDb.recommendationFeedback.deleteMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { recommendedSeriesId: 'series-1' },
+            { sourceSeriesId: 'series-1' },
+          ],
+        },
+      });
+
+      // Verify series deletion still happens
       expect(mockDb.series.delete).toHaveBeenCalledWith({
         where: { id: 'series-1' },
       });

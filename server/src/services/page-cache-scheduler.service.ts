@@ -6,7 +6,7 @@
  * within the TTL period (default: 5 minutes).
  */
 
-import { cleanupExpiredCaches, getCacheStats, DEFAULT_TTL_MINUTES } from './page-cache.service.js';
+import { cleanupExpiredCaches, getCacheStats, DEFAULT_TTL_MINUTES, runSizeBasedEviction, getGlobalCacheSize, MAX_CACHE_SIZE } from './page-cache.service.js';
 import { createServiceLogger } from './logger.service.js';
 
 const logger = createServiceLogger('page-cache-scheduler');
@@ -15,8 +15,8 @@ const logger = createServiceLogger('page-cache-scheduler');
 // Configuration
 // =============================================================================
 
-/** Interval for cleanup checks (15 minutes in ms) */
-const CLEANUP_INTERVAL = 15 * 60 * 1000;
+/** Interval for cleanup checks (5 minutes in ms) */
+const CLEANUP_INTERVAL = 5 * 60 * 1000;
 
 // =============================================================================
 // State
@@ -31,7 +31,9 @@ let lastCleanupRun: Date | null = null;
 // =============================================================================
 
 /**
- * Run cleanup of expired page caches
+ * Run two-phase cleanup of page caches:
+ * Phase 1: TTL-based cleanup (remove inactive files)
+ * Phase 2: Size-based eviction (remove pages if over limit)
  */
 export async function runCleanupJob(): Promise<{ filesDeleted: number; errors: number; bytesFreed: number }> {
   if (isProcessing) {
@@ -43,21 +45,60 @@ export async function runCleanupJob(): Promise<{ filesDeleted: number; errors: n
   lastCleanupRun = new Date();
 
   try {
-    logger.debug('Running cleanup job...');
-    const result = await cleanupExpiredCaches(DEFAULT_TTL_MINUTES);
+    logger.debug('Running two-phase cleanup job...');
 
-    if (result.filesDeleted > 0) {
+    // Phase 1: TTL-based cleanup (delete inactive files)
+    const ttlResult = await cleanupExpiredCaches(DEFAULT_TTL_MINUTES);
+
+    if (ttlResult.filesDeleted > 0) {
       logger.info(
-        { filesDeleted: result.filesDeleted, bytesFreedMB: Math.round(result.bytesFreed / 1024 / 1024), errors: result.errors },
-        `Cleanup completed: ${result.filesDeleted} cache(s) cleaned, ${Math.round(result.bytesFreed / 1024 / 1024)}MB freed`
+        { filesDeleted: ttlResult.filesDeleted, bytesFreedMB: Math.round(ttlResult.bytesFreed / 1024 / 1024), errors: ttlResult.errors },
+        `Phase 1 (TTL): ${ttlResult.filesDeleted} cache(s) deleted, ${Math.round(ttlResult.bytesFreed / 1024 / 1024)}MB freed`
       );
     } else {
-      logger.debug('No expired caches to clean');
+      logger.debug('Phase 1 (TTL): No expired caches to clean');
     }
 
-    return result;
+    // Phase 2: Size-based eviction (if over limit)
+    const cacheSize = getGlobalCacheSize();
+    const sizeMB = cacheSize / 1024 / 1024;
+    const limitMB = MAX_CACHE_SIZE / 1024 / 1024;
+
+    logger.debug(`Current cache size: ${sizeMB.toFixed(2)}MB / ${limitMB.toFixed(2)}MB`);
+
+    let sizeResult = { filesDeleted: 0, errors: 0, bytesFreed: 0 };
+
+    if (cacheSize > MAX_CACHE_SIZE) {
+      logger.info(`Phase 2 (Size): Cache over limit, starting eviction`);
+      sizeResult = await runSizeBasedEviction();
+
+      if (sizeResult.bytesFreed > 0) {
+        logger.info(
+          { filesDeleted: sizeResult.filesDeleted, bytesFreedMB: Math.round(sizeResult.bytesFreed / 1024 / 1024), errors: sizeResult.errors },
+          `Phase 2 (Size): ${sizeResult.filesDeleted} cache(s) deleted, ${Math.round(sizeResult.bytesFreed / 1024 / 1024)}MB freed`
+        );
+      }
+    } else {
+      logger.debug('Phase 2 (Size): Cache within limit, no eviction needed');
+    }
+
+    // Combined results
+    const combinedResult = {
+      filesDeleted: ttlResult.filesDeleted + sizeResult.filesDeleted,
+      errors: ttlResult.errors + sizeResult.errors,
+      bytesFreed: ttlResult.bytesFreed + sizeResult.bytesFreed,
+    };
+
+    if (combinedResult.filesDeleted > 0 || combinedResult.bytesFreed > 0) {
+      logger.info(
+        { filesDeleted: combinedResult.filesDeleted, bytesFreedMB: Math.round(combinedResult.bytesFreed / 1024 / 1024), errors: combinedResult.errors },
+        `Cleanup completed: ${combinedResult.filesDeleted} total cache(s) deleted, ${Math.round(combinedResult.bytesFreed / 1024 / 1024)}MB freed`
+      );
+    }
+
+    return combinedResult;
   } catch (error) {
-    logger.error({ error, action: 'cleanup-expired-caches' }, 'Error running cleanup job');
+    logger.error({ error, action: 'cleanup-job' }, 'Error running cleanup job');
     return { filesDeleted: 0, errors: 1, bytesFreed: 0 };
   } finally {
     isProcessing = false;

@@ -16,6 +16,7 @@ import {
   getArchiveStats,
   extractSingleFile,
   extractArchive,
+  extractSinglePageToBuffer,
   getArchiveFormat,
   deletePagesFromArchive,
   checkArchiveModifiable,
@@ -44,8 +45,18 @@ import {
 } from '../services/cover.service.js';
 import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
 import { getFileCacheDir } from '../services/app-paths.service.js';
-import { touchCacheAccessTime } from '../services/page-cache.service.js';
-import { mkdir, stat, access, rm } from 'fs/promises';
+import {
+  touchCacheAccessTime,
+  loadMetadata,
+  writeMetadata,
+  buildMetadataFromListing,
+  updateGlobalCacheState,
+  getGlobalCacheSize,
+  MAX_CACHE_SIZE,
+  runSizeBasedEviction,
+} from '../services/page-cache.service.js';
+import { mkdir, stat, access, rm, writeFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
 import { archiveLogger, logError, logWarn } from '../services/logger.service.js';
@@ -645,7 +656,6 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
       return;
     }
 
-    // Use a persistent extraction cache per archive
     const cacheDir = getFileCacheDir(file.id);
     const decodedPagePath = decodeURIComponent(pagePath);
 
@@ -661,82 +671,106 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
       return;
     }
 
-    // Check if the file is already in the cache
-    const cachedFilePath = `${cacheDir}/${decodedPagePath}`;
-    let fileExists = false;
-    try {
-      await stat(cachedFilePath);
-      fileExists = true;
-    } catch {
-      // File not in cache
+    // Load or build metadata (from archive listing, no extraction)
+    let metadata = await loadMetadata(file.id);
+
+    if (!metadata) {
+      // Metadata missing, build from archive listing
+      archiveLogger.debug({ fileId: file.id }, 'Building metadata from archive listing');
+      const archiveInfo = await listArchiveContents(filePath);
+      metadata = buildMetadataFromListing(file.id, archiveInfo);
+
+      // Ensure cache directory exists
+      await mkdir(cacheDir, { recursive: true });
+
+      // Write metadata
+      await writeMetadata(file.id, metadata);
+      archiveLogger.debug({ fileId: file.id, pages: metadata.pages.length }, 'Metadata created');
     }
 
-    if (!fileExists) {
-      // Check if archive is already extracted to cache
-      let cachePopulated = false;
-      try {
-        const cacheStats = await stat(cacheDir);
-        // If cache dir exists and has files, assume it's populated
-        if (cacheStats.isDirectory()) {
-          const { readdir } = await import('fs/promises');
-          const files = await readdir(cacheDir);
-          cachePopulated = files.length > 0;
-        }
-      } catch {
-        // Cache dir doesn't exist
-      }
+    // Find page in metadata
+    const pageEntry = metadata.pages.find(p => p.path === decodedPagePath);
 
-      if (!cachePopulated) {
-        // Extract with locking to prevent concurrent extractions
-        const extractResult = await extractArchiveWithLock(file.id, filePath, cacheDir);
-        if (!extractResult.success) {
-          res.status(500).json({
-            error: 'Failed to extract archive',
-            message: extractResult.error,
-          });
-          return;
-        }
-      }
+    if (!pageEntry) {
+      res.status(404).json({
+        error: 'Page not found in archive',
+        path: decodedPagePath,
+      });
+      return;
     }
 
-    // Find the requested file - try full path first, then just filename
-    // (7zip sometimes flattens directory structure during extraction)
-    let actualFilePath = cachedFilePath;
-    try {
-      await stat(cachedFilePath);
-    } catch {
-      // Full path not found, try just the filename
-      const filename = decodedPagePath.split('/').pop() || decodedPagePath;
-      const flatPath = `${cacheDir}/${filename}`;
-      try {
-        await stat(flatPath);
-        actualFilePath = flatPath;
-      } catch {
-        res.status(404).json({
-          error: 'Page not found in archive',
-          path: decodedPagePath,
+    // Determine cached file path (using pageIndex for consistent naming)
+    const ext = path.extname(pageEntry.filename);
+    const cachedFilePath = path.join(cacheDir, `${pageEntry.pageIndex}${ext}`);
+
+    // Check if page is already cached
+    if (existsSync(cachedFilePath)) {
+      // Cache hit - return cached file
+      const contentType = getContentType(pageEntry.filename);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
+      res.sendFile(cachedFilePath);
+      return;
+    }
+
+    // Cache miss - extract single page
+    archiveLogger.debug({ fileId: file.id, pageIndex: pageEntry.pageIndex }, 'Extracting single page');
+
+    const buffer = await extractSinglePageToBuffer(filePath, metadata.format, pageEntry.path);
+
+    if (!buffer) {
+      // Fallback to full extraction for 7z or if extraction failed
+      archiveLogger.warn({ fileId: file.id, format: metadata.format }, 'Partial extraction failed, falling back to full extraction');
+      const extractResult = await extractArchiveWithLock(file.id, filePath, cacheDir);
+      if (!extractResult.success) {
+        res.status(500).json({
+          error: 'Failed to extract archive',
+          message: extractResult.error,
         });
         return;
       }
+
+      // Find the extracted file
+      if (existsSync(cachedFilePath)) {
+        const contentType = getContentType(pageEntry.filename);
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.sendFile(cachedFilePath);
+        return;
+      }
+
+      res.status(404).json({
+        error: 'Page not found after extraction',
+        path: decodedPagePath,
+      });
+      return;
     }
 
-    // Determine content type based on file extension
-    const ext = decodedPagePath.toLowerCase().split('.').pop();
-    const contentTypes: Record<string, string> = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      bmp: 'image/bmp',
-    };
+    // Write extracted page to cache
+    await writeFile(cachedFilePath, buffer);
 
-    const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+    // Update metadata cached size
+    metadata.cachedSizeBytes += buffer.length;
+    await writeMetadata(file.id, metadata);
+
+    // Update global cache state
+    updateGlobalCacheState(file.id, metadata);
+
+    // Check if cache exceeds limit, trigger eviction if needed
+    const cacheSize = getGlobalCacheSize();
+    if (cacheSize > MAX_CACHE_SIZE) {
+      archiveLogger.info({ cacheSizeMB: (cacheSize / 1024 / 1024).toFixed(2) }, 'Cache over limit, triggering eviction');
+      // Run eviction asynchronously (don't block response)
+      runSizeBasedEviction().catch(err => {
+        logError('archive', err, { action: 'size-based-eviction' });
+      });
+    }
+
+    // Return the extracted page
+    const contentType = getContentType(pageEntry.filename);
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'private, max-age=3600'); // Cache for 1 hour
-
-    // Send the cached file
-    res.sendFile(actualFilePath);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(buffer);
   } catch (error) {
     logError('archive', error, { action: 'extract-page' });
     res.status(500).json({
@@ -745,6 +779,24 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
     });
   }
 });
+
+/**
+ * Get content type based on file extension.
+ */
+function getContentType(filename: string): string {
+  const ext = path.extname(filename).toLowerCase().slice(1);
+  const contentTypes: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    bmp: 'image/bmp',
+    tiff: 'image/tiff',
+    tif: 'image/tiff',
+  };
+  return contentTypes[ext] || 'application/octet-stream';
+}
 
 /**
  * POST /api/archives/:fileId/pages/delete
