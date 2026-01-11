@@ -8,6 +8,7 @@
  */
 
 import { getDatabase } from './database.service.js';
+import type { PrismaClient } from '@prisma/client';
 import { LRUCache } from './lru-cache.service.js';
 
 // =============================================================================
@@ -127,14 +128,19 @@ export async function searchTagValues(
 
 /**
  * Extract and upsert tag values from a comma-separated string
+ *
+ * @param fieldType - The tag field type
+ * @param commaSeparatedValues - Comma-separated tag values
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
 export async function extractAndUpsertTags(
   fieldType: TagFieldType,
-  commaSeparatedValues: string | null | undefined
+  commaSeparatedValues: string | null | undefined,
+  database?: PrismaClient
 ): Promise<number> {
   if (!commaSeparatedValues) return 0;
 
-  const db = getDatabase();
+  const db = database ?? getDatabase();
   const values = parseCommaSeparated(commaSeparatedValues);
 
   let added = 0;
@@ -249,9 +255,15 @@ export async function refreshTagsFromSeries(seriesId: string): Promise<void> {
 
 /**
  * Extract and upsert tags from a FileMetadata record
+ *
+ * @param fileId - The file ID to extract tags from
+ * @param database - Optional database client (defaults to read pool for backward compatibility)
  */
-export async function refreshTagsFromFile(fileId: string): Promise<void> {
-  const db = getDatabase();
+export async function refreshTagsFromFile(
+  fileId: string,
+  database?: PrismaClient
+): Promise<void> {
+  const db = database ?? getDatabase();
 
   const fileMetadata = await db.fileMetadata.findUnique({
     where: { comicId: fileId },
@@ -278,7 +290,7 @@ export async function refreshTagsFromFile(fileId: string): Promise<void> {
 
   for (const { fieldType, column } of FILE_METADATA_FIELD_MAPPINGS) {
     const value = fileMetadata[column as keyof typeof fileMetadata] as string | null;
-    await extractAndUpsertTags(fieldType, value);
+    await extractAndUpsertTags(fieldType, value, database);
   }
 }
 
