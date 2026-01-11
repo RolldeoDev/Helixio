@@ -331,6 +331,12 @@ export async function createCollection(userId: string, input: CreateCollectionIn
     },
   });
 
+  // Invalidate user collection caches (fire-and-forget)
+  const { invalidateUser } = await import('../cache/cache-invalidation.service.js');
+  invalidateUser(userId).catch(() => {
+    // Errors are logged inside invalidateUser
+  });
+
   return {
     ...collection,
     itemCount: 0,
@@ -393,6 +399,12 @@ export async function updateCollection(
     },
   });
 
+  // Invalidate user collection caches (fire-and-forget)
+  const { invalidateUser } = await import('../cache/cache-invalidation.service.js');
+  invalidateUser(userId).catch(() => {
+    // Errors are logged inside invalidateUser
+  });
+
   return {
     ...collection,
     itemCount: collection._count.items,
@@ -420,5 +432,11 @@ export async function deleteCollection(userId: string, id: string): Promise<void
 
   await db.collection.delete({
     where: { id },
+  });
+
+  // Invalidate user collection caches (fire-and-forget)
+  const { invalidateUser } = await import('../cache/cache-invalidation.service.js');
+  invalidateUser(userId).catch(() => {
+    // Errors are logged inside invalidateUser
   });
 }

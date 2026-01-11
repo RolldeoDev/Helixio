@@ -43,6 +43,8 @@ import {
   extractCover,
 } from '../services/cover.service.js';
 import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
+import { getFileCacheDir } from '../services/app-paths.service.js';
+import { touchCacheAccessTime } from '../services/page-cache.service.js';
 import { mkdir, stat, access, rm } from 'fs/promises';
 import { constants as fsConstants } from 'fs';
 import path from 'path';
@@ -75,6 +77,12 @@ function isPathWithinBase(basePath: string, targetPath: string): boolean {
 const extractionLocks = new Map<string, Promise<{ success: boolean; error?: string }>>();
 
 /**
+ * Timeout for archive extraction in milliseconds (10 minutes).
+ * If extraction takes longer than this, the lock is released and the operation fails.
+ */
+const EXTRACTION_TIMEOUT_MS = 10 * 60 * 1000;
+
+/**
  * Extract archive with locking to prevent concurrent extractions.
  * If an extraction is already in progress, waits for it to complete.
  */
@@ -90,7 +98,16 @@ async function extractArchiveWithLock(
     return existingLock;
   }
 
-  // Create a new extraction promise
+  // Create timeout promise
+  const timeoutPromise = new Promise<{ success: boolean; error: string }>((resolve) => {
+    setTimeout(() => {
+      extractionLocks.delete(fileId);
+      archiveLogger.warn({ fileId, timeoutMs: EXTRACTION_TIMEOUT_MS }, 'Extraction timed out');
+      resolve({ success: false, error: 'Extraction timed out' });
+    }, EXTRACTION_TIMEOUT_MS);
+  });
+
+  // Create extraction promise
   const extractionPromise = (async () => {
     try {
       archiveLogger.debug({ fileId, cacheDir }, 'Starting extraction');
@@ -113,10 +130,13 @@ async function extractArchiveWithLock(
     }
   })();
 
-  // Store the lock
-  extractionLocks.set(fileId, extractionPromise);
+  // Race extraction against timeout
+  const racedPromise = Promise.race([extractionPromise, timeoutPromise]);
 
-  return extractionPromise;
+  // Store the lock
+  extractionLocks.set(fileId, racedPromise);
+
+  return racedPromise;
 }
 
 // =============================================================================
@@ -626,8 +646,11 @@ router.get('/:fileId/page/:pagePath(*)', async (req: Request, res: Response) => 
     }
 
     // Use a persistent extraction cache per archive
-    const cacheDir = `/tmp/helixio-archive-cache-${file.id}`;
+    const cacheDir = getFileCacheDir(file.id);
     const decodedPagePath = decodeURIComponent(pagePath);
+
+    // Touch access time for TTL-based cleanup
+    await touchCacheAccessTime(file.id);
 
     // SECURITY: Validate that the decoded path doesn't escape the cache directory
     if (!isPathWithinBase(cacheDir, decodedPagePath)) {
@@ -771,7 +794,7 @@ router.post('/:fileId/pages/delete', async (req: Request, res: Response) => {
     }
 
     // Clear the page extraction cache for this file
-    const cacheDir = `/tmp/helixio-archive-cache-${file.id}`;
+    const cacheDir = getFileCacheDir(file.id);
     try {
       const { rm } = await import('fs/promises');
       await rm(cacheDir, { recursive: true, force: true });
@@ -831,7 +854,7 @@ async function invalidateCachesAfterPageModification(
   clearArchiveListingCache();
 
   // 2. Clear page extraction cache
-  const cacheDir = `/tmp/helixio-archive-cache-${fileId}`;
+  const cacheDir = getFileCacheDir(fileId);
   try {
     await rm(cacheDir, { recursive: true, force: true });
     archiveLogger.debug({ cacheDir }, 'Cleared page extraction cache');

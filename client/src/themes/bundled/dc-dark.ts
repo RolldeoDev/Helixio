@@ -44,6 +44,7 @@ export const dcDarkTheme: ThemeDefinition = {
     // Semantic colors - DC inspired
     colorSuccess: '#44d62c', // Green Lantern
     colorWarning: '#ffd700', // Batman signal
+    colorWarningText: '#000000', // Black text on bright gold for contrast
     colorError: '#dc143c', // Wonder Woman red
     colorDanger: '#b22234',
     colorInfo: '#0066cc', // Superman blue

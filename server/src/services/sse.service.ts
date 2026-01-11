@@ -54,6 +54,49 @@ export interface ScanSSEClient {
 const scanClients: Map<string, ScanSSEClient> = new Map();
 
 // =============================================================================
+// SSE Throttling for Scan Progress
+// =============================================================================
+
+/**
+ * Throttle interval for scan progress updates (500ms)
+ * This prevents flooding clients with updates during rapid scanning
+ */
+const SCAN_PROGRESS_THROTTLE_MS = 500;
+
+/**
+ * Track last progress update time per library for throttling
+ */
+const lastScanProgressTime: Map<string, number> = new Map();
+
+/**
+ * Pending progress updates that will be sent after throttle period
+ */
+interface PendingProgress {
+  libraryId: string;
+  progress: ScanProgressData;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+interface ScanProgressData {
+  phase: string;
+  foldersTotal: number;
+  foldersComplete: number;
+  foldersSkipped: number;
+  foldersErrored: number;
+  currentFolder: string | null;
+  filesDiscovered: number;
+  filesCreated: number;
+  filesUpdated: number;
+  filesOrphaned: number;
+  seriesCreated: number;
+  coverJobsCreated: number;
+  coverJobsComplete: number;
+  elapsedMs: number;
+}
+
+const pendingScanProgress: Map<string, PendingProgress> = new Map();
+
+// =============================================================================
 // SSE Setup
 // =============================================================================
 
@@ -600,7 +643,33 @@ function sendScanEvent(client: ScanSSEClient, event: SSEEvent): boolean {
 }
 
 /**
- * Broadcast scan progress to all connected scan SSE clients
+ * Internal function to actually broadcast scan progress (bypasses throttling)
+ */
+function broadcastScanProgressNow(libraryId: string, progress: ScanProgressData): number {
+  let sentCount = 0;
+
+  for (const client of scanClients.values()) {
+    if (sendScanEvent(client, {
+      type: 'scan-progress',
+      data: {
+        libraryId,
+        ...progress,
+        timestamp: Date.now(),
+      },
+    })) {
+      sentCount++;
+    }
+  }
+
+  return sentCount;
+}
+
+/**
+ * Broadcast scan progress to all connected scan SSE clients.
+ *
+ * Uses throttling (max 1 update per 500ms) to prevent flooding clients
+ * during rapid scanning. Important phases (start/complete/error) bypass
+ * throttling for immediate delivery.
  */
 export function sendScanProgress(
   libraryId: string,
@@ -621,22 +690,52 @@ export function sendScanProgress(
     elapsedMs: number;
   }
 ): number {
-  let sentCount = 0;
+  const now = Date.now();
+  const lastTime = lastScanProgressTime.get(libraryId) || 0;
+  const timeSinceLastUpdate = now - lastTime;
 
-  for (const client of scanClients.values()) {
-    if (sendScanEvent(client, {
-      type: 'scan-progress',
-      data: {
-        libraryId,
-        ...progress,
-        timestamp: Date.now(),
-      },
-    })) {
-      sentCount++;
+  // Important phases bypass throttling for immediate delivery
+  const importantPhases = ['starting', 'complete', 'error', 'cancelled'];
+  const isImportant = importantPhases.includes(progress.phase);
+
+  // If this is an important phase or enough time has passed, send immediately
+  if (isImportant || timeSinceLastUpdate >= SCAN_PROGRESS_THROTTLE_MS) {
+    // Clear any pending update for this library
+    const pending = pendingScanProgress.get(libraryId);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      pendingScanProgress.delete(libraryId);
     }
+
+    lastScanProgressTime.set(libraryId, now);
+    return broadcastScanProgressNow(libraryId, progress);
   }
 
-  return sentCount;
+  // Otherwise, queue this update to be sent after the throttle period
+  const existing = pendingScanProgress.get(libraryId);
+  if (existing) {
+    // Update the pending progress with latest data (keep the existing timeout)
+    existing.progress = progress;
+  } else {
+    // Schedule a new deferred update
+    const timeout = setTimeout(() => {
+      const pendingData = pendingScanProgress.get(libraryId);
+      if (pendingData) {
+        pendingScanProgress.delete(libraryId);
+        lastScanProgressTime.set(libraryId, Date.now());
+        broadcastScanProgressNow(pendingData.libraryId, pendingData.progress);
+      }
+    }, SCAN_PROGRESS_THROTTLE_MS - timeSinceLastUpdate);
+
+    pendingScanProgress.set(libraryId, {
+      libraryId,
+      progress,
+      timeout,
+    });
+  }
+
+  // Return 0 since we didn't send immediately (deferred)
+  return 0;
 }
 
 /**

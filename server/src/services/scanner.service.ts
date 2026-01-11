@@ -15,7 +15,7 @@
 
 import { readdir, stat } from 'fs/promises';
 import { join, relative, extname, basename, dirname } from 'path';
-import { getDatabase } from './database.service.js';
+import { getDatabase, getWriteDatabase } from './database.service.js';
 import { generatePartialHash, getFileInfo } from './hash.service.js';
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
@@ -38,6 +38,7 @@ import {
   getCoverQueueStatus,
   cancelLibraryCoverJobs,
 } from './cover-job-queue.service.js';
+import { memoryCache, CacheKeys } from './memory-cache.service.js';
 
 // =============================================================================
 // Constants
@@ -231,7 +232,7 @@ export async function processFolderTransaction(
     folderRegistry?: FolderSeriesRegistry;
   }
 ): Promise<FolderScanResult> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
   const seriesCache = getScanSeriesCache();
   const result: FolderScanResult = {
     folderPath: folder.path,
@@ -296,7 +297,23 @@ export async function processFolderTransaction(
       }
     }
 
-    // Process each comic file
+    // ==========================================================================
+    // Phase A: Collect file data and categorize (orphaned restorations, moves, new files)
+    // ==========================================================================
+    interface NewFileData {
+      path: string;
+      relativePath: string;
+      filename: string;
+      extension: string;
+      size: number;
+      modifiedAt: Date;
+      hash: string;
+    }
+
+    const newFilesToCreate: NewFileData[] = [];
+    const orphanedToRestore: string[] = []; // IDs of orphaned files to restore
+    const movedFiles: Array<{ id: string; path: string; relativePath: string; filename: string }> = [];
+
     for (const entry of comicFiles) {
       const filePath = join(folder.path, entry.name);
 
@@ -313,10 +330,7 @@ export async function processFolderTransaction(
         if (existingByPath) {
           // File exists - check if it was orphaned and needs restoration
           if (existingByPath.status === 'orphaned') {
-            await db.comicFile.update({
-              where: { id: existingByPath.id },
-              data: { status: 'indexed' },
-            });
+            orphanedToRestore.push(existingByPath.id);
             result.filesUpdated++;
           }
           // Unchanged file - skip
@@ -330,77 +344,154 @@ export async function processFolderTransaction(
         const existingByHash = options?.existingFilesByHash?.get(hash);
 
         if (existingByHash) {
-          // File was moved - update path
-          await db.comicFile.update({
-            where: { id: existingByHash.id },
-            data: {
-              path: filePath,
-              relativePath,
-              filename: entry.name,
-            },
+          // File was moved - collect for batch update
+          movedFiles.push({
+            id: existingByHash.id,
+            path: filePath,
+            relativePath,
+            filename: entry.name,
           });
           result.filesUpdated++;
           continue;
         }
 
-        // New file - create it
-        const dbStart = performance.now();
-        const newFile = await db.comicFile.create({
-          data: {
-            libraryId,
-            path: filePath,
-            relativePath,
-            filename: entry.name,
-            extension: extname(entry.name).toLowerCase().slice(1),
-            size: fileInfo.size,
-            modifiedAt: fileInfo.modifiedAt,
-            hash,
-            status: 'pending',
-          },
+        // New file - collect data for batch creation
+        newFilesToCreate.push({
+          path: filePath,
+          relativePath,
+          filename: entry.name,
+          extension: extname(entry.name).toLowerCase().slice(1),
+          size: fileInfo.size,
+          modifiedAt: fileInfo.modifiedAt,
+          hash,
         });
-        timings.dbOperations += performance.now() - dbStart;
-
-        newFileIds.push(newFile.id);
-        result.filesCreated++;
-
-        // Extract and cache metadata
-        const metadataStart = performance.now();
-        const metadataSuccess = await refreshMetadataCache(newFile.id);
-        if (metadataSuccess) {
-          await refreshTagsFromFile(newFile.id);
-        }
-        timings.metadataExtraction += performance.now() - metadataStart;
-
-        // Link to series using cache-first matching
-        const linkStart = performance.now();
-        const linkResult = await autoLinkFileToSeries(newFile.id, {
-          folderRegistry: options?.folderRegistry,
-          scanCache: seriesCache,
-        });
-        timings.seriesLinking += performance.now() - linkStart;
-
-        if (linkResult.success) {
-          if (linkResult.matchType === 'created') {
-            result.seriesCreated++;
-
-            // Add newly created series to cache (using data from linkResult, no extra DB lookup)
-            if (linkResult.createdSeries) {
-              seriesCache.addSeries(linkResult.createdSeries);
-            }
-          } else {
-            result.seriesMatched++;
-          }
-
-          // Mark file as indexed
-          await db.comicFile.update({
-            where: { id: newFile.id },
-            data: { status: 'indexed' },
-          });
-        }
       } catch (err) {
         result.errors.push({
           path: filePath,
           error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // ==========================================================================
+    // Phase B: Batch database operations for restores and moves
+    // ==========================================================================
+
+    // Batch restore orphaned files
+    if (orphanedToRestore.length > 0) {
+      await db.comicFile.updateMany({
+        where: { id: { in: orphanedToRestore } },
+        data: { status: 'indexed' },
+      });
+    }
+
+    // Batch update moved files (unfortunately can't use updateMany for different values per row)
+    // But we can run these updates in parallel for better performance
+    if (movedFiles.length > 0) {
+      await Promise.all(
+        movedFiles.map((file) =>
+          db.comicFile.update({
+            where: { id: file.id },
+            data: {
+              path: file.path,
+              relativePath: file.relativePath,
+              filename: file.filename,
+            },
+          })
+        )
+      );
+    }
+
+    // ==========================================================================
+    // Phase C: Batch create new files
+    // ==========================================================================
+
+    if (newFilesToCreate.length > 0) {
+      const dbStart = performance.now();
+
+      // Use createMany for bulk insertion
+      await db.comicFile.createMany({
+        data: newFilesToCreate.map((f) => ({
+          libraryId,
+          path: f.path,
+          relativePath: f.relativePath,
+          filename: f.filename,
+          extension: f.extension,
+          size: f.size,
+          modifiedAt: f.modifiedAt,
+          hash: f.hash,
+          status: 'pending',
+        })),
+        skipDuplicates: true,
+      });
+
+      // Fetch created files to get their IDs
+      const createdFiles = await db.comicFile.findMany({
+        where: { path: { in: newFilesToCreate.map((f) => f.path) } },
+        select: { id: true, path: true },
+      });
+
+      timings.dbOperations += performance.now() - dbStart;
+      result.filesCreated = createdFiles.length;
+
+      // ==========================================================================
+      // Phase D: Process each new file individually (metadata + series linking)
+      // ==========================================================================
+
+      const successfullyLinkedIds: string[] = [];
+
+      for (const file of createdFiles) {
+        try {
+          // Extract and cache metadata
+          const metadataStart = performance.now();
+          const metadataSuccess = await refreshMetadataCache(file.id);
+          if (metadataSuccess) {
+            await refreshTagsFromFile(file.id);
+          }
+          timings.metadataExtraction += performance.now() - metadataStart;
+
+          // Link to series using cache-first matching
+          const linkStart = performance.now();
+          const linkResult = await autoLinkFileToSeries(file.id, {
+            folderRegistry: options?.folderRegistry,
+            scanCache: seriesCache,
+          });
+          timings.seriesLinking += performance.now() - linkStart;
+
+          if (linkResult.success) {
+            successfullyLinkedIds.push(file.id);
+            newFileIds.push(file.id);
+
+            if (linkResult.matchType === 'created') {
+              result.seriesCreated++;
+
+              // Add newly created series to cache (using data from linkResult, no extra DB lookup)
+              if (linkResult.createdSeries) {
+                seriesCache.addSeries(linkResult.createdSeries);
+              }
+            } else {
+              result.seriesMatched++;
+            }
+          } else {
+            // Still track file for cover extraction even if linking failed
+            newFileIds.push(file.id);
+          }
+        } catch (err) {
+          result.errors.push({
+            path: file.path,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      // ==========================================================================
+      // Phase E: Batch status update for successfully linked files
+      // ==========================================================================
+
+      if (successfullyLinkedIds.length > 0) {
+        await db.comicFile.updateMany({
+          where: { id: { in: successfullyLinkedIds } },
+          data: { status: 'indexed' },
         });
       }
     }
@@ -516,9 +607,8 @@ async function processOrphanedFiles(
   libraryId: string,
   discoveredPaths: Set<string>
 ): Promise<{ orphaned: number; seriesAffected: Set<string> }> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
   const affectedSeriesIds = new Set<string>();
-  let orphanedCount = 0;
 
   // Find files in DB that weren't discovered
   const existingFiles = await db.comicFile.findMany({
@@ -529,18 +619,29 @@ async function processOrphanedFiles(
     select: { id: true, path: true, seriesId: true },
   });
 
+  // Collect orphaned file IDs and affected series
+  const orphanedFileIds: string[] = [];
   for (const file of existingFiles) {
     if (!discoveredPaths.has(file.path)) {
-      // File not found on disk - mark as orphaned
+      orphanedFileIds.push(file.id);
       if (file.seriesId) {
         affectedSeriesIds.add(file.seriesId);
       }
-
-      await markFileItemsUnavailable(file.id);
-      await db.comicFile.delete({ where: { id: file.id } });
-      orphanedCount++;
     }
   }
+
+  // Batch process orphaned files
+  if (orphanedFileIds.length > 0) {
+    // Mark collection items as unavailable (in parallel for speed)
+    await Promise.all(orphanedFileIds.map((id) => markFileItemsUnavailable(id)));
+
+    // Batch delete orphaned files
+    await db.comicFile.deleteMany({
+      where: { id: { in: orphanedFileIds } },
+    });
+  }
+
+  const orphanedCount = orphanedFileIds.length;
 
   // Check affected series for soft-delete
   for (const seriesId of affectedSeriesIds) {
@@ -580,7 +681,7 @@ export async function orchestrateScan(
   coverJobsCreated: number;
   elapsedMs: number;
 }> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
   const startTime = Date.now();
 
   // Get library info
@@ -755,6 +856,12 @@ export async function orchestrateScan(
       }
 
       emitProgress();
+
+      // Yield to event loop between folders to allow API requests to acquire DB connections.
+      // This prevents the scanner from monopolizing all connections and causing API timeouts.
+      // 50ms delay is long enough to let pending requests through but short enough to not
+      // significantly slow down scans.
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
     // Phase 3: Handle orphaned files
@@ -904,7 +1011,7 @@ export async function discoverFiles(
  */
 export async function scanLibrary(libraryId: string): Promise<ScanResult> {
   const startTime = Date.now();
-  const db = getDatabase();
+  const db = getWriteDatabase();
 
   const library = await db.library.findUnique({ where: { id: libraryId } });
   if (!library) {
@@ -997,7 +1104,7 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
   moved: number;
   orphaned: number;
 }> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
 
   let added = 0;
   let moved = 0;
@@ -1110,9 +1217,24 @@ export async function getLibraryStats(libraryId: string): Promise<{
   return { total, pending, indexed, orphaned, quarantined };
 }
 
-export async function getAllLibraryStats(): Promise<
-  Map<string, { total: number; pending: number; indexed: number; orphaned: number; quarantined: number }>
-> {
+export type LibraryStatsMap = Map<
+  string,
+  { total: number; pending: number; indexed: number; orphaned: number; quarantined: number }
+>;
+
+/**
+ * Get aggregated stats for all libraries.
+ *
+ * Uses in-memory caching to reduce database load during heavy operations.
+ * TTL is shorter during active scans (30s) vs idle (5min).
+ */
+export async function getAllLibraryStats(): Promise<LibraryStatsMap> {
+  // Check memory cache first
+  const cached = memoryCache.get<LibraryStatsMap>(CacheKeys.LIBRARY_STATS_ALL);
+  if (cached) {
+    return cached;
+  }
+
   const db = getDatabase();
 
   const statusCounts = await db.comicFile.groupBy({
@@ -1122,10 +1244,7 @@ export async function getAllLibraryStats(): Promise<
 
   const allLibraries = await db.library.findMany({ select: { id: true } });
 
-  const statsMap = new Map<
-    string,
-    { total: number; pending: number; indexed: number; orphaned: number; quarantined: number }
-  >();
+  const statsMap: LibraryStatsMap = new Map();
 
   for (const library of allLibraries) {
     statsMap.set(library.id, { total: 0, pending: 0, indexed: 0, orphaned: 0, quarantined: 0 });
@@ -1142,7 +1261,18 @@ export async function getAllLibraryStats(): Promise<
     }
   }
 
+  // Cache with appropriate TTL based on scan state
+  memoryCache.set(CacheKeys.LIBRARY_STATS_ALL, statsMap, memoryCache.getStatsTTL());
+
   return statsMap;
+}
+
+/**
+ * Invalidate the library stats cache.
+ * Call this when files are added/removed/updated.
+ */
+export function invalidateLibraryStatsCache(): void {
+  memoryCache.invalidate('library-stats:');
 }
 
 /**

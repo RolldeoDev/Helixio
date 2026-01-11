@@ -58,6 +58,7 @@ export const sandmanLightTheme: ThemeDefinition = {
     // Semantic colors - Muted and harmonized
     colorSuccess: '#3d7a5a',               // Forest green
     colorWarning: '#b8854a',               // Amber (matches primary)
+    colorWarningText: '#ffffff',           // White text on amber
     colorError: '#a85050',                 // Muted crimson
     colorDanger: '#8a3a3a',                // Deep red
     colorInfo: '#3a7a8a',                  // Teal (near accent)

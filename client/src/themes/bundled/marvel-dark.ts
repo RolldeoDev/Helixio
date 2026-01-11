@@ -44,6 +44,7 @@ export const marvelDarkTheme: ThemeDefinition = {
     // Semantic colors - Marvel inspired
     colorSuccess: '#2eb82e', // Hulk green
     colorWarning: '#ffc500', // Iron Man gold
+    colorWarningText: '#000000', // Black text on bright gold for contrast
     colorError: '#ed1d24', // Marvel red
     colorDanger: '#c41e24',
     colorInfo: '#4a90d9', // Arc reactor blue

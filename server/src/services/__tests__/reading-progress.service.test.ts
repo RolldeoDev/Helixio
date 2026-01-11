@@ -33,6 +33,20 @@ vi.mock('fs/promises', () => ({
   rm: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock memory cache service to prevent caching in tests
+vi.mock('../memory-cache.service.js', () => ({
+  memoryCache: {
+    get: vi.fn(() => null), // Always return cache miss
+    set: vi.fn(),
+    invalidate: vi.fn(),
+    getStatsTTL: vi.fn(() => 30000),
+  },
+  CacheKeys: {
+    libraryReadingStats: (userId: string, libraryId: string) =>
+      `library-reading-stats:${userId}:${libraryId}`,
+  },
+}));
+
 // Import service after mocking
 const {
   getProgress,

@@ -87,6 +87,7 @@ export const helixDarkTheme: ThemeDefinition = {
     // Semantic colors - Harmonized with brand palette
     colorSuccess: '#34D399',           // Emerald-400
     colorWarning: '#FACC15',           // Yellow from logo
+    colorWarningText: '#000000',       // Black text on bright yellow for contrast
     colorError: '#F87171',             // Red-400
     colorDanger: '#EF4444',            // Red-500
     colorInfo: '#22D3EE',              // Cyan (matches primary)

@@ -165,6 +165,7 @@ export function tokensToCSSVariables(tokens: ThemeTokens): Record<string, string
     colorTextSubtle: '--color-text-subtle',
     colorSuccess: '--color-success',
     colorWarning: '--color-warning',
+    colorWarningText: '--color-warning-text',
     colorError: '--color-error',
     colorDanger: '--color-danger',
     colorInfo: '--color-info',

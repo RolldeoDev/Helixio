@@ -1,21 +1,28 @@
 /**
  * Cover Job Queue Service
  *
- * DB-persisted cover extraction job queue with concurrent workers.
+ * DB-persisted cover extraction job queue with BullMQ workers.
  * Designed for the folder-first scanning architecture where each folder
  * dispatches a cover job for its files immediately after processing.
  *
  * Features:
  * - DB-persisted jobs survive server restarts
- * - 8 concurrent workers for optimal throughput
+ * - BullMQ-powered concurrent workers (8 workers, 2 in low-priority mode)
  * - Per-folder granularity for immediate browsability
- * - Retry logic with hard fail after 5 attempts
+ * - Retry logic with exponential backoff (5 attempts)
  * - SSE integration for real-time progress updates
  */
 
-import { getDatabase } from './database.service.js';
-import { batchExtractCovers } from './cover.service.js';
-import { sendCoverProgress } from './sse.service.js';
+import { getDatabase, getWriteDatabase } from './database.service.js';
+import {
+  startCoverWorker,
+  stopCoverWorker,
+  addCoverJob,
+  setCoverWorkerLowPriorityMode,
+  getCoverQueueStats,
+  getCoverQueue,
+  closeCoverQueue,
+} from './queue/cover-worker.js';
 import { scannerLogger, jobQueueLogger } from './logger.service.js';
 
 // =============================================================================
@@ -55,9 +62,13 @@ export interface CoverQueueStats {
 // Configuration
 // =============================================================================
 
+/** Maximum concurrent workers when not in low priority mode */
 const MAX_CONCURRENT_WORKERS = 8;
+
+/** Reduced concurrent workers during active library scans to reduce DB contention */
+const LOW_PRIORITY_CONCURRENT_WORKERS = 2;
+
 const MAX_RETRIES = 5;
-const WORKER_POLL_INTERVAL_MS = 500;
 const PRIORITY_MAP = {
   high: 0,
   normal: 50,
@@ -68,10 +79,16 @@ const PRIORITY_MAP = {
 // State
 // =============================================================================
 
-let workerRunning = false;
-let activeWorkers = 0;
 let totalJobsProcessed = 0;
 let totalCoversExtracted = 0;
+
+/**
+ * Set low priority mode for cover extraction.
+ * When enabled, reduces concurrent workers to minimize DB contention during scans.
+ */
+export function setCoverQueueLowPriorityMode(enabled: boolean): void {
+  setCoverWorkerLowPriorityMode(enabled);
+}
 
 // =============================================================================
 // Public API
@@ -79,10 +96,10 @@ let totalCoversExtracted = 0;
 
 /**
  * Enqueue a cover extraction job for a folder's files.
- * Returns immediately - job is processed asynchronously.
+ * Returns immediately - job is processed asynchronously by BullMQ worker.
  */
 export async function enqueueCoverJob(options: CoverJobOptions): Promise<string> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
   const { libraryId, folderPath, fileIds, priority = 'normal' } = options;
 
   if (fileIds.length === 0) {
@@ -93,6 +110,7 @@ export async function enqueueCoverJob(options: CoverJobOptions): Promise<string>
     return '';
   }
 
+  // Create DB record first
   const job = await db.coverJob.create({
     data: {
       libraryId,
@@ -108,42 +126,38 @@ export async function enqueueCoverJob(options: CoverJobOptions): Promise<string>
     },
   });
 
+  // Add to BullMQ queue
+  await addCoverJob({
+    jobId: job.id,
+    libraryId,
+    folderPath,
+    fileIds,
+    priority,
+  });
+
   scannerLogger.debug(
     { jobId: job.id, libraryId, folderPath, fileCount: fileIds.length },
     `Enqueued cover job for ${fileIds.length} files`
   );
-
-  // Ensure worker is running
-  startCoverQueueWorker();
 
   return job.id;
 }
 
 /**
  * Start the cover job worker.
- * Spawns up to MAX_CONCURRENT_WORKERS workers.
+ * Initializes BullMQ worker with up to MAX_CONCURRENT_WORKERS concurrency.
  */
 export function startCoverQueueWorker(): void {
-  if (workerRunning) return;
-  workerRunning = true;
-
-  jobQueueLogger.info(
-    { maxConcurrent: MAX_CONCURRENT_WORKERS },
-    'Starting cover job queue worker'
-  );
-
-  // Start the worker loop
-  processQueueLoop();
+  startCoverWorker();
 }
 
 /**
  * Stop the cover job worker.
- * Allows in-progress jobs to complete.
+ * Allows in-progress jobs to complete gracefully.
  */
-export function stopCoverQueueWorker(): void {
-  if (!workerRunning) return;
-  workerRunning = false;
-  jobQueueLogger.info('Stopping cover job queue worker');
+export async function stopCoverQueueWorker(): Promise<void> {
+  await stopCoverWorker();
+  await closeCoverQueue();
 }
 
 /**
@@ -152,20 +166,30 @@ export function stopCoverQueueWorker(): void {
 export async function getCoverQueueStatus(): Promise<CoverQueueStats> {
   const db = getDatabase();
 
-  const [pending, processing, complete, failed] = await Promise.all([
-    db.coverJob.count({ where: { status: 'pending' } }),
-    db.coverJob.count({ where: { status: 'processing' } }),
+  // Get BullMQ queue stats
+  const queueStats = await getCoverQueueStats();
+
+  // Get DB stats for historical data
+  const [dbComplete, dbFailed] = await Promise.all([
     db.coverJob.count({ where: { status: 'complete' } }),
     db.coverJob.count({ where: { status: 'failed' } }),
   ]);
 
+  // Calculate total covers extracted
+  const completeJobs = await db.coverJob.findMany({
+    where: { status: 'complete' },
+    select: { processedFiles: true },
+  });
+
+  const totalCovers = completeJobs.reduce((sum, job) => sum + job.processedFiles, 0);
+
   return {
-    pending,
-    processing,
-    complete,
-    failed,
-    totalJobsProcessed,
-    totalCoversExtracted,
+    pending: queueStats.waiting + queueStats.delayed,
+    processing: queueStats.active,
+    complete: dbComplete,
+    failed: dbFailed,
+    totalJobsProcessed: dbComplete + dbFailed,
+    totalCoversExtracted: totalCovers,
   };
 }
 
@@ -173,7 +197,7 @@ export async function getCoverQueueStatus(): Promise<CoverQueueStats> {
  * Cancel all pending cover jobs for a library.
  */
 export async function cancelLibraryCoverJobs(libraryId: string): Promise<number> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
 
   const result = await db.coverJob.updateMany({
     where: {
@@ -199,7 +223,7 @@ export async function cancelLibraryCoverJobs(libraryId: string): Promise<number>
  * Keeps jobs for 24 hours for debugging purposes.
  */
 export async function cleanupOldJobs(olderThanHours = 24): Promise<number> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
   const cutoff = new Date(Date.now() - olderThanHours * 60 * 60 * 1000);
 
   const result = await db.coverJob.deleteMany({
@@ -217,7 +241,7 @@ export async function cleanupOldJobs(olderThanHours = 24): Promise<number> {
  * Called during server startup.
  */
 export async function recoverCoverJobs(): Promise<number> {
-  const db = getDatabase();
+  const db = getWriteDatabase();
 
   // Find jobs that were "processing" when server stopped
   const stuckJobs = await db.coverJob.findMany({
@@ -226,7 +250,7 @@ export async function recoverCoverJobs(): Promise<number> {
 
   if (stuckJobs.length === 0) return 0;
 
-  // Reset them to pending for retry
+  // Reset them to pending
   await db.coverJob.updateMany({
     where: { status: 'processing' },
     data: {
@@ -235,272 +259,24 @@ export async function recoverCoverJobs(): Promise<number> {
     },
   });
 
+  // Re-enqueue to BullMQ
+  for (const dbJob of stuckJobs) {
+    await addCoverJob({
+      jobId: dbJob.id,
+      libraryId: dbJob.libraryId,
+      folderPath: dbJob.folderPath,
+      fileIds: JSON.parse(dbJob.fileIds) as string[],
+      priority: dbJob.priority === 0 ? 'high' : dbJob.priority === 50 ? 'normal' : 'low',
+    });
+  }
+
   jobQueueLogger.info(
     { count: stuckJobs.length },
     `Recovered ${stuckJobs.length} interrupted cover jobs`
   );
 
-  // Start worker to process them
-  startCoverQueueWorker();
-
   return stuckJobs.length;
 }
 
-// =============================================================================
-// Worker Implementation
-// =============================================================================
-
-/**
- * Main worker loop that spawns concurrent job processors.
- * Stops automatically when queue is empty and no workers are active.
- */
-async function processQueueLoop(): Promise<void> {
-  while (workerRunning) {
-    try {
-      // Check if we can spawn more workers
-      if (activeWorkers < MAX_CONCURRENT_WORKERS) {
-        const job = await claimNextJob();
-        if (job) {
-          // Spawn worker for this job (don't await - run concurrently)
-          processJobAsync(job);
-        } else if (activeWorkers === 0) {
-          // No job found and no workers active - check if truly empty before stopping
-          const db = getDatabase();
-          const pendingCount = await db.coverJob.count({ where: { status: 'pending' } });
-          if (pendingCount === 0) {
-            workerRunning = false;
-            jobQueueLogger.info('Cover job queue worker stopped (queue empty)');
-            return; // Exit loop
-          }
-        }
-      }
-
-      // Poll interval - use longer interval when at capacity
-      const pollDelay = activeWorkers >= MAX_CONCURRENT_WORKERS ? 2000 : WORKER_POLL_INTERVAL_MS;
-      await sleep(pollDelay);
-    } catch (error) {
-      jobQueueLogger.error({ error }, 'Error in cover queue worker loop');
-      await sleep(1000); // Back off on error
-    }
-  }
-}
-
-/**
- * Claim the next pending job atomically.
- * Uses database transaction to prevent race conditions.
- */
-async function claimNextJob(): Promise<{ id: string; libraryId: string; folderPath: string; fileIds: string[] } | null> {
-  const db = getDatabase();
-
-  // Find next pending job (priority order: lower = higher priority)
-  const job = await db.coverJob.findFirst({
-    where: { status: 'pending' },
-    orderBy: [
-      { priority: 'asc' },
-      { createdAt: 'asc' },
-    ],
-  });
-
-  if (!job) return null;
-
-  // Atomically claim the job
-  try {
-    await db.coverJob.update({
-      where: { id: job.id, status: 'pending' },
-      data: {
-        status: 'processing',
-        startedAt: new Date(),
-      },
-    });
-
-    return {
-      id: job.id,
-      libraryId: job.libraryId,
-      folderPath: job.folderPath,
-      fileIds: JSON.parse(job.fileIds) as string[],
-    };
-  } catch {
-    // Another worker claimed it - try again
-    return null;
-  }
-}
-
-/**
- * Process a single job asynchronously.
- */
-async function processJobAsync(job: {
-  id: string;
-  libraryId: string;
-  folderPath: string;
-  fileIds: string[];
-}): Promise<void> {
-  activeWorkers++;
-
-  try {
-    await processJob(job);
-  } finally {
-    activeWorkers--;
-  }
-}
-
-/**
- * Process a single cover job.
- */
-async function processJob(job: {
-  id: string;
-  libraryId: string;
-  folderPath: string;
-  fileIds: string[];
-}): Promise<void> {
-  const db = getDatabase();
-  const { id, libraryId, folderPath, fileIds } = job;
-
-  const startTime = Date.now();
-  scannerLogger.debug(
-    { jobId: id, libraryId, folderPath, fileCount: fileIds.length },
-    `Processing cover job for ${fileIds.length} files`
-  );
-
-  // Emit progress start
-  emitCoverProgress({
-    jobId: id,
-    libraryId,
-    folderPath,
-    status: 'processing',
-    coversExtracted: 0,
-    totalFiles: fileIds.length,
-    retryCount: 0,
-  });
-
-  try {
-    // Extract covers with progress updates
-    const result = await batchExtractCovers(fileIds, (current, total) => {
-      // Update DB progress periodically (every 10 files or at end)
-      if (current % 10 === 0 || current === total) {
-        db.coverJob.update({
-          where: { id },
-          data: { processedFiles: current },
-        }).catch(() => {
-          // Ignore update errors
-        });
-      }
-    });
-
-    const elapsedMs = Date.now() - startTime;
-
-    // Mark as complete
-    await db.coverJob.update({
-      where: { id },
-      data: {
-        status: 'complete',
-        processedFiles: result.success + result.cached,
-        failedFiles: result.failed,
-        completedAt: new Date(),
-      },
-    });
-
-    totalJobsProcessed++;
-    totalCoversExtracted += result.success;
-
-    scannerLogger.info(
-      {
-        jobId: id,
-        libraryId,
-        folderPath,
-        success: result.success,
-        cached: result.cached,
-        failed: result.failed,
-        elapsedMs,
-      },
-      `Cover job complete: ${result.success} extracted, ${result.cached} cached, ${result.failed} failed in ${elapsedMs}ms`
-    );
-
-    // Emit progress complete
-    emitCoverProgress({
-      jobId: id,
-      libraryId,
-      folderPath,
-      status: 'complete',
-      coversExtracted: result.success + result.cached,
-      totalFiles: fileIds.length,
-      retryCount: 0,
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    // Get current retry count
-    const currentJob = await db.coverJob.findUnique({ where: { id } });
-    const retryCount = (currentJob?.retryCount ?? 0) + 1;
-
-    if (retryCount >= MAX_RETRIES) {
-      // Hard fail after max retries
-      await db.coverJob.update({
-        where: { id },
-        data: {
-          status: 'failed',
-          retryCount,
-          errorMessage,
-          completedAt: new Date(),
-        },
-      });
-
-      scannerLogger.error(
-        { jobId: id, libraryId, folderPath, retryCount, error: errorMessage },
-        `Cover job failed permanently after ${MAX_RETRIES} retries`
-      );
-
-      // Emit progress failed
-      emitCoverProgress({
-        jobId: id,
-        libraryId,
-        folderPath,
-        status: 'failed',
-        coversExtracted: 0,
-        totalFiles: fileIds.length,
-        retryCount,
-      });
-    } else {
-      // Reset to pending for retry
-      await db.coverJob.update({
-        where: { id },
-        data: {
-          status: 'pending',
-          retryCount,
-          errorMessage,
-          startedAt: null,
-        },
-      });
-
-      scannerLogger.warn(
-        { jobId: id, libraryId, folderPath, retryCount, error: errorMessage },
-        `Cover job failed, queued for retry ${retryCount}/${MAX_RETRIES}`
-      );
-    }
-  }
-}
-
-// =============================================================================
-// SSE Integration
-// =============================================================================
-
-/**
- * Emit cover progress event via SSE to scan clients.
- */
-function emitCoverProgress(progress: CoverJobProgress): void {
-  sendCoverProgress(progress.libraryId, {
-    jobId: progress.jobId,
-    folderPath: progress.folderPath,
-    status: progress.status,
-    coversExtracted: progress.coversExtracted,
-    totalFiles: progress.totalFiles,
-    retryCount: progress.retryCount,
-  });
-}
-
-// =============================================================================
-// Utilities
-// =============================================================================
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+// Note: Worker implementation moved to queue/cover-worker.ts
+// All worker logic (processQueueLoop, claimNextJob, processJob) now handled by BullMQ

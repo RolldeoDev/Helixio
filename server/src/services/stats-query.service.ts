@@ -3,11 +3,55 @@
  *
  * Retrieves pre-computed stats from the database for display.
  * Supports library filtering and entity drill-down.
+ *
+ * Performance optimizations:
+ * - Request coalescing: Multiple concurrent requests for the same stats
+ *   share a single database query, preventing redundant queries during
+ *   high-concurrency scenarios (e.g., homepage with multiple components)
+ * - Memory caching via memoryCache service
  */
 
 import { getDatabase } from './database.service.js';
 import { EntityType } from './stats-dirty.service.js';
 import { RatingStats, computeRatingStats } from './rating-stats.service.js';
+import { memoryCache } from './memory-cache.service.js';
+
+// =============================================================================
+// Request Coalescing
+// =============================================================================
+
+/**
+ * In-flight request tracking for request coalescing.
+ * When multiple requests come in for the same stats simultaneously,
+ * they all wait on the same promise instead of making separate DB queries.
+ */
+const inFlightStatsRequests = new Map<string, Promise<AggregatedStats>>();
+
+/**
+ * Execute a stats query with request coalescing.
+ * If an identical query is already in-flight, return the same promise.
+ */
+async function coalescedStatsQuery(
+  key: string,
+  queryFn: () => Promise<AggregatedStats>
+): Promise<AggregatedStats> {
+  // Check if there's already an in-flight request for this key
+  const existingRequest = inFlightStatsRequests.get(key);
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  // Create the query promise
+  const queryPromise = queryFn().finally(() => {
+    // Remove from in-flight map when done (success or failure)
+    inFlightStatsRequests.delete(key);
+  });
+
+  // Store in in-flight map
+  inFlightStatsRequests.set(key, queryPromise);
+
+  return queryPromise;
+}
 
 // =============================================================================
 // Types
@@ -96,77 +140,103 @@ export interface RelatedSeries {
 // Aggregated Stats
 // =============================================================================
 
+// Cache TTL for stats
+const STATS_CACHE_TTL_NORMAL = 300_000; // 5 minutes when idle
+const STATS_CACHE_TTL_SCAN = 30_000;    // 30 seconds during scan
+
 /**
  * Get aggregated stats for user or a specific library
+ *
+ * PERFORMANCE: Uses request coalescing and caching.
+ * - Coalescing: Multiple concurrent requests share one DB query
+ * - Caching: Results cached with TTL (shorter during scans)
  */
 export async function getAggregatedStats(libraryId?: string): Promise<AggregatedStats> {
-  const db = getDatabase();
+  const cacheKey = `stats:aggregated:${libraryId || 'all'}`;
 
-  if (libraryId) {
-    // Get library-specific stats
-    const libraryStat = await db.libraryStat.findUnique({
-      where: { libraryId },
-    });
-
-    if (libraryStat) {
-      return {
-        totalFiles: libraryStat.totalFiles,
-        totalSeries: libraryStat.totalSeries,
-        totalPages: libraryStat.totalPages,
-        filesRead: libraryStat.filesRead,
-        filesInProgress: libraryStat.filesInProgress,
-        filesUnread: libraryStat.filesUnread,
-        pagesRead: libraryStat.pagesRead,
-        readingTime: libraryStat.readingTime,
-        filesWithMetadata: libraryStat.filesWithMetadata,
-      };
-    }
-
-    // Return zeros if no stats yet
-    return {
-      totalFiles: 0,
-      totalSeries: 0,
-      totalPages: 0,
-      filesRead: 0,
-      filesInProgress: 0,
-      filesUnread: 0,
-      pagesRead: 0,
-      readingTime: 0,
-      filesWithMetadata: 0,
-    };
-  } else {
-    // Get user-level stats
-    const userStat = await db.userStat.findFirst();
-
-    if (userStat) {
-      return {
-        totalFiles: userStat.totalFiles,
-        totalSeries: userStat.totalSeries,
-        totalPages: userStat.totalPages,
-        filesRead: userStat.filesRead,
-        filesInProgress: userStat.filesInProgress,
-        filesUnread: userStat.totalFiles - userStat.filesRead - userStat.filesInProgress,
-        pagesRead: userStat.pagesRead,
-        readingTime: userStat.readingTime,
-        currentStreak: userStat.currentStreak,
-        longestStreak: userStat.longestStreak,
-      };
-    }
-
-    // Return zeros if no stats yet
-    return {
-      totalFiles: 0,
-      totalSeries: 0,
-      totalPages: 0,
-      filesRead: 0,
-      filesInProgress: 0,
-      filesUnread: 0,
-      pagesRead: 0,
-      readingTime: 0,
-      currentStreak: 0,
-      longestStreak: 0,
-    };
+  // Check cache first
+  const cached = memoryCache.get<AggregatedStats>(cacheKey);
+  if (cached) {
+    return cached;
   }
+
+  // Use request coalescing for concurrent requests
+  return coalescedStatsQuery(cacheKey, async () => {
+    const db = getDatabase();
+    let result: AggregatedStats;
+
+    if (libraryId) {
+      // Get library-specific stats
+      const libraryStat = await db.libraryStat.findUnique({
+        where: { libraryId },
+      });
+
+      if (libraryStat) {
+        result = {
+          totalFiles: libraryStat.totalFiles,
+          totalSeries: libraryStat.totalSeries,
+          totalPages: libraryStat.totalPages,
+          filesRead: libraryStat.filesRead,
+          filesInProgress: libraryStat.filesInProgress,
+          filesUnread: libraryStat.filesUnread,
+          pagesRead: libraryStat.pagesRead,
+          readingTime: libraryStat.readingTime,
+          filesWithMetadata: libraryStat.filesWithMetadata,
+        };
+      } else {
+        // Return zeros if no stats yet
+        result = {
+          totalFiles: 0,
+          totalSeries: 0,
+          totalPages: 0,
+          filesRead: 0,
+          filesInProgress: 0,
+          filesUnread: 0,
+          pagesRead: 0,
+          readingTime: 0,
+          filesWithMetadata: 0,
+        };
+      }
+    } else {
+      // Get user-level stats
+      const userStat = await db.userStat.findFirst();
+
+      if (userStat) {
+        result = {
+          totalFiles: userStat.totalFiles,
+          totalSeries: userStat.totalSeries,
+          totalPages: userStat.totalPages,
+          filesRead: userStat.filesRead,
+          filesInProgress: userStat.filesInProgress,
+          filesUnread: userStat.totalFiles - userStat.filesRead - userStat.filesInProgress,
+          pagesRead: userStat.pagesRead,
+          readingTime: userStat.readingTime,
+          currentStreak: userStat.currentStreak,
+          longestStreak: userStat.longestStreak,
+        };
+      } else {
+        // Return zeros if no stats yet
+        result = {
+          totalFiles: 0,
+          totalSeries: 0,
+          totalPages: 0,
+          filesRead: 0,
+          filesInProgress: 0,
+          filesUnread: 0,
+          pagesRead: 0,
+          readingTime: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+        };
+      }
+    }
+
+    // Cache the result
+    const ttl = memoryCache.isScanActive() ? STATS_CACHE_TTL_SCAN : STATS_CACHE_TTL_NORMAL;
+    memoryCache.set(cacheKey, result, ttl);
+
+    return result;
+  });
 }
 
 // =============================================================================

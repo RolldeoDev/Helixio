@@ -116,6 +116,7 @@
 
 .wtr-filter-pill.med.active {
   background: var(--color-warning, #f59e0b);
+  color: var(--color-warning-text, white);
 }
 
 .wtr-filter-pill.low.active {

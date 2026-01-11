@@ -61,53 +61,71 @@ export async function getSeriesProgress(
  * Update SeriesProgress based on current reading state for a specific user.
  * If userId is provided, updates only that user's progress.
  * If userId is not provided, updates all users who have progress records for this series.
+ *
+ * PERFORMANCE: This function uses batched queries to avoid N+1 patterns.
+ * All data is fetched upfront in parallel, then processed in memory.
+ *
  * @param seriesId - The series ID
  * @param userId - Optional user ID. If not provided, updates all users with progress.
  */
 export async function updateSeriesProgress(seriesId: string, userId?: string): Promise<void> {
   const db = getDatabase();
 
-  // Get the total number of issues in this series (same for all users)
-  const totalOwned = await db.comicFile.count({
-    where: { seriesId },
-  });
+  // =========================================================================
+  // BATCH ALL QUERIES UPFRONT (fixes N+1 pattern)
+  // =========================================================================
 
-  // Get all issues for this series with their IDs
-  const issues = await db.comicFile.findMany({
-    where: { seriesId },
-    include: {
-      metadata: true,
-    },
-    orderBy: [
-      { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
-      { filename: 'asc' },
-    ],
-  });
+  // Fetch all required data in parallel - O(1) queries regardless of user count
+  const [totalOwned, issues, existingProgress, allReadingProgress] = await Promise.all([
+    // 1. Get total issue count for this series
+    db.comicFile.count({ where: { seriesId } }),
 
-  // If a specific userId is provided, update just that user
-  // Otherwise, update all users who have existing progress for this series
-  const userIds: string[] = [];
-  if (userId) {
-    userIds.push(userId);
-  } else {
-    // Get all users who have progress records for this series
-    const existingProgress = await db.seriesProgress.findMany({
+    // 2. Get all issues for this series
+    db.comicFile.findMany({
       where: { seriesId },
+      include: { metadata: true },
+      orderBy: [
+        { metadata: { issueNumberSort: { sort: 'asc', nulls: 'last' } } },
+        { filename: 'asc' },
+      ],
+    }),
+
+    // 3. Get all users who have progress records for this series
+    db.seriesProgress.findMany({
+      where: { seriesId, ...(userId ? { userId } : {}) },
       select: { userId: true },
-    });
-    userIds.push(...existingProgress.map(p => p.userId));
+    }),
+
+    // 4. Get ALL reading progress for ALL users for this series in ONE query
+    db.userReadingProgress.findMany({
+      where: {
+        file: { seriesId },
+        ...(userId ? { userId } : {}),
+      },
+    }),
+  ]);
+
+  // =========================================================================
+  // GROUP PROGRESS BY USER FOR O(1) LOOKUP
+  // =========================================================================
+
+  const progressByUser = new Map<string, typeof allReadingProgress>();
+  for (const rp of allReadingProgress) {
+    if (!progressByUser.has(rp.userId)) {
+      progressByUser.set(rp.userId, []);
+    }
+    progressByUser.get(rp.userId)!.push(rp);
   }
 
-  // Update progress for each user
-  for (const uid of userIds) {
-    // Get this user's reading progress for all issues in this series
-    const userProgress = await db.userReadingProgress.findMany({
-      where: {
-        userId: uid,
-        fileId: { in: issues.map(i => i.id) },
-      },
-    });
+  // Determine which users to update
+  const userIds = userId ? [userId] : existingProgress.map(p => p.userId);
 
+  // =========================================================================
+  // COMPUTE AND UPSERT PROGRESS FOR EACH USER
+  // =========================================================================
+
+  const upserts = userIds.map(uid => {
+    const userProgress = progressByUser.get(uid) || [];
     const progressByFileId = new Map(userProgress.map(p => [p.fileId, p]));
 
     const completedCount = userProgress.filter(p => p.completed).length;
@@ -162,8 +180,8 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
       nextUnreadFileId = firstUnread?.id ?? null;
     }
 
-    // Upsert progress for this user
-    await db.seriesProgress.upsert({
+    // Return upsert operation for this user
+    return db.seriesProgress.upsert({
       where: { userId_seriesId: { userId: uid, seriesId } },
       create: {
         userId: uid,
@@ -190,7 +208,10 @@ export async function updateSeriesProgress(seriesId: string, userId?: string): P
         nextUnreadFileId,
       },
     });
-  }
+  });
+
+  // Execute all upserts in a single transaction for atomicity
+  await db.$transaction(upserts);
 }
 
 /**

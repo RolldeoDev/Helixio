@@ -162,22 +162,33 @@ export async function createScanJob(
   return job.id;
 }
 
+/** Maximum number of logs to return per scan job */
+const MAX_LOGS_PER_JOB = 50;
+
 /**
  * Get a scan job by ID
+ * @param jobId - The job ID
+ * @param includeLogs - Whether to include logs (default: true, limited to last 50)
  */
-export async function getScanJob(jobId: string): Promise<LibraryScanJobData | null> {
+export async function getScanJob(jobId: string, includeLogs = true): Promise<LibraryScanJobData | null> {
   const prisma = getDatabase();
 
   const job = await prisma.libraryScanJob.findUnique({
     where: { id: jobId },
-    include: {
+    include: includeLogs ? {
       logs: {
-        orderBy: { timestamp: 'asc' },
+        orderBy: { timestamp: 'desc' },
+        take: MAX_LOGS_PER_JOB,
       },
-    },
+    } : undefined,
   });
 
   if (!job) return null;
+
+  // Reverse logs back to ascending order after limiting
+  // Use type assertion since Prisma types don't handle conditional includes well
+  const jobWithLogs = job as typeof job & { logs?: Array<{ id: string; stage: string; message: string; detail: string | null; type: string; timestamp: Date }> };
+  const logs = includeLogs && jobWithLogs.logs ? [...jobWithLogs.logs].reverse() : [];
 
   return {
     id: job.id,
@@ -201,15 +212,18 @@ export async function getScanJob(jobId: string): Promise<LibraryScanJobData | nu
     completedAt: job.completedAt,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
-    logs: organizeLogs(job.logs),
+    logs: organizeLogs(logs),
   };
 }
 
 /**
  * Get active scan job for a library
+ * @param libraryId - The library ID
+ * @param includeLogs - Whether to include logs (default: true, limited to last 50)
  */
 export async function getActiveScanJobForLibrary(
-  libraryId: string
+  libraryId: string,
+  includeLogs = true
 ): Promise<LibraryScanJobData | null> {
   const prisma = getDatabase();
 
@@ -218,14 +232,20 @@ export async function getActiveScanJobForLibrary(
       libraryId,
       status: { notIn: ['complete', 'error', 'cancelled'] },
     },
-    include: {
+    include: includeLogs ? {
       logs: {
-        orderBy: { timestamp: 'asc' },
+        orderBy: { timestamp: 'desc' },
+        take: MAX_LOGS_PER_JOB,
       },
-    },
+    } : undefined,
   });
 
   if (!job) return null;
+
+  // Reverse logs back to ascending order after limiting
+  // Use type assertion since Prisma types don't handle conditional includes well
+  const jobWithLogs = job as typeof job & { logs?: Array<{ id: string; stage: string; message: string; detail: string | null; type: string; timestamp: Date }> };
+  const logs = includeLogs && jobWithLogs.logs ? [...jobWithLogs.logs].reverse() : [];
 
   return {
     id: job.id,
@@ -249,14 +269,15 @@ export async function getActiveScanJobForLibrary(
     completedAt: job.completedAt,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
-    logs: organizeLogs(job.logs),
+    logs: organizeLogs(logs),
   };
 }
 
 /**
  * List all active scan jobs
+ * @param includeLogs - Whether to include logs (default: true, limited to last 50 per job)
  */
-export async function listActiveScanJobs(): Promise<LibraryScanJobData[]> {
+export async function listActiveScanJobs(includeLogs = true): Promise<LibraryScanJobData[]> {
   const prisma = getDatabase();
 
   const jobs = await prisma.libraryScanJob.findMany({
@@ -264,9 +285,12 @@ export async function listActiveScanJobs(): Promise<LibraryScanJobData[]> {
       status: { notIn: ['complete', 'error', 'cancelled'] },
     },
     include: {
-      logs: {
-        orderBy: { timestamp: 'asc' },
-      },
+      ...(includeLogs ? {
+        logs: {
+          orderBy: { timestamp: 'desc' as const },
+          take: MAX_LOGS_PER_JOB,
+        },
+      } : {}),
       library: {
         select: { name: true },
       },
@@ -274,30 +298,35 @@ export async function listActiveScanJobs(): Promise<LibraryScanJobData[]> {
     orderBy: { createdAt: 'desc' },
   });
 
-  return jobs.map((job) => ({
-    id: job.id,
-    libraryId: job.libraryId,
-    status: job.status as ScanJobStatus,
-    currentStage: job.currentStage,
-    currentMessage: job.currentMessage,
-    currentDetail: job.currentDetail,
-    discoveredFiles: job.discoveredFiles,
-    orphanedFiles: job.orphanedFiles,
-    indexedFiles: job.indexedFiles,
-    linkedFiles: job.linkedFiles,
-    seriesCreated: job.seriesCreated,
-    coversExtracted: job.coversExtracted,
-    totalFiles: job.totalFiles,
-    error: job.error,
-    errorCount: job.errorCount,
-    options: parseOptions(job.options),
-    queuedAt: job.queuedAt,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    createdAt: job.createdAt,
-    updatedAt: job.updatedAt,
-    logs: organizeLogs(job.logs),
-  }));
+  return jobs.map((job) => {
+    // Reverse logs back to ascending order after limiting
+    const logs = includeLogs && job.logs ? [...job.logs].reverse() : [];
+
+    return {
+      id: job.id,
+      libraryId: job.libraryId,
+      status: job.status as ScanJobStatus,
+      currentStage: job.currentStage,
+      currentMessage: job.currentMessage,
+      currentDetail: job.currentDetail,
+      discoveredFiles: job.discoveredFiles,
+      orphanedFiles: job.orphanedFiles,
+      indexedFiles: job.indexedFiles,
+      linkedFiles: job.linkedFiles,
+      seriesCreated: job.seriesCreated,
+      coversExtracted: job.coversExtracted,
+      totalFiles: job.totalFiles,
+      error: job.error,
+      errorCount: job.errorCount,
+      options: parseOptions(job.options),
+      queuedAt: job.queuedAt,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      logs: organizeLogs(logs),
+    };
+  });
 }
 
 /**
@@ -613,14 +642,167 @@ export async function recoverInterruptedScanJobs(): Promise<string[]> {
 }
 
 // =============================================================================
+// Lightweight Status Functions (No Logs - For Polling)
+// =============================================================================
+
+/**
+ * Lightweight scan job status without logs.
+ * Used for frequent polling to minimize database load.
+ */
+export interface ScanJobStatusLight {
+  id: string;
+  libraryId: string;
+  status: ScanJobStatus;
+  currentStage: string;
+  currentMessage: string | null;
+  currentDetail: string | null;
+
+  // Progress counters
+  discoveredFiles: number;
+  orphanedFiles: number;
+  indexedFiles: number;
+  linkedFiles: number;
+  seriesCreated: number;
+  coversExtracted: number;
+  totalFiles: number;
+
+  // Error tracking
+  error: string | null;
+  errorCount: number;
+
+  // Timing
+  queuedAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  updatedAt: Date;
+}
+
+/**
+ * Get lightweight scan job status by ID (no logs).
+ * Optimized for frequent polling during active scans.
+ */
+export async function getScanJobStatus(jobId: string): Promise<ScanJobStatusLight | null> {
+  const prisma = getDatabase();
+
+  const job = await prisma.libraryScanJob.findUnique({
+    where: { id: jobId },
+  });
+
+  if (!job) return null;
+
+  return {
+    id: job.id,
+    libraryId: job.libraryId,
+    status: job.status as ScanJobStatus,
+    currentStage: job.currentStage,
+    currentMessage: job.currentMessage,
+    currentDetail: job.currentDetail,
+    discoveredFiles: job.discoveredFiles,
+    orphanedFiles: job.orphanedFiles,
+    indexedFiles: job.indexedFiles,
+    linkedFiles: job.linkedFiles,
+    seriesCreated: job.seriesCreated,
+    coversExtracted: job.coversExtracted,
+    totalFiles: job.totalFiles,
+    error: job.error,
+    errorCount: job.errorCount,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    updatedAt: job.updatedAt,
+  };
+}
+
+/**
+ * Get lightweight active scan job status for a library (no logs).
+ * Optimized for frequent polling during active scans.
+ */
+export async function getActiveScanJobStatusForLibrary(
+  libraryId: string
+): Promise<ScanJobStatusLight | null> {
+  const prisma = getDatabase();
+
+  const job = await prisma.libraryScanJob.findFirst({
+    where: {
+      libraryId,
+      status: { notIn: ['complete', 'error', 'cancelled'] },
+    },
+  });
+
+  if (!job) return null;
+
+  return {
+    id: job.id,
+    libraryId: job.libraryId,
+    status: job.status as ScanJobStatus,
+    currentStage: job.currentStage,
+    currentMessage: job.currentMessage,
+    currentDetail: job.currentDetail,
+    discoveredFiles: job.discoveredFiles,
+    orphanedFiles: job.orphanedFiles,
+    indexedFiles: job.indexedFiles,
+    linkedFiles: job.linkedFiles,
+    seriesCreated: job.seriesCreated,
+    coversExtracted: job.coversExtracted,
+    totalFiles: job.totalFiles,
+    error: job.error,
+    errorCount: job.errorCount,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    updatedAt: job.updatedAt,
+  };
+}
+
+/**
+ * List all active scan jobs with lightweight status (no logs).
+ * Optimized for frequent polling during active scans.
+ */
+export async function listActiveScanJobsLight(): Promise<ScanJobStatusLight[]> {
+  const prisma = getDatabase();
+
+  const jobs = await prisma.libraryScanJob.findMany({
+    where: {
+      status: { notIn: ['complete', 'error', 'cancelled'] },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return jobs.map((job) => ({
+    id: job.id,
+    libraryId: job.libraryId,
+    status: job.status as ScanJobStatus,
+    currentStage: job.currentStage,
+    currentMessage: job.currentMessage,
+    currentDetail: job.currentDetail,
+    discoveredFiles: job.discoveredFiles,
+    orphanedFiles: job.orphanedFiles,
+    indexedFiles: job.indexedFiles,
+    linkedFiles: job.linkedFiles,
+    seriesCreated: job.seriesCreated,
+    coversExtracted: job.coversExtracted,
+    totalFiles: job.totalFiles,
+    error: job.error,
+    errorCount: job.errorCount,
+    queuedAt: job.queuedAt,
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    updatedAt: job.updatedAt,
+  }));
+}
+
+// =============================================================================
 // Export
 // =============================================================================
 
 export const LibraryScanJobService = {
   createScanJob,
   getScanJob,
+  getScanJobStatus,
   getActiveScanJobForLibrary,
+  getActiveScanJobStatusForLibrary,
   listActiveScanJobs,
+  listActiveScanJobsLight,
   listScanJobsForLibrary,
   updateScanJobStatus,
   updateScanJobProgress,

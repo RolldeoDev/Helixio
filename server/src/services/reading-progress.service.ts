@@ -12,9 +12,17 @@
 
 import { rm } from 'fs/promises';
 import { getDatabase } from './database.service.js';
+import { getFileCacheDir } from './app-paths.service.js';
 import { markDirtyForReadingProgress } from './stats-dirty.service.js';
 import { markSmartCollectionsDirty } from './smart-collection-dirty.service.js';
 import { triggerAchievementCheck } from './achievement-trigger.service.js';
+import { memoryCache, CacheKeys } from './memory-cache.service.js';
+import {
+  getContinueReading as getRedisCache,
+  setContinueReading as setRedisCache,
+  invalidateContinueReading as invalidateRedisCache,
+  type ContinueReadingItem as RedisCacheItem,
+} from './cache/continue-reading-cache.service.js';
 
 // =============================================================================
 // Types
@@ -178,6 +186,9 @@ export async function updateProgress(
     });
   }
 
+  // Invalidate continue reading cache since progress changed
+  invalidateContinueReadingCache(userId);
+
   return {
     ...progress,
     bookmarks: JSON.parse(progress.bookmarks) as number[],
@@ -290,6 +301,9 @@ export async function markCompleted(userId: string, fileId: string): Promise<Rea
     // Non-critical, errors logged inside the function
   });
 
+  // Invalidate continue reading cache since progress changed
+  invalidateContinueReadingCache(userId);
+
   return {
     ...progress,
     bookmarks: JSON.parse(progress.bookmarks) as number[],
@@ -353,12 +367,15 @@ export async function markIncomplete(userId: string, fileId: string): Promise<Re
   }
 
   // Clear the page extraction cache for this file
-  const cacheDir = `/tmp/helixio-archive-cache-${fileId}`;
+  const cacheDir = getFileCacheDir(fileId);
   try {
     await rm(cacheDir, { recursive: true, force: true });
   } catch {
     // Cache dir might not exist, ignore
   }
+
+  // Invalidate continue reading cache since progress changed
+  invalidateContinueReadingCache(userId);
 
   return {
     ...progress,
@@ -379,6 +396,9 @@ export async function deleteProgress(userId: string, fileId: string): Promise<vo
   }).catch(() => {
     // Ignore if not found
   });
+
+  // Invalidate continue reading cache since progress was deleted
+  invalidateContinueReadingCache(userId);
 }
 
 // =============================================================================
@@ -431,6 +451,9 @@ export async function addBookmark(
     data: { bookmarks: JSON.stringify(bookmarks) },
   });
 
+  // Invalidate continue reading cache since bookmarks changed
+  invalidateContinueReadingCache(userId);
+
   return {
     ...progress,
     bookmarks,
@@ -468,6 +491,9 @@ export async function removeBookmark(
     data: { bookmarks: JSON.stringify(bookmarks) },
   });
 
+  // Invalidate continue reading cache since bookmarks changed
+  invalidateContinueReadingCache(userId);
+
   return {
     ...progress,
     bookmarks,
@@ -495,17 +521,67 @@ export async function getBookmarks(userId: string, fileId: string): Promise<numb
 // Continue Reading
 // =============================================================================
 
+// Cache TTL for continue reading (10 seconds - short for freshness)
+const CONTINUE_READING_CACHE_TTL = 10_000;
+
+/**
+ * Get cache key for continue reading
+ */
+function getContinueReadingCacheKey(userId: string, libraryId?: string): string {
+  return `continue-reading:${userId}:${libraryId || 'all'}`;
+}
+
 /**
  * Get recently read files that are in progress (not completed) for a specific user,
  * plus "next up" issues from series that have reading history but no in-progress issues.
  *
  * Returns in-progress items first, then next-up items, both sorted by lastReadAt DESC.
+ *
+ * PERFORMANCE: Uses two-tier caching:
+ * - L1: Memory cache (10 seconds) - fast, per-process
+ * - L2: Redis cache (2 minutes) - persistent, shared across restarts
  */
 export async function getContinueReading(
   userId: string,
   limit = 20,
   libraryId?: string
 ): Promise<ContinueReadingItem[]> {
+  // Check L1 memory cache first (fastest)
+  const cacheKey = getContinueReadingCacheKey(userId, libraryId);
+  const memCached = memoryCache.get<ContinueReadingItem[]>(cacheKey);
+  if (memCached) {
+    return memCached.slice(0, limit);
+  }
+
+  // Check L2 Redis cache (persists across restarts)
+  try {
+    const redisCached = await getRedisCache({ userId, libraryId });
+    if (redisCached && redisCached.length > 0) {
+      // Convert Redis cache items back to ContinueReadingItem format
+      const items: ContinueReadingItem[] = redisCached.map((r) => ({
+        fileId: r.fileId,
+        filename: r.filename,
+        relativePath: '', // Not stored in Redis cache
+        libraryId: r.libraryId,
+        coverHash: r.coverHash,
+        currentPage: r.currentPage,
+        totalPages: r.totalPages,
+        progress: r.percentComplete,
+        lastReadAt: new Date(r.lastReadAt),
+        itemType: r.type === 'in-progress' ? 'in_progress' : 'next_up',
+        series: r.seriesName,
+        number: r.issueNumber,
+        title: null, // Not stored in Redis cache
+        issueCount: null, // Not stored in Redis cache
+      }));
+      // Backfill L1 cache
+      memoryCache.set(cacheKey, items, CONTINUE_READING_CACHE_TTL);
+      return items.slice(0, limit);
+    }
+  } catch {
+    // Redis error - continue to database query
+  }
+
   const db = getDatabase();
 
   // QUERY 1: Get in-progress issues (existing logic)
@@ -661,7 +737,48 @@ export async function getContinueReading(
     })
     .filter(Boolean) as ContinueReadingItem[];
 
-  return [...inProgressFormatted, ...nextUpFormatted];
+  const result = [...inProgressFormatted, ...nextUpFormatted];
+
+  // Cache the result in L1 (memory) - use longer TTL during scans
+  const ttl = memoryCache.isScanActive() ? CONTINUE_READING_CACHE_TTL * 3 : CONTINUE_READING_CACHE_TTL;
+  memoryCache.set(cacheKey, result, ttl);
+
+  // Also cache in L2 (Redis) for persistence across restarts
+  // Convert to Redis cache format (fire-and-forget)
+  const redisItems: RedisCacheItem[] = result.map((item) => ({
+    id: item.fileId,
+    type: item.itemType === 'in_progress' ? 'in-progress' : 'next-up',
+    fileId: item.fileId,
+    filename: item.filename,
+    libraryId: item.libraryId,
+    seriesId: null, // Not stored in local format
+    seriesName: item.series,
+    issueNumber: item.number,
+    coverHash: item.coverHash,
+    currentPage: item.currentPage,
+    totalPages: item.totalPages,
+    percentComplete: item.progress,
+    lastReadAt: item.lastReadAt,
+    previousIssueNumber: null,
+  }));
+  setRedisCache({ userId, libraryId }, redisItems).catch(() => {
+    // Redis error - non-critical, just log
+  });
+
+  return result;
+}
+
+/**
+ * Invalidate continue reading cache for a user.
+ * Call when reading progress changes.
+ * Clears both L1 (memory) and L2 (Redis) caches.
+ */
+export function invalidateContinueReadingCache(userId: string): void {
+  memoryCache.invalidate(`continue-reading:${userId}`);
+  // Also invalidate Redis cache (fire-and-forget)
+  invalidateRedisCache(userId).catch(() => {
+    // Redis error - non-critical
+  });
 }
 
 /**
@@ -698,44 +815,73 @@ export async function getLibraryProgress(
   return map;
 }
 
-/**
- * Get reading statistics for a library for a specific user
- */
-export async function getLibraryReadingStats(userId: string, libraryId: string): Promise<{
+export interface LibraryReadingStatsResult {
   totalFiles: number;
   inProgress: number;
   completed: number;
   unread: number;
-}> {
+}
+
+/**
+ * Get reading statistics for a library for a specific user.
+ *
+ * Uses in-memory caching with 30-second TTL to reduce database load
+ * during heavy operations like library scans.
+ */
+export async function getLibraryReadingStats(
+  userId: string,
+  libraryId: string
+): Promise<LibraryReadingStatsResult> {
+  // Check memory cache first
+  const cacheKey = CacheKeys.libraryReadingStats(userId, libraryId);
+  const cached = memoryCache.get<LibraryReadingStatsResult>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const db = getDatabase();
 
-  const totalFiles = await db.comicFile.count({
-    where: { libraryId, status: 'indexed' },
-  });
+  // Use Promise.all for parallel queries
+  const [totalFiles, inProgress, completed] = await Promise.all([
+    db.comicFile.count({
+      where: { libraryId, status: 'indexed' },
+    }),
+    db.userReadingProgress.count({
+      where: {
+        userId,
+        file: { libraryId },
+        completed: false,
+        currentPage: { gt: 0 },
+      },
+    }),
+    db.userReadingProgress.count({
+      where: {
+        userId,
+        file: { libraryId },
+        completed: true,
+      },
+    }),
+  ]);
 
-  const inProgress = await db.userReadingProgress.count({
-    where: {
-      userId,
-      file: { libraryId },
-      completed: false,
-      currentPage: { gt: 0 },
-    },
-  });
-
-  const completed = await db.userReadingProgress.count({
-    where: {
-      userId,
-      file: { libraryId },
-      completed: true,
-    },
-  });
-
-  return {
+  const result: LibraryReadingStatsResult = {
     totalFiles,
     inProgress,
     completed,
     unread: totalFiles - inProgress - completed,
   };
+
+  // Cache for 30 seconds
+  memoryCache.set(cacheKey, result, memoryCache.getStatsTTL());
+
+  return result;
+}
+
+/**
+ * Invalidate reading stats cache for a user.
+ * Call when reading progress changes.
+ */
+export function invalidateReadingStatsCache(userId: string): void {
+  memoryCache.invalidate(`library-reading-stats:${userId}`);
 }
 
 // =============================================================================

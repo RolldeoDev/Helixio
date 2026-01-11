@@ -23,20 +23,51 @@ const __dirname = dirname(__filename);
 const PRISMA_SCHEMA_PATH = resolve(__dirname, '../../prisma/schema.prisma');
 
 // =============================================================================
-// Prisma Client Instance
+// Prisma Client Instances
 // =============================================================================
 
-let prisma: PrismaClient | null = null;
+/**
+ * Read pool: Used by API routes for read operations.
+ * Has more connections since reads are more frequent and faster.
+ */
+let readPrisma: PrismaClient | null = null;
 
 /**
- * Get the Prisma client instance
- * Creates a new instance if one doesn't exist
+ * Write pool: Used by scanner and cover jobs for write operations.
+ * Has fewer connections but isolated from read pool to prevent
+ * heavy write operations from starving API reads.
+ */
+let writePrisma: PrismaClient | null = null;
+
+/**
+ * Get the read-optimized Prisma client instance.
+ * Use this for API routes and read-heavy operations.
+ */
+export function getReadDatabase(): PrismaClient {
+  if (!readPrisma) {
+    throw new Error('Read database not initialized. Call initializeDatabase() first.');
+  }
+  return readPrisma;
+}
+
+/**
+ * Get the write-optimized Prisma client instance.
+ * Use this for scanner, cover jobs, and other write-heavy operations.
+ */
+export function getWriteDatabase(): PrismaClient {
+  if (!writePrisma) {
+    throw new Error('Write database not initialized. Call initializeDatabase() first.');
+  }
+  return writePrisma;
+}
+
+/**
+ * Get the Prisma client instance.
+ * Alias for getReadDatabase() for backward compatibility.
+ * Use getReadDatabase() or getWriteDatabase() explicitly for new code.
  */
 export function getDatabase(): PrismaClient {
-  if (!prisma) {
-    throw new Error('Database not initialized. Call initializeDatabase() first.');
-  }
-  return prisma;
+  return getReadDatabase();
 }
 
 // =============================================================================
@@ -48,13 +79,13 @@ export function getDatabase(): PrismaClient {
  * Uses PostgreSQL's information_schema to check for existence of core tables
  */
 async function isDatabaseSchemaApplied(): Promise<boolean> {
-  if (!prisma) {
+  if (!readPrisma) {
     return false;
   }
 
   try {
     // Check if the Library table exists (a core table that should always exist)
-    const result = await prisma.$queryRaw<Array<{ exists: boolean }>>`
+    const result = await readPrisma.$queryRaw<Array<{ exists: boolean }>>`
       SELECT EXISTS (
         SELECT FROM information_schema.tables
         WHERE table_schema = 'public'
@@ -98,72 +129,127 @@ async function ensureDatabaseSchema(): Promise<void> {
 }
 
 /**
- * Default connection pool size.
- * PostgreSQL default max_connections is 100.
- * We limit Prisma's pool to leave headroom for:
+ * Connection pool sizes for read/write separation.
+ *
+ * PostgreSQL default max_connections is 100. We split connections between:
+ * - Read pool (30): API routes, stats queries, user requests
+ * - Write pool (20): Scanner, cover jobs, background writes
+ *
+ * Total: 50 connections, leaving headroom for:
  * - pg maintenance connections (superuser reserved)
  * - Direct pg client connections (factory reset, etc.)
  * - Other potential connections
  *
- * Can be overridden via DATABASE_CONNECTION_LIMIT env var.
+ * This separation prevents write-heavy operations (library scans) from
+ * starving read operations (API requests), improving UI responsiveness.
  */
-const DEFAULT_CONNECTION_LIMIT = 30;
+const DEFAULT_READ_CONNECTION_LIMIT = 30;
+const DEFAULT_WRITE_CONNECTION_LIMIT = 20;
 
 /**
- * Get the configured connection limit for the database pool.
+ * Get the configured connection limit for the read pool.
  */
-export function getConnectionLimit(): number {
-  const envLimit = process.env.DATABASE_CONNECTION_LIMIT;
+export function getReadConnectionLimit(): number {
+  const envLimit = process.env.DATABASE_READ_CONNECTION_LIMIT;
   if (envLimit) {
     const parsed = parseInt(envLimit, 10);
     if (!isNaN(parsed) && parsed > 0) {
       return parsed;
     }
   }
-  return DEFAULT_CONNECTION_LIMIT;
+  return DEFAULT_READ_CONNECTION_LIMIT;
 }
 
 /**
- * Initialize the database connection
+ * Get the configured connection limit for the write pool.
+ */
+export function getWriteConnectionLimit(): number {
+  const envLimit = process.env.DATABASE_WRITE_CONNECTION_LIMIT;
+  if (envLimit) {
+    const parsed = parseInt(envLimit, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return DEFAULT_WRITE_CONNECTION_LIMIT;
+}
+
+/**
+ * Get the total configured connection limit (read + write).
+ * For backward compatibility.
+ */
+export function getConnectionLimit(): number {
+  return getReadConnectionLimit() + getWriteConnectionLimit();
+}
+
+/**
+ * Create a database URL with a specific connection limit
+ */
+function createDatabaseUrlWithLimit(baseUrl: string, connectionLimit: number): string {
+  const url = new URL(baseUrl);
+  url.searchParams.set('connection_limit', connectionLimit.toString());
+  return url.toString();
+}
+
+/**
+ * Initialize the database connections (read and write pools)
  * Must be called before any database operations
  */
 export async function initializeDatabase(): Promise<PrismaClient> {
-  if (prisma) {
-    return prisma;
+  if (readPrisma && writePrisma) {
+    return readPrisma;
   }
 
   // Ensure app directories exist
   ensureAppDirectories();
 
-  // Set DATABASE_URL for Prisma (with connection limit)
-  let databaseUrl = getDatabaseUrl();
-  const connectionLimit = getConnectionLimit();
+  const baseDatabaseUrl = getDatabaseUrl();
+  const readConnectionLimit = getReadConnectionLimit();
+  const writeConnectionLimit = getWriteConnectionLimit();
 
-  // Add connection_limit to the URL if not already present
-  const url = new URL(databaseUrl);
-  if (!url.searchParams.has('connection_limit')) {
-    url.searchParams.set('connection_limit', connectionLimit.toString());
-    databaseUrl = url.toString();
-  }
+  // Create separate URLs for read and write pools
+  const readDatabaseUrl = createDatabaseUrlWithLimit(baseDatabaseUrl, readConnectionLimit);
+  const writeDatabaseUrl = createDatabaseUrlWithLimit(baseDatabaseUrl, writeConnectionLimit);
 
-  process.env.DATABASE_URL = databaseUrl;
+  // Set DATABASE_URL for Prisma CLI tools (uses read pool settings)
+  process.env.DATABASE_URL = readDatabaseUrl;
 
-  logger.info({ url: databaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'), connectionLimit }, 'Initializing database');
+  logger.info(
+    {
+      url: baseDatabaseUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+      readConnections: readConnectionLimit,
+      writeConnections: writeConnectionLimit,
+      totalConnections: readConnectionLimit + writeConnectionLimit,
+    },
+    'Initializing database with read/write pool separation'
+  );
 
-  // Create Prisma client
-  prisma = new PrismaClient({
+  const logConfig = process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] as const : ['error'] as const;
+
+  // Create read Prisma client (for API routes)
+  readPrisma = new PrismaClient({
     datasources: {
       db: {
-        url: databaseUrl,
+        url: readDatabaseUrl,
       },
     },
-    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    log: [...logConfig],
   });
 
-  // Test connection
+  // Create write Prisma client (for scanner, cover jobs)
+  writePrisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: writeDatabaseUrl,
+      },
+    },
+    log: [...logConfig],
+  });
+
+  // Connect both clients
   try {
-    await prisma.$connect();
-    logger.info('Database connected successfully');
+    await Promise.all([readPrisma.$connect(), writePrisma.$connect()]);
+    logger.info('Database connected successfully (read and write pools)');
   } catch (error) {
     logger.error({ err: error }, 'Failed to connect to database');
     throw error;
@@ -172,18 +258,28 @@ export async function initializeDatabase(): Promise<PrismaClient> {
   // Ensure schema is applied (handles fresh database after factory reset)
   await ensureDatabaseSchema();
 
-  return prisma;
+  return readPrisma;
 }
 
 /**
- * Close the database connection
+ * Close the database connections
  * Should be called during graceful shutdown
  */
 export async function closeDatabase(): Promise<void> {
-  if (prisma) {
-    await prisma.$disconnect();
-    prisma = null;
-    logger.info('Database connection closed');
+  const disconnectPromises: Promise<void>[] = [];
+
+  if (readPrisma) {
+    disconnectPromises.push(readPrisma.$disconnect());
+  }
+  if (writePrisma) {
+    disconnectPromises.push(writePrisma.$disconnect());
+  }
+
+  if (disconnectPromises.length > 0) {
+    await Promise.all(disconnectPromises);
+    readPrisma = null;
+    writePrisma = null;
+    logger.info('Database connections closed (read and write pools)');
   }
 }
 
@@ -253,7 +349,7 @@ export async function dropAndRecreateDatabase(): Promise<void> {
  * Check if database is initialized
  */
 export function isDatabaseInitialized(): boolean {
-  return prisma !== null;
+  return readPrisma !== null && writePrisma !== null;
 }
 
 // =============================================================================

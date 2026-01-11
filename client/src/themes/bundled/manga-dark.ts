@@ -105,6 +105,7 @@ export const mangaDarkTheme: ThemeDefinition = {
     // Semantic colors - Soft, muted versions
     colorSuccess: '#98d8aa',
     colorWarning: '#f5d89a',
+    colorWarningText: '#000000',       // Black text on light yellow for contrast
     colorError: '#f5a9a9',
     colorDanger: '#e87a7a',
     colorInfo: '#a9c8e8',

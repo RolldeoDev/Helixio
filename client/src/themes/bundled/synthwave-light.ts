@@ -50,6 +50,7 @@ export const synthwaveLightTheme: ThemeDefinition = {
     // Semantic colors - Pastel versions
     colorSuccess: '#00aa66',           // Teal-green
     colorWarning: '#cc9900',           // Amber
+    colorWarningText: '#ffffff',       // White text on amber
     colorError: '#cc2255',             // Deep pink-red
     colorDanger: '#aa0033',            // Darker red
     colorInfo: '#0088cc',              // Ocean blue

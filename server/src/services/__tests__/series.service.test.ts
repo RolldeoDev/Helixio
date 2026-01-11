@@ -660,10 +660,12 @@ describe('Series Service', () => {
 
   describe('getAllGenres', () => {
     it('should return unique genres from comma-separated fields', async () => {
-      mockDb.series.findMany.mockResolvedValue([
-        { genres: 'Superhero, Action' },
-        { genres: 'Horror, Superhero' },
-        { genres: 'Comedy' },
+      // getAllGenres now uses $queryRaw with PostgreSQL unnest
+      mockDb.$queryRaw.mockResolvedValue([
+        { genre: 'Action' },
+        { genre: 'Comedy' },
+        { genre: 'Horror' },
+        { genre: 'Superhero' },
       ]);
 
       const genres = await getAllGenres();

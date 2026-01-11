@@ -50,6 +50,7 @@ export const retroLightTheme: ThemeDefinition = {
     // Semantic colors - Adjusted for GB palette feel
     colorSuccess: '#306850',
     colorWarning: '#0f380f',
+    colorWarningText: '#ffffff',           // White text on very dark green
     colorError: '#0f380f',
     colorDanger: '#0f380f',
     colorInfo: '#306850',

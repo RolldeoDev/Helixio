@@ -22,6 +22,7 @@ import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { markDirtyForMetadataChange } from './stats-dirty.service.js';
 import { triggerDirtyStatsProcessing } from './stats-scheduler.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
+import { invalidateCover as invalidateCoverFromRedis } from './cache/cover-cache.service.js';
 
 const logger = createServiceLogger('metadata-invalidation');
 
@@ -471,7 +472,26 @@ export async function invalidateSeriesData(
 
     result.success = result.errors!.length === 0;
 
-    // Step 3: Notify clients via SSE
+    // Step 3: Invalidate series cover cache if it exists
+    // This ensures cover caches are fresh after metadata changes
+    if (series.coverHash) {
+      try {
+        await invalidateCoverFromRedis('series', series.coverHash);
+        logger.debug({ seriesId, coverHash: series.coverHash }, 'Invalidated series cover cache');
+      } catch (err) {
+        logger.warn({ seriesId, coverHash: series.coverHash, error: err }, 'Failed to invalidate series cover from Redis');
+      }
+    }
+    if (series.resolvedCoverHash && series.resolvedCoverHash !== series.coverHash) {
+      try {
+        await invalidateCoverFromRedis('series', series.resolvedCoverHash);
+        logger.debug({ seriesId, coverHash: series.resolvedCoverHash }, 'Invalidated series resolved cover cache');
+      } catch (err) {
+        logger.warn({ seriesId, coverHash: series.resolvedCoverHash, error: err }, 'Failed to invalidate series resolved cover from Redis');
+      }
+    }
+
+    // Step 4: Notify clients via SSE
     if (result.success) {
       sendSeriesRefresh([seriesId]);
       sendMetadataChange('series', {
@@ -640,6 +660,34 @@ export async function invalidateAfterApplyChanges(
     triggerDirtyStatsProcessing().catch((err) => {
       logger.error({ err }, 'Failed to trigger stats processing after apply changes');
     });
+  }
+
+  // Step 3.5: Invalidate cover caches for affected series
+  // This ensures series covers are fresh after metadata changes (which might include cover updates)
+  if (affectedSeriesIds.size > 0) {
+    logger.info({ count: affectedSeriesIds.size }, 'Invalidating cover caches for affected series');
+
+    for (const seriesId of affectedSeriesIds) {
+      try {
+        const series = await prisma.series.findUnique({
+          where: { id: seriesId },
+          select: { coverHash: true, resolvedCoverHash: true },
+        });
+
+        if (series?.coverHash) {
+          await invalidateCoverFromRedis('series', series.coverHash).catch((err) => {
+            logger.warn({ seriesId, coverHash: series.coverHash, error: err }, 'Failed to invalidate series cover from Redis');
+          });
+        }
+        if (series?.resolvedCoverHash && series.resolvedCoverHash !== series.coverHash) {
+          await invalidateCoverFromRedis('series', series.resolvedCoverHash).catch((err) => {
+            logger.warn({ seriesId, coverHash: series.resolvedCoverHash, error: err }, 'Failed to invalidate series resolved cover from Redis');
+          });
+        }
+      } catch (error) {
+        logger.warn({ seriesId, error }, 'Failed to fetch series for cover cache invalidation');
+      }
+    }
   }
 
   logger.info(

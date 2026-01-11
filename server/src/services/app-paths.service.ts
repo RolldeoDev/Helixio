@@ -113,6 +113,22 @@ export function getThumbnailsDir(): string {
 }
 
 /**
+ * Get the path to the pages cache directory
+ * Used for persistent extracted comic page caching
+ */
+export function getPageCacheDir(): string {
+  return join(getCacheDir(), 'pages');
+}
+
+/**
+ * Get the path to a file's extracted pages cache directory
+ * @param fileId - The comic file ID
+ */
+export function getFileCacheDir(fileId: string): string {
+  return join(getPageCacheDir(), fileId);
+}
+
+/**
  * Get the path to the avatars directory
  */
 export function getAvatarsDir(): string {
@@ -187,6 +203,7 @@ export function ensureAppDirectories(): void {
     getSeriesCoversDir(),
     getCollectionCoversDir(),
     getThumbnailsDir(),
+    getPageCacheDir(),
     getAvatarsDir(),
     getSeriesCacheDir(),
     ...ALL_CACHEABLE_SOURCES.map(getSourceSeriesCacheDir),
@@ -220,6 +237,7 @@ export function getAllPaths(): Record<string, string | null> {
     cache: getCacheDir(),
     covers: getCoversDir(),
     thumbnails: getThumbnailsDir(),
+    pagesCache: getPageCacheDir(),
     seriesCache: getSeriesCacheDir(),
   };
 }

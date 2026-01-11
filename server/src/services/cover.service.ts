@@ -26,6 +26,11 @@ import {
 import { getDatabase } from './database.service.js';
 import { parallelMap, getOptimalConcurrency } from './parallel.service.js';
 import { logDebug, logWarn, logError } from './logger.service.js';
+import {
+  getCoverFromCache,
+  storeCoverInCache,
+  invalidateCover as invalidateCoverCache,
+} from './cache/index.js';
 
 // =============================================================================
 // Cover Optimization Config
@@ -208,6 +213,19 @@ function getFromMemoryCache(key: string): { data: Buffer; contentType: string } 
     return { data: entry.data, contentType: entry.contentType };
   }
   return null;
+}
+
+/**
+ * Remove a cover from the memory cache, properly tracking bytes.
+ */
+function removeFromMemoryCache(key: string): boolean {
+  const entry = coverMemoryCache.get(key);
+  if (entry) {
+    memoryCacheBytes -= entry.data.length;
+    coverMemoryCache.delete(key);
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -450,8 +468,10 @@ export async function getCoverInfo(
 }
 
 /**
- * Get cover data for serving, with format negotiation and memory caching.
+ * Get cover data for serving, with format negotiation and multi-layer caching.
  * Prefers WebP if the client supports it, falls back to JPEG.
+ *
+ * Cache hierarchy: L1 (memory) -> L2 (Redis) -> Disk
  */
 export async function getCoverData(
   libraryId: string,
@@ -459,11 +479,12 @@ export async function getCoverData(
   acceptWebP: boolean = true
 ): Promise<CoverData | null> {
   const paths = getCoverPaths(libraryId, fileHash);
-  const cacheKey = `${libraryId}/${fileHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+  const format = acceptWebP ? 'webp' : 'jpeg';
+  const cacheKey = `${libraryId}/${fileHash}/${format}`;
 
-  // Check memory cache first
-  const cached = getFromMemoryCache(cacheKey);
-  if (cached) {
+  // L1: Check memory cache first (fastest)
+  const memCached = getFromMemoryCache(cacheKey);
+  if (memCached) {
     // Get blur placeholder
     let blurPlaceholder: string | undefined;
     if (existsSync(paths.blur)) {
@@ -473,7 +494,15 @@ export async function getCoverData(
         // Ignore
       }
     }
-    return { ...cached, blurPlaceholder };
+    return { ...memCached, blurPlaceholder };
+  }
+
+  // L2: Check Redis cache (persistent)
+  const redisCached = await getCoverFromCache('archive', fileHash, format);
+  if (redisCached) {
+    // Backfill memory cache for next request
+    addToMemoryCache(cacheKey, redisCached.data, redisCached.contentType);
+    return redisCached;
   }
 
   // Determine which format to serve
@@ -501,7 +530,7 @@ export async function getCoverData(
   try {
     const data = await readFile(coverPath);
 
-    // Add to memory cache
+    // Add to L1 memory cache
     addToMemoryCache(cacheKey, data, contentType);
 
     // Get blur placeholder
@@ -513,6 +542,9 @@ export async function getCoverData(
         // Ignore
       }
     }
+
+    // Store in L2 Redis cache (fire-and-forget)
+    storeCoverInCache('archive', fileHash, data, contentType, blurPlaceholder);
 
     return { data, contentType, blurPlaceholder };
   } catch (err) {
@@ -531,7 +563,7 @@ export async function getCoverData(
 // =============================================================================
 
 /**
- * Delete a cached cover (all formats).
+ * Delete a cached cover (all formats, all cache layers).
  */
 export async function deleteCachedCover(
   libraryId: string,
@@ -542,13 +574,16 @@ export async function deleteCachedCover(
   const cacheKeyWebP = `${libraryId}/${fileHash}/webp`;
   const cacheKeyJpeg = `${libraryId}/${fileHash}/jpeg`;
 
-  // Remove from memory cache
-  coverMemoryCache.delete(cacheKeyWebP);
-  coverMemoryCache.delete(cacheKeyJpeg);
+  // Remove from L1 memory cache (properly tracking bytes)
+  removeFromMemoryCache(cacheKeyWebP);
+  removeFromMemoryCache(cacheKeyJpeg);
+
+  // Remove from L2 Redis cache
+  invalidateCoverCache('archive', fileHash);
 
   let success = true;
 
-  // Delete all cover files
+  // Delete all cover files from disk
   for (const path of [paths.webp, paths.jpeg, paths.blur, legacyPath]) {
     if (existsSync(path)) {
       try {
@@ -1281,18 +1316,21 @@ export async function downloadApiCover(url: string): Promise<DownloadCoverResult
 }
 
 /**
- * Get series cover data for serving, with format negotiation and memory caching.
+ * Get series cover data for serving, with format negotiation and multi-layer caching.
+ *
+ * Cache hierarchy: L1 (memory) -> L2 (Redis) -> Disk
  */
 export async function getSeriesCoverData(
   coverHash: string,
   acceptWebP: boolean = true
 ): Promise<CoverData | null> {
   const paths = getSeriesCoverPaths(coverHash);
-  const cacheKey = `series/${coverHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+  const format = acceptWebP ? 'webp' : 'jpeg';
+  const cacheKey = `series/${coverHash}/${format}`;
 
-  // Check memory cache first
-  const cached = getFromMemoryCache(cacheKey);
-  if (cached) {
+  // L1: Check memory cache first (fastest)
+  const memCached = getFromMemoryCache(cacheKey);
+  if (memCached) {
     let blurPlaceholder: string | undefined;
     if (existsSync(paths.blur)) {
       try {
@@ -1301,10 +1339,18 @@ export async function getSeriesCoverData(
         // Ignore
       }
     }
-    return { ...cached, blurPlaceholder };
+    return { ...memCached, blurPlaceholder };
   }
 
-  // Determine which format to serve
+  // L2: Check Redis cache (persistent)
+  const redisCached = await getCoverFromCache('series', coverHash, format);
+  if (redisCached) {
+    // Backfill memory cache for next request
+    addToMemoryCache(cacheKey, redisCached.data, redisCached.contentType);
+    return redisCached;
+  }
+
+  // Disk: Determine which format to serve
   let coverPath: string;
   let contentType: string;
 
@@ -1321,7 +1367,7 @@ export async function getSeriesCoverData(
   try {
     const data = await readFile(coverPath);
 
-    // Add to memory cache
+    // Add to L1 memory cache
     addToMemoryCache(cacheKey, data, contentType);
 
     // Get blur placeholder
@@ -1333,6 +1379,9 @@ export async function getSeriesCoverData(
         // Ignore
       }
     }
+
+    // Store in L2 Redis cache (fire-and-forget)
+    storeCoverInCache('series', coverHash, data, contentType, blurPlaceholder);
 
     return { data, contentType, blurPlaceholder };
   } catch {
@@ -1349,20 +1398,23 @@ export function seriesCoverExists(coverHash: string): boolean {
 }
 
 /**
- * Delete a cached series cover
+ * Delete a cached series cover (all cache layers).
  */
 export async function deleteSeriesCover(coverHash: string): Promise<boolean> {
   const paths = getSeriesCoverPaths(coverHash);
   const cacheKeyWebP = `series/${coverHash}/webp`;
   const cacheKeyJpeg = `series/${coverHash}/jpeg`;
 
-  // Remove from memory cache
-  coverMemoryCache.delete(cacheKeyWebP);
-  coverMemoryCache.delete(cacheKeyJpeg);
+  // Remove from L1 memory cache (properly tracking bytes)
+  removeFromMemoryCache(cacheKeyWebP);
+  removeFromMemoryCache(cacheKeyJpeg);
+
+  // Remove from L2 Redis cache
+  invalidateCoverCache('series', coverHash);
 
   let success = true;
 
-  // Delete all cover files
+  // Delete all cover files from disk
   for (const path of [paths.webp, paths.jpeg, paths.blur]) {
     if (existsSync(path)) {
       try {
@@ -1910,18 +1962,21 @@ export async function saveCollectionMosaicCover(
 }
 
 /**
- * Get collection cover data for serving, with format negotiation
+ * Get collection cover data for serving, with format negotiation and multi-layer caching.
+ *
+ * Cache hierarchy: L1 (memory) -> L2 (Redis) -> Disk
  */
 export async function getCollectionCoverData(
   coverHash: string,
   acceptWebP: boolean = true
 ): Promise<CoverData | null> {
   const paths = getCollectionCoverPaths(coverHash);
-  const cacheKey = `collection/${coverHash}/${acceptWebP ? 'webp' : 'jpeg'}`;
+  const format = acceptWebP ? 'webp' : 'jpeg';
+  const cacheKey = `collection/${coverHash}/${format}`;
 
-  // Check memory cache first
-  const cached = getFromMemoryCache(cacheKey);
-  if (cached) {
+  // L1: Check memory cache first (fastest)
+  const memCached = getFromMemoryCache(cacheKey);
+  if (memCached) {
     let blurPlaceholder: string | undefined;
     if (existsSync(paths.blur)) {
       try {
@@ -1930,10 +1985,18 @@ export async function getCollectionCoverData(
         // Ignore
       }
     }
-    return { ...cached, blurPlaceholder };
+    return { ...memCached, blurPlaceholder };
   }
 
-  // Determine which format to serve
+  // L2: Check Redis cache (persistent)
+  const redisCached = await getCoverFromCache('collection', coverHash, format);
+  if (redisCached) {
+    // Backfill memory cache for next request
+    addToMemoryCache(cacheKey, redisCached.data, redisCached.contentType);
+    return redisCached;
+  }
+
+  // Disk: Determine which format to serve
   let coverPath: string;
   let contentType: string;
 
@@ -1950,7 +2013,7 @@ export async function getCollectionCoverData(
   try {
     const data = await readFile(coverPath);
 
-    // Add to memory cache
+    // Add to L1 memory cache
     addToMemoryCache(cacheKey, data, contentType);
 
     // Get blur placeholder
@@ -1962,6 +2025,9 @@ export async function getCollectionCoverData(
         // Ignore
       }
     }
+
+    // Store in L2 Redis cache (fire-and-forget)
+    storeCoverInCache('collection', coverHash, data, contentType, blurPlaceholder);
 
     return { data, contentType, blurPlaceholder };
   } catch {
@@ -1978,20 +2044,23 @@ export function collectionCoverExists(coverHash: string): boolean {
 }
 
 /**
- * Delete a cached collection cover
+ * Delete a cached collection cover (all cache layers).
  */
 export async function deleteCollectionCover(coverHash: string): Promise<boolean> {
   const paths = getCollectionCoverPaths(coverHash);
   const cacheKeyWebP = `collection/${coverHash}/webp`;
   const cacheKeyJpeg = `collection/${coverHash}/jpeg`;
 
-  // Remove from memory cache
-  coverMemoryCache.delete(cacheKeyWebP);
-  coverMemoryCache.delete(cacheKeyJpeg);
+  // Remove from L1 memory cache (properly tracking bytes)
+  removeFromMemoryCache(cacheKeyWebP);
+  removeFromMemoryCache(cacheKeyJpeg);
+
+  // Remove from L2 Redis cache
+  invalidateCoverCache('collection', coverHash);
 
   let success = true;
 
-  // Delete all cover files
+  // Delete all cover files from disk
   for (const path of [paths.webp, paths.jpeg, paths.blur]) {
     if (existsSync(path)) {
       try {

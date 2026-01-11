@@ -206,6 +206,12 @@ export async function moveFile(
       batchId: options.batchId,
     });
 
+    // Invalidate caches (fire-and-forget)
+    const { invalidateFileOperation } = await import('./cache/cache-invalidation.service.js');
+    invalidateFileOperation(fileId, 'move').catch(() => {
+      // Errors are logged inside invalidateFileOperation
+    });
+
     return {
       success: true,
       operation: 'move',
@@ -311,6 +317,8 @@ export async function deleteFile(
 
   const sourcePath = file.path;
   const seriesId = file.seriesId; // Capture before deletion
+  const fileHash = file.hash; // Capture for cache invalidation
+  const libraryId = file.libraryId; // Capture for cache invalidation
 
   try {
     // Check file exists
@@ -339,6 +347,38 @@ export async function deleteFile(
       }
     } catch {
       // Non-critical - cover recalculation failure shouldn't fail the delete
+    }
+
+    // Invalidate caches (fire-and-forget)
+    // NOTE: We manually invalidate here instead of using invalidateFileOperation()
+    // because the file is already deleted from the database. invalidateFileOperation()
+    // expects the file to exist so it can query for seriesId/libraryId/hash.
+    // By capturing this data before deletion, we can invalidate the correct caches.
+    try {
+      const { invalidateSeries, invalidateContinueReadingForSeries, invalidateContinueReadingForLibrary } = await import('./cache/cache-invalidation.service.js');
+      const { invalidateCover: invalidateCoverFromRedis } = await import('./cache/cover-cache.service.js');
+
+      const invalidationPromises: Promise<unknown>[] = [];
+
+      // Invalidate series if file belonged to one
+      if (seriesId) {
+        invalidationPromises.push(invalidateSeries(seriesId).catch(() => {}));
+        invalidationPromises.push(invalidateContinueReadingForSeries(seriesId).catch(() => {}));
+      } else {
+        invalidationPromises.push(invalidateContinueReadingForLibrary(libraryId).catch(() => {}));
+      }
+
+      // Invalidate archive cover cache
+      if (fileHash) {
+        invalidationPromises.push(invalidateCoverFromRedis('archive', fileHash).catch(() => {}));
+      }
+
+      // Fire and forget all invalidations
+      Promise.allSettled(invalidationPromises).catch(() => {
+        // Errors are already handled in individual catches
+      });
+    } catch {
+      // Non-critical - cache invalidation failure shouldn't fail the delete
     }
 
     // Log the operation (not reversible after deletion)

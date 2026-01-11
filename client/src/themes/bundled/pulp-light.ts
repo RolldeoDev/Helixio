@@ -56,6 +56,7 @@ export const pulpLightTheme: ThemeDefinition = {
     // Semantic colors - Vintage print palette
     colorSuccess: '#4a5f3a',               // Forest green ink
     colorWarning: '#8b6914',               // Mustard yellow
+    colorWarningText: '#ffffff',           // White text on dark gold
     colorError: '#8b2500',                 // Blood red
     colorDanger: '#6b1a00',                // Dark crimson
     colorInfo: '#4a5a6b',                  // Steel blue ink

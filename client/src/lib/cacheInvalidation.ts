@@ -28,19 +28,28 @@ export function invalidateLibrary(libraryId: string) {
 }
 
 /**
- * Invalidate all file-related queries
+ * Invalidate all file-related queries (BROAD - use sparingly)
  */
 export function invalidateFiles() {
   queryClient.invalidateQueries({ queryKey: queryKeys.files.all });
 }
 
 /**
- * Invalidate a specific file
+ * Invalidate a specific file (SURGICAL)
+ * Only invalidates this file's detail queries and file list queries
  */
 export function invalidateFile(fileId: string) {
   queryClient.invalidateQueries({ queryKey: queryKeys.files.detail(fileId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.files.pages(fileId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.files.coverInfo(fileId) });
+
+  // Also invalidate file lists using predicate (more targeted than invalidateFiles())
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const key = query.queryKey;
+      return key[0] === 'files' && key[1] === 'list';
+    },
+  });
 }
 
 /**
@@ -286,6 +295,153 @@ export function invalidateAll() {
 }
 
 // =============================================================================
+// Optimistic Update Functions
+// =============================================================================
+
+/**
+ * Optimistically update a file in cache.
+ * Updates both detail cache and all list caches.
+ * Returns previous data for rollback on error.
+ *
+ * @example
+ * const previousData = optimisticUpdateFile(fileId, { status: 'read' });
+ * // On error: rollbackFileUpdate(fileId, previousData);
+ */
+export function optimisticUpdateFile<T = any>(
+  fileId: string,
+  updates: Partial<T>
+): { detail: T | undefined; lists: Map<string, any> } {
+  // Store previous data for rollback
+  const previousDetail = queryClient.getQueryData<T>(queryKeys.files.detail(fileId));
+  const previousLists = new Map<string, any>();
+
+  // Update detail cache
+  queryClient.setQueryData<T>(queryKeys.files.detail(fileId), (old) =>
+    old ? { ...old, ...updates } : old
+  );
+
+  // Update in all list caches using predicate
+  queryClient.setQueriesData(
+    {
+      predicate: (query) => {
+        const key = query.queryKey;
+        return key[0] === 'files' && key[1] === 'list';
+      },
+    },
+    (old: any) => {
+      if (!old) return old;
+
+      // Store previous data for rollback
+      previousLists.set(JSON.stringify(old.queryKey), old);
+
+      // Update file in list
+      const hasData = Array.isArray(old.data);
+      if (hasData) {
+        return {
+          ...old,
+          data: old.data.map((f: any) => (f.id === fileId ? { ...f, ...updates } : f)),
+        };
+      }
+
+      return old;
+    }
+  );
+
+  return { detail: previousDetail, lists: previousLists };
+}
+
+/**
+ * Rollback optimistic file update on error.
+ */
+export function rollbackFileUpdate(
+  fileId: string,
+  previousData: { detail: any; lists: Map<string, any> }
+) {
+  // Restore detail cache
+  if (previousData.detail !== undefined) {
+    queryClient.setQueryData(queryKeys.files.detail(fileId), previousData.detail);
+  }
+
+  // Restore list caches
+  previousData.lists.forEach((data, key) => {
+    const queryKey = JSON.parse(key);
+    queryClient.setQueryData(queryKey, data);
+  });
+}
+
+/**
+ * Optimistically update a series in cache.
+ * Updates both detail cache and list caches.
+ */
+export function optimisticUpdateSeries<T = any>(
+  seriesId: string,
+  updates: Partial<T>
+): { detail: T | undefined; lists: Map<string, any> } {
+  const previousDetail = queryClient.getQueryData<T>(queryKeys.series.detail(seriesId));
+  const previousLists = new Map<string, any>();
+
+  // Update detail cache
+  queryClient.setQueryData<T>(queryKeys.series.detail(seriesId), (old) =>
+    old ? { ...old, ...updates } : old
+  );
+
+  // Update in list caches
+  queryClient.setQueriesData(
+    {
+      predicate: (query) => {
+        const key = query.queryKey;
+        return (
+          (key[0] === 'series' && key[1] === 'list') || (key[0] === 'series' && key[1] === 'grid')
+        );
+      },
+    },
+    (old: any) => {
+      if (!old) return old;
+
+      previousLists.set(JSON.stringify(old.queryKey), old);
+
+      if (Array.isArray(old.series)) {
+        return {
+          ...old,
+          series: old.series.map((s: any) => (s.id === seriesId ? { ...s, ...updates } : s)),
+        };
+      }
+
+      // Grid format
+      if (Array.isArray(old.items)) {
+        return {
+          ...old,
+          items: old.items.map((item: any) =>
+            item.type === 'series' && item.id === seriesId ? { ...item, ...updates } : item
+          ),
+        };
+      }
+
+      return old;
+    }
+  );
+
+  return { detail: previousDetail, lists: previousLists };
+}
+
+/**
+ * Rollback optimistic series update on error.
+ */
+export function rollbackSeriesUpdate(
+  seriesId: string,
+  previousData: { detail: any; lists: Map<string, any> }
+) {
+  if (previousData.detail !== undefined) {
+    queryClient.setQueryData(queryKeys.series.detail(seriesId), previousData.detail);
+  }
+
+  previousData.lists.forEach((data, key) => {
+    const queryKey = JSON.parse(key);
+    queryClient.setQueryData(queryKey, data);
+  });
+}
+
+// =============================================================================
 // Hook for components that need invalidation functions
 // =============================================================================
 
@@ -318,5 +474,10 @@ export function getInvalidationFunctions() {
     invalidateAfterCollectionUpdate,
     invalidateAfterReadingUpdate,
     invalidateAll,
+    // Optimistic updates
+    optimisticUpdateFile,
+    rollbackFileUpdate,
+    optimisticUpdateSeries,
+    rollbackSeriesUpdate,
   };
 }

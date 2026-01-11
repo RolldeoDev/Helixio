@@ -116,6 +116,10 @@ import { getSimilarSeriesRecommendations } from '../services/recommendation-engi
 import { getCachedSimilarSeries, setCachedSimilarSeries } from '../services/recommendation-cache.service.js';
 import { markSmartCollectionsDirty } from '../services/smart-collection-dirty.service.js';
 import {
+  getCachedOrFetch,
+  buildQueryCacheKey,
+} from '../services/cache/query-result-cache.service.js';
+import {
   sendSuccess,
   sendBadRequest,
   sendNotFound,
@@ -169,30 +173,43 @@ router.get('/', optionalAuth, asyncHandler(async (req: Request, res: Response) =
     userId: req.user?.id,  // Filter progress by current user
   };
 
-  const result = await getSeriesList(options);
+  // Use query result cache with request coalescing
+  const cachedResult = await getCachedOrFetch(
+    'series',
+    options,
+    async () => {
+      // Database query
+      const result = await getSeriesList(options);
+
+      // Transform progress arrays to single objects for backward compatibility
+      const transformedSeries = result.series.map((s) => ({
+        ...s,
+        progress: Array.isArray(s.progress) ? s.progress[0] ?? null : s.progress,
+      }));
+
+      return {
+        series: transformedSeries,
+        metadata: {
+          pagination: {
+            page: result.page,
+            limit: result.limit,
+            total: result.total,
+            pages: result.totalPages,
+          },
+        },
+      };
+    },
+    { libraryId: options.libraryId }
+  );
 
   logger.debug({
     page: options.page,
     limit: options.limit,
-    total: result.total,
+    total: cachedResult.metadata.pagination.total,
     fetchAll,
   }, 'Listed series');
 
-  // Transform progress arrays to single objects for backward compatibility
-  // When filtered by userId, progress is an array with 0 or 1 elements
-  const transformedSeries = result.series.map((s) => ({
-    ...s,
-    progress: Array.isArray(s.progress) ? s.progress[0] ?? null : s.progress,
-  }));
-
-  sendSuccess(res, { series: transformedSeries }, {
-    pagination: {
-      page: result.page,
-      limit: result.limit,
-      total: result.total,
-      pages: result.totalPages,
-    },
-  });
+  sendSuccess(res, { series: cachedResult.series }, cachedResult.metadata);
 }));
 
 /**
@@ -459,6 +476,69 @@ router.get('/search-external', asyncHandler(async (req: Request, res: Response) 
     sources: results.sources,
     pagination: results.pagination,
   });
+}));
+
+/**
+ * POST /api/series/batch/metadata
+ * Get metadata for multiple series in a single request
+ * Reduces network overhead when loading grids with many series
+ */
+router.post('/batch/metadata', optionalAuth, asyncHandler(async (req: Request, res: Response) => {
+  const { seriesIds } = req.body as { seriesIds: string[] };
+  const userId = req.user?.id;
+
+  // Validate input
+  if (!Array.isArray(seriesIds) || seriesIds.length === 0) {
+    sendBadRequest(res, 'seriesIds must be a non-empty array');
+    return;
+  }
+
+  // Filter and validate individual IDs, then cap at 100
+  const cappedIds = seriesIds
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+    .slice(0, 100);
+
+  if (cappedIds.length === 0) {
+    sendBadRequest(res, 'No valid series IDs provided');
+    return;
+  }
+
+  // Fetch all series in parallel (with caching)
+  const seriesPromises = cappedIds.map(async (seriesId) => {
+    try {
+      const series = await getSeries(seriesId, { userId });
+      if (!series) return null;
+
+      // Transform progress for backward compatibility
+      return {
+        ...series,
+        progress: Array.isArray(series.progress)
+          ? series.progress[0] ?? null
+          : series.progress,
+      };
+    } catch (error) {
+      logger.warn({ seriesId, error }, 'Failed to fetch series in batch');
+      return null;
+    }
+  });
+
+  const seriesResults = await Promise.all(seriesPromises);
+
+  // Build response map: seriesId -> metadata
+  const seriesMap: Record<string, any> = {};
+  cappedIds.forEach((seriesId, index) => {
+    const series = seriesResults[index];
+    if (series) {
+      seriesMap[seriesId] = series;
+    }
+  });
+
+  logger.debug(
+    { requested: cappedIds.length, found: Object.keys(seriesMap).length },
+    'Batch metadata request completed'
+  );
+
+  sendSuccess(res, { series: seriesMap });
 }));
 
 /**

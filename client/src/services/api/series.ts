@@ -2935,9 +2935,22 @@ export async function startLibraryScan(
 }
 
 /**
- * Get scan job status
+ * Get scan job status (lightweight, no logs)
+ * Optimized for frequent polling during active scans.
  */
 export async function getScanJobStatus(
+  libraryId: string,
+  jobId: string
+): Promise<{ job: LibraryScanJob; queueStatus?: ScanQueueStatus | null }> {
+  return get<{ job: LibraryScanJob; queueStatus?: ScanQueueStatus | null }>(
+    `/libraries/${libraryId}/scan/${jobId}/status`
+  );
+}
+
+/**
+ * Get full scan job details (includes logs, limited to last 50)
+ */
+export async function getScanJobDetails(
   libraryId: string,
   jobId: string
 ): Promise<{ job: LibraryScanJob; queueStatus: ScanQueueStatus | null }> {
@@ -2947,9 +2960,21 @@ export async function getScanJobStatus(
 }
 
 /**
- * Get active scan for a library
+ * Get active scan status for a library (lightweight, no logs)
+ * Optimized for frequent polling during active scans.
  */
 export async function getActiveScanForLibrary(
+  libraryId: string
+): Promise<{ job: LibraryScanJob | null; hasActiveScan: boolean }> {
+  return get<{ job: LibraryScanJob | null; hasActiveScan: boolean }>(
+    `/libraries/${libraryId}/scan/active/status`
+  );
+}
+
+/**
+ * Get active scan details for a library (includes logs, limited to last 50)
+ */
+export async function getActiveScanForLibraryDetails(
   libraryId: string
 ): Promise<{ job: LibraryScanJob | null; hasActiveScan: boolean }> {
   return get<{ job: LibraryScanJob | null; hasActiveScan: boolean }>(
@@ -3000,9 +3025,17 @@ export async function deleteScanJob(
 }
 
 /**
- * Get all active scans across all libraries
+ * Get all active scans across all libraries (lightweight, no logs)
+ * Optimized for frequent polling during active scans.
  */
 export async function getAllActiveScans(): Promise<{ jobs: LibraryScanJob[] }> {
+  return get<{ jobs: LibraryScanJob[] }>('/libraries/scans/active/status');
+}
+
+/**
+ * Get all active scans across all libraries (includes logs, limited to last 50 per job)
+ */
+export async function getAllActiveScansDetails(): Promise<{ jobs: LibraryScanJob[] }> {
   return get<{ jobs: LibraryScanJob[] }>('/libraries/scans/active');
 }
 

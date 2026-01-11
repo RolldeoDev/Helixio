@@ -56,6 +56,7 @@ export const helixLightTheme: ThemeDefinition = {
     // Semantic colors - Adjusted for light background
     colorSuccess: '#059669',           // Emerald-600
     colorWarning: '#B45309',           // Amber-700 (matches secondary)
+    colorWarningText: '#ffffff',       // White text on dark amber
     colorError: '#DC2626',             // Red-600
     colorDanger: '#B91C1C',            // Red-700
     colorInfo: '#0891B2',              // Cyan-600

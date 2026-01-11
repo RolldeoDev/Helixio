@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getCoverUrl } from '../../services/api.service';
+import { coverBatchManager } from '../../services/coverBatch';
 import type { CoverImageStatus } from './types';
 
 interface UseCoverImageOptions {
@@ -117,6 +118,7 @@ export function useCoverImage(
 
   const [status, setStatus] = useState<CoverImageStatus>('loading');
   const [isInView, setIsInView] = useState(eager);
+  const [coverUrl, setCoverUrl] = useState<string>('');
   const [retryCount, setRetryCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -145,18 +147,56 @@ export function useCoverImage(
     };
   }, [eager, isInView]);
 
-  // Build URL - only when in view
-  // Include coverVersion for cache-busting when cover changes
-  const coverUrl = isInView
-    ? (() => {
-        const baseUrl = getCoverUrl(fileId);
+  // Load cover URL when in view
+  // Use batch manager for performance (collects requests and sends batches)
+  useEffect(() => {
+    if (!isInView) {
+      setCoverUrl('');
+      return;
+    }
+
+    let cancelled = false;
+
+    // For eager loading (above-the-fold), use direct URL to avoid batching delay
+    if (eager) {
+      const baseUrl = getCoverUrl(fileId);
+      const params = new URLSearchParams();
+      if (coverVersion) params.set('v', coverVersion);
+      if (retryCount > 0) params.set('retry', retryCount.toString());
+      const queryString = params.toString();
+      setCoverUrl(queryString ? `${baseUrl}?${queryString}` : baseUrl);
+      return;
+    }
+
+    // For lazy-loaded images, use batch manager
+    coverBatchManager
+      .requestCover(fileId, coverVersion)
+      .then((url) => {
+        if (cancelled) return;
+        // Add retry param if needed
+        if (retryCount > 0) {
+          const separator = url.includes('?') ? '&' : '?';
+          setCoverUrl(`${url}${separator}retry=${retryCount}`);
+        } else {
+          setCoverUrl(url);
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Failed to load cover URL:', error);
+        // Fallback to direct URL
+        const fallbackUrl = getCoverUrl(fileId);
         const params = new URLSearchParams();
         if (coverVersion) params.set('v', coverVersion);
         if (retryCount > 0) params.set('retry', retryCount.toString());
         const queryString = params.toString();
-        return queryString ? `${baseUrl}?${queryString}` : baseUrl;
-      })()
-    : '';
+        setCoverUrl(queryString ? `${fallbackUrl}?${queryString}` : fallbackUrl);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isInView, fileId, coverVersion, retryCount, eager]);
 
   const handleLoad = useCallback(() => {
     setStatus('loaded');

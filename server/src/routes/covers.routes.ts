@@ -397,6 +397,138 @@ router.post('/batch/extract', requireAuth, async (req: Request, res: Response): 
 });
 
 // =============================================================================
+// Batch Metadata (Performance Optimization)
+// =============================================================================
+
+/**
+ * POST /api/covers/batch/metadata
+ * Get metadata for multiple series covers in a single request.
+ * PERFORMANCE: Reduces 50+ individual requests per page to 1 batch request.
+ *
+ * Body: { coverHashes: string[] }
+ * Returns: { covers: Array<{ hash, exists, url, blurPlaceholder? }> }
+ */
+router.post('/batch/metadata', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { coverHashes } = req.body;
+
+    if (!Array.isArray(coverHashes)) {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'coverHashes must be an array',
+      });
+      return;
+    }
+
+    // Limit batch size for performance
+    if (coverHashes.length > 100) {
+      res.status(400).json({
+        error: 'Batch too large',
+        message: 'Maximum 100 covers per batch',
+      });
+      return;
+    }
+
+    // Filter out null/undefined/empty values
+    const validHashes = coverHashes.filter(
+      (h): h is string => typeof h === 'string' && h.length > 0
+    );
+
+    // Check existence for all covers in parallel
+    const coverMetadata = await Promise.all(
+      validHashes.map(async (hash) => {
+        const exists = await seriesCoverExists(hash);
+        return {
+          hash,
+          exists,
+          url: exists ? `/api/covers/series/${hash}` : null,
+        };
+      })
+    );
+
+    // Cache response for 5 minutes since cover hashes are immutable
+    res.set({
+      'Cache-Control': 'public, max-age=300',
+    });
+
+    res.json({ covers: coverMetadata });
+  } catch (err) {
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'batch-metadata' });
+    res.status(500).json({
+      error: 'Batch metadata request failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
+ * POST /api/covers/batch/files
+ * Get cover URLs for multiple files in a single request.
+ * PERFORMANCE: Reduces N individual requests to 1 batch request during scroll.
+ *
+ * Body: { fileIds: string[] }
+ * Returns: { covers: Record<fileId, { url: string, hash: string | null }> }
+ */
+router.post('/batch/files', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fileIds } = req.body;
+
+    if (!Array.isArray(fileIds)) {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'fileIds must be an array',
+      });
+      return;
+    }
+
+    // Limit batch size for performance
+    if (fileIds.length > 100) {
+      res.status(400).json({
+        error: 'Batch too large',
+        message: 'Maximum 100 files per batch',
+      });
+      return;
+    }
+
+    // Filter out null/undefined/empty values
+    const validFileIds = fileIds.filter(
+      (id): id is string => typeof id === 'string' && id.length > 0
+    );
+
+    if (validFileIds.length === 0) {
+      res.status(400).json({
+        error: 'Invalid request',
+        message: 'No valid file IDs provided',
+      });
+      return;
+    }
+
+    // Build cover metadata map
+    const covers: Record<string, { url: string; hash: string | null }> = {};
+
+    validFileIds.forEach((fileId) => {
+      covers[fileId] = {
+        url: `/api/covers/${fileId}`,
+        hash: null, // Hash will be populated by client from file metadata if needed
+      };
+    });
+
+    // Cache response for 1 minute (covers are served via individual routes)
+    res.set({
+      'Cache-Control': 'public, max-age=60',
+    });
+
+    res.json({ covers });
+  } catch (err) {
+    logError('covers', err instanceof Error ? err : new Error(String(err)), { action: 'batch-files' });
+    res.status(500).json({
+      error: 'Batch files request failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// =============================================================================
 // Cache Management
 // =============================================================================
 
