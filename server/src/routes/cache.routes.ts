@@ -28,6 +28,7 @@ import {
   CacheJobType,
 } from '../services/cache-job.service.js';
 import { getCacheSummary as getCoverCacheSummary } from '../services/cover.service.js';
+import { getCacheStats as getPageCacheStats, clearAllPageCaches } from '../services/page-cache.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { logError } from '../services/logger.service.js';
 
@@ -322,6 +323,50 @@ router.get('/summary', async (_req: Request, res: Response) => {
   } catch (err) {
     logError('cache', err, { action: 'get-summary' });
     res.status(500).json({ error: 'Failed to get cache summary' });
+  }
+});
+
+/**
+ * GET /api/cache/pages/stats
+ * Get reading cache statistics
+ */
+router.get('/pages/stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = await getPageCacheStats();
+
+    res.json({
+      totalCaches: stats.totalCaches,
+      totalPages: stats.totalPages,
+      totalSizeBytes: stats.totalSizeBytes,
+      totalSizeMB: (stats.totalSizeBytes / (1024 * 1024)).toFixed(1),
+      totalSizeGB: (stats.totalSizeBytes / (1024 * 1024 * 1024)).toFixed(2),
+      oldestCacheAge: stats.oldestCacheAge,
+      newestCacheAge: stats.newestCacheAge,
+    });
+  } catch (err) {
+    logError('cache', err, { action: 'get-page-cache-stats' });
+    res.status(500).json({ error: 'Failed to get page cache statistics' });
+  }
+});
+
+/**
+ * DELETE /api/cache/pages
+ * Clear all reading cache
+ */
+router.delete('/pages', async (_req: Request, res: Response) => {
+  try {
+    const result = await clearAllPageCaches();
+
+    res.json({
+      success: true,
+      ...result, // filesDeleted, bytesFreed, errors
+    });
+  } catch (err) {
+    logError('cache', err, { action: 'clear-page-cache' });
+    res.status(500).json({
+      error: 'Failed to clear page cache',
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 });
 

@@ -44,6 +44,9 @@ export function LibrarySettingsTab() {
   const [showAddLibraryModal, setShowAddLibraryModal] = useState(false);
   const [scanningLibrary, setScanningLibrary] = useState<Library | null>(null);
 
+  // Deletion tracking
+  const [deletingLibraries, setDeletingLibraries] = useState<Set<string>>(new Set());
+
   // Reader presets
   const [readerPresets, setReaderPresets] = useState<PresetsGrouped | null>(null);
   const [libraryReaderSettings, setLibraryReaderSettings] = useState<Record<string, { presetId?: string; presetName?: string } | null>>({});
@@ -163,19 +166,55 @@ export function LibrarySettingsTab() {
   const handleDeleteLibrary = async (library: Library) => {
     const confirmed = await confirm({
       title: 'Delete Library',
-      message: `Delete library "${library.name}"? This will remove it from Helixio but will not delete any files.`,
+      message: `Delete library "${library.name}"?\n\nThis will remove the library from Helixio and clear all associated caches (covers, thumbnails).\n\nYour files on disk will NOT be deleted.`,
       confirmText: 'Delete',
       variant: 'danger',
     });
     if (!confirmed) return;
 
+    // Add to deleting set
+    setDeletingLibraries(prev => new Set(prev).add(library.id));
+
     try {
-      await deleteLibrary(library.id);
+      const result = await deleteLibrary(library.id);
       await refreshLibraries();
       selectLibrary(null);
-      addToast('success', 'Library removed successfully');
+
+      // Enhanced toast based on result
+      if (result.summary.totalErrors > 0) {
+        // Partial failure (HTTP 207)
+        const failedSteps = result.summary.failedSteps.join(', ');
+        addToast(
+          'warning',
+          `Library "${result.libraryName}" removed with ${result.summary.totalErrors} issue(s). Failed: ${failedSteps}. Check system logs for details.`
+        );
+      } else {
+        // Complete success
+        let message = `Library "${result.libraryName}" removed successfully.`;
+
+        // Add cache cleanup info if significant
+        const cacheStep = result.steps.find(s => s.stepName === 'File System Caches');
+        if (cacheStep && cacheStep.itemsProcessed > 0) {
+          message += ` Cleared ${cacheStep.itemsProcessed.toLocaleString()} cached items.`;
+        }
+
+        // Add orphaned series info if any
+        const orphanedStep = result.steps.find(s => s.stepName === 'Orphaned Series');
+        if (orphanedStep && orphanedStep.itemsProcessed > 0) {
+          message += ` ${orphanedStep.itemsProcessed} series archived.`;
+        }
+
+        addToast('success', message);
+      }
     } catch (err) {
       addToast('error', err instanceof Error ? err.message : 'Failed to delete library');
+    } finally {
+      // Remove from deleting set
+      setDeletingLibraries(prev => {
+        const next = new Set(prev);
+        next.delete(library.id);
+        return next;
+      });
     }
   };
 
@@ -279,6 +318,7 @@ export function LibrarySettingsTab() {
                 readerSettings={libraryReaderSettings[library.id] ?? null}
                 loadingReaderSettings={loadingLibraryReaderSettings[library.id] ?? false}
                 hasActiveScan={hasActiveScan(library.id)}
+                isDeleting={deletingLibraries.has(library.id)}
                 onUpdate={handleUpdateLibrary}
                 onDelete={handleDeleteLibrary}
                 onScan={handleScanLibrary}

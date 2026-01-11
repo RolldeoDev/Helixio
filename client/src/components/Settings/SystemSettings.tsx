@@ -100,6 +100,17 @@ export function SystemSettings() {
   const [loadingDownloadCache, setLoadingDownloadCache] = useState(false);
   const [clearingDownloadCache, setClearingDownloadCache] = useState(false);
 
+  // Reading/Page cache state
+  const [pageCacheStats, setPageCacheStats] = useState<{
+    totalCaches: number;
+    totalPages: number;
+    totalSizeBytes: number;
+    totalSizeMB: string;
+    totalSizeGB: string;
+  } | null>(null);
+  const [loadingPageCache, setLoadingPageCache] = useState(false);
+  const [clearingPageCache, setClearingPageCache] = useState(false);
+
   // Series linkage repair state
   const [mismatchedFiles, setMismatchedFiles] = useState<MismatchedFile[] | null>(null);
   const [loadingMismatched, setLoadingMismatched] = useState(false);
@@ -229,6 +240,7 @@ export function SystemSettings() {
       // Load cache stats
       loadSeriesCacheStats();
       loadDownloadCacheStats();
+      loadPageCacheStats();
 
       // Load file renaming setting
       const renamingRes = await fetch(`${API_BASE}/config/file-renaming`);
@@ -483,6 +495,24 @@ export function SystemSettings() {
     }
   };
 
+  const loadPageCacheStats = async () => {
+    setLoadingPageCache(true);
+    try {
+      const response = await fetch(`${API_BASE}/cache/pages/stats`);
+      if (response.ok) {
+        const stats = await response.json();
+        setPageCacheStats(stats);
+      } else {
+        addToast('error', 'Failed to load reading cache statistics');
+      }
+    } catch (err) {
+      console.error('Failed to load page cache stats:', err);
+      addToast('error', 'Failed to load reading cache statistics');
+    } finally {
+      setLoadingPageCache(false);
+    }
+  };
+
   const handleClearDownloadCache = async () => {
     const confirmed = await confirm({
       title: 'Clear Download Cache',
@@ -505,6 +535,43 @@ export function SystemSettings() {
       addToast('error', err instanceof Error ? err.message : 'Failed to clear download cache');
     } finally {
       setClearingDownloadCache(false);
+    }
+  };
+
+  const handleClearPageCache = async () => {
+    const confirmed = await confirm({
+      title: 'Clear Reading Cache',
+      message: 'Clear all cached comic pages? This will free disk space but pages will need to be re-extracted when reading.',
+      confirmText: 'Clear',
+      variant: 'warning',
+    });
+    if (!confirmed) return;
+
+    setClearingPageCache(true);
+    try {
+      const response = await fetch(`${API_BASE}/cache/pages`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to clear page cache');
+
+      const result = await response.json();
+      const freedMb = (result.bytesFreed / (1024 * 1024)).toFixed(1);
+      const freedGb = (result.bytesFreed / (1024 * 1024 * 1024)).toFixed(2);
+
+      const freedText = result.bytesFreed >= 1024 * 1024 * 1024
+        ? `${freedGb} GB`
+        : `${freedMb} MB`;
+
+      // Show appropriate message based on errors
+      if (result.errors > 0) {
+        addToast('warning', `Cleared ${result.filesDeleted} cache(s) with ${result.errors} error(s), freed ${freedText}`);
+      } else {
+        addToast('success', `Cleared ${result.filesDeleted} cache(s), freed ${freedText}`);
+      }
+
+      await loadPageCacheStats();
+    } catch (err) {
+      addToast('error', err instanceof Error ? err.message : 'Failed to clear page cache');
+    } finally {
+      setClearingPageCache(false);
     }
   };
 
@@ -1454,6 +1521,54 @@ export function SystemSettings() {
             disabled={clearingDownloadCache || (downloadCacheStats?.totalFiles === 0)}
           >
             {clearingDownloadCache ? 'Clearing...' : 'Clear Download Cache'}
+          </button>
+        </div>
+
+        {/* Reading Cache */}
+        <div className="cache-subsection">
+          <h4>Reading Cache</h4>
+          <p className="setting-description">
+            Extracted comic pages stored for faster reading experience.
+          </p>
+
+          {loadingPageCache ? (
+            <div className="cache-loading">
+              <div className="spinner-small" />
+              <span>Loading...</span>
+            </div>
+          ) : pageCacheStats ? (
+            <div className="cache-stats">
+              <div className="stat-grid">
+                <div className="stat-item">
+                  <span className="stat-value">{pageCacheStats.totalCaches}</span>
+                  <span className="stat-label">Cached Files</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">{pageCacheStats.totalPages}</span>
+                  <span className="stat-label">Total Pages</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-value">
+                    {pageCacheStats.totalSizeBytes >= 1024 * 1024 * 1024
+                      ? `${pageCacheStats.totalSizeGB} GB`
+                      : `${pageCacheStats.totalSizeMB} MB`}
+                  </span>
+                  <span className="stat-label">Total Size</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-ghost" onClick={loadPageCacheStats}>
+              Load Statistics
+            </button>
+          )}
+
+          <button
+            className="btn-secondary danger"
+            onClick={handleClearPageCache}
+            disabled={clearingPageCache || !pageCacheStats || pageCacheStats.totalCaches === 0}
+          >
+            {clearingPageCache ? 'Clearing...' : 'Clear Reading Cache'}
           </button>
         </div>
 

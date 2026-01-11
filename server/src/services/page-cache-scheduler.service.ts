@@ -33,10 +33,10 @@ let lastCleanupRun: Date | null = null;
 /**
  * Run cleanup of expired page caches
  */
-export async function runCleanupJob(): Promise<{ cleaned: number; errors: number; bytesFreed: number }> {
+export async function runCleanupJob(): Promise<{ filesDeleted: number; errors: number; bytesFreed: number }> {
   if (isProcessing) {
     logger.debug('Skipping cleanup - already processing');
-    return { cleaned: 0, errors: 0, bytesFreed: 0 };
+    return { filesDeleted: 0, errors: 0, bytesFreed: 0 };
   }
 
   isProcessing = true;
@@ -46,10 +46,10 @@ export async function runCleanupJob(): Promise<{ cleaned: number; errors: number
     logger.debug('Running cleanup job...');
     const result = await cleanupExpiredCaches(DEFAULT_TTL_MINUTES);
 
-    if (result.cleaned > 0) {
+    if (result.filesDeleted > 0) {
       logger.info(
-        { cleaned: result.cleaned, bytesFreedMB: Math.round(result.bytesFreed / 1024 / 1024), errors: result.errors },
-        `Cleanup completed: ${result.cleaned} cache(s) cleaned, ${Math.round(result.bytesFreed / 1024 / 1024)}MB freed`
+        { filesDeleted: result.filesDeleted, bytesFreedMB: Math.round(result.bytesFreed / 1024 / 1024), errors: result.errors },
+        `Cleanup completed: ${result.filesDeleted} cache(s) cleaned, ${Math.round(result.bytesFreed / 1024 / 1024)}MB freed`
       );
     } else {
       logger.debug('No expired caches to clean');
@@ -58,7 +58,7 @@ export async function runCleanupJob(): Promise<{ cleaned: number; errors: number
     return result;
   } catch (error) {
     logger.error({ error, action: 'cleanup-expired-caches' }, 'Error running cleanup job');
-    return { cleaned: 0, errors: 1, bytesFreed: 0 };
+    return { filesDeleted: 0, errors: 1, bytesFreed: 0 };
   } finally {
     isProcessing = false;
   }
@@ -130,7 +130,7 @@ export function getSchedulerStatus(): {
 /**
  * Force immediate cleanup (for API/testing)
  */
-export async function triggerCleanup(): Promise<{ cleaned: number; errors: number; bytesFreed: number }> {
+export async function triggerCleanup(): Promise<{ filesDeleted: number; errors: number; bytesFreed: number }> {
   return runCleanupJob();
 }
 
