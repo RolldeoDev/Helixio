@@ -29,7 +29,7 @@ export const DEFAULT_TTL_MINUTES = 5;
 // =============================================================================
 
 export interface CleanupStats {
-  cleaned: number;
+  filesDeleted: number;
   errors: number;
   bytesFreed: number;
 }
@@ -37,6 +37,7 @@ export interface CleanupStats {
 export interface PageCacheStats {
   totalCaches: number;
   totalSizeBytes: number;
+  totalPages: number;
   oldestCacheAge: number | null;
   newestCacheAge: number | null;
 }
@@ -102,6 +103,68 @@ async function getCacheAccessTime(cacheDir: string): Promise<number> {
 // =============================================================================
 
 /**
+ * Process cache directories with a custom deletion predicate.
+ * Common logic for cleanup operations.
+ */
+async function processCacheDirectories(
+  shouldDelete: (cacheDir: string, lastAccess: number) => Promise<boolean>,
+  operationName: string
+): Promise<CleanupStats> {
+  const stats: CleanupStats = {
+    filesDeleted: 0,
+    errors: 0,
+    bytesFreed: 0,
+  };
+
+  try {
+    const pageCacheDir = getPageCacheDir();
+
+    if (!existsSync(pageCacheDir)) {
+      logDebug('page-cache', `Page cache directory does not exist for ${operationName}`);
+      return stats;
+    }
+
+    const entries = await readdir(pageCacheDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue; // Skip non-directory entries
+      }
+
+      const cacheDir = join(pageCacheDir, entry.name);
+
+      try {
+        const lastAccess = await getCacheAccessTime(cacheDir);
+
+        if (await shouldDelete(cacheDir, lastAccess)) {
+          // Calculate size before deletion
+          const size = await getDirectorySize(cacheDir);
+
+          // Delete the cache directory
+          await rm(cacheDir, { recursive: true, force: true });
+
+          stats.filesDeleted++;
+          stats.bytesFreed += size;
+
+          logDebug('page-cache', `${operationName}: Deleted cache for ${entry.name} (size: ${Math.round(size / 1024)}KB)`);
+        }
+      } catch (error) {
+        stats.errors++;
+        logWarn('page-cache', `${operationName}: Failed to process ${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    if (stats.filesDeleted > 0) {
+      logInfo('page-cache', `${operationName} completed: ${stats.filesDeleted} cache(s) deleted, ${Math.round(stats.bytesFreed / 1024 / 1024)}MB freed, ${stats.errors} error(s)`);
+    }
+  } catch (error) {
+    logError('page-cache', error, { action: operationName });
+  }
+
+  return stats;
+}
+
+/**
  * Cleanup the page cache for a specific file.
  * Removes the entire cache directory for the file.
  */
@@ -131,61 +194,27 @@ export async function cleanupFileCache(fileId: string): Promise<boolean> {
  * @returns Cleanup statistics
  */
 export async function cleanupExpiredCaches(ttlMinutes: number = DEFAULT_TTL_MINUTES): Promise<CleanupStats> {
-  const stats: CleanupStats = {
-    cleaned: 0,
-    errors: 0,
-    bytesFreed: 0,
-  };
+  const ttlMs = ttlMinutes * 60 * 1000;
+  const now = Date.now();
 
-  try {
-    const pageCacheDir = getPageCacheDir();
+  return processCacheDirectories(
+    async (_cacheDir, lastAccess) => {
+      const age = now - lastAccess;
+      return age > ttlMs;
+    },
+    'cleanup-expired-caches'
+  );
+}
 
-    if (!existsSync(pageCacheDir)) {
-      logDebug('page-cache', 'Page cache directory does not exist, skipping cleanup');
-      return stats;
-    }
-
-    const entries = await readdir(pageCacheDir, { withFileTypes: true });
-    const ttlMs = ttlMinutes * 60 * 1000;
-    const now = Date.now();
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue; // Skip non-directory entries
-      }
-
-      const cacheDir = join(pageCacheDir, entry.name);
-
-      try {
-        const lastAccess = await getCacheAccessTime(cacheDir);
-        const age = now - lastAccess;
-
-        if (age > ttlMs) {
-          // Calculate size before deletion
-          const size = await getDirectorySize(cacheDir);
-
-          // Delete the cache
-          await rm(cacheDir, { recursive: true, force: true });
-
-          stats.cleaned++;
-          stats.bytesFreed += size;
-
-          logDebug('page-cache', `Cleaned expired cache for file ${entry.name} (age: ${Math.round(age / 60000)}min, size: ${Math.round(size / 1024)}KB)`);
-        }
-      } catch (error) {
-        stats.errors++;
-        logWarn('page-cache', `Failed to cleanup cache for ${entry.name}: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-
-    if (stats.cleaned > 0) {
-      logInfo('page-cache', `Cleanup completed: ${stats.cleaned} caches cleaned, ${Math.round(stats.bytesFreed / 1024 / 1024)}MB freed, ${stats.errors} errors`);
-    }
-  } catch (error) {
-    logWarn('page-cache', `Failed to run cleanup: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  return stats;
+/**
+ * Clear all page caches for all files.
+ * Removes entire cache directory contents and returns cleanup stats.
+ */
+export async function clearAllPageCaches(): Promise<CleanupStats> {
+  return processCacheDirectories(
+    async () => true, // Delete all caches
+    'clear-all-caches'
+  );
 }
 
 // =============================================================================
@@ -199,6 +228,7 @@ export async function getCacheStats(): Promise<PageCacheStats> {
   const stats: PageCacheStats = {
     totalCaches: 0,
     totalSizeBytes: 0,
+    totalPages: 0,
     oldestCacheAge: null,
     newestCacheAge: null,
   };
@@ -224,6 +254,11 @@ export async function getCacheStats(): Promise<PageCacheStats> {
         const size = await getDirectorySize(cacheDir);
         const lastAccess = await getCacheAccessTime(cacheDir);
         const age = now - lastAccess;
+
+        // Count pages (all files except .access file)
+        const files = await readdir(cacheDir);
+        const pageCount = files.filter(f => f !== ACCESS_FILE_NAME).length;
+        stats.totalPages += pageCount;
 
         stats.totalCaches++;
         stats.totalSizeBytes += size;

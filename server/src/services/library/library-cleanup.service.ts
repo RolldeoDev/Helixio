@@ -38,6 +38,7 @@ import { getDatabase } from '../database.service.js';
 import { deleteLibraryCovers } from '../cover.service.js';
 import { deleteLibraryThumbnails } from '../thumbnail.service.js';
 import { logInfo, logError, logWarn } from '../logger.service.js';
+import { invalidateAfterScan } from '../cache/cache-invalidation.service.js';
 
 // =============================================================================
 // Types
@@ -118,6 +119,9 @@ export async function deleteLibraryWithCleanup(
   // Track orphaned series IDs for similarity cleanup
   let orphanedSeriesIds: string[] = [];
 
+  // Track whether transaction succeeded (for cache invalidation)
+  let transactionSucceeded = false;
+
   // Steps 1-7: Database cleanup within transaction
   // NOTE: Filesystem cleanup happens AFTER transaction to prevent inconsistent state
   // if the transaction fails.
@@ -182,6 +186,9 @@ export async function deleteLibraryWithCleanup(
       const similarityStep = await cleanupSeriesSimilarity(orphanedSeriesIds, tx);
       steps.push(similarityStep);
     });
+
+    // Mark transaction as successful
+    transactionSucceeded = true;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     logError('library-cleanup', error, { libraryId, phase: 'transaction' });
@@ -202,6 +209,18 @@ export async function deleteLibraryWithCleanup(
   if (!skipFileSystemCleanup) {
     const cacheStep = await cleanupFileSystemCaches(libraryId);
     steps.push(cacheStep);
+  }
+
+  // Invalidate all library caches after BOTH database and filesystem cleanup
+  // Fire-and-forget: cache failures won't block deletion result
+  // invalidateAfterScan is used (instead of invalidateLibrary) because library deletion
+  // is an "inverse scan" - removing all content requires aggressive cache clearing
+  // This runs after filesystem cleanup to prevent users from seeing cached references
+  // to cover files that are mid-deletion
+  if (transactionSucceeded) {
+    invalidateAfterScan(libraryId).catch(() => {
+      // Errors are logged inside invalidateAfterScan
+    });
   }
 
   // Calculate summary

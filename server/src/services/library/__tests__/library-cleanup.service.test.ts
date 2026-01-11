@@ -78,6 +78,12 @@ vi.mock('../../logger.service.js', () => ({
   logWarn: vi.fn(),
 }));
 
+// Mock cache invalidation service
+const mockInvalidateAfterScan = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../cache/cache-invalidation.service.js', () => ({
+  invalidateAfterScan: (libraryId: string) => mockInvalidateAfterScan(libraryId),
+}));
+
 // Import after mocks
 import { deleteLibraryWithCleanup } from '../library-cleanup.service.js';
 
@@ -91,6 +97,7 @@ describe('Library Cleanup Service', () => {
 
     // Reset default mock implementations
     mockPrisma.library.findUnique.mockResolvedValue(null);
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockTxClient));
     mockTxClient.library.findUnique.mockResolvedValue(null);
     mockTxClient.comicFile.findMany.mockResolvedValue([]);
     mockTxClient.series.findMany.mockResolvedValue([]);
@@ -103,6 +110,7 @@ describe('Library Cleanup Service', () => {
     mockTxClient.seriesSimilarity.deleteMany.mockResolvedValue({ count: 0 });
     mockDeleteLibraryCovers.mockResolvedValue({ deleted: 10, errors: 0 });
     mockDeleteLibraryThumbnails.mockResolvedValue({ deleted: 50, errors: 0 });
+    mockInvalidateAfterScan.mockResolvedValue(undefined);
   });
 
   describe('deleteLibraryWithCleanup', () => {
@@ -365,6 +373,48 @@ describe('Library Cleanup Service', () => {
       expect(result.summary.totalErrors).toBe(0);
       expect(result.summary.failedSteps).toEqual([]);
       expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should invalidate library caches after successful deletion', async () => {
+      mockPrisma.library.findUnique.mockResolvedValue({
+        id: 'lib-1',
+        name: 'Test Library',
+      });
+
+      await deleteLibraryWithCleanup({ libraryId: 'lib-1' });
+
+      // Should call cache invalidation with library ID
+      expect(mockInvalidateAfterScan).toHaveBeenCalledWith('lib-1');
+    });
+
+    it('should not invalidate caches if transaction fails', async () => {
+      mockPrisma.library.findUnique.mockResolvedValue({
+        id: 'lib-1',
+        name: 'Test Library',
+      });
+
+      // Make transaction fail
+      mockPrisma.$transaction.mockRejectedValue(new Error('Transaction failed'));
+
+      await deleteLibraryWithCleanup({ libraryId: 'lib-1' });
+
+      // Should NOT call cache invalidation
+      expect(mockInvalidateAfterScan).not.toHaveBeenCalled();
+    });
+
+    it('should invalidate caches even if filesystem cleanup fails', async () => {
+      mockPrisma.library.findUnique.mockResolvedValue({
+        id: 'lib-1',
+        name: 'Test Library',
+      });
+
+      // Make filesystem cleanup fail
+      mockDeleteLibraryCovers.mockRejectedValue(new Error('Filesystem error'));
+
+      await deleteLibraryWithCleanup({ libraryId: 'lib-1' });
+
+      // Should still call cache invalidation since transaction succeeded
+      expect(mockInvalidateAfterScan).toHaveBeenCalledWith('lib-1');
     });
   });
 });

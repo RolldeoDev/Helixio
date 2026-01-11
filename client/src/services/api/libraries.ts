@@ -49,8 +49,27 @@ export async function updateLibrary(
   return patch<Library>(`/libraries/${id}`, data);
 }
 
-export async function deleteLibrary(id: string): Promise<{ message: string }> {
-  return del<{ message: string }>(`/libraries/${id}`);
+export interface LibraryDeletionResponse {
+  success: boolean;
+  libraryId: string;
+  libraryName: string;
+  totalDurationMs: number;
+  steps: Array<{
+    stepName: string;
+    success: boolean;
+    itemsProcessed: number;
+    errors: string[];
+    durationMs: number;
+  }>;
+  summary: {
+    totalItemsProcessed: number;
+    totalErrors: number;
+    failedSteps: string[];
+  };
+}
+
+export async function deleteLibrary(id: string): Promise<LibraryDeletionResponse> {
+  return del<LibraryDeletionResponse>(`/libraries/${id}`);
 }
 
 // =============================================================================
