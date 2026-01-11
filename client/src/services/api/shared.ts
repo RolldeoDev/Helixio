@@ -39,6 +39,41 @@ export interface HealthStatus {
     orphanedFiles: number;
     quarantinedFiles: number;
   } | null;
+  cache?: {
+    health: {
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      l1Available: boolean;
+      l2Available: boolean;
+      message?: string;
+    };
+    stats: {
+      l1: {
+        hits: number;
+        misses: number;
+        sets: number;
+        deletes: number;
+        errors: number;
+        size: number;
+        maxSizeBytes: number;
+        utilizationPercent: number;
+      };
+      l2: {
+        hits: number;
+        misses: number;
+        sets: number;
+        deletes: number;
+        errors: number;
+        connected: boolean;
+        memoryUsedBytes?: number;
+        memoryMaxBytes?: number;
+      };
+      combined: {
+        hitRate: number;
+        totalHits: number;
+        totalMisses: number;
+      };
+    };
+  };
 }
 
 export interface LibraryStats {

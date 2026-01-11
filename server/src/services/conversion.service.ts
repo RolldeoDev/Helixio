@@ -10,7 +10,7 @@
  * 5. Delete original CBR only after validation
  */
 
-import { unlink, rename, stat } from 'fs/promises';
+import { unlink, rename, stat, copyFile } from 'fs/promises';
 import { dirname, basename, extname, join } from 'path';
 import { getDatabase } from './database.service.js';
 import {
@@ -64,6 +64,24 @@ export interface BatchConversionResult {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/**
+ * Move a file, falling back to copy+delete for cross-device moves.
+ * fs.rename() doesn't work across different filesystems (EXDEV error).
+ */
+async function moveFile(source: string, destination: string): Promise<void> {
+  try {
+    await rename(source, destination);
+  } catch (err) {
+    // EXDEV = cross-device link not permitted - need to copy then delete
+    if (err instanceof Error && 'code' in err && err.code === 'EXDEV') {
+      await copyFile(source, destination);
+      await unlink(source);
+    } else {
+      throw err;
+    }
+  }
+}
 
 /**
  * Generate CBZ path from CBR path.
@@ -300,7 +318,7 @@ export async function convertCbrToCbz(
       }
     }
 
-    await rename(tempCbzPath, cbzPath);
+    await moveFile(tempCbzPath, cbzPath);
 
     // Get new file size
     const cbzStats = await stat(cbzPath);

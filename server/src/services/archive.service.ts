@@ -554,6 +554,7 @@ async function extractZipFileToBuffer(
 
   try {
     // Read the entire archive file into memory
+    // Note: This will fail for archives >2GB or when individual files exceed Node.js buffer limits
     const archiveData = await readFile(archivePath);
 
     // Load with jszip
@@ -852,7 +853,8 @@ export async function extractSingleFile(
     }
   }
 
-  // For ZIP/CBZ files, use jszip for direct buffer extraction (avoids special character issues)
+  // For ZIP/CBZ files, try jszip for direct buffer extraction (avoids special character issues)
+  // Fall back to 7zip temp directory method if jszip fails (e.g., files >2GB)
   const format = await detectArchiveFormatByMagic(archivePath);
   if (format === 'zip') {
     logger.debug('Using ZIP buffer extraction');
@@ -864,10 +866,11 @@ export async function extractSingleFile(
         logger.debug('Successfully extracted ZIP file');
         return { success: true };
       }
-      return { success: false, error: `File not found in ZIP archive: ${entryPath}` };
+      // Buffer extraction failed (file not found or too large), fall back to 7zip method below
+      logger.debug('ZIP buffer extraction failed, falling back to 7zip method');
     } catch (err) {
-      logger.error({ err, entryPath }, 'ZIP extraction error');
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
+      // Extraction error (e.g., ERR_FS_FILE_TOO_LARGE), fall back to 7zip method below
+      logger.warn({ err, entryPath }, 'ZIP buffer extraction error, falling back to 7zip method');
     }
   }
 
