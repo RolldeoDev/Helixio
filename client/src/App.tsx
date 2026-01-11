@@ -22,6 +22,7 @@ import { HelixEffects, SandmanEffects, SynthwaveEffects, RetroEffects, MangaEffe
 import { AchievementProvider } from './contexts/AchievementContext';
 import { AchievementToast } from './components/AchievementToast';
 import { ToastProvider } from './contexts/ToastContext';
+import { UnifiedJobsSSEProvider } from './contexts/UnifiedJobsSSEContext';
 import { Toast } from './components/Toast';
 import { JobFailureNotifier } from './components/JobFailureNotifier';
 import { ConfirmModalProvider } from './components/ConfirmModal';
@@ -453,11 +454,12 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <AppProvider>
-            <BreadcrumbProvider>
-              <LibraryScanProvider>
-              <FilterPresetProvider>
-              <AdvancedFilterProvider>
-                <CollectionsProvider>
+            <UnifiedJobsSSEProvider>
+              <BreadcrumbProvider>
+                <LibraryScanProvider>
+                <FilterPresetProvider>
+                <AdvancedFilterProvider>
+                  <CollectionsProvider>
                   <WantToReadProvider>
                     <AnnotationsProvider>
                       <MetadataJobProvider>
@@ -484,11 +486,12 @@ function App() {
                       </MetadataJobProvider>
                     </AnnotationsProvider>
                   </WantToReadProvider>
-                </CollectionsProvider>
-              </AdvancedFilterProvider>
-              </FilterPresetProvider>
-              </LibraryScanProvider>
-            </BreadcrumbProvider>
+                  </CollectionsProvider>
+                </AdvancedFilterProvider>
+                </FilterPresetProvider>
+                </LibraryScanProvider>
+              </BreadcrumbProvider>
+            </UnifiedJobsSSEProvider>
           </AppProvider>
         </AuthProvider>
       </ThemeProvider>

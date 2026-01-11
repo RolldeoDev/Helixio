@@ -442,6 +442,27 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
         }
       });
 
+      // Handle scan log events
+      eventSource.addEventListener('scan-log', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          const { libraryId, id: _id, stage, message, detail: _detail, type: _type, timestamp: _timestamp } = data;
+
+          if (!libraryId) {
+            console.debug('SSE scan-log event missing libraryId');
+            return;
+          }
+
+          // Append log to scan logs (not needed - JobDetailPanel will fetch logs from API)
+          // We could store them here for real-time display in LibraryScanModal,
+          // but since we're replacing LibraryScanModal with JobDetailPanel,
+          // we don't need to store logs in context
+          console.debug('Scan log received:', { libraryId, stage, message });
+        } catch (error) {
+          console.debug('Failed to parse scan log event:', error);
+        }
+      });
+
       // Handle cover extraction progress events
       eventSource.addEventListener('cover-progress', (event) => {
         try {

@@ -731,6 +731,26 @@ export async function deleteSeries(seriesId: string): Promise<void> {
   const coverHash = series.coverHash;
   const resolvedCoverHash = series.resolvedCoverHash;
 
+  // Cleanup recommendation data before deletion (fire-and-forget)
+  await Promise.allSettled([
+    db.seriesSimilarity.deleteMany({
+      where: {
+        OR: [
+          { sourceSeriesId: seriesId },
+          { targetSeriesId: seriesId },
+        ],
+      },
+    }),
+    db.recommendationFeedback.deleteMany({
+      where: {
+        OR: [
+          { recommendedSeriesId: seriesId },
+          { sourceSeriesId: seriesId },
+        ],
+      },
+    }),
+  ]);
+
   // Delete series (cascades to SeriesProgress and SeriesReaderSettingsNew)
   // ComicFile.seriesId becomes null due to onDelete: SetNull
   await db.series.delete({

@@ -164,6 +164,12 @@ export async function invalidateSeriesDeleted(
     // Clear cached browse pages
     cacheService.invalidatePattern(`${CACHE_KEY_PREFIX.SERIES_BROWSE}:`),
 
+    // Clear similar series caches
+    cacheService.invalidatePattern(`${CACHE_KEY_PREFIX.SIMILAR_SERIES}:${seriesId}:`),
+
+    // Clear recommendations cache
+    cacheService.invalidatePattern(`${CACHE_KEY_PREFIX.RECOMMENDATIONS}:`),
+
     // Invalidate cover caches
     ...coverInvalidationPromises,
   ]);

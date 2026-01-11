@@ -48,6 +48,9 @@ export interface JobSSEConfig {
   /** Polling interval when SSE disconnected (milliseconds, default: 5000) */
   fallbackInterval?: number;
 
+  /** Custom event handlers for non-standard SSE events */
+  customEvents?: Record<string, (data: unknown) => void>;
+
   /** Whether to enable debug logging */
   debug?: boolean;
 }
@@ -110,6 +113,7 @@ export function useJobSSE(config: JobSSEConfig): JobSSEResult {
     onPing,
     fallbackPoll,
     fallbackInterval = DEFAULT_FALLBACK_INTERVAL,
+    customEvents,
     debug = false,
   } = config;
 
@@ -132,6 +136,7 @@ export function useJobSSE(config: JobSSEConfig): JobSSEResult {
     onConnected,
     onPing,
     fallbackPoll,
+    customEvents,
   });
 
   useEffect(() => {
@@ -144,8 +149,9 @@ export function useJobSSE(config: JobSSEConfig): JobSSEResult {
       onConnected,
       onPing,
       fallbackPoll,
+      customEvents,
     };
-  }, [onProgress, onStatus, onComplete, onError, onLog, onConnected, onPing, fallbackPoll]);
+  }, [onProgress, onStatus, onComplete, onError, onLog, onConnected, onPing, fallbackPoll, customEvents]);
 
   /**
    * Parse SSE event data safely
@@ -255,6 +261,18 @@ export function useJobSSE(config: JobSSEConfig): JobSSEResult {
           callbacksRef.current.onLog(data);
         }
       });
+
+      // Handle custom events
+      if (callbacksRef.current.customEvents) {
+        for (const [eventName, handler] of Object.entries(callbacksRef.current.customEvents)) {
+          eventSource.addEventListener(eventName, (event) => {
+            const data = parseEventData(event);
+            if (data && handler) {
+              handler(data);
+            }
+          });
+        }
+      }
 
       // Handle connection errors
       eventSource.onerror = () => {

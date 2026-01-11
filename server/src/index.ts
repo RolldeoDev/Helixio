@@ -99,6 +99,8 @@ import { startSimilarityScheduler, stopSimilarityScheduler } from './services/si
 import { startSmartCollectionProcessor, stopSmartCollectionProcessor } from './services/smart-collection-dirty.service.js';
 import { startRatingSyncScheduler, stopRatingSyncScheduler } from './services/rating-sync-scheduler.service.js';
 import { startPageCacheScheduler, stopPageCacheScheduler } from './services/page-cache-scheduler.service.js';
+import { initializeGlobalCacheState } from './services/page-cache.service.js';
+import { startUnifiedJobsBroadcaster, stopUnifiedJobsBroadcaster } from './services/unified-jobs-broadcaster.service.js';
 import { ensureBundledPresets } from './services/reader-preset.service.js';
 import { runDownloadCleanup } from './services/download.service.js';
 import { startCoverWorker, stopCoverWorker, closeCoverQueue } from './services/queue/cover-worker.js';
@@ -771,11 +773,17 @@ async function startServer(): Promise<void> {
     // Start rating sync scheduler for external ratings
     startRatingSyncScheduler();
 
+    // Initialize page cache global state (loads existing caches)
+    await initializeGlobalCacheState();
+
     // Start page cache scheduler for cleaning expired page caches
     startPageCacheScheduler();
 
     // Start smart collection processor for auto-refreshing smart collections
     startSmartCollectionProcessor();
+
+    // Start unified jobs broadcaster for real-time job updates via SSE
+    startUnifiedJobsBroadcaster();
 
     // Queue mosaic generation for promoted collections with coverType='auto' and no coverHash
     // This runs after everything else so it doesn't delay startup
@@ -875,6 +883,9 @@ async function startServer(): Promise<void> {
 
       // Stop smart collection processor
       stopSmartCollectionProcessor();
+
+      // Stop unified jobs broadcaster
+      stopUnifiedJobsBroadcaster();
 
       // Stop BullMQ workers and queues
       logger.info('Stopping BullMQ workers...');

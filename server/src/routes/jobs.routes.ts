@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from 'express';
 import { getAggregatedJobs, getActiveJobCount, getJobDetails } from '../services/job-aggregator.service.js';
 import type { UnifiedJobType } from '../services/job-aggregator.types.js';
 import { logError } from '../services/logger.service.js';
+import { initializeUnifiedJobsSSE } from '../services/sse.service.js';
 
 // Import cancel functions from individual services
 import { cancelJob as cancelMetadataJob } from '../services/metadata-job.service.js';
@@ -158,6 +159,19 @@ router.post('/:type/:id/cancel', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Failed to cancel job',
     });
   }
+});
+
+// =============================================================================
+// SSE Stream Endpoint
+// =============================================================================
+
+/**
+ * GET /api/jobs/stream
+ * SSE endpoint for real-time unified jobs updates.
+ * Broadcasts job state changes to all connected clients.
+ */
+router.get('/stream', (req: Request, res: Response) => {
+  initializeUnifiedJobsSSE(res);
 });
 
 // =============================================================================

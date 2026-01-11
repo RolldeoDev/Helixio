@@ -28,6 +28,7 @@ import { readSeriesJson, getSeriesDefinitions, type SeriesMetadata } from './ser
 import { mergeSeriesJsonToDb } from './series-json-sync.service.js';
 import { FolderSeriesRegistry } from './folder-series-registry.service.js';
 import { sendScanProgress } from './sse.service.js';
+import { createScanLog } from './library-scan-job.service.js';
 import {
   getScanSeriesCache,
   resetScanSeriesCache,
@@ -118,6 +119,7 @@ export interface ScanOptions {
   skipCovers?: boolean;
   onProgress?: (progress: ScanProgress) => void;
   abortSignal?: AbortSignal;
+  jobId?: string;
 }
 
 // =============================================================================
@@ -698,6 +700,18 @@ export async function orchestrateScan(
     'Starting folder-first library scan'
   );
 
+  // Log scan start
+  if (options.jobId) {
+    await createScanLog(
+      options.jobId,
+      libraryId,
+      'discovering',
+      'Starting library scan',
+      `Path: ${library.rootPath}${options.forceFullScan ? ' (full scan)' : ''}`,
+      'info'
+    );
+  }
+
   // Initialize series cache for this library
   const seriesCache = getScanSeriesCache();
   await seriesCache.initialize(libraryId);
@@ -758,6 +772,18 @@ export async function orchestrateScan(
       `Enumerated ${folders.length} folders`
     );
 
+    // Log enumeration complete
+    if (options.jobId) {
+      await createScanLog(
+        options.jobId,
+        libraryId,
+        'discovering',
+        'Folder enumeration complete',
+        `Found ${folders.length} folders with comics${enumErrors.length > 0 ? `, ${enumErrors.length} errors` : ''}`,
+        enumErrors.length > 0 ? 'warning' : 'success'
+      );
+    }
+
     // Get existing files for change detection
     const existingFiles = await db.comicFile.findMany({
       where: { libraryId },
@@ -793,6 +819,18 @@ export async function orchestrateScan(
     // Phase 2: Process folders
     progress.phase = 'processing';
     emitProgress();
+
+    // Log processing phase start
+    if (options.jobId) {
+      await createScanLog(
+        options.jobId,
+        libraryId,
+        'indexing',
+        'Processing folders',
+        `${folders.length} folders to process`,
+        'info'
+      );
+    }
 
     for (const folder of folders) {
       if (options.abortSignal?.aborted) {
@@ -843,6 +881,18 @@ export async function orchestrateScan(
           progress.foldersComplete++;
         }
 
+        // Log folder completion (only if there was activity)
+        if (options.jobId && (result.filesCreated > 0 || result.seriesCreated > 0 || result.errors.length > 0)) {
+          await createScanLog(
+            options.jobId,
+            libraryId,
+            'indexing',
+            `Processed: ${folder.relativePath}`,
+            `${result.filesCreated} new files, ${result.seriesCreated} series${result.errors.length > 0 ? `, ${result.errors.length} errors` : ''}`,
+            result.errors.length > 0 ? 'warning' : 'success'
+          );
+        }
+
         // Track discovered files (using result from processFolderTransaction, no re-read needed)
         for (const path of result.discoveredPaths) {
           discoveredPaths.add(path);
@@ -853,6 +903,18 @@ export async function orchestrateScan(
           { libraryId, folder: folder.path, error: err instanceof Error ? err.message : String(err) },
           'Error processing folder'
         );
+
+        // Log folder error
+        if (options.jobId) {
+          await createScanLog(
+            options.jobId,
+            libraryId,
+            'indexing',
+            `Error in folder: ${folder.relativePath}`,
+            err instanceof Error ? err.message : String(err),
+            'error'
+          );
+        }
       }
 
       emitProgress();
@@ -867,6 +929,18 @@ export async function orchestrateScan(
     // Phase 3: Handle orphaned files
     const { orphaned } = await processOrphanedFiles(libraryId, discoveredPaths);
     progress.filesOrphaned = orphaned;
+
+    // Log orphan detection
+    if (options.jobId && orphaned > 0) {
+      await createScanLog(
+        options.jobId,
+        libraryId,
+        'indexing',
+        'Orphan detection complete',
+        `${orphaned} orphaned files removed`,
+        'info'
+      );
+    }
 
     // Mark stats as dirty
     if (progress.filesCreated > 0 || progress.filesOrphaned > 0) {
@@ -888,6 +962,18 @@ export async function orchestrateScan(
     progress.elapsedMs = Date.now() - startTime;
     // Await the callback to ensure status is updated before returning
     await emitProgress(true);
+
+    // Log scan complete
+    if (options.jobId) {
+      await createScanLog(
+        options.jobId,
+        libraryId,
+        'complete',
+        'Scan complete',
+        `${progress.filesCreated} new files, ${progress.seriesCreated} series, ${progress.filesOrphaned} orphaned`,
+        'success'
+      );
+    }
 
     scannerLogger.info(
       {
@@ -922,6 +1008,19 @@ export async function orchestrateScan(
     progress.elapsedMs = Date.now() - startTime;
     // Await callback to ensure error status is recorded
     await emitProgress(true).catch(() => {});
+
+    // Log scan error
+    if (options.jobId) {
+      await createScanLog(
+        options.jobId,
+        libraryId,
+        'error',
+        'Scan failed',
+        err instanceof Error ? err.message : String(err),
+        'error'
+      ).catch(() => {}); // Don't let logging failure prevent error propagation
+    }
+
     throw err;
   }
 }
