@@ -31,6 +31,7 @@ import {
 } from '../services/metadata-job.service.js';
 import { type CreateSessionOptions } from '../services/metadata-approval.service.js';
 import { enqueueJob, isJobInQueue, removeFromQueue } from '../services/job-queue.service.js';
+import { initializeSSE } from '../services/sse.service.js';
 
 const router = Router();
 
@@ -140,6 +141,21 @@ router.patch('/:id/options', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : 'Failed to update options',
     });
   }
+});
+
+/**
+ * GET /api/metadata-jobs/:id/stream
+ * SSE stream for real-time job progress updates
+ */
+router.get('/:id/stream', (req: Request, res: Response) => {
+  const jobId = req.params.id;
+  if (!jobId) {
+    res.status(400).json({ error: 'Job ID is required' });
+    return;
+  }
+
+  // Initialize SSE connection
+  initializeSSE(res, jobId);
 });
 
 /**

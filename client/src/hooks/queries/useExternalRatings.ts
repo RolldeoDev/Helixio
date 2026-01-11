@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
+import { useRatingSyncJobSSE } from './useExternalRatingsSSE';
 import {
   getSeriesExternalRatings,
   syncSeriesRatings,
@@ -203,16 +204,27 @@ export function useSyncJobs(options?: { status?: string; limit?: number }) {
 
 /**
  * Fetch a specific sync job status
+ * Now with SSE support for real-time updates
  */
 export function useSyncJobStatus(
   jobId: string | undefined,
-  options?: { refetchInterval?: number }
+  options?: { refetchInterval?: number; enableSSE?: boolean }
 ) {
+  // Connect to SSE for real-time updates
+  const { connected: sseConnected } = useRatingSyncJobSSE(
+    jobId,
+    options?.enableSSE !== false
+  );
+
   return useQuery({
     queryKey: queryKeys.externalRatings.job(jobId!),
     queryFn: () => getSyncJobStatus(jobId!),
     enabled: !!jobId,
-    refetchInterval: options?.refetchInterval ?? 2000, // Refresh every 2 seconds by default
+    // When SSE is connected, poll slower (10s) as fallback
+    // When SSE is disconnected, poll faster (2s) to compensate
+    refetchInterval: sseConnected
+      ? 10000
+      : (options?.refetchInterval ?? 2000),
   });
 }
 

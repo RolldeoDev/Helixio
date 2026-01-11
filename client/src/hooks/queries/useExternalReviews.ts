@@ -7,6 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/queryClient';
+import { useReviewSyncJobSSE } from './useExternalReviewsSSE';
 import {
   getSeriesReviews,
   syncSeriesReviews,
@@ -124,18 +125,33 @@ export function useReviewSyncJobs(status?: string) {
 
 /**
  * Get status of a specific review sync job
+ * Now with SSE support for real-time updates
  */
-export function useReviewSyncJobStatus(jobId: string | undefined) {
+export function useReviewSyncJobStatus(
+  jobId: string | undefined,
+  options?: { enableSSE?: boolean }
+) {
+  // Connect to SSE for real-time updates
+  const { connected: sseConnected } = useReviewSyncJobSSE(
+    jobId,
+    options?.enableSSE !== false
+  );
+
   return useQuery({
     queryKey: queryKeys.externalReviews.job(jobId!),
     queryFn: () => getReviewSyncJobStatus(jobId!),
     enabled: !!jobId,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      if (status === 'running' || status === 'pending') {
-        return 2000; // More frequent updates for active jobs
+
+      // Stop polling for completed jobs
+      if (status !== 'running' && status !== 'pending') {
+        return false;
       }
-      return false;
+
+      // When SSE is connected, poll slower (10s) as fallback
+      // When SSE is disconnected, poll faster (2s) to compensate
+      return sseConnected ? 10000 : 2000;
     },
   });
 }

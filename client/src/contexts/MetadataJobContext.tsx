@@ -49,6 +49,7 @@ import {
   getCompletedStepsFromStatus,
 } from '../hooks/useStepLogs';
 import { parseApplyProgress, type CurrentProgress, type ApplyProgress } from '../hooks/useJobPolling';
+import { useMetadataJobSSE } from '../hooks/queries/useMetadataJobSSE';
 
 // =============================================================================
 // Session Normalization Helper
@@ -190,23 +191,29 @@ interface MetadataJobContextValue extends MetadataJobState {
 // =============================================================================
 
 /**
- * Get the polling interval based on job status.
+ * Get the polling interval based on job status and SSE connection.
  * Uses faster polling during active operations and slower polling during idle states.
+ * When SSE is connected, polling is slower as SSE provides real-time updates.
+ * When SSE is disconnected, polling is faster to compensate.
  * Returns 0 for terminal states to stop polling entirely.
  */
-function getPollingInterval(status: JobStep): number {
+function getPollingInterval(status: JobStep, sseConnected: boolean): number {
   switch (status) {
-    // Active processing - poll frequently
+    // Active processing - poll more frequently
     case 'initializing':
     case 'applying':
     case 'fetching_issues':
-      return 1000;
+      // When SSE is connected, poll slower (10s) as fallback
+      // When SSE is disconnected, poll faster (1s) to compensate
+      return sseConnected ? 10000 : 1000;
 
     // Waiting for user input - poll less frequently
     case 'series_approval':
     case 'file_review':
     case 'options':
-      return 5000;
+      // When SSE is connected, poll slower (15s) as fallback
+      // When SSE is disconnected, poll at normal rate (5s)
+      return sseConnected ? 15000 : 5000;
 
     // Terminal states - no polling needed
     case 'complete':
@@ -214,7 +221,9 @@ function getPollingInterval(status: JobStep): number {
       return 0;
 
     default:
-      return 2000;
+      // When SSE is connected, poll slower (10s) as fallback
+      // When SSE is disconnected, poll at normal rate (2s)
+      return sseConnected ? 10000 : 2000;
   }
 }
 
@@ -266,6 +275,12 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
   // Track when user is navigating back to series selection to prevent polling race conditions
   const navigatingToSeriesRef = useRef(false);
 
+  // Connect to SSE for real-time job updates
+  const { connected: sseConnected } = useMetadataJobSSE(
+    jobId ?? undefined,
+    isModalOpen // Only connect when modal is open
+  );
+
   // Load active jobs on mount and auto-detect existing in-progress jobs
   useEffect(() => {
     async function checkForActiveJobs() {
@@ -306,12 +321,14 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
   }, []);
 
   // Polling effect - fetch job state when modal is open and job is active
-  // Uses adaptive polling intervals based on job status
+  // Uses adaptive polling intervals based on job status and SSE connection
+  // When SSE is connected, polling acts as a fallback with slower intervals
+  // When SSE is disconnected, polling is faster to compensate
   useEffect(() => {
     if (!isModalOpen || !jobId) return;
 
     // Get polling interval for current step - 0 means no polling
-    const pollInterval = getPollingInterval(step);
+    const pollInterval = getPollingInterval(step, sseConnected);
     if (pollInterval === 0) return;
 
     const poll = async () => {
@@ -376,7 +393,7 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
 
     const interval = setInterval(poll, pollInterval);
     return () => clearInterval(interval);
-  }, [isModalOpen, jobId, step, loadActiveJobs]);
+  }, [isModalOpen, jobId, step, sseConnected, loadActiveJobs]);
 
   const addStepLog = useCallback((targetStep: JobStep, log: Omit<StepLogEntry, 'timestamp'>) => {
     const entry: StepLogEntry = {

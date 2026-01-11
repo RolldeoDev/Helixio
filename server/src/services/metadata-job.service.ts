@@ -33,6 +33,13 @@ import type { MetadataSource } from './metadata-providers/types.js';
 import { LRUCache } from './lru-cache.service.js';
 import { logError, logInfo, createServiceLogger } from './logger.service.js';
 import { sendJobError } from './sse.service.js';
+import {
+  broadcastJobProgress,
+  broadcastJobStatus,
+  broadcastJobComplete,
+  broadcastJobLog,
+  type JobLogEntry as SSEJobLogEntry,
+} from './job-sse.service.js';
 
 const logger = createServiceLogger('metadata-job');
 
@@ -426,6 +433,15 @@ export async function addJobLog(
       },
     }),
   ]);
+
+  // Broadcast log entry via SSE
+  const logEntry: SSEJobLogEntry = {
+    step,
+    message,
+    detail,
+    type,
+  };
+  broadcastJobLog(jobId, logEntry);
 }
 
 /**
@@ -448,6 +464,9 @@ export async function startJob(
     where: { id: jobId },
     data: { status: 'initializing', step: 'initializing' },
   });
+
+  // Broadcast status change via SSE
+  broadcastJobStatus(jobId, 'initializing');
 
   // Create progress callback that also saves to DB
   const progressWithPersist: ProgressCallback = async (message, detail) => {
@@ -473,6 +492,9 @@ export async function startJob(
     });
 
     await addJobLog(jobId, 'initializing', 'Session created successfully', undefined, 'success');
+
+    // Broadcast status change to new session status (likely 'series_approval')
+    broadcastJobStatus(jobId, session.status);
 
     return session;
   } catch (error) {
@@ -950,6 +972,9 @@ export async function jobApplyChanges(
     data: { status: 'applying', step: 'applying' },
   });
 
+  // Broadcast status change via SSE
+  broadcastJobStatus(jobId, 'applying');
+
   await addJobLog(jobId, 'applying', 'Applying changes to files', undefined, 'info');
 
   // Create progress callback that logs to DB and streams to client
@@ -978,6 +1003,9 @@ export async function jobApplyChanges(
       summaryDetail,
       result.failed > 0 ? 'warning' : 'success'
     );
+
+    // Broadcast completion via SSE
+    broadcastJobComplete(jobId, result);
 
     // Clean up memory
     activeJobs.delete(jobId);
@@ -1024,6 +1052,9 @@ export async function cancelJob(jobId: string): Promise<void> {
   });
 
   await addJobLog(jobId, job?.step || 'cancelled', 'Job cancelled', undefined, 'warning');
+
+  // Broadcast status change via SSE
+  broadcastJobStatus(jobId, 'cancelled');
 
   activeJobs.delete(jobId);
 }
