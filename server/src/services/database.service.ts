@@ -131,20 +131,20 @@ async function ensureDatabaseSchema(): Promise<void> {
 /**
  * Connection pool sizes for read/write separation.
  *
- * PostgreSQL default max_connections is 100. We split connections between:
- * - Read pool (30): API routes, stats queries, user requests
- * - Write pool (20): Scanner, cover jobs, background writes
+ * PostgreSQL embedded max_connections is 50. We split connections between:
+ * - Read pool (15): API routes, stats queries, user requests
+ * - Write pool (10): Scanner, cover jobs, background writes
  *
- * Total: 50 connections, leaving headroom for:
+ * Total: 25 connections (50% of PostgreSQL capacity), leaving headroom for:
  * - pg maintenance connections (superuser reserved)
  * - Direct pg client connections (factory reset, etc.)
- * - Other potential connections
+ * - Autovacuum workers
  *
  * This separation prevents write-heavy operations (library scans) from
  * starving read operations (API requests), improving UI responsiveness.
  */
-const DEFAULT_READ_CONNECTION_LIMIT = 30;
-const DEFAULT_WRITE_CONNECTION_LIMIT = 20;
+const DEFAULT_READ_CONNECTION_LIMIT = 15;
+const DEFAULT_WRITE_CONNECTION_LIMIT = 10;
 
 /**
  * Get the configured connection limit for the read pool.
@@ -298,6 +298,13 @@ export async function dropAndRecreateDatabase(): Promise<void> {
     throw new Error('Cannot drop the postgres system database');
   }
 
+  // Close Prisma clients first to release connections gracefully
+  logger.info('Closing Prisma clients before database drop...');
+  await closeDatabase();
+
+  // Wait for connections to drain from the pool
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
   // Connect to 'postgres' database for maintenance operations
   parsed.pathname = '/postgres';
   const maintenanceUrl = parsed.toString();
@@ -309,7 +316,7 @@ export async function dropAndRecreateDatabase(): Promise<void> {
   try {
     await client.connect();
 
-    // Terminate all connections to target database
+    // Terminate any remaining connections to target database
     await client.query(
       `
       SELECT pg_terminate_backend(pid)
@@ -319,12 +326,25 @@ export async function dropAndRecreateDatabase(): Promise<void> {
       [databaseName]
     );
 
-    // Small delay for connections to fully terminate
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for connections to fully terminate
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Drop and recreate the database
-    await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
-    logger.info({ database: databaseName }, 'Database dropped');
+    // Retry DROP DATABASE with backoff in case connections are slow to close
+    let dropped = false;
+    for (let attempt = 1; attempt <= 3 && !dropped; attempt++) {
+      try {
+        await client.query(`DROP DATABASE IF EXISTS "${databaseName}"`);
+        dropped = true;
+        logger.info({ database: databaseName }, 'Database dropped');
+      } catch (err) {
+        if (attempt < 3) {
+          logger.warn({ attempt, database: databaseName }, 'DROP DATABASE failed, retrying...');
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+        } else {
+          throw err;
+        }
+      }
+    }
 
     await client.query(`CREATE DATABASE "${databaseName}"`);
     logger.info({ database: databaseName }, 'Database created');
