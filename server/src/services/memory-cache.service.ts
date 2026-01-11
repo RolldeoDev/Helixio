@@ -329,10 +329,24 @@ class MemoryCacheService {
 
 export const memoryCache = new MemoryCacheService();
 
+// Interval ID for cleanup - needed for graceful shutdown
+let cleanupIntervalId: NodeJS.Timeout | null = null;
+
 // Start periodic cleanup (every 5 minutes)
-setInterval(() => {
+cleanupIntervalId = setInterval(() => {
   memoryCache.cleanup();
 }, 300_000);
+
+/**
+ * Stop the memory cache cleanup interval.
+ * Should be called during graceful shutdown to prevent process hanging.
+ */
+export function stopMemoryCacheCleanup(): void {
+  if (cleanupIntervalId) {
+    clearInterval(cleanupIntervalId);
+    cleanupIntervalId = null;
+  }
+}
 
 // =============================================================================
 // Cache Key Helpers

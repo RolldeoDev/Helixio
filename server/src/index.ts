@@ -41,6 +41,7 @@ import {
   getDatabase,
 } from './services/database.service.js';
 import { initializeRedis, closeRedis, cacheService } from './services/cache/index.js';
+import { stopMemoryCacheCleanup } from './services/memory-cache.service.js';
 
 // Routes
 import libraryRoutes from './routes/library.routes.js';
@@ -886,6 +887,9 @@ async function startServer(): Promise<void> {
 
       // Stop unified jobs broadcaster
       stopUnifiedJobsBroadcaster();
+
+      // Stop memory cache cleanup interval
+      stopMemoryCacheCleanup();
 
       // Stop BullMQ workers and queues
       logger.info('Stopping BullMQ workers...');
