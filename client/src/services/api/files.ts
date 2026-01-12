@@ -23,6 +23,7 @@ export interface GetFilesParams {
   sort?: string;
   order?: 'asc' | 'desc';
   groupBy?: string;
+  signal?: AbortSignal;  // For request cancellation
 }
 
 export interface LibraryFolders {
@@ -57,19 +58,21 @@ export async function getLibraryFiles(
   libraryId: string,
   params: GetFilesParams = {}
 ): Promise<PaginatedResponse<ComicFile>> {
+  const { signal, ...queryParams } = params;
   const searchParams = new URLSearchParams();
-  if (params.all) searchParams.set('all', 'true');
-  if (params.page) searchParams.set('page', params.page.toString());
-  if (params.limit) searchParams.set('limit', params.limit.toString());
-  if (params.status) searchParams.set('status', params.status);
-  if (params.folder) searchParams.set('folder', params.folder);
-  if (params.sort) searchParams.set('sort', params.sort);
-  if (params.order) searchParams.set('order', params.order);
-  if (params.groupBy && params.groupBy !== 'none') searchParams.set('groupBy', params.groupBy);
+  if (queryParams.all) searchParams.set('all', 'true');
+  if (queryParams.page) searchParams.set('page', queryParams.page.toString());
+  if (queryParams.limit) searchParams.set('limit', queryParams.limit.toString());
+  if (queryParams.status) searchParams.set('status', queryParams.status);
+  if (queryParams.folder) searchParams.set('folder', queryParams.folder);
+  if (queryParams.sort) searchParams.set('sort', queryParams.sort);
+  if (queryParams.order) searchParams.set('order', queryParams.order);
+  if (queryParams.groupBy && queryParams.groupBy !== 'none') searchParams.set('groupBy', queryParams.groupBy);
 
   const query = searchParams.toString();
   return get<PaginatedResponse<ComicFile>>(
-    `/libraries/${libraryId}/files${query ? `?${query}` : ''}`
+    `/libraries/${libraryId}/files${query ? `?${query}` : ''}`,
+    { signal }
   );
 }
 
@@ -85,19 +88,21 @@ export async function getLibraryFolders(
 export async function getAllLibraryFiles(
   params: GetFilesParams = {}
 ): Promise<PaginatedResponse<ComicFile>> {
+  const { signal, ...queryParams } = params;
   const searchParams = new URLSearchParams();
-  if (params.all) searchParams.set('all', 'true');
-  if (params.page) searchParams.set('page', params.page.toString());
-  if (params.limit) searchParams.set('limit', params.limit.toString());
-  if (params.status) searchParams.set('status', params.status);
-  if (params.folder) searchParams.set('folder', params.folder);
-  if (params.sort) searchParams.set('sort', params.sort);
-  if (params.order) searchParams.set('order', params.order);
-  if (params.groupBy && params.groupBy !== 'none') searchParams.set('groupBy', params.groupBy);
+  if (queryParams.all) searchParams.set('all', 'true');
+  if (queryParams.page) searchParams.set('page', queryParams.page.toString());
+  if (queryParams.limit) searchParams.set('limit', queryParams.limit.toString());
+  if (queryParams.status) searchParams.set('status', queryParams.status);
+  if (queryParams.folder) searchParams.set('folder', queryParams.folder);
+  if (queryParams.sort) searchParams.set('sort', queryParams.sort);
+  if (queryParams.order) searchParams.set('order', queryParams.order);
+  if (queryParams.groupBy && queryParams.groupBy !== 'none') searchParams.set('groupBy', queryParams.groupBy);
 
   const query = searchParams.toString();
   return get<PaginatedResponse<ComicFile>>(
-    `/libraries/files${query ? `?${query}` : ''}`
+    `/libraries/files${query ? `?${query}` : ''}`,
+    { signal }
   );
 }
 

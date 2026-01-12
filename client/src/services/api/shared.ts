@@ -205,8 +205,8 @@ export async function handleResponse<T>(response: Response): Promise<T> {
   return json;
 }
 
-export async function get<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${endpoint}`);
+export async function get<T>(endpoint: string, options?: { signal?: AbortSignal }): Promise<T> {
+  const response = await fetch(`${API_BASE}${endpoint}`, { signal: options?.signal });
   return handleResponse<T>(response);
 }
 

@@ -37,8 +37,43 @@ model Library {
   libraryStat        LibraryStat?
   scanJobs           LibraryScanJob[]
   folderScanRecords  FolderScanRecord[]
+  folders            Folder[]
 
   @@index([name])
+}
+
+// =============================================================================
+// Folder Hierarchy (Materialized Folder Structure)
+// =============================================================================
+
+model Folder {
+  id           String    @id @default(cuid())
+  libraryId    String
+  path         String    // Relative path from library root: "Comics/Marvel/2024"
+  name         String    // Folder name only: "2024"
+  depth        Int       // 0 = root level, 1 = first child, etc.
+  parentId     String?   // Parent folder ID (null for root-level folders)
+
+  // Pre-computed counts
+  fileCount    Int       @default(0)  // Direct files in this folder
+  totalFiles   Int       @default(0)  // Recursive file count (includes children)
+  childCount   Int       @default(0)  // Number of immediate child folders
+
+  // Metadata
+  lastModified DateTime? // Most recent file modification in folder
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  library      Library   @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  parent       Folder?   @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Folder[]  @relation("FolderHierarchy")
+  files        ComicFile[]
+
+  @@unique([libraryId, path])
+  @@index([libraryId, depth])
+  @@index([libraryId, parentId])
+  @@index([parentId])
 }
 
 // =============================================================================
@@ -317,6 +352,10 @@ model ComicFile {
   coverHash      String?                    // Hash of custom cover (URL/upload stored in series covers cache)
   coverUrl       String?                    // Original URL if cover was downloaded from URL
 
+  // Folder relationship (Materialized Folder Hierarchy)
+  folderId       String?                    // Link to materialized folder record
+  folder         Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
   // Relations
   library             Library               @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   metadata            FileMetadata?
@@ -333,6 +372,7 @@ model ComicFile {
   @@index([status])
   @@index([filename])
   @@index([seriesId])
+  @@index([folderId])             // Index for folder-based queries
   @@index([libraryId, status])  // Composite index for getAllLibraryStats() groupBy query
   @@index([createdAt])          // Index for "recently added" queries (recommendations)
   @@index([libraryId, createdAt]) // Composite for library-scoped "recently added"

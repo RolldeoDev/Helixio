@@ -17,6 +17,23 @@ import type {
 } from '../../types/sse-events';
 
 // =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Callbacks for handling SSE events in the MetadataJobContext.
+ * These allow the context to update its state when SSE events are received.
+ */
+export interface MetadataJobSSECallbacks {
+  /** Called when a status change event is received */
+  onStatusChange?: (data: { status: string }) => void;
+  /** Called when a progress event is received */
+  onProgressChange?: (data: { message?: string; detail?: string }) => void;
+  /** Called when a log event is received */
+  onLogReceived?: (data: { step: string; message: string; detail?: string; type: string }) => void;
+}
+
+// =============================================================================
 // Hook
 // =============================================================================
 
@@ -26,16 +43,21 @@ import type {
  *
  * @param jobId - Metadata job ID
  * @param enabled - Whether to enable SSE connection (default: true if jobId exists)
+ * @param callbacks - Optional callbacks to receive SSE events for state updates
  * @returns SSE connection status and controls
  *
  * @example
  * ```typescript
- * const { connected } = useMetadataJobSSE(jobId);
+ * const { connected } = useMetadataJobSSE(jobId, true, {
+ *   onStatusChange: (data) => setStep(data.status),
+ *   onProgressChange: (data) => setProgress(data),
+ * });
  * ```
  */
 export function useMetadataJobSSE(
   jobId: string | undefined,
-  enabled: boolean = true
+  enabled: boolean = true,
+  callbacks?: MetadataJobSSECallbacks
 ) {
   const queryClient = useQueryClient();
 
@@ -43,21 +65,29 @@ export function useMetadataJobSSE(
     endpoint: `/api/metadata-jobs/${jobId}/stream`,
     enabled: !!jobId && enabled,
 
-    // Progress events - invalidate job query
-    onProgress: (_data: JobProgressEvent) => {
-      // Metadata jobs don't have a specific job query in queryKeys
-      // They're fetched directly via getMetadataJob API call in the context
-      // So we don't need to invalidate here - the context polling will pick it up
+    // Progress events - call callback for context state update
+    onProgress: (data: JobProgressEvent) => {
+      callbacks?.onProgressChange?.({
+        message: data.message,
+        detail: data.detail,
+      });
     },
 
-    // Status change events - trigger refetch
-    onStatus: (_data: JobStatusEvent) => {
-      // Similar to progress - context polling handles this
+    // Status change events - call callback for context state update
+    onStatus: (data: JobStatusEvent) => {
+      callbacks?.onStatusChange?.({
+        status: data.status,
+      });
     },
 
-    // Log events - trigger refetch to get new logs
-    onLog: (_data: JobLogEvent) => {
-      // Context polling will fetch updated logs
+    // Log events - call callback for context state update
+    onLog: (data: JobLogEvent) => {
+      callbacks?.onLogReceived?.({
+        step: data.step,
+        message: data.message,
+        detail: data.detail,
+        type: data.type,
+      });
     },
 
     // Completion events - invalidate metadata-related queries
