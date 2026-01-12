@@ -327,6 +327,83 @@ export async function generateThumbnailsForFile(
   return generateThumbnails(file.path, file.libraryId, file.hash, options);
 }
 
+/**
+ * Generate a single thumbnail on-demand if it doesn't exist in cache.
+ * Returns the path to the thumbnail (either existing or newly generated).
+ */
+export async function ensureThumbnailExists(
+  archivePath: string,
+  libraryId: string,
+  fileHash: string,
+  pageNumber: number,
+  width: number = 80
+): Promise<{ success: boolean; thumbnailPath?: string; error?: string }> {
+  // Check if thumbnail already exists
+  const thumbPath = getThumbnailPath(libraryId, fileHash, pageNumber);
+  if (existsSync(thumbPath)) {
+    return { success: true, thumbnailPath: thumbPath };
+  }
+
+  // Get archive contents to find the specific page
+  let archiveInfo;
+  try {
+    archiveInfo = await listArchiveContents(archivePath);
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to read archive: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const imageEntries = archiveInfo.entries
+    .filter((e) => !e.isDirectory && isImageFile(e.path))
+    .sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
+
+  const pageIndex = pageNumber - 1; // Convert 1-based to 0-based
+  if (pageIndex < 0 || pageIndex >= imageEntries.length) {
+    return { success: false, error: `Page ${pageNumber} not found (valid range: 1-${imageEntries.length})` };
+  }
+
+  const entry = imageEntries[pageIndex];
+  if (!entry) {
+    return { success: false, error: `Page ${pageNumber} not found` };
+  }
+
+  // Ensure thumbnail directory exists
+  await ensureFileThumbnailDir(libraryId, fileHash);
+
+  // Extract archive to temp directory
+  const tempDir = await createTempDir('thumbnail-single-');
+
+  try {
+    const extractResult = await extractArchive(archivePath, tempDir);
+    if (!extractResult.success) {
+      return { success: false, error: extractResult.error || 'Failed to extract archive' };
+    }
+
+    // Find the extracted file
+    const extractedPath = await findExtractedFile(tempDir, entry.path);
+    if (!extractedPath) {
+      return { success: false, error: `File not found in archive: ${entry.path}` };
+    }
+
+    // Generate thumbnail using sharp
+    await sharp(extractedPath)
+      .resize(width, null, { withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toFile(thumbPath);
+
+    return { success: true, thumbnailPath: thumbPath };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await cleanupTempDir(tempDir);
+  }
+}
+
 // =============================================================================
 // Cache Management
 // =============================================================================

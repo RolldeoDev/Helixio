@@ -222,11 +222,20 @@ export async function unlinkFileFromSeries(
 // =============================================================================
 
 /**
+ * Page item returned from archive pages endpoint
+ */
+export interface PageInfo {
+  index: number;
+  filename: string;
+}
+
+/**
  * Get pages list for an archive (for cover selection)
+ * Returns pages with both index and filename for thumbnail generation
  */
 export async function getFilePages(
   fileId: string
-): Promise<{ fileId: string; pages: string[]; pageCount: number }> {
+): Promise<{ fileId: string; pages: PageInfo[]; pageCount: number }> {
   return get(`/files/${fileId}/pages`);
 }
 
@@ -274,10 +283,21 @@ export async function uploadFileCover(
 }
 
 /**
- * Get page thumbnail URL for cover preview
+ * Get page thumbnail URL for cover preview (full-resolution)
+ * @deprecated Use getOptimizedThumbnailUrl for better performance
  */
 export function getPageThumbnailUrl(fileId: string, pagePath: string): string {
   return `${API_BASE}/archives/${fileId}/page/${encodeURIComponent(pagePath)}`;
+}
+
+/**
+ * Get optimized thumbnail URL for cover preview
+ * Uses the thumbnail cache which serves 80px JPEG thumbnails (~95% smaller than full pages)
+ * Page numbers are 1-based (pageIndex + 1)
+ */
+export function getOptimizedThumbnailUrl(fileId: string, pageIndex: number): string {
+  const pageNumber = pageIndex + 1; // Convert 0-based index to 1-based page number
+  return `${API_BASE}/cache/thumbnails/${fileId}/${pageNumber}`;
 }
 
 // =============================================================================

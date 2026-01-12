@@ -120,21 +120,22 @@ export function useLibraryFolders(libraryId: string | null | undefined) {
       return response.folders;
     },
     enabled: !!libraryId,
-    staleTime: 60 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes - folders rarely change
   });
 }
 
 /**
  * Fetch folders for all libraries
  */
-export function useAllLibraryFolders() {
+export function useAllLibraryFolders(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.libraries.allFolders(),
     queryFn: async () => {
       const response = await getAllLibraryFolders();
       return response.libraries;
     },
-    staleTime: 60 * 1000,
+    enabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes - folders rarely change
   });
 }
 

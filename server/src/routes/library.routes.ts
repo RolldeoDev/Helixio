@@ -43,6 +43,10 @@ import {
 } from '../schemas/library.schemas.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.middleware.js';
 import { deleteLibraryWithCleanup } from '../services/library/library-cleanup.service.js';
+import {
+  getLibraryFoldersWithCache,
+  getAllLibraryFoldersWithCache,
+} from '../services/cache/folder-cache.service.js';
 
 const router = Router();
 
@@ -203,52 +207,10 @@ router.get('/files',
 /**
  * GET /api/libraries/folders
  * Get folder structure for ALL libraries
+ * Uses Redis cache for performance - first load computes and caches, subsequent loads are instant
  */
-router.get('/folders', asyncHandler(async (_req: Request, res: Response) => {
-  const db = getDatabase();
-
-  // Fetch libraries and ALL files in parallel (2 queries instead of N+1)
-  const [libraries, allFiles] = await Promise.all([
-    db.library.findMany({
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-      },
-    }),
-    db.comicFile.findMany({
-      select: {
-        libraryId: true,
-        relativePath: true,
-      },
-    }),
-  ]);
-
-  // Group files by libraryId and extract folders in-memory
-  const foldersByLibrary = new Map<string, Set<string>>();
-
-  for (const file of allFiles) {
-    if (!foldersByLibrary.has(file.libraryId)) {
-      foldersByLibrary.set(file.libraryId, new Set<string>());
-    }
-    const folders = foldersByLibrary.get(file.libraryId)!;
-
-    // Extract folder paths from relativePath
-    const parts = file.relativePath.split('/');
-    for (let i = 1; i < parts.length; i++) {
-      folders.add(parts.slice(0, i).join('/'));
-    }
-  }
-
-  // Build response with folders for each library
-  const librariesWithFolders = libraries.map((library) => ({
-    id: library.id,
-    name: library.name,
-    type: library.type,
-    folders: Array.from(foldersByLibrary.get(library.id) ?? []).sort(),
-  }));
-
+router.get('/folders', cachePresets.stable, asyncHandler(async (_req: Request, res: Response) => {
+  const librariesWithFolders = await getAllLibraryFoldersWithCache();
   logger.info({ libraryCount: librariesWithFolders.length }, 'Listed folders from all libraries');
   sendSuccess(res, { libraries: librariesWithFolders });
 }));
@@ -734,31 +696,10 @@ router.get('/:id/files',
 /**
  * GET /api/libraries/:id/folders
  * Get folder structure for a library
+ * Uses Redis cache for performance - first load computes and caches, subsequent loads are instant
  */
-router.get('/:id/folders', asyncHandler(async (req: Request, res: Response) => {
-  const db = getDatabase();
-
-  // Get all unique folder paths
-  const files = await db.comicFile.findMany({
-    where: { libraryId: req.params.id },
-    select: { relativePath: true },
-  });
-
-  // Extract unique folders
-  const folders = new Set<string>();
-  for (const file of files) {
-    const parts = file.relativePath.split('/');
-    let folderPath = '';
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i]!;
-      folderPath = folderPath ? `${folderPath}/${part}` : part;
-      folders.add(folderPath);
-    }
-  }
-
-  // Sort and return
-  const sortedFolders = Array.from(folders).sort();
-
+router.get('/:id/folders', cachePresets.stable, asyncHandler(async (req: Request, res: Response) => {
+  const sortedFolders = await getLibraryFoldersWithCache(req.params.id!);
   sendSuccess(res, { folders: sortedFolders });
 }));
 

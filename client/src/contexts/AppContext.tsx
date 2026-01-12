@@ -246,17 +246,17 @@ export function AppProvider({ children }: AppProviderProps) {
     }
   }, [libraries, selectedLibraryId, selectedLibrary, isAllLibraries]);
 
-  // Folders for single library
+  // Folders for single library (only fetch when NOT in all-libraries mode)
   const {
     data: singleLibraryFolders = [],
     isLoading: loadingSingleFolders,
-  } = useLibraryFolders(selectedLibrary?.id);
+  } = useLibraryFolders(isAllLibraries ? null : selectedLibrary?.id);
 
-  // Folders for all libraries
+  // Folders for all libraries (only fetch when in all-libraries mode)
   const {
     data: allLibraryFoldersData = [],
     isLoading: loadingAllFolders,
-  } = useAllLibraryFolders();
+  } = useAllLibraryFolders(isAllLibraries);
 
   // Derive folder state
   const folders = isAllLibraries ? [] : singleLibraryFolders;
@@ -536,7 +536,7 @@ export function AppProvider({ children }: AppProviderProps) {
   // Context Value
   // ---------------------------------------------------------------------------
 
-  const value: AppContextValue = {
+  const value: AppContextValue = useMemo(() => ({
     // State
     libraries,
     selectedLibrary,
@@ -591,7 +591,60 @@ export function AppProvider({ children }: AppProviderProps) {
     setRelatedSeriesPosition,
     setMobileSidebarOpen,
     toggleMobileSidebar,
-  };
+  }), [
+    // State dependencies
+    libraries,
+    selectedLibrary,
+    isAllLibraries,
+    loadingLibraries,
+    librariesError,
+    folders,
+    allLibraryFolders,
+    selectedFolder,
+    loadingFolders,
+    files,
+    selectedFiles,
+    loadingFiles,
+    filesError,
+    pagination,
+    selectedSeries,
+    statusFilter,
+    sortField,
+    sortOrder,
+    groupField,
+    operationInProgress,
+    operationMessage,
+    preferFilenameOverMetadata,
+    relatedSeriesPosition,
+    mobileSidebarOpen,
+    lastSelectedFileId,
+    lastSelectedSeriesId,
+    // Action dependencies (all already useCallback'd so stable)
+    refreshLibraries,
+    selectLibrary,
+    selectAllLibraries,
+    selectFolderCallback,
+    refreshFilesCallback,
+    selectFile,
+    selectRange,
+    selectAllFiles,
+    selectFilesCallback,
+    clearSelection,
+    selectSeriesCallback,
+    selectSeriesRange,
+    selectAllSeriesCallback,
+    clearSeriesSelection,
+    handleSetStatusFilter,
+    setSort,
+    setGroupField,
+    setPage,
+    setPageSize,
+    setOperation,
+    setPreferFilenameOverMetadata,
+    setRelatedSeriesPosition,
+    setMobileSidebarOpen,
+    toggleMobileSidebar,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

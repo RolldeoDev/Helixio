@@ -13,6 +13,7 @@ import { checkAndSoftDeleteEmptySeries } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo } from './logger.service.js';
 import { isFileRenamingEnabled } from './config.service.js';
+import { invalidateFolderCache } from './cache/folder-cache.service.js';
 
 // =============================================================================
 // Types
@@ -212,6 +213,9 @@ export async function moveFile(
       // Errors are logged inside invalidateFileOperation
     });
 
+    // Invalidate folder cache since file moved to different folder
+    invalidateFolderCache(file.libraryId).catch(() => {});
+
     return {
       success: true,
       operation: 'move',
@@ -380,6 +384,9 @@ export async function deleteFile(
     } catch {
       // Non-critical - cache invalidation failure shouldn't fail the delete
     }
+
+    // Invalidate folder cache since a file was deleted
+    invalidateFolderCache(libraryId).catch(() => {});
 
     // Log the operation (not reversible after deletion)
     const logId = await logOperation({
@@ -887,6 +894,9 @@ export async function renameFolder(
         filesUpdated: updatedCount,
       },
     });
+
+    // Invalidate folder cache since folder was renamed
+    invalidateFolderCache(libraryId).catch(() => {});
 
     return {
       success: true,

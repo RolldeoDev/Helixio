@@ -40,7 +40,7 @@ const router = Router();
 
 /**
  * GET /api/cache/thumbnails/:fileId/:pageNumber
- * Get a cached thumbnail for a specific page
+ * Get a thumbnail for a specific page, generating it on-demand if not cached
  */
 router.get('/thumbnails/:fileId/:pageNumber', async (req: Request, res: Response) => {
   try {
@@ -55,7 +55,7 @@ router.get('/thumbnails/:fileId/:pageNumber', async (req: Request, res: Response
     const prisma = getDatabase();
     const file = await prisma.comicFile.findUnique({
       where: { id: fileId },
-      select: { libraryId: true, hash: true },
+      select: { libraryId: true, hash: true, path: true },
     });
 
     if (!file || !file.hash) {
@@ -65,9 +65,18 @@ router.get('/thumbnails/:fileId/:pageNumber', async (req: Request, res: Response
 
     const thumbPath = getThumbnailPath(file.libraryId, file.hash, pageNum);
 
+    // If thumbnail doesn't exist, generate it on-demand
     if (!existsSync(thumbPath)) {
-      res.status(404).json({ error: 'Thumbnail not cached' });
-      return;
+      const { ensureThumbnailExists } = await import('../services/thumbnail.service.js');
+      const result = await ensureThumbnailExists(file.path, file.libraryId, file.hash, pageNum);
+
+      if (!result.success) {
+        res.status(500).json({
+          error: 'Failed to generate thumbnail',
+          message: result.error
+        });
+        return;
+      }
     }
 
     const stats = await stat(thumbPath);

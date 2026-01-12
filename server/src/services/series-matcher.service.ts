@@ -257,7 +257,13 @@ export async function findMatchingSeries(
   }
 
   // 3. Try fuzzy match on name
-  const allSeries = await db.series.findMany();
+  // PERFORMANCE: Exclude soft-deleted series from fuzzy matching
+  // On large libraries with many deleted series, this significantly reduces memory usage
+  const allSeries = await db.series.findMany({
+    where: {
+      deletedAt: null, // Only match against active series
+    },
+  });
   const normalizedSearch = normalizeName(name);
 
   let bestMatch: Series | null = null;
@@ -701,6 +707,15 @@ export async function autoLinkFileToSeries(
     const folderMatch = folderRegistry.findInFolder(folderPath, seriesName);
 
     if (folderMatch.entry && folderMatch.confidence >= 0.8) {
+      // Check if series already exists before creating
+      const existingSeries = await getSeriesByIdentity(
+        folderMatch.entry.definition.name,
+        null,
+        folderMatch.entry.definition.publisher ?? null,
+        true
+      );
+      const isNewSeries = !existingSeries || existingSeries.deletedAt;
+
       // Found a match in the folder's series.json - use it
       const series = await findOrCreateSeriesFromDefinition(
         folderMatch.entry.definition,
@@ -720,7 +735,18 @@ export async function autoLinkFileToSeries(
       return {
         success: true,
         seriesId: series.id,
-        matchType: `folder-${folderMatch.matchType}`,
+        matchType: isNewSeries ? 'created' : `folder-${folderMatch.matchType}`,
+        // Include createdSeries when a new series was created so the scanner can cache it
+        ...(isNewSeries && {
+          createdSeries: {
+            id: series.id,
+            name: series.name,
+            publisher: series.publisher,
+            startYear: series.startYear,
+            volume: series.volume,
+            aliases: series.aliases,
+          },
+        }),
       };
     }
   }
@@ -742,6 +768,17 @@ export async function autoLinkFileToSeries(
       success: true,
       seriesId: createResult.series.id,
       matchType: createResult.alreadyExisted ? 'exact' : 'created',
+      // Include createdSeries when a new series was created so the scanner can cache it
+      ...(!createResult.alreadyExisted && {
+        createdSeries: {
+          id: createResult.series.id,
+          name: createResult.series.name,
+          publisher: createResult.series.publisher,
+          startYear: createResult.series.startYear,
+          volume: createResult.series.volume,
+          aliases: createResult.series.aliases,
+        },
+      }),
     };
   }
 
@@ -805,6 +842,15 @@ export async function autoLinkFileToSeries(
         seriesId: createResult.series.id,
         matchType: 'created',
         warnings,
+        // Include createdSeries for scanner cache
+        createdSeries: {
+          id: createResult.series.id,
+          name: createResult.series.name,
+          publisher: createResult.series.publisher,
+          startYear: createResult.series.startYear,
+          volume: createResult.series.volume,
+          aliases: createResult.series.aliases,
+        },
       };
     } else {
       // Normal behavior - suggest but don't auto-link
