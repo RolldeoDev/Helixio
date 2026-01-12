@@ -443,6 +443,7 @@ router.post('/bulk/quarantine', async (req: Request, res: Response) => {
 /**
  * GET /api/files/:id/pages
  * Get list of pages in the archive for cover selection
+ * Returns pages with both index (0-based) and filename for thumbnail generation
  */
 router.get('/:id/pages', async (req: Request, res: Response) => {
   try {
@@ -468,10 +469,16 @@ router.get('/:id/pages', async (req: Request, res: Response) => {
       return;
     }
 
+    // Map pages to objects with index and filename for thumbnail URLs
+    const pages = result.pages?.map((filename, index) => ({
+      index,
+      filename,
+    })) || [];
+
     res.json({
       fileId: file.id,
-      pages: result.pages,
-      pageCount: result.pages?.length || 0,
+      pages,
+      pageCount: pages.length,
     });
   } catch (error) {
     logError('files', error, { action: 'list-pages' });

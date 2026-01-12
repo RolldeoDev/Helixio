@@ -1687,6 +1687,16 @@ router.post('/:id/apply-metadata', asyncHandler(async (req: Request, res: Respon
     return;
   }
 
+  // Invalidate caches and notify clients (syncToSeriesJson=false since applyMetadataToSeries already handles it)
+  const inheritableFields = ['publisher', 'genres', 'ageRating', 'languageISO'];
+  const changedInheritable = (result.fieldsUpdated || []).filter((f: string) => inheritableFields.includes(f));
+
+  await invalidateSeriesData(seriesId, {
+    syncToSeriesJson: false,  // Already done in applyMetadataToSeries
+    syncToIssueFiles: changedInheritable.length > 0,
+    inheritableFields: changedInheritable,
+  });
+
   logger.info({ seriesId, fieldsUpdated: result.fieldsUpdated }, 'Applied external metadata');
   sendSuccess(res, {
     series: result.series,

@@ -2235,8 +2235,87 @@ export async function recalculateSeriesCover(seriesId: string): Promise<void> {
 }
 
 /**
+ * Invalidate a cover from all cache layers (L1 memory + L2 Redis).
+ * Handles both series covers and archive covers based on source type.
+ */
+async function invalidateCoverFromAllLayers(
+  coverSource: 'api' | 'user' | 'firstIssue' | 'none' | null,
+  coverHash: string | null,
+  coverFileId: string | null
+): Promise<void> {
+  if (!coverHash && !coverFileId) {
+    return;
+  }
+
+  const db = getDatabase();
+
+  if (coverSource === 'api' && coverHash) {
+    // Series cover (stored in series-covers cache)
+    const cacheKeyWebP = `series/${coverHash}/webp`;
+    const cacheKeyJpeg = `series/${coverHash}/jpeg`;
+    removeFromMemoryCache(cacheKeyWebP);
+    removeFromMemoryCache(cacheKeyJpeg);
+    invalidateCoverCache('series', coverHash);
+  } else if ((coverSource === 'user' || coverSource === 'firstIssue') && coverFileId) {
+    // Archive cover (stored in covers/{libraryId} cache)
+    const file = await db.comicFile.findUnique({
+      where: { id: coverFileId },
+      select: { hash: true, libraryId: true },
+    });
+    if (file?.hash) {
+      const cacheKeyWebP = `${file.libraryId}/${file.hash}/webp`;
+      const cacheKeyJpeg = `${file.libraryId}/${file.hash}/jpeg`;
+      removeFromMemoryCache(cacheKeyWebP);
+      removeFromMemoryCache(cacheKeyJpeg);
+      invalidateCoverCache('archive', file.hash);
+    }
+  }
+}
+
+/**
+ * Preload a cover into all cache layers (L1 memory + L2 Redis).
+ * This ensures the new cover is immediately available after a change.
+ */
+async function preloadCoverIntoCache(
+  coverSource: 'api' | 'user' | 'firstIssue' | 'none',
+  coverHash: string | null,
+  coverFileId: string | null
+): Promise<void> {
+  if (coverSource === 'none' || (!coverHash && !coverFileId)) {
+    return;
+  }
+
+  try {
+    if (coverSource === 'api' && coverHash) {
+      // Preload series cover - this will populate L1 and L2 caches
+      await getSeriesCoverData(coverHash, true); // WebP
+    } else if ((coverSource === 'user' || coverSource === 'firstIssue') && coverFileId) {
+      // Get file info to load archive cover
+      const db = getDatabase();
+      const file = await db.comicFile.findUnique({
+        where: { id: coverFileId },
+        select: { hash: true, libraryId: true },
+      });
+      if (file?.hash) {
+        // Preload archive cover - this will populate L1 and L2 caches
+        await getCoverData(file.libraryId, file.hash, true); // WebP
+      }
+    }
+  } catch (error) {
+    // Don't fail the operation if preloading fails - the cover will be loaded on demand
+    logDebug('covers', 'Failed to preload cover into cache', {
+      coverSource,
+      coverHash,
+      coverFileId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
  * Trigger cover recalculation when source data changes.
  * Call this after modifying cover-related fields on series or files.
+ * Invalidates old cover from cache and preloads new cover.
  */
 export async function onCoverSourceChanged(
   entityType: 'series' | 'file',
@@ -2245,7 +2324,49 @@ export async function onCoverSourceChanged(
   const db = getDatabase();
 
   if (entityType === 'series') {
+    // Get OLD resolved cover info before recalculating
+    const oldSeries = await db.series.findUnique({
+      where: { id: entityId },
+      select: {
+        resolvedCoverSource: true,
+        resolvedCoverHash: true,
+        resolvedCoverFileId: true,
+      },
+    });
+
+    // Recalculate the resolved cover (updates database)
     await recalculateSeriesCover(entityId);
+
+    // Get NEW resolved cover info after recalculating
+    const newSeries = await db.series.findUnique({
+      where: { id: entityId },
+      select: {
+        resolvedCoverSource: true,
+        resolvedCoverHash: true,
+        resolvedCoverFileId: true,
+      },
+    });
+
+    // Invalidate OLD cover from cache if it changed
+    if (oldSeries && (
+      oldSeries.resolvedCoverHash !== newSeries?.resolvedCoverHash ||
+      oldSeries.resolvedCoverFileId !== newSeries?.resolvedCoverFileId
+    )) {
+      await invalidateCoverFromAllLayers(
+        oldSeries.resolvedCoverSource as 'api' | 'user' | 'firstIssue' | 'none' | null,
+        oldSeries.resolvedCoverHash,
+        oldSeries.resolvedCoverFileId
+      );
+    }
+
+    // Preload NEW cover into cache
+    if (newSeries?.resolvedCoverSource && newSeries.resolvedCoverSource !== 'none') {
+      await preloadCoverIntoCache(
+        newSeries.resolvedCoverSource as 'api' | 'user' | 'firstIssue' | 'none',
+        newSeries.resolvedCoverHash,
+        newSeries.resolvedCoverFileId
+      );
+    }
   } else if (entityType === 'file') {
     // Find series that use this file as cover or have it as first issue
     const affectedSeries = await db.series.findMany({
@@ -2255,11 +2376,51 @@ export async function onCoverSourceChanged(
           { resolvedCoverFileId: entityId },
         ],
       },
-      select: { id: true },
+      select: {
+        id: true,
+        resolvedCoverSource: true,
+        resolvedCoverHash: true,
+        resolvedCoverFileId: true,
+      },
     });
 
     for (const series of affectedSeries) {
+      // Get OLD resolved cover info
+      const oldResolvedSource = series.resolvedCoverSource;
+      const oldResolvedHash = series.resolvedCoverHash;
+      const oldResolvedFileId = series.resolvedCoverFileId;
+
+      // Recalculate the resolved cover
       await recalculateSeriesCover(series.id);
+
+      // Get NEW resolved cover info
+      const newSeries = await db.series.findUnique({
+        where: { id: series.id },
+        select: {
+          resolvedCoverSource: true,
+          resolvedCoverHash: true,
+          resolvedCoverFileId: true,
+        },
+      });
+
+      // Invalidate OLD cover from cache if it changed
+      if (oldResolvedHash !== newSeries?.resolvedCoverHash ||
+          oldResolvedFileId !== newSeries?.resolvedCoverFileId) {
+        await invalidateCoverFromAllLayers(
+          oldResolvedSource as 'api' | 'user' | 'firstIssue' | 'none' | null,
+          oldResolvedHash,
+          oldResolvedFileId
+        );
+      }
+
+      // Preload NEW cover into cache
+      if (newSeries?.resolvedCoverSource && newSeries.resolvedCoverSource !== 'none') {
+        await preloadCoverIntoCache(
+          newSeries.resolvedCoverSource as 'api' | 'user' | 'firstIssue' | 'none',
+          newSeries.resolvedCoverHash,
+          newSeries.resolvedCoverFileId
+        );
+      }
     }
   }
 }

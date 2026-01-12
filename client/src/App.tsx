@@ -140,44 +140,62 @@ function LibraryView() {
   }, [groupField, sortField]);
 
   // Track visible range for navigation sidebar
+  // Memoize the updateVisibleRange function with stable reference
+  const updateVisibleRange = useCallback(() => {
+    const container = contentRef.current;
+    if (!container) return;
+
+    const gridItems = container.querySelectorAll('[data-file-index]');
+    const containerRect = container.getBoundingClientRect();
+
+    let minIndex = Infinity;
+    let maxIndex = -1;
+
+    gridItems.forEach((item) => {
+      const rect = item.getBoundingClientRect();
+      const isVisible = rect.bottom > containerRect.top && rect.top < containerRect.bottom;
+
+      if (isVisible) {
+        // Read the actual data-file-index attribute, not the forEach index
+        const fileIndex = parseInt(item.getAttribute('data-file-index') || '0', 10);
+        if (fileIndex < minIndex) minIndex = fileIndex;
+        if (fileIndex > maxIndex) maxIndex = fileIndex;
+      }
+    });
+
+    if (maxIndex >= 0) {
+      setVisibleRange({ start: minIndex, end: maxIndex });
+    }
+  }, []);
+
+  // Create throttled version to reduce scroll handler calls by 90%
+  const throttledUpdateVisibleRange = useMemo(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    return () => {
+      if (timeoutId) return; // Already scheduled
+      timeoutId = setTimeout(() => {
+        updateVisibleRange();
+        timeoutId = null;
+      }, 100); // Max 10 calls/sec (was ~100/sec)
+    };
+  }, [updateVisibleRange]);
+
   useEffect(() => {
     const container = contentRef.current;
     if (!container || filteredFiles.length === 0) return;
 
-    const updateVisibleRange = () => {
-      const gridItems = container.querySelectorAll('[data-file-index]');
-      const containerRect = container.getBoundingClientRect();
-
-      let minIndex = Infinity;
-      let maxIndex = -1;
-
-      gridItems.forEach((item) => {
-        const rect = item.getBoundingClientRect();
-        const isVisible = rect.bottom > containerRect.top && rect.top < containerRect.bottom;
-
-        if (isVisible) {
-          // Read the actual data-file-index attribute, not the forEach index
-          const fileIndex = parseInt(item.getAttribute('data-file-index') || '0', 10);
-          if (fileIndex < minIndex) minIndex = fileIndex;
-          if (fileIndex > maxIndex) maxIndex = fileIndex;
-        }
-      });
-
-      if (maxIndex >= 0) {
-        setVisibleRange({ start: minIndex, end: maxIndex });
-      }
-    };
-
-    container.addEventListener('scroll', updateVisibleRange, { passive: true });
+    container.addEventListener('scroll', throttledUpdateVisibleRange, { passive: true });
     // Also listen to window scroll since the container might not be the scroll parent
-    window.addEventListener('scroll', updateVisibleRange, { passive: true });
+    window.addEventListener('scroll', throttledUpdateVisibleRange, { passive: true });
+
+    // Initial call (unthrottled) for immediate feedback
     updateVisibleRange();
 
     return () => {
-      container.removeEventListener('scroll', updateVisibleRange);
-      window.removeEventListener('scroll', updateVisibleRange);
+      container.removeEventListener('scroll', throttledUpdateVisibleRange);
+      window.removeEventListener('scroll', throttledUpdateVisibleRange);
     };
-  }, [filteredFiles.length]);
+  }, [filteredFiles.length, throttledUpdateVisibleRange, updateVisibleRange]);
 
   // Scroll to index for navigation sidebar
   const scrollToIndex = useCallback((index: number) => {

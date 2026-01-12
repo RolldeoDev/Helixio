@@ -64,8 +64,8 @@ const LibraryScanContext = createContext<LibraryScanContextValue | null>(null);
 
 // Fallback polling intervals (used when SSE is disconnected)
 // These are intentionally longer since SSE is the primary update mechanism
-const POLL_INTERVAL_ACTIVE = 5000; // 5 seconds during active processing
-const POLL_INTERVAL_IDLE = 15000; // 15 seconds when idle/queued
+const POLL_INTERVAL_ACTIVE = 30000; // 30 seconds during active processing (was 5s)
+const POLL_INTERVAL_IDLE = 60000; // 60 seconds when idle/queued (was 15s)
 
 // SSE reconnection settings
 const SSE_RECONNECT_DELAY = 3000; // 3 seconds
@@ -170,14 +170,17 @@ export function LibraryScanProvider({ children }: { children: React.ReactNode })
           const isActive = ['discovering', 'cleaning', 'indexing', 'linking', 'covers'].includes(
             job.status
           );
-          // Use longer interval when SSE is connected (SSE provides faster updates)
+          // Disable polling when SSE is connected (SSE provides real-time updates)
+          // Only use polling as fallback when SSE is disconnected
           const interval = sseConnected
-            ? (isActive ? POLL_INTERVAL_ACTIVE * 2 : POLL_INTERVAL_IDLE)
+            ? 0  // Disable polling when SSE connected
             : (isActive ? POLL_INTERVAL_ACTIVE : POLL_INTERVAL_IDLE);
 
-          pollTimers.current[libraryId] = setTimeout(() => {
-            pollScanStatus(libraryId, jobId);
-          }, interval);
+          if (interval > 0) {
+            pollTimers.current[libraryId] = setTimeout(() => {
+              pollScanStatus(libraryId, jobId);
+            }, interval);
+          }
         } else {
           handleScanComplete(libraryId, job.status);
         }

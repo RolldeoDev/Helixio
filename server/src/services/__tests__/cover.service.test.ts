@@ -764,24 +764,27 @@ describe('Cover Service', () => {
     it('should recalculate affected series when file cover changes', async () => {
       const { onCoverSourceChanged } = await import('../cover.service.js');
 
-      // Mock finding affected series
+      // Mock finding affected series (with additional fields for cache invalidation)
       mockPrisma.series.findMany.mockResolvedValue([
-        { id: 'series-1' },
-        { id: 'series-2' },
+        { id: 'series-1', resolvedCoverSource: 'firstIssue', resolvedCoverHash: 'hash1', resolvedCoverFileId: 'file-1' },
+        { id: 'series-2', resolvedCoverSource: 'firstIssue', resolvedCoverHash: 'hash2', resolvedCoverFileId: 'file-1' },
       ]);
 
-      // Mock series lookups for recalculation
+      // Mock series lookups for recalculation (returns cover info after recalculation)
       mockPrisma.series.findUnique.mockResolvedValue({
         id: 'series-1',
         coverSource: 'auto',
         coverHash: null,
         coverFileId: null,
+        resolvedCoverSource: 'none',
+        resolvedCoverHash: null,
+        resolvedCoverFileId: null,
       });
       mockPrisma.comicFile.findFirst.mockResolvedValue(null);
 
       await onCoverSourceChanged('file', 'file-1');
 
-      // Should find affected series
+      // Should find affected series with cache-related fields
       expect(mockPrisma.series.findMany).toHaveBeenCalledWith({
         where: {
           OR: [
@@ -789,7 +792,12 @@ describe('Cover Service', () => {
             { resolvedCoverFileId: 'file-1' },
           ],
         },
-        select: { id: true },
+        select: {
+          id: true,
+          resolvedCoverSource: true,
+          resolvedCoverHash: true,
+          resolvedCoverFileId: true,
+        },
       });
 
       // Should recalculate each affected series

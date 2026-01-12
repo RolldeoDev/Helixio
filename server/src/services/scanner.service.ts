@@ -20,6 +20,7 @@ import { generatePartialHash, getFileInfo } from './hash.service.js';
 import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
+import { invalidateFolderCache } from './cache/folder-cache.service.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 import { checkAndSoftDeleteEmptySeries, syncSeriesFromSeriesJson } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
@@ -947,10 +948,11 @@ export async function orchestrateScan(
       );
     }
 
-    // Mark stats as dirty
+    // Mark stats as dirty and invalidate folder cache
     if (progress.filesCreated > 0 || progress.filesOrphaned > 0) {
       await markDirtyForFileChange(libraryId, progress.filesCreated > 0 ? 'file_added' : 'file_removed')
         .catch(() => {});
+      await invalidateFolderCache(libraryId).catch(() => {});
     }
 
     // Phase 4: Wait for cover jobs (optional)
@@ -1267,12 +1269,15 @@ export async function applyScanResults(scanResult: ScanResult): Promise<{
     }
   }
 
-  // Mark stats as dirty
+  // Mark stats as dirty and invalidate folder cache
   if (added > 0) {
     await markDirtyForFileChange(scanResult.libraryId, 'file_added').catch(() => {});
   }
   if (orphaned > 0) {
     await markDirtyForFileChange(scanResult.libraryId, 'file_removed').catch(() => {});
+  }
+  if (added > 0 || orphaned > 0) {
+    await invalidateFolderCache(scanResult.libraryId).catch(() => {});
   }
 
   return { added, moved, orphaned };

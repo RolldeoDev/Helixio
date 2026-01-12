@@ -60,6 +60,12 @@ export {
   isCoverCacheAvailable,
 } from './cover-cache.service.js';
 
+export {
+  getLibraryFoldersWithCache,
+  getAllLibraryFoldersWithCache,
+  invalidateFolderCache,
+} from './folder-cache.service.js';
+
 // =============================================================================
 // Invalidation
 // =============================================================================

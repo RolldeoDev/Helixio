@@ -14,6 +14,9 @@ import {
   type IssueMetadata,
 } from '../services/issue-metadata-fetch.service.js';
 import { logError } from '../services/logger.service.js';
+import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
+import { markSmartCollectionsDirty } from '../services/smart-collection-dirty.service.js';
+import { getDatabase } from '../services/database.service.js';
 
 const router = Router();
 
@@ -135,7 +138,41 @@ router.post('/:fileId/issue-metadata/apply', async (req, res) => {
       return res.status(500).json({ error: result.error });
     }
 
-    return res.json(result);
+    // Invalidate caches and refresh file metadata
+    const prisma = getDatabase();
+    const file = await prisma.comicFile.findUnique({
+      where: { id: fileId },
+      select: { seriesId: true },
+    });
+
+    const invalidationResult = await invalidateFileMetadata(fileId, {
+      refreshFromArchive: true,
+      updateSeriesLinkage: true,
+    });
+
+    // Mark smart collections dirty for file metadata filters
+    if (file?.seriesId) {
+      markSmartCollectionsDirty({
+        seriesIds: [file.seriesId],
+        fileIds: [fileId],
+        reason: 'file_metadata',
+      }).catch(() => {
+        // Non-critical, errors logged inside
+      });
+    } else {
+      markSmartCollectionsDirty({
+        fileIds: [fileId],
+        reason: 'file_metadata',
+      }).catch(() => {
+        // Non-critical, errors logged inside
+      });
+    }
+
+    return res.json({
+      ...result,
+      cached: invalidationResult.fileMetadataRefreshed,
+      seriesUpdated: invalidationResult.seriesUpdated,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     logError('issue-metadata', err, { action: 'apply-issue-metadata' });

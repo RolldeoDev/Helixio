@@ -26,7 +26,8 @@ import {
 } from '../services/comicinfo.service.js';
 import { getDatabase } from '../services/database.service.js';
 import { cacheFileMetadata, refreshMetadataCache } from '../services/metadata-cache.service.js';
-import { invalidateFileMetadata } from '../services/metadata-invalidation.service.js';
+import { invalidateFileMetadata, invalidateSeriesData } from '../services/metadata-invalidation.service.js';
+import { sendSeriesRefresh } from '../services/sse.service.js';
 import {
   searchSeriesFullData,
   expandSeriesResult,
@@ -209,9 +210,25 @@ router.put('/series-json', async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    // Find and invalidate series with this folder as primaryFolder
+    const prisma = getDatabase();
+    const series = await prisma.series.findFirst({
+      where: { primaryFolder: path },
+      select: { id: true },
+    });
+
+    if (series) {
+      await invalidateSeriesData(series.id, {
+        syncToSeriesJson: false, // We just wrote it
+        syncToIssueFiles: true,
+        inheritableFields: ['publisher', 'genres', 'ageRating', 'languageISO'],
+      });
+    }
+
     res.json({
       success: true,
       message: 'series.json and ComicInfo.xml updated',
+      seriesInvalidated: !!series,
     });
   } catch (err) {
     logError('metadata', err, { action: 'write-series-json' });
@@ -257,9 +274,30 @@ router.patch('/series-json', async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Find and invalidate series with this folder as primaryFolder
+    const prisma = getDatabase();
+    const series = await prisma.series.findFirst({
+      where: { primaryFolder: path },
+      select: { id: true },
+    });
+
+    if (series) {
+      // Determine which inheritable fields were updated
+      const inheritableFields = ['publisher', 'genres', 'ageRating', 'languageISO'];
+      const changedFields = Object.keys(updates);
+      const changedInheritable = changedFields.filter((f) => inheritableFields.includes(f));
+
+      await invalidateSeriesData(series.id, {
+        syncToSeriesJson: false, // We just wrote it
+        syncToIssueFiles: changedInheritable.length > 0,
+        inheritableFields: changedInheritable,
+      });
+    }
+
     res.json({
       success: true,
       message: 'series.json and ComicInfo.xml updated',
+      seriesInvalidated: !!series,
     });
   } catch (err) {
     logError('metadata', err, { action: 'update-series-json' });

@@ -8,13 +8,14 @@
  * - Upload: Upload a custom image from local computer
  */
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   getCoverUrl,
   getApiCoverUrl,
   getFilePages,
-  getPageThumbnailUrl,
+  getOptimizedThumbnailUrl,
   uploadFileCover,
+  type PageInfo,
 } from '../../services/api.service';
 import { useVirtualGrid } from '../../hooks/useVirtualGrid';
 import './IssueCoverPicker.css';
@@ -36,12 +37,6 @@ interface IssueCoverPickerProps {
   disabled?: boolean;
 }
 
-// Page item for virtualization
-interface PageItem {
-  index: number;
-  filename: string;
-}
-
 export function IssueCoverPicker({
   fileId,
   currentCoverSource,
@@ -58,7 +53,7 @@ export function IssueCoverPicker({
   };
 
   const [mode, setMode] = useState<IssueCoverMode>(getInitialMode);
-  const [pages, setPages] = useState<string[]>([]);
+  const [pages, setPages] = useState<PageInfo[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
   const [pagesError, setPagesError] = useState<string | null>(null);
   const [selectedPageIndex, setSelectedPageIndex] = useState<number | null>(currentCoverPageIndex);
@@ -68,18 +63,13 @@ export function IssueCoverPicker({
   const [uploadedCoverHash, setUploadedCoverHash] = useState<string | null>(currentCoverHash);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Convert pages array to PageItem array for virtualization
-  const pageItems = useMemo<PageItem[]>(() => {
-    return pages.map((filename, index) => ({ index, filename }));
-  }, [pages]);
-
   // Virtualized grid configuration - fixed item sizes for page thumbnails
   const {
     virtualItems,
     totalHeight,
     containerRef,
     scrollTo,
-  } = useVirtualGrid<PageItem>(pageItems, {
+  } = useVirtualGrid<PageInfo>(pages, {
     itemWidth: 80,
     itemHeight: 130, // 80 * 1.5 aspect ratio + 10px for page number
     gap: 8,
@@ -123,7 +113,8 @@ export function IssueCoverPicker({
         return getCoverUrl(fileId);
       case 'page':
         if (selectedPageIndex !== null && pages[selectedPageIndex]) {
-          return getPageThumbnailUrl(fileId, pages[selectedPageIndex]);
+          // Use optimized thumbnail for preview (80px JPEG vs full-resolution page)
+          return getOptimizedThumbnailUrl(fileId, selectedPageIndex);
         }
         return null;
       case 'url':
@@ -203,7 +194,7 @@ export function IssueCoverPicker({
       onCoverChange({
         source: 'page',
         pageIndex: selectedPageIndex,
-        pagePath: pages[selectedPageIndex],  // Pass page path for preview
+        pagePath: pages[selectedPageIndex]?.filename,  // Pass page path for preview
       });
     } else if (mode === 'url' && customUrl.trim()) {
       onCoverChange({
@@ -338,7 +329,7 @@ export function IssueCoverPicker({
                           disabled={disabled}
                         >
                           <img
-                            src={getPageThumbnailUrl(fileId, item.filename)}
+                            src={getOptimizedThumbnailUrl(fileId, item.index)}
                             alt={`Page ${item.index + 1}`}
                             loading="lazy"
                           />

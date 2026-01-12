@@ -193,27 +193,27 @@ interface MetadataJobContextValue extends MetadataJobState {
 /**
  * Get the polling interval based on job status and SSE connection.
  * Uses faster polling during active operations and slower polling during idle states.
- * When SSE is connected, polling is slower as SSE provides real-time updates.
- * When SSE is disconnected, polling is faster to compensate.
- * Returns 0 for terminal states to stop polling entirely.
+ * When SSE is connected, polling is disabled entirely as SSE provides real-time updates.
+ * When SSE is disconnected, polling is used as fallback to compensate.
+ * Returns 0 for terminal states or when SSE is connected to stop polling entirely.
  */
 function getPollingInterval(status: JobStep, sseConnected: boolean): number {
+  // If SSE is connected, disable polling entirely (SSE provides real-time updates)
+  if (sseConnected) return 0;
+
+  // SSE disconnected - use polling as fallback
   switch (status) {
     // Active processing - poll more frequently
     case 'initializing':
     case 'applying':
     case 'fetching_issues':
-      // When SSE is connected, poll slower (10s) as fallback
-      // When SSE is disconnected, poll faster (1s) to compensate
-      return sseConnected ? 10000 : 1000;
+      return 2000;  // 2s for active states (was 1s)
 
     // Waiting for user input - poll less frequently
     case 'series_approval':
     case 'file_review':
     case 'options':
-      // When SSE is connected, poll slower (15s) as fallback
-      // When SSE is disconnected, poll at normal rate (5s)
-      return sseConnected ? 15000 : 5000;
+      return 10000;  // 10s for idle states (was 5s)
 
     // Terminal states - no polling needed
     case 'complete':
@@ -221,9 +221,7 @@ function getPollingInterval(status: JobStep, sseConnected: boolean): number {
       return 0;
 
     default:
-      // When SSE is connected, poll slower (10s) as fallback
-      // When SSE is disconnected, poll at normal rate (2s)
-      return sseConnected ? 10000 : 2000;
+      return 5000;  // 5s default (was 2s)
   }
 }
 
