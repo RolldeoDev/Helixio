@@ -14,6 +14,7 @@ import { markFileItemsUnavailable } from './collection/index.js';
 import { logError, logInfo } from './logger.service.js';
 import { isFileRenamingEnabled } from './config.service.js';
 import { invalidateFolderCache } from './cache/folder-cache.service.js';
+import { ensureFolderPath, incrementFolderFileCounts, getFolderByPath } from './folder/index.js';
 
 // =============================================================================
 // Types
@@ -183,14 +184,43 @@ export async function moveFile(
     const newRelativePath = relative(file.library.rootPath, destinationPath);
     const newFilename = basename(destinationPath);
 
+    // Track old folder for count update
+    const oldFolderId = (file as { folderId?: string }).folderId;
+    const oldFolderPath = dirname(file.relativePath);
+    const newFolderPath = dirname(newRelativePath);
+
+    // Ensure destination folder exists and get its ID
+    let newFolderId: string | null = null;
+    if (newFolderPath && newFolderPath !== '.' && newFolderPath !== '') {
+      try {
+        const newFolder = await ensureFolderPath(file.libraryId, newFolderPath, db);
+        newFolderId = newFolder.id;
+      } catch {
+        // Non-fatal - file move can proceed without folder linkage
+      }
+    }
+
     await db.comicFile.update({
       where: { id: fileId },
       data: {
         path: destinationPath,
         relativePath: newRelativePath,
         filename: newFilename,
+        folderId: newFolderId,
       },
     });
+
+    // Update folder counts if folder changed
+    if (oldFolderPath !== newFolderPath) {
+      // Decrement old folder count
+      if (oldFolderId) {
+        incrementFolderFileCounts(oldFolderId, -1, db).catch(() => {});
+      }
+      // Increment new folder count
+      if (newFolderId) {
+        incrementFolderFileCounts(newFolderId, 1, db).catch(() => {});
+      }
+    }
 
     // Log the operation
     const logId = await logOperation({
@@ -323,6 +353,7 @@ export async function deleteFile(
   const seriesId = file.seriesId; // Capture before deletion
   const fileHash = file.hash; // Capture for cache invalidation
   const libraryId = file.libraryId; // Capture for cache invalidation
+  const folderId = file.folderId; // Capture for folder count update
 
   try {
     // Check file exists
@@ -387,6 +418,13 @@ export async function deleteFile(
 
     // Invalidate folder cache since a file was deleted
     invalidateFolderCache(libraryId).catch(() => {});
+
+    // Decrement folder file count
+    if (folderId) {
+      incrementFolderFileCounts(folderId, -1).catch(() => {
+        // Non-fatal - counts can be repaired via recalculation
+      });
+    }
 
     // Log the operation (not reversible after deletion)
     const logId = await logOperation({
@@ -897,6 +935,18 @@ export async function renameFolder(
 
     // Invalidate folder cache since folder was renamed
     invalidateFolderCache(libraryId).catch(() => {});
+
+    // Update materialized folder hierarchy
+    // Lookup the folder by old path and update its name and path
+    try {
+      const { getFolderByPath, renameFolder: renameFolderRecord } = await import('./folder/index.js');
+      const folderRecord = await getFolderByPath(libraryId, folderPath);
+      if (folderRecord) {
+        await renameFolderRecord(folderRecord.id, newFolderName, db);
+      }
+    } catch {
+      // Non-fatal - folder hierarchy can be repaired by recalculation
+    }
 
     return {
       success: true,

@@ -644,6 +644,10 @@ export async function jobApproveSeries(
   if (updatedSession) {
     activeJobs.set(jobId, updatedSession);
     await syncSessionToDb(jobId, updatedSession);
+
+    // Broadcast status change to connected SSE clients
+    broadcastJobStatus(jobId, updatedSession.status);
+
     const logDetail = applyToRemaining
       ? 'Auto-approved remaining series'
       : `Moving to ${result.hasMore ? 'next series' : 'file review'}`;
@@ -686,6 +690,10 @@ export async function jobSkipSeries(
   if (updatedSession) {
     activeJobs.set(jobId, updatedSession);
     await syncSessionToDb(jobId, updatedSession);
+
+    // Broadcast status change to connected SSE clients
+    broadcastJobStatus(jobId, updatedSession.status);
+
     await addJobLog(jobId, 'series_approval', 'Series skipped', undefined, 'info');
   }
 

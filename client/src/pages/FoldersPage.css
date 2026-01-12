@@ -612,3 +612,97 @@
     background: var(--color-primary);
   }
 }
+
+/* =============================================================================
+   Folder Loading States
+   ============================================================================= */
+
+/* Prompt shown when "All Files" is selected */
+.select-folder-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.select-folder-prompt svg {
+  opacity: 0.4;
+  margin-bottom: var(--spacing-md);
+}
+
+.select-folder-prompt p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.select-folder-prompt .select-folder-hint {
+  font-size: 0.875rem;
+  margin-top: var(--spacing-sm);
+  opacity: 0.7;
+}
+
+/* Loading skeleton grid */
+.folder-loading-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+}
+
+.skeleton-card {
+  aspect-ratio: 2/3;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary) 25%,
+    var(--color-bg-tertiary, var(--color-bg-secondary)) 50%,
+    var(--color-bg-secondary) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Refresh indicator when switching folders */
+.folder-refresh-indicator {
+  position: absolute;
+  top: 60px;
+  right: var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  z-index: 10;
+}
+
+.folder-refresh-indicator .spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border-subtle);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

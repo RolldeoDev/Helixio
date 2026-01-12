@@ -83,6 +83,7 @@ export const queryKeys = {
   files: {
     all: ['files'] as const,
     list: (params: object) => [...queryKeys.files.all, 'list', params] as const,
+    folder: (params: object) => [...queryKeys.files.all, 'folder', params] as const,
     detail: (id: string) => [...queryKeys.files.all, 'detail', id] as const,
     pages: (id: string) => [...queryKeys.files.all, 'pages', id] as const,
     coverInfo: (id: string) => [...queryKeys.files.all, 'coverInfo', id] as const,

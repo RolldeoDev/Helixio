@@ -21,6 +21,7 @@ import { autoLinkFileToSeries } from './series-matcher.service.js';
 import { refreshMetadataCache } from './metadata-cache.service.js';
 import { markDirtyForFileChange } from './stats-dirty.service.js';
 import { invalidateFolderCache } from './cache/folder-cache.service.js';
+import { ensureFolderPath, incrementFolderFileCounts, getParentPath } from './folder/index.js';
 import { refreshTagsFromFile } from './tag-autocomplete.service.js';
 import { checkAndSoftDeleteEmptySeries, syncSeriesFromSeriesJson } from './series/index.js';
 import { markFileItemsUnavailable } from './collection/index.js';
@@ -412,6 +413,23 @@ export async function processFolderTransaction(
     if (newFilesToCreate.length > 0) {
       const dbStart = performance.now();
 
+      // Ensure folder record exists in materialized hierarchy
+      // All files in this folder share the same parent folder path
+      let folderId: string | null = null;
+      const folderRelativePath = folder.relativePath;
+      if (folderRelativePath && folderRelativePath !== '.' && folderRelativePath !== '') {
+        try {
+          const folderRecord = await ensureFolderPath(libraryId, folderRelativePath, db);
+          folderId = folderRecord.id;
+        } catch (err) {
+          // Non-fatal - file creation can proceed without folder linkage
+          scannerLogger.warn(
+            { libraryId, folderPath: folderRelativePath, error: err },
+            'Failed to create folder record'
+          );
+        }
+      }
+
       // Use createMany for bulk insertion
       await db.comicFile.createMany({
         data: newFilesToCreate.map((f) => ({
@@ -424,6 +442,7 @@ export async function processFolderTransaction(
           modifiedAt: f.modifiedAt,
           hash: f.hash,
           status: 'pending',
+          folderId, // Link to materialized folder
         })),
         skipDuplicates: true,
       });
@@ -501,6 +520,22 @@ export async function processFolderTransaction(
           where: { id: { in: successfullyLinkedIds } },
           data: { status: 'indexed' },
         });
+      }
+
+      // ==========================================================================
+      // Phase F: Update folder file counts
+      // ==========================================================================
+
+      if (folderId && createdFiles.length > 0) {
+        try {
+          await incrementFolderFileCounts(folderId, createdFiles.length, db);
+        } catch (err) {
+          // Non-fatal - counts can be repaired via recalculation
+          scannerLogger.warn(
+            { folderId, delta: createdFiles.length, error: err },
+            'Failed to update folder file counts'
+          );
+        }
       }
     }
 

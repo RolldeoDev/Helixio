@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../contexts/AppContext';
 import { useAdvancedFilter } from '../contexts/AdvancedFilterContext';
 import { useMetadataJob } from '../contexts/MetadataJobContext';
+import { useFolderFiles } from '../hooks/queries/useFolderFiles';
 import { GridView } from '../components/GridView';
 import { ListView } from '../components/ListView';
 import { FileList } from '../components/FileList';
@@ -49,7 +50,6 @@ export function FoldersPage() {
     allLibraryFolders,
     selectedFolder,
     loadingFolders,
-    files,
     selectedFiles,
     selectLibrary,
     selectAllLibraries,
@@ -60,6 +60,24 @@ export function FoldersPage() {
     sortField,
     sortOrder,
   } = useApp();
+
+  // Fetch files for the selected folder via API (not all files at once)
+  // When folder changes, previous request is automatically cancelled
+  const {
+    files: folderFiles,
+    pagination,
+    isLoading: loadingFolderFiles,
+    isFetching: isFetchingFolderFiles,
+  } = useFolderFiles({
+    libraryId: isAllLibraries ? null : selectedLibrary?.id,
+    folder: selectedFolder,
+    sort: sortField,
+    order: sortOrder,
+    enabled: (isAllLibraries || !!selectedLibrary) && selectedFolder !== null,
+  });
+
+  // Use folder files from API (already filtered server-side)
+  const files = folderFiles;
   const { applyFilterToFiles, isFilterPanelOpen, closeFilterPanel } = useAdvancedFilter();
   const { startJob } = useMetadataJob();
   const confirm = useConfirmModal();
@@ -190,21 +208,8 @@ export function FoldersPage() {
     setIsResizing(true);
   }, []);
 
-  // Filter files by selected folder (local to FoldersPage, doesn't affect other pages)
-  const folderFilteredFiles = useMemo(() => {
-    if (!selectedFolder) return files;
-    return files.filter((file) => {
-      // Extract folder path from relativePath (e.g., "Folder/Subfolder/file.cbz" -> "Folder/Subfolder")
-      const fileFolder = file.relativePath.includes('/')
-        ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/'))
-        : '';
-      // Match files in the selected folder or its subfolders
-      return fileFolder === selectedFolder || fileFolder.startsWith(selectedFolder + '/');
-    });
-  }, [files, selectedFolder]);
-
-  // Apply advanced filter to folder-filtered files
-  const filteredFiles = applyFilterToFiles(folderFilteredFiles);
+  // Apply advanced filter to files (folder filtering is now done server-side)
+  const filteredFiles = applyFilterToFiles(files);
 
   // Get files in display order (flattened from groups when grouping is active)
   // This ensures NavigationSidebar markers match the actual display order
@@ -834,7 +839,7 @@ export function FoldersPage() {
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           filteredCount={filteredFiles.length}
-          totalCount={files.length}
+          totalCount={pagination.total}
           onEditMetadata={selectedFiles.size > 0 ? handleToolbarEditMetadata : undefined}
           onEditPages={selectedFiles.size === 1 ? handleEditPages : undefined}
           groupField={groupField}
@@ -850,30 +855,56 @@ export function FoldersPage() {
           </div>
         )}
 
-        {/* Cover Gallery */}
-        {viewMode === 'list' ? (
-          <ListView
-            onFileDoubleClick={handleFileDoubleClick}
-            onFetchMetadata={handleFetchMetadata}
-            onEditMetadata={handleEditMetadata}
-            filteredFiles={filteredFiles}
-            groupField={groupField}
-          />
-        ) : viewMode === 'compact' ? (
-          <FileList
-            onFetchMetadata={handleFetchMetadata}
-            onEditMetadata={handleEditMetadata}
-            filteredFiles={filteredFiles}
-            compact
-          />
+        {/* Prompt to select folder when "All Files" is selected */}
+        {selectedFolder === null ? (
+          <div className="select-folder-prompt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="48" height="48">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            <p>Select a folder from the sidebar to view comics</p>
+            <p className="select-folder-hint">Click on a folder to load its contents</p>
+          </div>
+        ) : loadingFolderFiles ? (
+          /* Loading skeleton while fetching folder contents */
+          <div className="folder-loading-skeleton">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="skeleton-card" />
+            ))}
+          </div>
         ) : (
-          <GridView
-            onFileDoubleClick={handleFileDoubleClick}
-            onFetchMetadata={handleFetchMetadata}
-            onEditMetadata={handleEditMetadata}
-            filteredFiles={filteredFiles}
-            groupField={groupField}
-          />
+          /* Cover Gallery */
+          <>
+            {/* Refresh indicator when switching folders */}
+            {isFetchingFolderFiles && files.length > 0 && (
+              <div className="folder-refresh-indicator">
+                <span className="spinner" /> Loading...
+              </div>
+            )}
+            {viewMode === 'list' ? (
+              <ListView
+                onFileDoubleClick={handleFileDoubleClick}
+                onFetchMetadata={handleFetchMetadata}
+                onEditMetadata={handleEditMetadata}
+                filteredFiles={filteredFiles}
+                groupField={groupField}
+              />
+            ) : viewMode === 'compact' ? (
+              <FileList
+                onFetchMetadata={handleFetchMetadata}
+                onEditMetadata={handleEditMetadata}
+                filteredFiles={filteredFiles}
+                compact
+              />
+            ) : (
+              <GridView
+                onFileDoubleClick={handleFileDoubleClick}
+                onFetchMetadata={handleFetchMetadata}
+                onEditMetadata={handleEditMetadata}
+                filteredFiles={filteredFiles}
+                groupField={groupField}
+              />
+            )}
+          </>
         )}
 
         {/* Navigation Sidebar */}

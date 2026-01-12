@@ -87,6 +87,7 @@ import externalReviewsRoutes from './routes/external-reviews.routes.js';
 import filterPresetsRoutes from './routes/filter-presets.routes.js';
 import apiKeysRoutes from './routes/api-keys.routes.js';
 import jobsRoutes from './routes/jobs.routes.js';
+import folderRoutes from './routes/folder.routes.js';
 
 // Services for startup tasks
 import { markInterruptedBatches } from './services/batch.service.js';
@@ -107,6 +108,7 @@ import { runDownloadCleanup } from './services/download.service.js';
 import { startCoverWorker, stopCoverWorker, closeCoverQueue } from './services/queue/cover-worker.js';
 import { initializeBullBoard, getBullBoardRouter } from './routes/bullboard.routes.js';
 import { logger, logError } from './services/logger.service.js';
+import { ensureFoldersBackfilled } from './services/folder/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -642,6 +644,7 @@ app.use('/api/external-reviews', externalReviewsRoutes);
 app.use('/api/filter-presets', filterPresetsRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
 app.use('/api/jobs', jobsRoutes);
+app.use('/api', folderRoutes);  // Folder routes (/api/libraries/:id/folders, /api/folders/:id/children, etc.)
 
 // BullBoard dashboard (admin only)
 // Note: Initialized after queue workers start
@@ -690,6 +693,11 @@ async function startServer(): Promise<void> {
     // Ensure bundled reader presets exist (Western, Manga, Webtoon)
     logger.info('Initializing reader presets...');
     await ensureBundledPresets();
+
+    // Backfill materialized folder hierarchy for existing libraries
+    // This is a one-time startup migration (blocking)
+    logger.info('Checking folder hierarchy...');
+    await ensureFoldersBackfilled();
 
     // One-time migration: Apply Manga preset to existing manga libraries without reader settings
     try {

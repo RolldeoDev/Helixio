@@ -104,7 +104,6 @@ export function ListView({
     isAllLibraries,
     selectFile,
     selectRange,
-    selectAllFiles,
     selectFiles,
     clearSelection,
     refreshFiles,
@@ -423,7 +422,7 @@ export function ListView({
               checked={selectedFiles.size === files.length && files.length > 0}
               onChange={(e) => {
                 if (e.target.checked) {
-                  selectAllFiles();
+                  selectFiles(files.map((f) => f.id), true);
                 } else {
                   clearSelection();
                 }

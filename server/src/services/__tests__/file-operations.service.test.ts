@@ -234,6 +234,7 @@ describe('File Operations Service', () => {
           path: '/comics/subdir/new.cbz',
           relativePath: 'subdir/new.cbz',
           filename: 'new.cbz',
+          folderId: null, // No folder materialization in test mocks
         },
       });
     });

@@ -193,36 +193,40 @@ interface MetadataJobContextValue extends MetadataJobState {
 /**
  * Get the polling interval based on job status and SSE connection.
  * Uses faster polling during active operations and slower polling during idle states.
- * When SSE is connected, polling is disabled entirely as SSE provides real-time updates.
- * When SSE is disconnected, polling is used as fallback to compensate.
- * Returns 0 for terminal states or when SSE is connected to stop polling entirely.
+ * When SSE is connected, polling is kept as a slower fallback (safety net).
+ * When SSE is disconnected, polling is faster to compensate.
+ * Returns 0 for terminal states to stop polling entirely.
  */
 function getPollingInterval(status: JobStep, sseConnected: boolean): number {
-  // If SSE is connected, disable polling entirely (SSE provides real-time updates)
-  if (sseConnected) return 0;
+  // Terminal states - no polling needed
+  if (status === 'complete' || status === 'error') {
+    return 0;
+  }
 
-  // SSE disconnected - use polling as fallback
+  // Base intervals differ based on job state
+  let baseInterval: number;
   switch (status) {
     // Active processing - poll more frequently
     case 'initializing':
     case 'applying':
     case 'fetching_issues':
-      return 2000;  // 2s for active states (was 1s)
+      baseInterval = 2000;  // 2s for active states
+      break;
 
     // Waiting for user input - poll less frequently
     case 'series_approval':
     case 'file_review':
     case 'options':
-      return 10000;  // 10s for idle states (was 5s)
-
-    // Terminal states - no polling needed
-    case 'complete':
-    case 'error':
-      return 0;
+      baseInterval = 10000;  // 10s for idle states
+      break;
 
     default:
-      return 5000;  // 5s default (was 2s)
+      baseInterval = 5000;  // 5s default
   }
+
+  // When SSE is connected, use slower polling as safety net (3x slower)
+  // This ensures we eventually sync even if SSE events are missed
+  return sseConnected ? baseInterval * 3 : baseInterval;
 }
 
 // =============================================================================
@@ -273,10 +277,45 @@ export function MetadataJobProvider({ children }: MetadataJobProviderProps) {
   // Track when user is navigating back to series selection to prevent polling race conditions
   const navigatingToSeriesRef = useRef(false);
 
-  // Connect to SSE for real-time job updates
+  // SSE callback for status changes - updates step state when SSE events are received
+  const handleSSEStatusChange = useCallback((data: { status: string }) => {
+    const newStep = data.status as JobStep;
+
+    // Don't let SSE revert us back during initialization
+    if (initializingRef.current && newStep === 'options') {
+      return;
+    }
+
+    // Don't let SSE overwrite during series navigation
+    if (navigatingToSeriesRef.current) {
+      return;
+    }
+
+    setStep(newStep);
+    setCompletedSteps(getCompletedStepsFromStatus(newStep));
+  }, []);
+
+  // SSE callback for progress updates - updates current progress when SSE events are received
+  const handleSSEProgressChange = useCallback((data: { message?: string; detail?: string }) => {
+    setCurrentProgress({
+      message: data.message,
+      detail: data.detail,
+    });
+
+    // Parse apply progress if we're in applying phase
+    if (step === 'applying') {
+      setApplyProgress(parseApplyProgress(data.message, data.detail));
+    }
+  }, [step]);
+
+  // Connect to SSE for real-time job updates with callbacks
   const { connected: sseConnected } = useMetadataJobSSE(
     jobId ?? undefined,
-    isModalOpen // Only connect when modal is open
+    isModalOpen, // Only connect when modal is open
+    {
+      onStatusChange: handleSSEStatusChange,
+      onProgressChange: handleSSEProgressChange,
+    }
   );
 
   // Load active jobs on mount and auto-detect existing in-progress jobs
