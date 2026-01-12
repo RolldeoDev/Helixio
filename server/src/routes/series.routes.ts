@@ -118,6 +118,7 @@ import { markSmartCollectionsDirty } from '../services/smart-collection-dirty.se
 import {
   getCachedOrFetch,
   buildQueryCacheKey,
+  invalidateQueryCache,
 } from '../services/cache/query-result-cache.service.js';
 import {
   sendSuccess,
@@ -622,6 +623,9 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response) => {
       syncToIssueFiles: shouldSyncToFiles,
       inheritableFields: changedFields.filter((f) => inheritableFields.includes(f)),
     });
+
+    // Invalidate series list query cache so user sees updated data immediately
+    await invalidateQueryCache('series');
 
     if (invalidationResult.seriesJsonSynced) {
       logger.info({ seriesId: series.id }, 'Successfully synced series.json after edit');
@@ -1696,6 +1700,9 @@ router.post('/:id/apply-metadata', asyncHandler(async (req: Request, res: Respon
     syncToIssueFiles: changedInheritable.length > 0,
     inheritableFields: changedInheritable,
   });
+
+  // Invalidate series list query cache so user sees updated data immediately
+  await invalidateQueryCache('series');
 
   logger.info({ seriesId, fieldsUpdated: result.fieldsUpdated }, 'Applied external metadata');
   sendSuccess(res, {
